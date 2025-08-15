@@ -23,8 +23,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install only production dependencies
-RUN npm install --omit=dev
+# Install all dependencies (including vite for preview server)
+RUN npm install
 
 # Copy built assets from builder stage
 COPY --from=builder /app/dist ./dist
