@@ -47,19 +47,41 @@ A comprehensive voice AI agent platform with authentication, contact management,
 
 ### Running with Docker
 
+#### Production Mode
 1. Clone the repository:
 ```bash
 git clone <repository-url>
 cd agentvoice
 ```
 
-2. Start all services:
+2. Start production services:
 ```bash
+# Option 1: Using script
+chmod +x scripts/start-prod.sh
+./scripts/start-prod.sh
+
+# Option 2: Direct command
 docker-compose up -d
 ```
 
 3. Access the application:
-- Frontend: http://localhost:5173
+- Frontend: http://localhost:5173 (Production)
+- Backend API: http://localhost:8000
+- API Documentation: http://localhost:8000/docs
+
+#### Development Mode
+1. Start development services:
+```bash
+# Option 1: Using script
+chmod +x scripts/start-dev.sh
+./scripts/start-dev.sh
+
+# Option 2: Direct command
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+2. Access the application:
+- Frontend: http://localhost:5173 (Development with hot reload)
 - Backend API: http://localhost:8000
 - API Documentation: http://localhost:8000/docs
 
@@ -83,6 +105,34 @@ cd frontend
 npm install
 npm run dev
 ```
+
+### Production Build
+
+1. Build frontend for production:
+```bash
+cd frontend
+npm run build:prod
+```
+
+2. Or use the build script:
+```bash
+cd frontend
+chmod +x scripts/build-prod.sh
+./scripts/build-prod.sh
+```
+
+3. Start production services:
+```bash
+docker-compose up -d
+```
+
+The production build includes:
+- ✅ Code splitting and lazy loading
+- ✅ Tree shaking and dead code elimination
+- ✅ Vite preview server for production
+- ✅ Optimized static assets
+- ✅ Performance optimizations
+- ✅ Production-only dependencies
 
 ## API Endpoints
 

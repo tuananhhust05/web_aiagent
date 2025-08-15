@@ -11,7 +11,6 @@ import {
   Users,
   Building2,
   Mail,
-  Phone,
   ArrowRight,
   Sparkles
 } from 'lucide-react'
@@ -34,7 +33,7 @@ export default function ContactImport() {
 
   const importMutation = useMutation({
     mutationFn: (data: { file: File; preview: ImportPreview }) =>
-      contactsAPI.importContacts(data.file),
+      contactsAPI.importCSV(data.file),
     onSuccess: () => {
       toast.success('Contacts imported successfully!')
       setFile(null)
@@ -63,7 +62,7 @@ export default function ContactImport() {
     multiple: false,
   })
 
-  const handlePreview = async (file: File) => {
+  const handlePreview = async (_file: File) => {
     setIsPreviewing(true)
     try {
       // In a real implementation, this would call the backend to preview the file

@@ -1,11 +1,8 @@
-import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { 
-  Building2, 
   Link, 
   Unlink, 
   RefreshCw, 
-  Download, 
   Upload,
   CheckCircle,
   AlertCircle,
@@ -19,10 +16,9 @@ import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function CRM() {
-  const [selectedProvider, setSelectedProvider] = useState('')
   const queryClient = useQueryClient()
 
-  const { data: providers, isLoading: providersLoading } = useQuery({
+  const { data: _providers, isLoading: providersLoading } = useQuery({
     queryKey: ['crm-providers'],
     queryFn: () => crmAPI.getProviders(),
   })

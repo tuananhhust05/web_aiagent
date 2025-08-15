@@ -1,10 +1,6 @@
 import { Mic, ExternalLink } from 'lucide-react'
 
 export default function Agent() {
-  const handleOpenAgent = () => {
-    // Open the local file in a new tab
-    window.open('file:///C:/data/agentvoice/agentclient/transctiptionrealtime.html', '_blank')
-  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">

@@ -8,16 +8,14 @@ import {
   Settings, 
   Trash2, 
   Save, 
-  Camera, 
   Building2, 
   Phone,
   Mail,
   Globe,
-  Shield,
   AlertTriangle
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { userAPI } from '../lib/api'
+import { userAPI, authAPI } from '../lib/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
@@ -81,7 +79,8 @@ export default function Profile() {
   const onProfileSubmit = async (data: ProfileForm) => {
     setIsLoading(true)
     try {
-      await updateUser(data)
+      const response = await userAPI.updateProfile(data)
+      updateUser(response.data)
       toast.success('Profile updated successfully!')
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to update profile')
@@ -93,7 +92,7 @@ export default function Profile() {
   const onPasswordSubmit = async (data: PasswordForm) => {
     setIsPasswordLoading(true)
     try {
-      await userAPI.changePassword(data)
+      await authAPI.changePassword(data)
       toast.success('Password changed successfully!')
       resetPasswordForm()
     } catch (error: any) {
@@ -171,7 +170,7 @@ export default function Profile() {
                 </div>
               </div>
 
-              <form onSubmit={handleProfileSubmit} className="space-y-6">
+              <form onSubmit={handleProfileSubmit(onProfileSubmit)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -288,7 +287,7 @@ export default function Profile() {
                 </div>
               </div>
 
-              <form onSubmit={handlePasswordSubmit} className="space-y-6 max-w-md">
+                              <form onSubmit={handlePasswordSubmit(onPasswordSubmit)} className="space-y-6 max-w-md">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Current Password

@@ -4,7 +4,7 @@ services:
   # MongoDB Database
   mongodb:
     image: mongo:7.0
-    container_name: agentvoice_mongodb
+    container_name: agentvoice_mongodb_dev
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
@@ -23,7 +23,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: agentvoice_backend
+    container_name: agentvoice_backend_dev
     restart: unless-stopped
     environment:
       - MONGODB_URL=mongodb://admin:password123@mongodb:27017/agentvoice?authSource=admin
@@ -39,12 +39,12 @@ services:
     networks:
       - agentvoice_network
 
-  # Frontend React + Vite (Production)
+  # Frontend React + Vite (Development)
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
-    container_name: agentvoice_frontend
+      dockerfile: Dockerfile.dev
+    container_name: agentvoice_frontend_dev
     restart: unless-stopped
     ports:
       - "5173:5173"
@@ -52,6 +52,9 @@ services:
       - VITE_API_URL=http://localhost:8000
     depends_on:
       - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     networks:
       - agentvoice_network
 
@@ -60,4 +63,4 @@ volumes:
 
 networks:
   agentvoice_network:
-    driver: bridge 
+    driver: bridge

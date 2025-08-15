@@ -4,14 +4,12 @@ import {
   Building2, 
   TrendingUp, 
   Phone, 
-  Calendar, 
   BarChart3, 
   Activity,
   ArrowUpRight,
   Plus,
   Upload,
-  Target,
-  CheckCircle
+  Target
 } from 'lucide-react'
 
 export default function Dashboard() {

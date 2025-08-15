@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Building2, Globe, MessageSquare, Check } from 'lucide-react'
+import { Building2, MessageSquare, Check } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { userAPI, authAPI } from '../../lib/api'
 import { toast } from 'react-hot-toast'
@@ -58,7 +58,7 @@ export default function Onboarding() {
     register,
     handleSubmit,
     formState: { errors },
-    watch,
+
   } = useForm<OnboardingForm>({
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
@@ -117,7 +117,7 @@ export default function Onboarding() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl mx-auto">
         {/* Progress Steps */}
         <div className="mb-8">

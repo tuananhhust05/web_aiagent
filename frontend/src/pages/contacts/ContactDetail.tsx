@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { ArrowLeft, Edit, Trash2, Phone, Mail, Building2, User } from 'lucide-react'
 import { contactsAPI } from '../../lib/api'
 import { formatDate, generateInitials } from '../../lib/utils'
@@ -9,13 +9,14 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner'
 export default function ContactDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
 
-  const { data: contact, isLoading } = useQuery({
+  const { data: contactResponse, isLoading } = useQuery({
     queryKey: ['contact', id],
     queryFn: () => contactsAPI.getContact(id!),
     enabled: !!id,
   })
+
+  const contact = contactResponse?.data
 
   const deleteMutation = useMutation({
     mutationFn: () => contactsAPI.deleteContact(id!),
@@ -183,7 +184,7 @@ export default function ContactDetail() {
                       <label className="block text-sm font-medium text-gray-700 capitalize">
                         {key.replace('_', ' ')}
                       </label>
-                      <p className="mt-1 text-sm text-gray-900">{value || '-'}</p>
+                      <p className="mt-1 text-sm text-gray-900">{String(value) || '-'}</p>
                     </div>
                   ))}
                 </div>
@@ -227,7 +228,7 @@ export default function ContactDetail() {
               </div>
               <div className="card-content">
                 <div className="flex flex-wrap gap-2">
-                  {contact.tags.map((tag) => (
+                  {contact.tags.map((tag: string) => (
                     <span
                       key={tag}
                       className="inline-flex px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full"

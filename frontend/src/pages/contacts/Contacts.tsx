@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Search, Filter, Download, Upload, MoreHorizontal, Users, Building2, Calendar } from 'lucide-react'
+import { Plus, Search, Filter, Upload, MoreHorizontal, Users, Building2, Calendar } from 'lucide-react'
 import { contactsAPI } from '../../lib/api'
 import { formatDate, generateInitials } from '../../lib/utils'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
