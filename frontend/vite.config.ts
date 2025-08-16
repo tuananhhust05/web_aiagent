@@ -1,6 +1,3 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -9,10 +6,12 @@ export default defineConfig({
     watch: {
       usePolling: true
     },
-    allowedHosts: ['4skale.com'] 
+    allowedHosts: ['4skale.com']
   },
   preview: {
-    allowedHosts: ['4skale.com']  
+    host: '0.0.0.0',              // 👈 thêm
+    port: 5173,                   // 👈 thêm
+    allowedHosts: ['4skale.com']  // 👈 vẫn giữ
   },
   build: {
     outDir: 'dist',
