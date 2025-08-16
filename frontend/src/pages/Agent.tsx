@@ -35,7 +35,7 @@ export default function Agent() {
               className="btn btn-primary btn-lg group"
             >
               <ExternalLink className="mr-3 h-5 w-5 group-hover:scale-110 transition-transform" />
-              <a href="file:///C:/data/agentvoice/agentclient/transctiptionrealtime.html" target="_blank">
+              <a href="https://4skale.com/audio/index.html" target="_blank">
                  Open Voice Agent
               </a>
               
@@ -82,7 +82,7 @@ export default function Agent() {
           <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
             <h4 className="font-medium text-gray-900 mb-2">File Location</h4>
             <p className="text-sm text-gray-600 font-mono bg-white px-3 py-2 rounded-lg border">
-              C:\data\agentvoice\agentclient\transctiptionrealtime.html
+              https://4skale.com/audio/index.html
             </p>
           </div>
         </div>
