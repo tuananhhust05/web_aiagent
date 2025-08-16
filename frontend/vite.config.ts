@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -9,7 +8,11 @@ export default defineConfig({
     port: 5173,
     watch: {
       usePolling: true
-    }
+    },
+    allowedHosts: ['4skale.com'] 
+  },
+  preview: {
+    allowedHosts: ['4skale.com']  
   },
   build: {
     outDir: 'dist',
@@ -34,4 +37,4 @@ export default defineConfig({
   optimizeDeps: {
     include: ['react', 'react-dom', 'react-router-dom']
   }
-}) 
+})
