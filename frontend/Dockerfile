@@ -6,7 +6,7 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install all dependencies (including dev dependencies for build)
+# Install dependencies
 RUN npm install
 
 # Copy source code
@@ -16,21 +16,16 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:18-alpine
-
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install all dependencies (including vite for preview server)
-RUN npm install
+FROM nginx:alpine
 
 # Copy built assets from builder stage
-COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Expose port
-EXPOSE 5173
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Start Vite preview server
-CMD ["npm", "run", "start"] 
+# Copy custom nginx config (nếu cần SPA router support)
+# COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
