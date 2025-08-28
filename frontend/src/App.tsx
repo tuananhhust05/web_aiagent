@@ -10,6 +10,7 @@ import ContactDetail from './pages/contacts/ContactDetail'
 import ContactImport from './pages/contacts/ContactImport'
 import CRM from './pages/crm/CRM'
 import Agent from './pages/Agent'
+import RAG from './pages/RAG'
 import Profile from './pages/Profile'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 
@@ -42,9 +43,10 @@ function App() {
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/contacts/:id" element={<ContactDetail />} />
         <Route path="/contacts/import" element={<ContactImport />} />
-                            <Route path="/crm" element={<CRM />} />
-                    <Route path="/agent" element={<Agent />} />
-                    <Route path="/profile" element={<Profile />} />
+        <Route path="/crm" element={<CRM />} />
+        <Route path="/agent" element={<Agent />} />
+        <Route path="/rag" element={<RAG />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
