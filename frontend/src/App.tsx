@@ -45,7 +45,7 @@ function App() {
         <Route path="/contacts/import" element={<ContactImport />} />
         <Route path="/crm" element={<CRM />} />
         <Route path="/agent" element={<Agent />} />
-        <Route path="/rag" element={<RAG />} />
+        <Route path="/ragclient" element={<RAG />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

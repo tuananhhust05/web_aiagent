@@ -20,7 +20,7 @@ const navigation = [
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'CRM Integration', href: '/crm', icon: Building2 },
   { name: 'Agent', href: '/agent', icon: Mic },
-  { name: 'RAG', href: '/rag', icon: FileText },
+  { name: 'RAG', href: '/ragclient', icon: FileText },
   { name: 'Profile', href: '/profile', icon: Settings },
 ]
 
