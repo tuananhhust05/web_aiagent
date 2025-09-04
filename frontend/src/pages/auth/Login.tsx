@@ -18,7 +18,7 @@ type LoginForm = z.infer<typeof loginSchema>
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const { login } = useAuth()
+  const { signIn } = useAuth()
   const navigate = useNavigate()
 
   const {
@@ -32,11 +32,15 @@ export default function Login() {
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true)
     try {
-      await login(data.email, data.password)
-      toast.success('Welcome back!')
-      navigate('/dashboard')
+      const { error } = await signIn(data.email, data.password)
+      if (error) {
+        toast.error(error.message || 'Login failed')
+      } else {
+        toast.success('Welcome back!')
+        navigate('/')
+      }
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Login failed')
+      toast.error('An unexpected error occurred')
     } finally {
       setIsLoading(false)
     }

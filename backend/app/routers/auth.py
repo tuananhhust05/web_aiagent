@@ -3,8 +3,9 @@ from datetime import datetime, timedelta
 from bson import ObjectId
 from app.core.database import get_database
 from app.core.auth import verify_password, get_password_hash, create_access_token, get_current_active_user
-from app.models.user import UserCreate, UserLogin, UserResponse, Token, PasswordReset, PasswordChange
+from app.models.user import UserCreate, UserLogin, UserResponse, Token, PasswordReset, PasswordResetConfirm, PasswordChange
 from app.core.config import settings
+from app.services.email import send_password_reset_email, generate_reset_token
 
 router = APIRouter()
 
@@ -96,13 +97,66 @@ async def forgot_password(password_reset: PasswordReset):
         # Don't reveal if email exists or not for security
         return {"message": "If the email exists, a password reset link has been sent"}
     
-    # TODO: Implement email sending for password reset
-    # For now, just return success message
-    return {"message": "If the email exists, a password reset link has been sent"}
+    # Generate reset token
+    reset_token = generate_reset_token()
+    
+    # Store reset token in database with expiration (1 hour)
+    await db.users.update_one(
+        {"email": password_reset.email},
+        {
+            "$set": {
+                "reset_token": reset_token,
+                "reset_token_expires": datetime.utcnow() + timedelta(hours=1)
+            }
+        }
+    )
+    
+    # Send password reset email
+    email_sent = await send_password_reset_email(
+        email=password_reset.email,
+        reset_token=reset_token,
+        username=user.get("first_name")
+    )
+    
+    if email_sent:
+        return {"message": "Password reset email sent successfully"}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send password reset email"
+        )
 
 @router.post("/reset-password")
-async def reset_password(token: str, new_password: str):
-    # TODO: Implement password reset with token validation
+async def reset_password(password_reset: PasswordResetConfirm):
+    db = get_database()
+    
+    # Find user with valid reset token
+    user = await db.users.find_one({
+        "reset_token": password_reset.token,
+        "reset_token_expires": {"$gt": datetime.utcnow()}
+    })
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token"
+        )
+    
+    # Update password and clear reset token
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {
+                "hashed_password": get_password_hash(password_reset.new_password),
+                "updated_at": datetime.utcnow()
+            },
+            "$unset": {
+                "reset_token": "",
+                "reset_token_expires": ""
+            }
+        }
+    )
+    
     return {"message": "Password reset successfully"}
 
 @router.post("/change-password")

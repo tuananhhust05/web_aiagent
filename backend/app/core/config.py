@@ -22,6 +22,20 @@ class Settings(BaseSettings):
     PIPEDRIVE_CLIENT_ID: str = ""
     PIPEDRIVE_CLIENT_SECRET: str = ""
     
+    # Email settings
+    MAIL_USERNAME: str = "tuananhducly@gmail.com"
+    MAIL_PASSWORD: str = "rrgo dqab rwtl cpng"
+    MAIL_FROM: str = "tuananhducly@gmail.com"
+    MAIL_PORT: int = 587
+    MAIL_SERVER: str = "smtp.gmail.com"
+    MAIL_SSL_TLS: bool = False
+    MAIL_STARTTLS: bool = True
+    USE_CREDENTIALS: bool = True
+    VALIDATE_CERTS: bool = True
+    
+    # Frontend URL for password reset
+    FRONTEND_URL: str = "https://4skale.com"
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS_ORIGINS string to list"""

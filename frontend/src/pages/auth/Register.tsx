@@ -27,7 +27,7 @@ export default function Register() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const { register: registerUser } = useAuth()
+  const { signUp } = useAuth()
   const navigate = useNavigate()
 
   const {
@@ -41,7 +41,7 @@ export default function Register() {
   const onSubmit = async (data: RegisterForm) => {
     setIsLoading(true)
     try {
-      await registerUser({
+      await signUp({
         first_name: data.first_name,
         last_name: data.last_name,
         email: data.email,

@@ -27,7 +27,7 @@ const navigation = [
 export default function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const location = useLocation()
-  const { user, logout } = useAuth()
+  const { user, signOut } = useAuth()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -90,7 +90,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <button
-              onClick={logout}
+              onClick={signOut}
               className="mt-3 flex w-full items-center px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md"
             >
               <LogOut className="mr-3 h-5 w-5" />
@@ -146,7 +146,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <button
-              onClick={logout}
+              onClick={signOut}
               className="mt-3 flex w-full items-center px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 rounded-md"
             >
               <LogOut className="mr-3 h-5 w-5" />

@@ -1,6 +1,8 @@
 import axios from 'axios'
 
 const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
+//'http://localhost:8000'
+
 
 export const api = axios.create({
   baseURL: API_URL,
@@ -43,6 +45,8 @@ export const authAPI = {
   register: (userData: any) => api.post('/api/auth/register', userData),
   forgotPassword: (email: string) =>
     api.post('/api/auth/forgot-password', { email }),
+  resetPassword: (token: string, newPassword: string) =>
+    api.post('/api/auth/reset-password', { token, new_password: newPassword }),
   changePassword: (data: { current_password: string; new_password: string }) =>
     api.post('/api/auth/change-password', data),
   acceptTerms: () => api.post('/api/auth/accept-terms'),

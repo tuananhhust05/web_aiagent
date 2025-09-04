@@ -12,21 +12,22 @@
     "start": "vite preview --host 0.0.0.0 --port 5173 --strictPort"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.3.2",
+    "@supabase/supabase-js": "^2.57.0",
+    "@tanstack/react-query": "^5.8.4",
+    "axios": "^1.6.2",
+    "clsx": "^2.0.0",
+    "date-fns": "^2.30.0",
+    "lucide-react": "^0.294.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.1",
-    "axios": "^1.6.2",
-    "@tanstack/react-query": "^5.8.4",
-    "react-hook-form": "^7.48.2",
-    "@hookform/resolvers": "^3.3.2",
-    "zod": "^3.22.4",
-    "lucide-react": "^0.294.0",
-    "clsx": "^2.0.0",
-    "tailwind-merge": "^2.0.0",
-    "react-hot-toast": "^2.4.1",
     "react-dropzone": "^14.2.3",
-    "date-fns": "^2.30.0",
-    "recharts": "^2.8.0"
+    "react-hook-form": "^7.48.2",
+    "react-hot-toast": "^2.4.1",
+    "react-router-dom": "^6.20.1",
+    "recharts": "^2.8.0",
+    "tailwind-merge": "^2.0.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/react": "^18.2.37",
@@ -44,4 +45,4 @@
     "typescript": "^5.2.2",
     "vite": "^5.0.0"
   }
-} 
+}
