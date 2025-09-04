@@ -13,6 +13,7 @@ import {
   ChevronDown
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import Header from '../components/Header'
 
 export default function Home() {
   const [isVisible, setIsVisible] = useState(false)
@@ -81,8 +82,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
+      <Header />
+      
       {/* Hero Section */}
-      <section className="relative h-screen flex items-center justify-center">
+      <section className="relative h-screen flex items-center justify-center pt-16">
         {/* Background Gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-blue-900 via-purple-900 to-black" />
         
@@ -100,7 +103,7 @@ export default function Home() {
               <span className="text-sm font-medium">AI-Powered Voice Technology</span>
             </div>
             
-            <h1 className="text-6xl md:text-8xl font-bold mb-6 bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent">
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-blue-100 to-purple-100 bg-clip-text text-transparent">
               AgentVoice
             </h1>
             

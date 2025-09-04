@@ -12,6 +12,7 @@ import {
   User,
   Mic,
   FileText,
+  Headphones,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -21,6 +22,7 @@ const navigation = [
   { name: 'CRM Integration', href: '/crm', icon: Building2 },
   { name: 'Agent', href: '/agent', icon: Mic },
   { name: 'RAG', href: '/ragclient', icon: FileText },
+  { name: 'Voice Training', href: '/voice-training', icon: Headphones },
   { name: 'Profile', href: '/profile', icon: Settings },
 ]
 

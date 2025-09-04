@@ -109,7 +109,6 @@ export default function Register() {
                       type="text"
                       {...register('first_name')}
                       className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                      placeholder="Enter your first name"
                     />
                   </div>
                   {errors.first_name && (
@@ -127,7 +126,6 @@ export default function Register() {
                       type="text"
                       {...register('last_name')}
                       className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                      placeholder="Enter your last name"
                     />
                   </div>
                   {errors.last_name && (
@@ -147,7 +145,6 @@ export default function Register() {
                     type="email"
                     {...register('email')}
                     className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                    placeholder="Enter your email"
                   />
                 </div>
                 {errors.email && (
@@ -166,7 +163,6 @@ export default function Register() {
                     type="text"
                     {...register('username')}
                     className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                    placeholder="Choose a username"
                   />
                 </div>
                 {errors.username && (
@@ -185,7 +181,6 @@ export default function Register() {
                     type="text"
                     {...register('company_name')}
                     className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                    placeholder="Enter your company name"
                   />
                 </div>
               </div>
@@ -202,7 +197,6 @@ export default function Register() {
                       type={showPassword ? 'text' : 'password'}
                       {...register('password')}
                       className="w-full pl-12 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                      placeholder="Create a password"
                     />
                     <button
                       type="button"
@@ -227,7 +221,6 @@ export default function Register() {
                       type={showConfirmPassword ? 'text' : 'password'}
                       {...register('confirm_password')}
                       className="w-full pl-12 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                      placeholder="Confirm your password"
                     />
                     <button
                       type="button"

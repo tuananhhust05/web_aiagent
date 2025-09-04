@@ -14,7 +14,12 @@ import ContactImport from './pages/contacts/ContactImport'
 import CRM from './pages/crm/CRM'
 import Agent from './pages/Agent'
 import RAG from './pages/RAG'
+import VoiceTraining from './pages/VoiceTraining'
 import Profile from './pages/Profile'
+import About from './pages/About'
+import Privacy from './pages/Privacy'
+import Pricing from './pages/Pricing'
+import Help from './pages/Help'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 
 function App() {
@@ -38,6 +43,10 @@ function App() {
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/help" element={<Help />} />
         <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     )
@@ -50,10 +59,11 @@ function App() {
         <Route path="/contacts" element={<Contacts />} />
         <Route path="/contacts/:id" element={<ContactDetail />} />
         <Route path="/contacts/import" element={<ContactImport />} />
-        <Route path="/crm" element={<CRM />} />
-        <Route path="/agent" element={<Agent />} />
-        <Route path="/ragclient" element={<RAG />} />
-        <Route path="/profile" element={<Profile />} />
+                 <Route path="/crm" element={<CRM />} />
+         <Route path="/agent" element={<Agent />} />
+         <Route path="/ragclient" element={<RAG />} />
+         <Route path="/voice-training" element={<VoiceTraining />} />
+         <Route path="/profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
