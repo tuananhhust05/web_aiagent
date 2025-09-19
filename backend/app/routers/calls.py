@@ -339,7 +339,7 @@ async def auto_update_call_by_phone(
         "updated_fields": list(update_fields.keys())
     }
 
-@router.put("/auto-update-latest")
+@router.put("/auto-update-latest", dependencies=[])
 async def auto_update_latest_call(
     update_data: CallUpdateByPhone
 ):

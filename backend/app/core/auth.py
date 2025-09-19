@@ -10,6 +10,7 @@ from app.core.database import get_database
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
+security_optional = HTTPBearer(auto_error=False)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -51,4 +52,24 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 async def get_current_active_user(current_user: UserResponse = Depends(get_current_user)) -> UserResponse:
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
-    return current_user 
+    return current_user
+
+async def get_current_user_optional(credentials: HTTPAuthorizationCredentials = Depends(security_optional)) -> Optional[UserResponse]:
+    """Get current user if token is provided, otherwise return None"""
+    if not credentials:
+        return None
+    
+    try:
+        payload = jwt.decode(credentials.credentials, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            return None
+    except JWTError:
+        return None
+    
+    db = get_database()
+    user = await db.users.find_one({"_id": user_id})
+    if user is None:
+        return None
+    
+    return UserResponse(**user) 
