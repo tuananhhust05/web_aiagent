@@ -3,7 +3,7 @@ from typing import List
 
 router = APIRouter()
 
-@router.get("/", response_model=List[dict])
+@router.get("", response_model=List[dict])
 async def get_offers():
     """
     Get all offers with hardcoded data

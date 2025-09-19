@@ -13,7 +13,7 @@ from app.models.contact import (
 
 router = APIRouter()
 
-@router.post("/", response_model=ContactResponse)
+@router.post("", response_model=ContactResponse)
 async def create_contact(
     contact_data: ContactCreate,
     current_user: UserResponse = Depends(get_current_active_user)
@@ -51,7 +51,7 @@ async def create_contact(
     
     return ContactResponse(**contact_doc)
 
-@router.get("/", response_model=List[ContactResponse])
+@router.get("", response_model=List[ContactResponse])
 async def get_contacts(
     search: str = None,
     status: str = None,

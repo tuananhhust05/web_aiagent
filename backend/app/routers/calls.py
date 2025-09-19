@@ -26,7 +26,7 @@ class CallUpdateByPhone(BaseModel):
     duration: Optional[int] = None
     status: Optional[CallStatus] = None
 
-@router.get("/", response_model=List[CallResponse])
+@router.get("", response_model=List[CallResponse])
 async def get_calls(
     start_date: Optional[str] = Query(None),
     end_date: Optional[str] = Query(None),
@@ -112,7 +112,7 @@ async def get_call(
     
     return CallResponse(**call)
 
-@router.post("/", response_model=CallResponse)
+@router.post("", response_model=CallResponse)
 async def create_call(
     call_data: CallCreate,
     current_user: UserResponse = Depends(get_current_active_user)

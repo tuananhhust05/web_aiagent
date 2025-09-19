@@ -20,7 +20,8 @@ app = FastAPI(
     title="AgentVoice API",
     description="Voice AI Agent Platform API",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    redirect_slashes=False  # Disable automatic redirect from /path to /path/
 )
 
 # CORS middleware
