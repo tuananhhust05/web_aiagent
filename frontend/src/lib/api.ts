@@ -1,12 +1,30 @@
 import axios from 'axios'
 
-const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
+// const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
 // const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000'
 // const API_URL = 'http://localhost:8000'
 
+// Ensure API URL uses HTTPS when in production
+const getApiUrl = () => {
+  const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
+  // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
+  if (window.location.protocol === 'https:' && url.startsWith('http://')) {
+    return url.replace('http://', 'https://')
+  }
+  return url
+}
+
+const FINAL_API_URL = getApiUrl()
+
+// Debug log
+console.log('🔧 API Configuration:', {
+  originalUrl: (import.meta as any).env?.VITE_API_URL || 'https://4skale.com',
+  finalUrl: FINAL_API_URL,
+  protocol: window.location.protocol
+})
 
 export const api = axios.create({
-  baseURL: API_URL,
+  baseURL: FINAL_API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
