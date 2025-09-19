@@ -23,13 +23,18 @@ export default function Contacts() {
 
   const callMutation = useMutation({
     mutationFn: (callData: any) => callsAPI.createCall(callData),
-    onSuccess: () => {
-      toast.success('Call recorded successfully')
+    onSuccess: (response) => {
+      if (response.data.twilio_call_sid) {
+        toast.success('Call initiated via Twilio successfully!')
+      } else {
+        toast.success('Call recorded successfully')
+      }
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || 'Failed to record call')
     },
   })
+
 
   const handleCall = (contact: any) => {
     const callData = {
@@ -44,6 +49,7 @@ export default function Contacts() {
     
     callMutation.mutate(callData)
   }
+
 
   const contacts = contactsResponse?.data || []
 
@@ -306,20 +312,36 @@ export default function Contacts() {
                   </div>
                   <div className="flex items-center space-x-3">
                     {contact.phone && (
-                      <button
-                        onClick={() => handleCall(contact)}
-                        disabled={callMutation.isPending}
-                        className="text-green-600 hover:text-green-700 font-medium transition-colors flex items-center disabled:opacity-50"
-                      >
-                        {callMutation.isPending ? (
-                          <LoadingSpinner size="sm" />
-                        ) : (
-                          <>
-                            <Phone className="h-4 w-4 mr-1" />
-                            Call
-                          </>
-                        )}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => handleCall(contact)}
+                          disabled={callMutation.isPending}
+                          className="text-green-600 hover:text-green-700 font-medium transition-colors flex items-center disabled:opacity-50"
+                        >
+                          {callMutation.isPending ? (
+                            <LoadingSpinner size="sm" />
+                          ) : (
+                            <>
+                              <Phone className="h-4 w-4 mr-1" />
+                              Record
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleTwilioCall(contact)}
+                          disabled={twilioCallMutation.isPending}
+                          className="text-blue-600 hover:text-blue-700 font-medium transition-colors flex items-center disabled:opacity-50"
+                        >
+                          {twilioCallMutation.isPending ? (
+                            <LoadingSpinner size="sm" />
+                          ) : (
+                            <>
+                              <Phone className="h-4 w-4 mr-1" />
+                              Call
+                            </>
+                          )}
+                        </button>
+                      </>
                     )}
                     <Link
                       to={`/contacts/${contact.id}`}

@@ -8,6 +8,8 @@ class CallType(str, Enum):
     OUTBOUND = "outbound"
 
 class CallStatus(str, Enum):
+    INITIATED = "initiated"
+    CONNECTING = "connecting"
     COMPLETED = "completed"
     FAILED = "failed"
     BUSY = "busy"
@@ -67,6 +69,7 @@ class CallResponse(BaseModel):
     meeting_booked: bool = False
     meeting_date: Optional[datetime] = None
     notes: Optional[str] = None
+    twilio_call_sid: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     user_id: str

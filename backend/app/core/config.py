@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # Frontend URL for password reset
     FRONTEND_URL: str = "https://4skale.com"
     
+    # Twilio Configuration
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_PHONE_NUMBER: str = "+16075249116"
+    TWILIO_WEBHOOK_URL: str = "https://4skale.com/outbound-twiml"
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS_ORIGINS string to list"""

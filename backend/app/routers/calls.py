@@ -3,8 +3,10 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from bson import ObjectId
 from pydantic import BaseModel
+from twilio.rest import Client
 from app.core.database import get_database
 from app.core.auth import get_current_active_user
+from app.core.config import settings
 from app.models.user import UserResponse
 from app.models.call import (
     CallCreate, CallUpdate, CallResponse, KPISummary, CallFilters,
@@ -25,6 +27,7 @@ class CallUpdateByPhone(BaseModel):
     notes: Optional[str] = None
     duration: Optional[int] = None
     status: Optional[CallStatus] = None
+
 
 @router.get("", response_model=List[CallResponse])
 async def get_calls(
@@ -116,7 +119,7 @@ async def create_call(
     call_data: CallCreate,
     current_user: UserResponse = Depends(get_current_active_user)
 ):
-    """Create a new call record"""
+    """Create a new call record and optionally initiate Twilio call"""
     db = get_database()
     
     call_doc = {
@@ -127,7 +130,57 @@ async def create_call(
         **call_data.dict()
     }
     
+    # Insert call record first
     await db.calls.insert_one(call_doc)
+    
+    # If this is an outbound call, try to initiate Twilio call
+    if call_data.call_type == CallType.OUTBOUND and call_data.phone_number:
+        try:
+            # Check if Twilio credentials are configured
+            if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
+                raise Exception("Twilio credentials not configured")
+            
+            # Twilio configuration
+            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+            
+            # Make Twilio call
+            twilio_call = client.calls.create(
+                to=call_data.phone_number,
+                from_=settings.TWILIO_PHONE_NUMBER,
+                url=settings.TWILIO_WEBHOOK_URL
+            )
+            
+            # Update call record with Twilio call SID
+            await db.calls.update_one(
+                {"_id": call_doc["_id"]},
+                {"$set": {
+                    "twilio_call_sid": twilio_call.sid,
+                    "status": CallStatus.CONNECTING,
+                    "updated_at": datetime.utcnow()
+                }}
+            )
+            
+            # Update the call_doc for response
+            call_doc["twilio_call_sid"] = twilio_call.sid
+            call_doc["status"] = CallStatus.CONNECTING
+            call_doc["updated_at"] = datetime.utcnow()
+            
+        except Exception as e:
+            # If Twilio call fails, update call status but don't fail the API
+            await db.calls.update_one(
+                {"_id": call_doc["_id"]},
+                {"$set": {
+                    "status": CallStatus.FAILED,
+                    "notes": f"Twilio call failed: {str(e)}",
+                    "updated_at": datetime.utcnow()
+                }}
+            )
+            
+            # Update the call_doc for response
+            call_doc["status"] = CallStatus.FAILED
+            call_doc["notes"] = f"Twilio call failed: {str(e)}"
+            call_doc["updated_at"] = datetime.utcnow()
+    
     return CallResponse(**call_doc)
 
 @router.put("/{call_id}", response_model=CallResponse)
@@ -285,6 +338,7 @@ async def auto_update_call_by_phone(
         "phone_number": phone_number,
         "updated_fields": list(update_fields.keys())
     }
+
 
 @router.get("/kpis/summary", response_model=KPISummary)
 async def get_kpi_summary(
