@@ -117,6 +117,7 @@ export const callsAPI = {
   updateCall: (id: string, data: any) => api.put(`/api/calls/${id}`, data),
   updateCallByPhone: (phoneNumber: string, data: any) => api.put(`/api/calls/update-by-phone/${phoneNumber}`, data),
   autoUpdateCallByPhone: (phoneNumber: string, data: any) => api.put(`/api/calls/auto-update/${phoneNumber}`, data),
+  autoUpdateLatestCall: (data: any) => api.put('/api/calls/auto-update-latest', data),
   deleteCall: (id: string) => api.delete(`/api/calls/${id}`),
   getKPISummary: (params?: any) => api.get('/api/calls/kpis/summary', { params }),
   getSentimentStats: (params?: any) => api.get('/api/calls/stats/sentiment', { params }),
