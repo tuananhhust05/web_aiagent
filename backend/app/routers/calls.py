@@ -35,7 +35,6 @@ async def get_calls(
     call_type: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     sentiment: Optional[str] = Query(None),
-    unique_calls_only: bool = Query(False),
     limit: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     current_user: UserResponse = Depends(get_current_active_user)
