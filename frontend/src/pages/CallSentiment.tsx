@@ -24,7 +24,7 @@ interface CallDetail {
 export default function CallSentiment() {
   const { callId } = useParams<{ callId: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { } = useAuth()
   const [call, setCall] = useState<CallDetail | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -46,11 +46,11 @@ export default function CallSentiment() {
     }
   }
 
-  const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60)
-    const remainingSeconds = seconds % 60
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
-  }
+  // const formatDuration = (seconds: number) => {
+  //   const minutes = Math.floor(seconds / 60)
+  //   const remainingSeconds = seconds % 60
+  //   return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+  // }
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)

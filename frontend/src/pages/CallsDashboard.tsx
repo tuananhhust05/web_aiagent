@@ -16,7 +16,7 @@ interface KPIData {
 }
 
 export default function CallsDashboard() {
-  const { user } = useAuth()
+  const { } = useAuth()
   const [kpiData, setKpiData] = useState<KPIData | null>(null)
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({

@@ -10,7 +10,6 @@ import {
   Clock, 
   Phone, 
   User, 
-  Calendar,
   MessageSquare,
   TrendingUp,
   CheckCircle,
@@ -46,8 +45,8 @@ export default function CallDetail() {
   const [call, setCall] = useState<CallDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [audioPlaying, setAudioPlaying] = useState(false)
-  const [audioProgress, setAudioProgress] = useState(0)
-  const [audioDuration, setAudioDuration] = useState(0)
+  const [audioProgress] = useState(0)
+  const [audioDuration] = useState(0)
 
   useEffect(() => {
     if (callId) {
@@ -147,7 +146,7 @@ export default function CallDetail() {
     if (call?.recording_url) {
       setAudioPlaying(!audioPlaying)
       // Audio playback logic would go here
-      toast.info('Audio playback functionality coming soon')
+      toast('Audio playback functionality coming soon')
     } else {
       toast.error('No audio recording available')
     }

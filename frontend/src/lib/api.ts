@@ -89,4 +89,17 @@ export const crmAPI = {
   sync: (provider: string) => api.post(`/api/crm/sync/${provider}`),
   export: (provider: string, contactIds: string[]) =>
     api.post(`/api/crm/export/${provider}`, { contact_ids: contactIds }),
+}
+
+// Calls API
+export const callsAPI = {
+  getCalls: (params?: any) => api.get('/api/calls', { params }),
+  getCall: (id: string) => api.get(`/api/calls/${id}`),
+  createCall: (data: any) => api.post('/api/calls', data),
+  updateCall: (id: string, data: any) => api.put(`/api/calls/${id}`, data),
+  updateCallByPhone: (phoneNumber: string, data: any) => api.put(`/api/calls/update-by-phone/${phoneNumber}`, data),
+  autoUpdateCallByPhone: (phoneNumber: string, data: any) => api.put(`/api/calls/auto-update/${phoneNumber}`, data),
+  deleteCall: (id: string) => api.delete(`/api/calls/${id}`),
+  getKPISummary: (params?: any) => api.get('/api/calls/kpis/summary', { params }),
+  getSentimentStats: (params?: any) => api.get('/api/calls/stats/sentiment', { params }),
 } 

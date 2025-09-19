@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { callsAPI } from '../lib/api'
-import { Phone, Search, Filter, Download, Eye, Calendar, Clock, User, TrendingUp, MoreHorizontal } from 'lucide-react'
+import { Phone, Search, Filter, Download, Eye, TrendingUp } from 'lucide-react'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { toast } from 'react-hot-toast'
 
@@ -21,7 +21,7 @@ interface Call {
 }
 
 export default function CallsLog() {
-  const { user } = useAuth()
+  const { } = useAuth()
   const [calls, setCalls] = useState<Call[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState({
@@ -78,7 +78,7 @@ export default function CallsLog() {
        console.log('Calls API Response:', response.data) // Debug log
        
        // Ensure each call has an id field
-       const callsWithId = (response.data || []).map(call => ({
+        const callsWithId = (response.data || []).map((call: any) => ({
          ...call,
          id: call.id || call._id || `call_${Date.now()}_${Math.random()}`
        }))
@@ -111,20 +111,20 @@ export default function CallsLog() {
     })
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800'
-      case 'failed':
-        return 'bg-red-100 text-red-800'
-      case 'busy':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'no_answer':
-        return 'bg-gray-100 text-gray-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
-  }
+  // const getStatusColor = (status: string) => {
+  //   switch (status) {
+  //     case 'completed':
+  //       return 'bg-green-100 text-green-800'
+  //     case 'failed':
+  //       return 'bg-red-100 text-red-800'
+  //     case 'busy':
+  //       return 'bg-yellow-100 text-yellow-800'
+  //     case 'no_answer':
+  //       return 'bg-gray-100 text-gray-800'
+  //     default:
+  //       return 'bg-gray-100 text-gray-800'
+  //   }
+  // }
 
   const getSentimentIcon = (sentiment?: string) => {
     switch (sentiment) {
