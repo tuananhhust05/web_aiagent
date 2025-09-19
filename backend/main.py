@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import os
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.routers import auth, contacts, users, crm, offers, calls
+from app.routers import auth, contacts, users, crm, offers, calls, webhook
 from app.core.config import settings
 from app.core.database import init_db, close_db
 
@@ -40,6 +40,7 @@ app.include_router(contacts.router, prefix="/api/contacts", tags=["Contacts"])
 app.include_router(crm.router, prefix="/api/crm", tags=["CRM Integration"])
 app.include_router(offers.router, prefix="/api/offers", tags=["Offers"])
 app.include_router(calls.router, prefix="/api/calls", tags=["Calls & Analytics"])
+app.include_router(webhook.router, prefix="/api/webhook", tags=["Webhooks"])
 
 @app.get("/")
 async def root():
