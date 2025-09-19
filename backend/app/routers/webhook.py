@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Request, Form
 from datetime import datetime
 from typing import Optional
 from pydantic import BaseModel
@@ -69,4 +69,74 @@ async def auto_update_latest_call(
         "call_id": updated_call["_id"],
         "phone_number": updated_call.get("phone_number", "N/A"),
         "updated_fields": list(update_fields.keys())
+    }
+
+@router.post("/twilio/status-callback")
+async def twilio_status_callback(
+    request: Request,
+    CallSid: str = Form(...),
+    CallStatus: str = Form(...),
+    CallDuration: Optional[str] = Form(None),
+    RecordingUrl: Optional[str] = Form(None)
+):
+    """
+    Handle Twilio status callback for call completion.
+    This endpoint receives call status updates from Twilio.
+    """
+    db = get_database()
+    
+    # Find the call by Twilio Call SID
+    call = await db.calls.find_one({"twilio_call_sid": CallSid})
+    
+    if not call:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Call not found"
+        )
+    
+    # Map Twilio status to our status
+    status_mapping = {
+        "completed": "completed",
+        "busy": "failed",
+        "no-answer": "failed",
+        "failed": "failed",
+        "canceled": "cancelled"
+    }
+    
+    new_status = status_mapping.get(CallStatus, CallStatus.lower())
+    
+    # Build update data
+    update_fields = {
+        "status": new_status,
+        "updated_at": datetime.utcnow()
+    }
+    
+    # Add duration if provided
+    if CallDuration:
+        try:
+            update_fields["duration"] = int(CallDuration)
+        except ValueError:
+            pass
+    
+    # Add recording URL if provided
+    if RecordingUrl:
+        update_fields["recording_url"] = RecordingUrl
+    
+    # Update the call
+    result = await db.calls.update_one(
+        {"_id": call["_id"]},
+        {"$set": update_fields}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to update call"
+        )
+    
+    return {
+        "message": "Call status updated successfully",
+        "call_id": call["_id"],
+        "twilio_call_sid": CallSid,
+        "status": new_status
     }

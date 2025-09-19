@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_PHONE_NUMBER: str = "+16075249116"
     TWILIO_WEBHOOK_URL: str = "https://4skale.com/outbound-twiml"
+    TWILIO_STATUS_CALLBACK_URL: str = "https://4skale.com/twilio/status-callback"
     
     @property
     def cors_origins_list(self) -> List[str]:

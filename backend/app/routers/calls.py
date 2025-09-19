@@ -147,7 +147,10 @@ async def create_call(
             twilio_call = client.calls.create(
                 to=call_data.phone_number,
                 from_=settings.TWILIO_PHONE_NUMBER,
-                url=settings.TWILIO_WEBHOOK_URL
+                url=settings.TWILIO_WEBHOOK_URL,
+                status_callback=settings.TWILIO_STATUS_CALLBACK_URL,
+                status_callback_event=["completed"],
+                status_callback_method="POST"
             )
             
             # Update call record with Twilio call SID
