@@ -16,4 +16,4 @@ async def close_db():
         print("Disconnected from MongoDB")
 
 def get_database():
-    return db.client.agentvoice 
+    return db.client[settings.MONGODB_DATABASE] 

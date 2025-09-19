@@ -8,9 +8,14 @@ import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
+import CallsDashboard from './pages/CallsDashboard'
+import CallsLog from './pages/CallsLog'
+import CallSentiment from './pages/CallSentiment'
+import CallDetail from './pages/CallDetail'
 import Contacts from './pages/contacts/Contacts'
 import ContactDetail from './pages/contacts/ContactDetail'
 import ContactImport from './pages/contacts/ContactImport'
+import ContactNew from './pages/contacts/ContactNew'
 import CRM from './pages/crm/CRM'
 import Agent from './pages/Agent'
 import RAG from './pages/RAG'
@@ -56,14 +61,19 @@ function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+              <Route path="/calls-dashboard" element={<CallsDashboard />} />
+              <Route path="/calls" element={<CallsLog />} />
+              <Route path="/calls/:callId" element={<CallDetail />} />
+              <Route path="/calls/:callId/sentiment" element={<CallSentiment />} />
         <Route path="/contacts" element={<Contacts />} />
+        <Route path="/contacts/new" element={<ContactNew />} />
         <Route path="/contacts/:id" element={<ContactDetail />} />
         <Route path="/contacts/import" element={<ContactImport />} />
-                 <Route path="/crm" element={<CRM />} />
-         <Route path="/agent" element={<Agent />} />
-         <Route path="/ragclient" element={<RAG />} />
-         <Route path="/voice-training" element={<VoiceTraining />} />
-         <Route path="/profile" element={<Profile />} />
+        <Route path="/crm" element={<CRM />} />
+        <Route path="/agent" element={<Agent />} />
+        <Route path="/ragclient" element={<RAG />} />
+        <Route path="/voice-training" element={<VoiceTraining />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

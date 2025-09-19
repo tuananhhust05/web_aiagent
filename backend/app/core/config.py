@@ -5,6 +5,7 @@ import os
 class Settings(BaseSettings):
     # Database
     MONGODB_URL: str = "mongodb://admin:password123@localhost:27017/agentvoice?authSource=admin"
+    MONGODB_DATABASE: str = "agentvoice"
     
     # JWT
     JWT_SECRET_KEY: str = "your-super-secret-jwt-key-change-in-production"

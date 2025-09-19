@@ -62,6 +62,7 @@ export default function Onboarding() {
   } = useForm<OnboardingForm>({
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
+      company_name: user?.company_name || '',
       industry: user?.industry || '',
       tone: user?.tone || 'professional',
       language: user?.language || 'en',

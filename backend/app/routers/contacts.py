@@ -30,6 +30,11 @@ async def create_contact(
         "phone": contact_data.phone,
         "company": contact_data.company,
         "job_title": contact_data.job_title,
+        "address": contact_data.address,
+        "city": contact_data.city,
+        "state": contact_data.state,
+        "country": contact_data.country,
+        "postal_code": contact_data.postal_code,
         "status": contact_data.status,
         "source": contact_data.source,
         "notes": contact_data.notes,
@@ -40,6 +45,10 @@ async def create_contact(
     }
     
     await db.contacts.insert_one(contact_doc)
+    
+    # Ensure id field is properly set
+    contact_doc['id'] = contact_doc['_id']
+    
     return ContactResponse(**contact_doc)
 
 @router.get("/", response_model=List[ContactResponse])
@@ -80,7 +89,14 @@ async def get_contacts(
     cursor = db.contacts.find(filter_query).skip(skip).limit(limit).sort("created_at", -1)
     contacts = await cursor.to_list(length=limit)
     
-    return [ContactResponse(**contact) for contact in contacts]
+    # Convert to ContactResponse and ensure id field is properly set
+    contact_responses = []
+    for contact in contacts:
+        contact_dict = dict(contact)
+        contact_dict['id'] = contact_dict['_id']  # Ensure id field is set
+        contact_responses.append(ContactResponse(**contact_dict))
+    
+    return contact_responses
 
 @router.get("/{contact_id}", response_model=ContactResponse)
 async def get_contact(
@@ -100,7 +116,11 @@ async def get_contact(
             detail="Contact not found"
         )
     
-    return ContactResponse(**contact)
+    # Ensure id field is properly set
+    contact_dict = dict(contact)
+    contact_dict['id'] = contact_dict['_id']
+    
+    return ContactResponse(**contact_dict)
 
 @router.put("/{contact_id}", response_model=ContactResponse)
 async def update_contact(

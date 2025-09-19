@@ -25,6 +25,11 @@ class ContactBase(BaseModel):
     phone: Optional[str] = None
     company: Optional[str] = None
     job_title: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    postal_code: Optional[str] = None
     status: ContactStatus = ContactStatus.LEAD
     source: ContactSource = ContactSource.MANUAL
     notes: Optional[str] = None
@@ -41,6 +46,11 @@ class ContactUpdate(BaseModel):
     phone: Optional[str] = None
     company: Optional[str] = None
     job_title: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    postal_code: Optional[str] = None
     status: Optional[ContactStatus] = None
     notes: Optional[str] = None
     tags: Optional[List[str]] = None
@@ -58,6 +68,7 @@ class ContactResponse(ContactBase):
     class Config:
         from_attributes = True
         populate_by_name = True
+        allow_population_by_field_name = True
 
 class ContactImport(BaseModel):
     contacts: List[ContactCreate]

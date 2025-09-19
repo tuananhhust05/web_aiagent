@@ -31,8 +31,8 @@ class UserBase(BaseModel):
     last_name: str = Field(..., min_length=1, max_length=50)
     company_name: Optional[str] = None
     industry: Optional[Industry] = None
-    tone: Optional[Tone] = Tone.PROFESSIONAL
-    language: str = "en"
+    tone: Optional[Tone] = None
+    language: Optional[str] = None
     phone: Optional[str] = None
 
 class UserCreate(UserBase):
@@ -43,12 +43,21 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = None
     company_name: Optional[str] = None
     industry: Optional[Industry] = None
-    tone: Optional[Tone] = None
+    tone: Optional[str] = None
     language: Optional[str] = None
     phone: Optional[str] = None
 
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
     id: str = Field(alias="_id")
+    email: EmailStr
+    username: str
+    first_name: str
+    last_name: str
+    company_name: Optional[str] = None
+    industry: Optional[Industry] = None
+    tone: str = "professional"
+    language: str = "en"
+    phone: Optional[str] = None
     role: UserRole = UserRole.USER
     is_active: bool = True
     is_verified: bool = False

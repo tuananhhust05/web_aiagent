@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { ArrowLeft, Edit, Trash2, Phone, Mail, Building2, User } from 'lucide-react'
-import { contactsAPI } from '../../lib/api'
+import { contactsAPI, callsAPI } from '../../lib/api'
 import { formatDate, generateInitials } from '../../lib/utils'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -28,6 +29,31 @@ export default function ContactDetail() {
       toast.error(error.response?.data?.detail || 'Failed to delete contact')
     },
   })
+
+  const callMutation = useMutation({
+    mutationFn: (callData: any) => callsAPI.createCall(callData),
+    onSuccess: () => {
+      toast.success('Call recorded successfully')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to record call')
+    },
+  })
+
+  const handleCall = (contact: any) => {
+    const callData = {
+      phone_number: contact.phone,
+      agent_name: 'Manual Call',
+      call_type: 'outbound',
+      duration: 0, // Will be updated later if needed
+      status: 'completed', // Default status
+      meeting_booked: false,
+      notes: `Call to ${contact.first_name} ${contact.last_name}`
+    }
+    
+    callMutation.mutate(callData)
+  }
+
 
   if (isLoading) {
     return (
@@ -291,6 +317,43 @@ export default function ContactDetail() {
           )}
         </div>
       </div>
+
+      {/* Action Buttons */}
+      <div className="mt-8 flex items-center justify-end space-x-4">
+        <button
+          onClick={() => handleCall(contact)}
+          disabled={!contact?.phone || callMutation.isPending}
+          className="btn btn-primary btn-lg"
+        >
+          {callMutation.isPending ? (
+            <LoadingSpinner size="sm" />
+          ) : (
+            <>
+              <Phone className="h-5 w-5 mr-2" />
+              Call {contact?.first_name}
+            </>
+          )}
+        </button>
+        <button className="btn btn-outline btn-lg">
+          <Edit className="h-5 w-5 mr-2" />
+          Edit Contact
+        </button>
+        <button
+          onClick={() => deleteMutation.mutate()}
+          disabled={deleteMutation.isPending}
+          className="btn btn-outline btn-lg text-red-600 hover:text-red-700 hover:bg-red-50"
+        >
+          {deleteMutation.isPending ? (
+            <LoadingSpinner size="sm" />
+          ) : (
+            <>
+              <Trash2 className="h-5 w-5 mr-2" />
+              Delete
+            </>
+          )}
+        </button>
+      </div>
+
     </div>
   )
 } 

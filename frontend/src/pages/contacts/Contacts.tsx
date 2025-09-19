@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Plus, Search, Filter, Upload, MoreHorizontal, Users, Building2, Calendar } from 'lucide-react'
-import { contactsAPI } from '../../lib/api'
+import { useQuery, useMutation } from '@tanstack/react-query'
+import { Plus, Search, Filter, Upload, MoreHorizontal, Users, Building2, Calendar, Phone } from 'lucide-react'
+import { contactsAPI, callsAPI } from '../../lib/api'
 import { formatDate, generateInitials } from '../../lib/utils'
+import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 export default function Contacts() {
@@ -11,7 +12,7 @@ export default function Contacts() {
   const [statusFilter, setStatusFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
 
-  const { data: contacts, isLoading, error } = useQuery({
+  const { data: contactsResponse, isLoading, error } = useQuery({
     queryKey: ['contacts', { search, status: statusFilter, source: sourceFilter }],
     queryFn: () => contactsAPI.getContacts({
       search,
@@ -20,8 +21,37 @@ export default function Contacts() {
     }),
   })
 
-  // Ensure contacts is always an array
-  const contactsList = Array.isArray(contacts) ? contacts : []
+  const callMutation = useMutation({
+    mutationFn: (callData: any) => callsAPI.createCall(callData),
+    onSuccess: () => {
+      toast.success('Call recorded successfully')
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to record call')
+    },
+  })
+
+  const handleCall = (contact: any) => {
+    const callData = {
+      phone_number: contact.phone,
+      agent_name: 'Manual Call',
+      call_type: 'outbound',
+      duration: 0, // Will be updated later if needed
+      status: 'completed', // Default status
+      meeting_booked: false,
+      notes: `Call to ${contact.first_name} ${contact.last_name}`
+    }
+    
+    callMutation.mutate(callData)
+  }
+
+  const contacts = contactsResponse?.data || []
+
+  // Ensure contacts is always an array and map _id to id
+  const contactsList = Array.isArray(contacts) ? contacts.map(contact => ({
+    ...contact,
+    id: contact.id || contact._id
+  })) : []
 
   const statusOptions = [
     { value: '', label: 'All Status' },
@@ -275,6 +305,22 @@ export default function Contacts() {
                     </div>
                   </div>
                   <div className="flex items-center space-x-3">
+                    {contact.phone && (
+                      <button
+                        onClick={() => handleCall(contact)}
+                        disabled={callMutation.isPending}
+                        className="text-green-600 hover:text-green-700 font-medium transition-colors flex items-center disabled:opacity-50"
+                      >
+                        {callMutation.isPending ? (
+                          <LoadingSpinner size="sm" />
+                        ) : (
+                          <>
+                            <Phone className="h-4 w-4 mr-1" />
+                            Call
+                          </>
+                        )}
+                      </button>
+                    )}
                     <Link
                       to={`/contacts/${contact.id}`}
                       className="text-primary-600 hover:text-primary-700 font-medium transition-colors"

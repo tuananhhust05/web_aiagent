@@ -13,11 +13,15 @@ import {
   Mic,
   FileText,
   Headphones,
+  Phone,
+  BarChart3,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Calls Dashboard', href: '/calls-dashboard', icon: BarChart3 },
+  { name: 'Calls', href: '/calls', icon: Phone },
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'CRM Integration', href: '/crm', icon: Building2 },
   { name: 'Agent', href: '/agent', icon: Mic },

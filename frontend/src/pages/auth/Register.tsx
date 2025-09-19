@@ -50,7 +50,7 @@ export default function Register() {
         company_name: data.company_name || '',
       })
       toast.success('Account created successfully!')
-      navigate('/onboarding')
+      navigate('/')
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Registration failed')
     } finally {
