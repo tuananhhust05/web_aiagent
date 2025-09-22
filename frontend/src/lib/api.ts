@@ -6,11 +6,12 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
-  if (window.location.protocol === 'https:' && url.startsWith('http://')) {
-    return url.replace('http://', 'https://')
-  }
+  // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
+  //   return url.replace('http://', 'https://')
+  // }
   return url
 }
 
@@ -121,4 +122,27 @@ export const callsAPI = {
   deleteCall: (id: string) => api.delete(`/api/calls/${id}`),
   getKPISummary: (params?: any) => api.get('/api/calls/kpis/summary', { params }),
   getSentimentStats: (params?: any) => api.get('/api/calls/stats/sentiment', { params }),
+}
+
+// Campaigns API
+export const campaignsAPI = {
+  getCampaigns: (filters?: any) => api.get('/api/campaigns', { params: filters }),
+  createCampaign: (data: any) => api.post('/api/campaigns', data),
+  updateCampaign: (id: string, data: any) => api.put(`/api/campaigns/${id}`, data),
+  deleteCampaign: (id: string) => api.delete(`/api/campaigns/${id}`),
+  getCampaign: (id: string) => api.get(`/api/campaigns/${id}`),
+  startCampaign: (id: string) => api.post(`/api/campaigns/${id}/start`),
+  pauseCampaign: (id: string) => api.post(`/api/campaigns/${id}/pause`),
+  getCampaignStats: () => api.get('/api/campaigns/stats/summary'),
+}
+
+// Integrations API
+export const integrationsAPI = {
+  getIntegrations: () => api.get('/api/integrations'),
+  createIntegration: (data: any) => api.post('/api/integrations', data),
+  updateIntegration: (id: string, data: any) => api.put(`/api/integrations/${id}`, data),
+  deleteIntegration: (id: string) => api.delete(`/api/integrations/${id}`),
+  getIntegration: (id: string) => api.get(`/api/integrations/${id}`),
+  syncIntegration: (id: string) => api.post(`/api/integrations/${id}/sync`),
+  getIntegrationStats: () => api.get('/api/integrations/stats/summary'),
 } 

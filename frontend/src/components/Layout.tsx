@@ -4,7 +4,6 @@ import { useAuth } from '../hooks/useAuth'
 import {
   Home,
   Users,
-  Building2,
   Settings,
   Menu,
   X,
@@ -15,6 +14,8 @@ import {
   Headphones,
   Phone,
   BarChart3,
+  Target,
+  Link as LinkIcon,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -23,7 +24,8 @@ const navigation = [
   { name: 'Calls Dashboard', href: '/calls-dashboard', icon: BarChart3 },
   { name: 'Calls', href: '/calls', icon: Phone },
   { name: 'Contacts', href: '/contacts', icon: Users },
-  { name: 'CRM Integration', href: '/crm', icon: Building2 },
+  { name: 'Campaigns', href: '/campaigns', icon: Target },
+  { name: 'CRM Integration', href: '/crm-integration', icon: LinkIcon },
   { name: 'Agent', href: '/agent', icon: Mic },
   { name: 'RAG', href: '/ragclient', icon: FileText },
   { name: 'Voice Training', href: '/voice-training', icon: Headphones },

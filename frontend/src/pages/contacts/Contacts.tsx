@@ -328,11 +328,11 @@ export default function Contacts() {
                           )}
                         </button>
                         <button
-                          onClick={() => handleTwilioCall(contact)}
-                          disabled={twilioCallMutation.isPending}
+                          onClick={() => handleCall(contact)}
+                          disabled={callMutation.isPending}
                           className="text-blue-600 hover:text-blue-700 font-medium transition-colors flex items-center disabled:opacity-50"
                         >
-                          {twilioCallMutation.isPending ? (
+                          {callMutation.isPending ? (
                             <LoadingSpinner size="sm" />
                           ) : (
                             <>

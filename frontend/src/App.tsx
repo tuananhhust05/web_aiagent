@@ -25,6 +25,11 @@ import About from './pages/About'
 import Privacy from './pages/Privacy'
 import Pricing from './pages/Pricing'
 import Help from './pages/Help'
+import AIAgent from './pages/products/AIAgent'
+import RAGClient from './pages/products/RAGClient'
+import CRMIntegration from './pages/products/CRMIntegration'
+import Campaign from './pages/Campaign'
+import CRMIntegrationPage from './pages/CRMIntegration'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 
 function App() {
@@ -52,6 +57,9 @@ function App() {
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/help" element={<Help />} />
+        <Route path="/products/ai-agent" element={<AIAgent />} />
+        <Route path="/products/rag-client" element={<RAGClient />} />
+        <Route path="/products/crm-integration" element={<CRMIntegration />} />
         <Route path="*" element={<Navigate to="/home" replace />} />
       </Routes>
     )
@@ -69,6 +77,8 @@ function App() {
         <Route path="/contacts/new" element={<ContactNew />} />
         <Route path="/contacts/:id" element={<ContactDetail />} />
         <Route path="/contacts/import" element={<ContactImport />} />
+        <Route path="/campaigns" element={<Campaign />} />
+        <Route path="/crm-integration" element={<CRMIntegrationPage />} />
         <Route path="/crm" element={<CRM />} />
         <Route path="/agent" element={<Agent />} />
         <Route path="/ragclient" element={<RAG />} />

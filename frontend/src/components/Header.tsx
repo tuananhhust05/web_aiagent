@@ -35,21 +35,21 @@ export default function Header() {
               {isProductOpen && (
                 <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
                   <Link
-                    to="/agent"
+                    to="/products/ai-agent"
                     className="block px-4 py-2 text-gray-700 hover:bg-gray-50 hover:text-blue-600"
                     onClick={() => setIsProductOpen(false)}
                   >
                     AI Agent
                   </Link>
                   <Link
-                    to="/ragclient"
+                    to="/products/rag-client"
                     className="block px-4 py-2 text-gray-700 hover:bg-gray-50 hover:text-blue-600"
                     onClick={() => setIsProductOpen(false)}
                   >
                     RAG Client
                   </Link>
                   <Link
-                    to="/crm"
+                    to="/products/crm-integration"
                     className="block px-4 py-2 text-gray-700 hover:bg-gray-50 hover:text-blue-600"
                     onClick={() => setIsProductOpen(false)}
                   >
@@ -138,21 +138,21 @@ export default function Header() {
                 </h3>
                 <div className="space-y-2 pl-4">
                   <Link
-                    to="/agent"
+                    to="/products/ai-agent"
                     className="block text-gray-700 hover:text-blue-600"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     AI Agent
                   </Link>
                   <Link
-                    to="/ragclient"
+                    to="/products/rag-client"
                     className="block text-gray-700 hover:text-blue-600"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     RAG Client
                   </Link>
                   <Link
-                    to="/crm"
+                    to="/products/crm-integration"
                     className="block text-gray-700 hover:text-blue-600"
                     onClick={() => setIsMenuOpen(false)}
                   >
