@@ -4,6 +4,9 @@ from typing import List, Optional
 from bson import ObjectId
 from pydantic import BaseModel
 from twilio.rest import Client
+import requests
+import asyncio
+import aiohttp
 from app.core.database import get_database
 from app.core.auth import get_current_active_user
 from app.core.config import settings
@@ -133,55 +136,61 @@ async def create_call(
     # Insert call record first
     await db.calls.insert_one(call_doc)
     
-    # If this is an outbound call, try to initiate Twilio call
+    # If this is an outbound call, try to initiate AI call
     if call_data.call_type == CallType.OUTBOUND and call_data.phone_number:
         try:
-            # Check if Twilio credentials are configured
-            if not settings.TWILIO_ACCOUNT_SID or not settings.TWILIO_AUTH_TOKEN:
-                raise Exception("Twilio credentials not configured")
+            # Prepare AI call API payload
+            ai_call_payload = {
+                "number": call_data.phone_number,
+                "prompt": settings.AI_CALL_DEFAULT_PROMPT
+            }
             
-            # Twilio configuration
-            client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
+            print(f"🤖 Initiating AI call to {call_data.phone_number}")
+            print(f"📡 Calling AI API: {settings.AI_CALL_API_URL}")
+            print(f"💬 Using prompt: {settings.AI_CALL_DEFAULT_PROMPT}")
             
-            # Make Twilio call
-            twilio_call = client.calls.create(
-                to=call_data.phone_number,
-                from_=settings.TWILIO_PHONE_NUMBER,
-                url=settings.TWILIO_WEBHOOK_URL,
-                status_callback=settings.TWILIO_STATUS_CALLBACK_URL,
-                status_callback_event=["completed"],
-                status_callback_method="POST"
-            )
-            
-            # Update call record with Twilio call SID
-            await db.calls.update_one(
-                {"_id": call_doc["_id"]},
-                {"$set": {
-                    "twilio_call_sid": twilio_call.sid,
-                    "status": CallStatus.CONNECTING,
-                    "updated_at": datetime.utcnow()
-                }}
-            )
-            
-            # Update the call_doc for response
-            call_doc["twilio_call_sid"] = twilio_call.sid
-            call_doc["status"] = CallStatus.CONNECTING
-            call_doc["updated_at"] = datetime.utcnow()
+            # Make async HTTP request to AI call API
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    settings.AI_CALL_API_URL,
+                    json=ai_call_payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    if response.status == 200:
+                        ai_response = await response.json()
+                        print(f"✅ AI call initiated successfully: {ai_response}")
+                        
+                        # Update call record with success status
+                        await db.calls.update_one(
+                            {"_id": call_doc["_id"]},
+                            {"$set": {
+                                "status": CallStatus.CONNECTING,
+                                "updated_at": datetime.utcnow()
+                            }}
+                        )
+                        call_doc["status"] = CallStatus.CONNECTING
+                        call_doc["updated_at"] = datetime.utcnow()
+                    else:
+                        error_text = await response.text()
+                        print(f"❌ AI call API error: {response.status} - {error_text}")
+                        raise Exception(f"AI call API returned {response.status}: {error_text}")
             
         except Exception as e:
-            # If Twilio call fails, update call status but don't fail the API
+            print(f"❌ Failed to initiate AI call: {str(e)}")
+            # If AI call fails, update call status but don't fail the API
             await db.calls.update_one(
                 {"_id": call_doc["_id"]},
                 {"$set": {
                     "status": CallStatus.FAILED,
-                    "notes": f"Twilio call failed: {str(e)}",
+                    "notes": f"AI call failed: {str(e)}",
                     "updated_at": datetime.utcnow()
                 }}
             )
             
             # Update the call_doc for response
             call_doc["status"] = CallStatus.FAILED
-            call_doc["notes"] = f"Twilio call failed: {str(e)}"
+            call_doc["notes"] = f"AI call failed: {str(e)}"
             call_doc["updated_at"] = datetime.utcnow()
     
     return CallResponse(**call_doc)
@@ -434,14 +443,22 @@ async def get_kpi_summary(
     total_calls = len(current_calls)
     successful_calls = len([c for c in current_calls if c["status"] == "completed"])
     call_success_rate = (successful_calls / total_calls * 100) if total_calls > 0 else 0
-    avg_duration = sum(c["duration"] for c in current_calls) / total_calls if total_calls > 0 else 0
+    
+    # Calculate average duration (handle None values)
+    durations = [c.get("duration", 0) for c in current_calls if c.get("duration") is not None]
+    avg_duration = sum(durations) / len(durations) if durations else 0
+    
     meetings_booked = len([c for c in current_calls if c.get("meeting_booked", False)])
     
     # Calculate previous period KPIs
     prev_total_calls = len(prev_calls)
     prev_successful_calls = len([c for c in prev_calls if c["status"] == "completed"])
     prev_success_rate = (prev_successful_calls / prev_total_calls * 100) if prev_total_calls > 0 else 0
-    prev_avg_duration = sum(c["duration"] for c in prev_calls) / prev_total_calls if prev_total_calls > 0 else 0
+    
+    # Calculate previous average duration (handle None values)
+    prev_durations = [c.get("duration", 0) for c in prev_calls if c.get("duration") is not None]
+    prev_avg_duration = sum(prev_durations) / len(prev_durations) if prev_durations else 0
+    
     prev_meetings_booked = len([c for c in prev_calls if c.get("meeting_booked", False)])
     
     # Calculate percentage changes

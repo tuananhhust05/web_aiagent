@@ -134,6 +134,9 @@ export const campaignsAPI = {
   startCampaign: (id: string) => api.post(`/api/campaigns/${id}/start`),
   pauseCampaign: (id: string) => api.post(`/api/campaigns/${id}/pause`),
   getCampaignStats: () => api.get('/api/campaigns/stats/summary'),
+  getContactsFromGroups: (groupIds: string[]) => api.get('/api/campaigns/contacts-from-groups', { 
+    params: { group_ids: groupIds.join(',') } 
+  }),
 }
 
 // Integrations API
@@ -145,4 +148,45 @@ export const integrationsAPI = {
   getIntegration: (id: string) => api.get(`/api/integrations/${id}`),
   syncIntegration: (id: string) => api.post(`/api/integrations/${id}/sync`),
   getIntegrationStats: () => api.get('/api/integrations/stats/summary'),
+}
+
+export const groupsAPI = {
+  getGroups: (params?: any) => api.get('/api/groups', { params }),
+  createGroup: (data: any) => api.post('/api/groups', data),
+  updateGroup: (id: string, data: any) => api.put(`/api/groups/${id}`, data),
+  deleteGroup: (id: string) => api.delete(`/api/groups/${id}`),
+  getGroup: (id: string) => api.get(`/api/groups/${id}`),
+  getGroupMembers: (id: string, params?: any) => api.get(`/api/groups/${id}/members`, { params }),
+  getAvailableContacts: (id: string, params?: any) => api.get(`/api/groups/${id}/available-contacts`, { params }),
+  addContactsToGroup: (id: string, data: any) => api.post(`/api/groups/${id}/members`, data),
+  removeContactsFromGroup: (id: string, data: any) => api.delete(`/api/groups/${id}/members`, { data }),
+  importContactsToGroup: (id: string, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post(`/api/groups/${id}/import-contacts`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
+  getGroupStats: () => api.get('/api/groups/stats/summary'),
+}
+
+export const contactsImportAPI = {
+  importFromExcel: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/api/contacts/import-excel', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
+  getImportTemplate: () => api.get('/api/contacts/import-template'),
+}
+
+// Statistics API
+export const statsAPI = {
+  getDashboardStats: () => api.get('/api/stats/dashboard'),
+  getContactsStats: () => api.get('/api/stats/contacts'),
 } 

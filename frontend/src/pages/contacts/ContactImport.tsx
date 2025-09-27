@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { 
   Upload, 
   Download, 
@@ -9,12 +9,10 @@ import {
   AlertCircle, 
   X,
   Users,
-  Building2,
-  Mail,
   ArrowRight,
   Sparkles
 } from 'lucide-react'
-import { contactsAPI } from '../../lib/api'
+import { contactsAPI, statsAPI } from '../../lib/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
@@ -30,6 +28,20 @@ export default function ContactImport() {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [isPreviewing, setIsPreviewing] = useState(false)
+
+  // Fetch contacts stats
+  const { data: statsResponse, isLoading: statsLoading } = useQuery({
+    queryKey: ['contacts-stats'],
+    queryFn: () => statsAPI.getContactsStats(),
+  })
+
+  const stats = statsResponse?.data || {
+    total_contacts: 0,
+    contacts_this_month: 0,
+    contacts_by_status: {},
+    contacts_by_source: {},
+    month: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  }
 
   const importMutation = useMutation({
     mutationFn: (data: { file: File; preview: ImportPreview }) =>
@@ -159,7 +171,7 @@ Bob,Johnson,bob.johnson@example.com,+1234567892,StartupXYZ,Founder,Hot lead`
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <div className="flex items-center">
               <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center mr-4">
@@ -167,29 +179,27 @@ Bob,Johnson,bob.johnson@example.com,+1234567892,StartupXYZ,Founder,Hot lead`
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-600">Total Contacts</p>
-                <p className="text-2xl font-bold text-gray-900">1,247</p>
+                {statsLoading ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <p className="text-2xl font-bold text-gray-900">{stats.total_contacts.toLocaleString()}</p>
+                )}
               </div>
             </div>
           </div>
           <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
             <div className="flex items-center">
               <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mr-4">
-                <Building2 className="h-6 w-6 text-green-600" />
+                <Sparkles className="h-6 w-6 text-green-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">Companies</p>
-                <p className="text-2xl font-bold text-gray-900">89</p>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <div className="flex items-center">
-              <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center mr-4">
-                <Sparkles className="h-6 w-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-600">Imported Today</p>
-                <p className="text-2xl font-bold text-gray-900">+45</p>
+                <p className="text-sm font-medium text-gray-600">Added This Month</p>
+                {statsLoading ? (
+                  <LoadingSpinner size="sm" />
+                ) : (
+                  <p className="text-2xl font-bold text-gray-900">+{stats.contacts_this_month.toLocaleString()}</p>
+                )}
+                <p className="text-xs text-gray-500 mt-1">{stats.month}</p>
               </div>
             </div>
           </div>

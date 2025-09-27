@@ -1,26 +1,35 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import { 
   Users, 
-  Building2, 
-  TrendingUp, 
   Phone, 
   BarChart3, 
-  Activity,
   ArrowUpRight,
   Plus,
-  Upload,
-  Target
+  Target,
+  Upload
 } from 'lucide-react'
+import { statsAPI } from '../lib/api'
+import LoadingSpinner from '../components/ui/LoadingSpinner'
 
 export default function Dashboard() {
-  // Mock data - in real app this would come from API
-  const stats = {
-    totalContacts: 1247,
-    totalCompanies: 89,
-    activeCampaigns: 12,
-    conversionRate: 23.5,
-    callsThisMonth: 456,
-    revenue: 125000
+  const navigate = useNavigate()
+  
+  // Fetch dashboard stats from API
+  const { data: statsResponse, isLoading, error } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: () => statsAPI.getDashboardStats(),
+  })
+
+  const stats = statsResponse?.data || {
+    total_contacts: 0,
+    calls_this_month: 0,
+    active_campaigns: 0,
+    total_campaigns: 0,
+    calls_by_status: {},
+    recent_calls: [],
+    recent_campaigns: [],
+    month: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
   }
 
   const recentActivity = [
@@ -67,27 +76,34 @@ export default function Dashboard() {
       color: 'blue'
     },
     {
-      title: 'Import Contacts',
-      description: 'Upload contacts from CSV file',
-      icon: Upload,
-      link: '/contacts/import',
-      color: 'green'
-    },
-    {
       title: 'Start Campaign',
       description: 'Launch a new voice campaign',
       icon: Target,
-      link: '/campaigns/new',
+      link: '/campaigns',
       color: 'purple'
-    },
-    {
-      title: 'View Analytics',
-      description: 'Check your performance metrics',
-      icon: BarChart3,
-      link: '/analytics',
-      color: 'orange'
     }
   ]
+
+  if (isLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="flex items-center justify-center h-64">
+          <LoadingSpinner />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Error Loading Dashboard</h2>
+          <p className="text-gray-600">Please try again later</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
@@ -113,8 +129,11 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div 
+          className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => navigate('/contacts')}
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
               <Users className="h-6 w-6 text-blue-600" />
@@ -123,40 +142,15 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm font-medium text-gray-600">Total Contacts</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.totalContacts.toLocaleString()}</p>
-            <p className="text-sm text-green-600 mt-1">+12% from last month</p>
+            <p className="text-3xl font-bold text-gray-900">{stats.total_contacts.toLocaleString()}</p>
+            <p className="text-sm text-green-600 mt-1">All time contacts</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center">
-              <Building2 className="h-6 w-6 text-green-600" />
-            </div>
-            <ArrowUpRight className="h-5 w-5 text-green-500" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600">Companies</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.totalCompanies}</p>
-            <p className="text-sm text-green-600 mt-1">+5 new this week</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
-              <Target className="h-6 w-6 text-purple-600" />
-            </div>
-            <ArrowUpRight className="h-5 w-5 text-green-500" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600">Active Campaigns</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.activeCampaigns}</p>
-            <p className="text-sm text-green-600 mt-1">2 campaigns completed</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+        <div 
+          className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => navigate('/calls')}
+        >
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center">
               <Phone className="h-6 w-6 text-orange-600" />
@@ -165,36 +159,25 @@ export default function Dashboard() {
           </div>
           <div>
             <p className="text-sm font-medium text-gray-600">Calls This Month</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.callsThisMonth.toLocaleString()}</p>
-            <p className="text-sm text-green-600 mt-1">+18% from last month</p>
+            <p className="text-3xl font-bold text-gray-900">{stats.calls_this_month.toLocaleString()}</p>
+            <p className="text-sm text-green-600 mt-1">{stats.month}</p>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+        <div 
+          className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => navigate('/campaigns')}
+        >
           <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center">
-              <TrendingUp className="h-6 w-6 text-indigo-600" />
+            <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
+              <Target className="h-6 w-6 text-purple-600" />
             </div>
             <ArrowUpRight className="h-5 w-5 text-green-500" />
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-600">Conversion Rate</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.conversionRate}%</p>
-            <p className="text-sm text-green-600 mt-1">+2.3% improvement</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center">
-              <Activity className="h-6 w-6 text-emerald-600" />
-            </div>
-            <ArrowUpRight className="h-5 w-5 text-green-500" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600">Revenue</p>
-            <p className="text-3xl font-bold text-gray-900">${(stats.revenue / 1000).toFixed(0)}k</p>
-            <p className="text-sm text-green-600 mt-1">+15% from last month</p>
+            <p className="text-sm font-medium text-gray-600">Active Campaigns</p>
+            <p className="text-3xl font-bold text-gray-900">{stats.active_campaigns}</p>
+            <p className="text-sm text-green-600 mt-1">{stats.total_campaigns} total campaigns</p>
           </div>
         </div>
       </div>

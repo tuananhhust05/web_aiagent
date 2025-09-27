@@ -93,7 +93,8 @@ async def get_contacts(
     contact_responses = []
     for contact in contacts:
         contact_dict = dict(contact)
-        contact_dict['id'] = contact_dict['_id']  # Ensure id field is set
+        contact_dict['id'] = str(contact_dict['_id'])  # Convert ObjectId to string
+        del contact_dict['_id']  # Remove _id field to avoid conflict
         contact_responses.append(ContactResponse(**contact_dict))
     
     return contact_responses
@@ -118,7 +119,8 @@ async def get_contact(
     
     # Ensure id field is properly set
     contact_dict = dict(contact)
-    contact_dict['id'] = contact_dict['_id']
+    contact_dict['id'] = str(contact_dict['_id'])
+    del contact_dict['_id']  # Remove _id field to avoid conflict
     
     return ContactResponse(**contact_dict)
 
@@ -173,7 +175,10 @@ async def update_contact(
     
     # Get updated contact
     updated_contact = await db.contacts.find_one({"_id": contact_id})
-    return ContactResponse(**updated_contact)
+    contact_dict = dict(updated_contact)
+    contact_dict['id'] = str(contact_dict['_id'])
+    del contact_dict['_id']  # Remove _id field to avoid conflict
+    return ContactResponse(**contact_dict)
 
 @router.delete("/{contact_id}")
 async def delete_contact(

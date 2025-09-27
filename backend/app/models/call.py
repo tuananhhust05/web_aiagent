@@ -23,9 +23,9 @@ class SentimentType(str, Enum):
 
 class CallBase(BaseModel):
     phone_number: str = Field(..., description="Phone number called")
-    agent_name: str = Field(..., description="Name of the agent")
+    agent_name: Optional[str] = Field(None, description="Name of the agent")
     call_type: CallType = Field(..., description="Type of call")
-    duration: int = Field(..., description="Call duration in seconds")
+    duration: Optional[int] = Field(None, description="Call duration in seconds")
     status: CallStatus = Field(..., description="Call status")
     recording_url: Optional[str] = None
     transcript: Optional[str] = None
@@ -57,9 +57,9 @@ class CallUpdate(BaseModel):
 class CallResponse(BaseModel):
     id: str = Field(alias="_id")
     phone_number: str
-    agent_name: str
+    agent_name: Optional[str] = None
     call_type: CallType
-    duration: int
+    duration: Optional[int] = None
     status: CallStatus
     recording_url: Optional[str] = None
     transcript: Optional[str] = None

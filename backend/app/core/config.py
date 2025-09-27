@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     TWILIO_WEBHOOK_URL: str = "https://4skale.com/outbound-twiml"
     TWILIO_STATUS_CALLBACK_URL: str = "https://4skale.com/twilio/status-callback"
     
+    # External AI Call API Configuration
+    AI_CALL_API_URL: str = "http://13.210.192.27:5059/outbound-call"
+    AI_CALL_DEFAULT_PROMPT: str = "You are an AI assistant"
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS_ORIGINS string to list"""

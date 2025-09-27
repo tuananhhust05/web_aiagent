@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { 
   Plus, 
   Play, 
@@ -16,30 +17,32 @@ import {
   X
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import { contactsAPI } from '../lib/api'
+import { campaignsAPI, groupsAPI, contactsAPI } from '../lib/api'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
-interface Contact {
+
+interface Group {
   id: string
-  first_name: string
-  last_name: string
-  email: string
-  phone: string
-  company_name?: string
+  name: string
+  description?: string
+  member_count: number
+  color?: string
 }
 
 interface Campaign {
   id: string
   name: string
-  description: string
+  description?: string
   status: 'draft' | 'active' | 'paused' | 'completed' | 'scheduled'
   type: 'manual' | 'scheduled'
   contacts: string[]
+  group_ids: string[]
   call_script: string
   schedule_time?: string
   created_at: string
   updated_at: string
 }
+
 
 export default function Campaign() {
   const [selectedContacts, setSelectedContacts] = useState<string[]>([])
@@ -50,89 +53,110 @@ export default function Campaign() {
   
   // const queryClient = useQueryClient()
 
-  // Fetch contacts
+  // Fetch campaigns
+  const { data: campaignsResponse, refetch: refetchCampaigns } = useQuery({
+    queryKey: ['campaigns'],
+    queryFn: () => campaignsAPI.getCampaigns(),
+  })
+  
+  // Fetch groups for campaign creation
+  const { data: groupsResponse } = useQuery({
+    queryKey: ['groups'],
+    queryFn: () => groupsAPI.getGroups(),
+  })
+  
+  // Fetch contacts for contact selector
   const { data: contactsResponse, isLoading: contactsLoading } = useQuery({
     queryKey: ['contacts'],
     queryFn: () => contactsAPI.getContacts(),
   })
   
-  // Ensure contacts is always an array
-  const contacts = Array.isArray(contactsResponse?.data) ? contactsResponse.data : 
-                   Array.isArray(contactsResponse) ? contactsResponse : []
+  // Ensure data is always an array
+  const campaigns = Array.isArray(campaignsResponse?.data) ? campaignsResponse.data : []
+  const groups = Array.isArray(groupsResponse?.data?.groups) ? groupsResponse.data.groups : []
+  const allContacts = Array.isArray(contactsResponse?.data) ? contactsResponse.data : 
+                     Array.isArray(contactsResponse) ? contactsResponse : []
 
-  // Mock campaigns data - in real app, this would come from API
-  const [campaigns, setCampaigns] = useState<Campaign[]>([
-    {
-      id: '1',
-      name: 'Q1 Lead Generation',
-      description: 'Outbound calls to warm leads for Q1 sales',
-      status: 'active',
-      type: 'manual',
-      contacts: ['1', '2', '3'],
-      call_script: 'Hello, this is [Agent Name] from [Company]. I\'m calling to discuss how we can help your business grow...',
-      created_at: '2024-01-15T10:00:00Z',
-      updated_at: '2024-01-15T10:00:00Z'
-    },
-    {
-      id: '2',
-      name: 'Follow-up Campaign',
-      description: 'Automated follow-up calls for existing customers',
-      status: 'scheduled',
-      type: 'scheduled',
-      contacts: ['4', '5'],
-      call_script: 'Hi [Name], this is a follow-up call regarding your recent inquiry...',
-      schedule_time: '2024-01-20T09:00:00Z',
-      created_at: '2024-01-16T14:30:00Z',
-      updated_at: '2024-01-16T14:30:00Z'
-    }
-  ])
 
-  const filteredContacts = contacts.filter((contact: Contact) =>
-    contact.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contact.last_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contact.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    contact.phone?.includes(searchTerm)
-  )
 
-  const filteredCampaigns = campaigns.filter(campaign => 
-    filterStatus === 'all' || campaign.status === filterStatus
-  )
+  const filteredCampaigns = campaigns.filter((campaign: Campaign) => {
+    const matchesSearch = campaign.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         campaign.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesStatus = filterStatus === 'all' || campaign.status === filterStatus
+    return matchesSearch && matchesStatus
+  })
+
 
   const handleContactToggle = (contactId: string) => {
-    setSelectedContacts(prev => 
-      prev.includes(contactId) 
-        ? prev.filter(id => id !== contactId)
-        : [...prev, contactId]
-    )
+    setSelectedContacts(prev => {
+      const isSelected = prev.includes(contactId)
+      if (isSelected) {
+        return prev.filter(id => id !== contactId)
+      } else {
+        return [...prev, contactId]
+      }
+    })
   }
 
-  const handleCreateCampaign = (campaignData: Partial<Campaign>) => {
-    const newCampaign: Campaign = {
-      id: Date.now().toString(),
+  const handleCreateCampaign = (campaignData: any) => {
+    const newCampaign = {
       name: campaignData.name || '',
       description: campaignData.description || '',
       status: 'draft',
       type: campaignData.type || 'manual',
-      contacts: selectedContacts,
+      contacts: selectedContacts, // Manually selected contacts
+      group_ids: campaignData.group_ids || [], // Selected groups
       call_script: campaignData.call_script || '',
-      schedule_time: campaignData.schedule_time,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      schedule_time: campaignData.type === 'scheduled' && campaignData.schedule_time ? campaignData.schedule_time : null,
+      schedule_settings: campaignData.type === 'scheduled' ? campaignData.schedule_settings : null,
+      settings: {}
     }
     
-    setCampaigns(prev => [...prev, newCampaign])
-    setShowCreateModal(false)
-    setSelectedContacts([])
-    toast.success('Campaign created successfully!')
+    // In real implementation, this would call the API
+    campaignsAPI.createCampaign(newCampaign)
+      .then(() => {
+        setShowCreateModal(false)
+        setSelectedContacts([])
+        toast.success('Campaign created successfully!')
+        refetchCampaigns()
+      })
+      .catch(() => toast.error('Failed to create campaign'))
   }
 
-  const handleCampaignAction = (campaignId: string, action: string) => {
-    setCampaigns(prev => prev.map(campaign => 
-      campaign.id === campaignId 
-        ? { ...campaign, status: action as Campaign['status'], updated_at: new Date().toISOString() }
-        : campaign
-    ))
-    toast.success(`Campaign ${action} successfully!`)
+  const handleCampaignAction = (campaignId: string, action: string, campaignType?: string) => {
+    if (action === 'active') {
+      campaignsAPI.startCampaign(campaignId)
+        .then((response) => {
+          if (campaignType === 'manual') {
+            // For manual campaigns, show different message and don't refresh
+            toast.success(response.data.message || 'Manual campaign executed successfully')
+            // Don't refetch campaigns to keep the same status
+          } else {
+            // For scheduled campaigns, show success and refresh
+            toast.success('Scheduled campaign started successfully')
+            refetchCampaigns()
+          }
+        })
+        .catch(() => toast.error('Failed to start campaign'))
+    } else if (action === 'paused') {
+      campaignsAPI.pauseCampaign(campaignId)
+        .then(() => {
+          toast.success('Campaign paused successfully')
+          refetchCampaigns()
+        })
+        .catch(() => toast.error('Failed to pause campaign'))
+    }
+  }
+
+  const handleDeleteCampaign = (campaignId: string, campaignName: string) => {
+    if (window.confirm(`Are you sure you want to delete campaign "${campaignName}"? This action cannot be undone.`)) {
+      campaignsAPI.deleteCampaign(campaignId)
+        .then(() => {
+          toast.success('Campaign deleted successfully')
+          refetchCampaigns()
+        })
+        .catch(() => toast.error('Failed to delete campaign'))
+    }
   }
 
   const getStatusColor = (status: string) => {
@@ -184,7 +208,7 @@ export default function Campaign() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Campaigns</p>
-                <p className="text-2xl font-bold text-gray-900">{campaigns.length}</p>
+                <p className="text-2xl font-bold text-gray-900">{filteredCampaigns.length}</p>
               </div>
             </div>
           </div>
@@ -274,7 +298,12 @@ export default function Campaign() {
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-lg font-semibold text-gray-900">{campaign.name}</h3>
+                      <Link 
+                        to={`/campaigns/${campaign.id}`}
+                        className="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors"
+                      >
+                        {campaign.name}
+                      </Link>
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(campaign.status)}`}>
                         {getStatusIcon(campaign.status)}
                         <span className="ml-1 capitalize">{campaign.status}</span>
@@ -305,7 +334,7 @@ export default function Campaign() {
                   <div className="flex items-center gap-2">
                     {campaign.status === 'draft' && (
                       <button
-                        onClick={() => handleCampaignAction(campaign.id, 'active')}
+                        onClick={() => handleCampaignAction(campaign.id, 'active', campaign.type)}
                         className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
                       >
                         <Play className="h-4 w-4 mr-1" />
@@ -323,18 +352,24 @@ export default function Campaign() {
                     )}
                     {campaign.status === 'paused' && (
                       <button
-                        onClick={() => handleCampaignAction(campaign.id, 'active')}
+                        onClick={() => handleCampaignAction(campaign.id, 'active', campaign.type)}
                         className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
                       >
                         <Play className="h-4 w-4 mr-1" />
                         Resume
                       </button>
                     )}
-                    <button className="inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors">
+                    <Link
+                      to={`/campaigns/${campaign.id}`}
+                      className="inline-flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors"
+                    >
                       <Edit className="h-4 w-4 mr-1" />
                       Edit
-                    </button>
-                    <button className="inline-flex items-center px-3 py-1.5 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200 transition-colors">
+                    </Link>
+                    <button 
+                      onClick={() => handleDeleteCampaign(campaign.id, campaign.name)}
+                      className="inline-flex items-center px-3 py-1.5 bg-red-100 text-red-700 text-sm rounded-lg hover:bg-red-200 transition-colors"
+                    >
                       <Trash2 className="h-4 w-4 mr-1" />
                       Delete
                     </button>
@@ -352,13 +387,14 @@ export default function Campaign() {
             onSubmit={handleCreateCampaign}
             onSelectContacts={() => setShowContactSelector(true)}
             selectedContactsCount={selectedContacts.length}
+            groups={groups}
           />
         )}
 
         {/* Contact Selector Modal */}
         {showContactSelector && (
           <ContactSelectorModal
-            contacts={filteredContacts}
+            contacts={allContacts}
             selectedContacts={selectedContacts}
             onToggle={handleContactToggle}
             onClose={() => setShowContactSelector(false)}
@@ -374,18 +410,29 @@ export default function Campaign() {
 }
 
 // Create Campaign Modal Component
-function CreateCampaignModal({ onClose, onSubmit, onSelectContacts, selectedContactsCount }: {
+function CreateCampaignModal({ onClose, onSubmit, onSelectContacts, selectedContactsCount, groups }: {
   onClose: () => void
   onSubmit: (data: any) => void
   onSelectContacts: () => void
   selectedContactsCount: number
+  groups: Group[]
 }) {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     type: 'manual' as 'manual' | 'scheduled',
     call_script: '',
-    schedule_time: ''
+    schedule_time: '',
+    group_ids: [] as string[],
+    schedule_settings: {
+      frequency: 'daily' as 'daily' | 'weekly' | 'monthly' | 'yearly',
+      start_time: '',
+      end_time: '',
+      timezone: 'UTC',
+      days_of_week: [] as number[],
+      day_of_month: 1,
+      month_of_year: 1
+    }
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -394,8 +441,8 @@ function CreateCampaignModal({ onClose, onSubmit, onSelectContacts, selectedCont
       toast.error('Campaign name is required')
       return
     }
-    if (selectedContactsCount === 0) {
-      toast.error('Please select at least one contact')
+    if (formData.group_ids.length === 0 && selectedContactsCount === 0) {
+      toast.error('Please select at least one group or contact')
       return
     }
     onSubmit(formData)
@@ -458,7 +505,7 @@ function CreateCampaignModal({ onClose, onSubmit, onSelectContacts, selectedCont
                 />
                 <div>
                   <div className="font-medium">Manual</div>
-                  <div className="text-sm text-gray-500">Start calls manually</div>
+                  <div className="text-sm text-gray-500">Start calls manually when you're ready</div>
                 </div>
               </label>
               <label className="flex items-center p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
@@ -472,26 +519,237 @@ function CreateCampaignModal({ onClose, onSubmit, onSelectContacts, selectedCont
                 />
                 <div>
                   <div className="font-medium">Scheduled</div>
-                  <div className="text-sm text-gray-500">Automated calls on schedule</div>
+                  <div className="text-sm text-gray-500">Automatically start calls at scheduled time with frequency</div>
                 </div>
               </label>
             </div>
           </div>
 
           {formData.type === 'scheduled' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Schedule Time
-              </label>
-              <input
-                type="datetime-local"
-                value={formData.schedule_time}
-                onChange={(e) => setFormData(prev => ({ ...prev, schedule_time: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required={formData.type === 'scheduled'}
-              />
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-sm font-medium text-blue-800 mb-2">📅 Schedule Settings</h3>
+                <p className="text-sm text-blue-600">
+                  Configure when and how often the campaign should run automatically.
+                </p>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Frequency
+                </label>
+                <select
+                  value={formData.schedule_settings.frequency}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    schedule_settings: { ...prev.schedule_settings, frequency: e.target.value as any }
+                  }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="daily">Daily</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Call Time (When to start calling)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={formData.schedule_settings.start_time}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    schedule_settings: { ...prev.schedule_settings, start_time: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  Set the specific time when AI calls should start. Campaign will run automatically at this time.
+                </p>
+              </div>
+
+              {formData.schedule_settings.frequency === 'weekly' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Days of Week
+                  </label>
+                  <div className="grid grid-cols-7 gap-2">
+                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => (
+                      <label key={day} className="flex items-center justify-center p-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={formData.schedule_settings.days_of_week.includes(index)}
+                          onChange={(e) => {
+                            const days = formData.schedule_settings.days_of_week
+                            if (e.target.checked) {
+                              setFormData(prev => ({
+                                ...prev,
+                                schedule_settings: {
+                                  ...prev.schedule_settings,
+                                  days_of_week: [...days, index]
+                                }
+                              }))
+                            } else {
+                              setFormData(prev => ({
+                                ...prev,
+                                schedule_settings: {
+                                  ...prev.schedule_settings,
+                                  days_of_week: days.filter(d => d !== index)
+                                }
+                              }))
+                            }
+                          }}
+                          className="mr-1"
+                        />
+                        <span className="text-sm">{day}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {formData.schedule_settings.frequency === 'monthly' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Day of Month
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    value={formData.schedule_settings.day_of_month}
+                    onChange={(e) => setFormData(prev => ({ 
+                      ...prev, 
+                      schedule_settings: { ...prev.schedule_settings, day_of_month: parseInt(e.target.value) }
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+              )}
+
+              {formData.schedule_settings.frequency === 'yearly' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Month
+                    </label>
+                    <select
+                      value={formData.schedule_settings.month_of_year}
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        schedule_settings: { ...prev.schedule_settings, month_of_year: parseInt(e.target.value) }
+                      }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, index) => (
+                        <option key={month} value={index + 1}>{month}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Day
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={formData.schedule_settings.day_of_month}
+                      onChange={(e) => setFormData(prev => ({ 
+                        ...prev, 
+                        schedule_settings: { ...prev.schedule_settings, day_of_month: parseInt(e.target.value) }
+                      }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  End Time (Optional)
+                </label>
+                <input
+                  type="datetime-local"
+                  value={formData.schedule_settings.end_time}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    schedule_settings: { ...prev.schedule_settings, end_time: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  Optional: Set when the campaign should stop running automatically.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Timezone
+                </label>
+                <select
+                  value={formData.schedule_settings.timezone}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    schedule_settings: { ...prev.schedule_settings, timezone: e.target.value }
+                  }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="UTC">UTC (Coordinated Universal Time)</option>
+                  <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (Vietnam)</option>
+                  <option value="America/New_York">America/New_York (EST)</option>
+                  <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
+                  <option value="Europe/London">Europe/London (GMT)</option>
+                  <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
+                </select>
+                <p className="text-sm text-gray-500 mt-1">
+                  Select the timezone for your call schedule.
+                </p>
+              </div>
             </div>
           )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select Groups (Optional)
+            </label>
+            <div className="space-y-2 max-h-40 overflow-y-auto">
+              {groups.length === 0 ? (
+                <p className="text-gray-500 text-sm">No groups available. Create groups first.</p>
+              ) : (
+                groups.map((group) => (
+                  <label key={group.id} className="flex items-center p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50">
+                    <input
+                      type="checkbox"
+                      checked={formData.group_ids.includes(group.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setFormData(prev => ({ ...prev, group_ids: [...prev.group_ids, group.id] }))
+                        } else {
+                          setFormData(prev => ({ ...prev, group_ids: prev.group_ids.filter(id => id !== group.id) }))
+                        }
+                      }}
+                      className="mr-3"
+                    />
+                    <div className="flex items-center">
+                      <div 
+                        className="w-4 h-4 rounded-full mr-3" 
+                        style={{ backgroundColor: group.color || '#3B82F6' }}
+                      />
+                      <div>
+                        <div className="font-medium">{group.name}</div>
+                        <div className="text-sm text-gray-500">{group.member_count} members</div>
+                      </div>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -517,8 +775,8 @@ function CreateCampaignModal({ onClose, onSubmit, onSelectContacts, selectedCont
             >
               <Users className="h-8 w-8 mx-auto mb-2 text-gray-400" />
               <div className="text-gray-600">
-                {selectedContactsCount > 0 
-                  ? `${selectedContactsCount} contacts selected`
+                {selectedContactsCount > 0 || formData.group_ids.length > 0
+                  ? `${selectedContactsCount} contacts + ${formData.group_ids.length} groups selected`
                   : 'Click to select contacts'
                 }
               </div>
@@ -557,7 +815,7 @@ function ContactSelectorModal({
   onSearchChange,
   loading 
 }: {
-  contacts: Contact[]
+  contacts: any
   selectedContacts: string[]
   onToggle: (id: string) => void
   onClose: () => void
@@ -598,37 +856,47 @@ function ContactSelectorModal({
           </div>
         ) : (
           <div className="space-y-2 max-h-96 overflow-y-auto">
-            {contacts.map((contact) => (
-              <div
-                key={contact.id}
-                className={`flex items-center p-4 border rounded-lg cursor-pointer transition-colors ${
-                  selectedContacts.includes(contact.id)
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:bg-gray-50'
-                }`}
-                onClick={() => onToggle(contact.id)}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedContacts.includes(contact.id)}
-                  onChange={() => onToggle(contact.id)}
-                  className="mr-3"
-                />
-                <div className="flex-1">
-                  <div className="font-medium text-gray-900">
-                    {contact.first_name} {contact.last_name}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {contact.email} • {contact.phone}
-                  </div>
-                  {contact.company_name && (
-                    <div className="text-sm text-gray-400">
-                      {contact.company_name}
-                    </div>
-                  )}
-                </div>
+            {contacts.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">No contacts available</p>
+                <p className="text-sm text-gray-400">Create contacts first or check your data</p>
               </div>
-            ))}
+            ) : (
+              contacts.map((contact:any) => {
+                const isSelected = selectedContacts.includes(contact._id)
+                return (
+                  <div
+                    key={contact?._id}
+                    className={`flex items-center p-4 border rounded-lg transition-colors ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:bg-gray-50'
+                    } ${contact._id}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => onToggle(contact._id)}
+                      className="mr-3 cursor-pointer"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">
+                        {contact.first_name} {contact.last_name}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {contact.email} • {contact.phone}
+                      </div>
+                      {contact.company_name && (
+                        <div className="text-sm text-gray-400">
+                          {contact.company_name}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+            )}
           </div>
         )}
 

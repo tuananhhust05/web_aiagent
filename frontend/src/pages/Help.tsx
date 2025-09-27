@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Header from '../components/Header'
+import ChatWidget from '../components/ChatWidget'
 import { Search, BookOpen, MessageCircle, Video, FileText, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react'
 
 export default function Help() {
@@ -257,6 +258,9 @@ export default function Help() {
           </div>
         </div>
       </section>
+
+      {/* Chat Widget */}
+      <ChatWidget />
     </div>
   )
 }

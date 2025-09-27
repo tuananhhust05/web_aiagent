@@ -13,10 +13,14 @@ class ContactStatus(str, Enum):
 class ContactSource(str, Enum):
     MANUAL = "manual"
     CSV_IMPORT = "csv_import"
+    IMPORT = "import"
     HUBSPOT = "hubspot"
     SALESFORCE = "salesforce"
     PIPEDRIVE = "pipedrive"
     WEBSITE = "website"
+    REFERRAL = "referral"
+    SOCIAL_MEDIA = "social_media"
+    EMAIL_CAMPAIGN = "email_campaign"
 
 class ContactBase(BaseModel):
     first_name: str = Field(..., min_length=1, max_length=50)

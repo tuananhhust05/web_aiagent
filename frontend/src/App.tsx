@@ -16,7 +16,11 @@ import Contacts from './pages/contacts/Contacts'
 import ContactDetail from './pages/contacts/ContactDetail'
 import ContactImport from './pages/contacts/ContactImport'
 import ContactNew from './pages/contacts/ContactNew'
+import ContactGroups from './pages/contacts/ContactGroups'
+import GroupDetail from './pages/contacts/GroupDetail'
 import CRM from './pages/crm/CRM'
+import Campaign from './pages/Campaign'
+import CampaignDetail from './pages/CampaignDetail'
 import Agent from './pages/Agent'
 import RAG from './pages/RAG'
 import VoiceTraining from './pages/VoiceTraining'
@@ -28,7 +32,6 @@ import Help from './pages/Help'
 import AIAgent from './pages/products/AIAgent'
 import RAGClient from './pages/products/RAGClient'
 import CRMIntegration from './pages/products/CRMIntegration'
-import Campaign from './pages/Campaign'
 import CRMIntegrationPage from './pages/CRMIntegration'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 
@@ -77,7 +80,10 @@ function App() {
         <Route path="/contacts/new" element={<ContactNew />} />
         <Route path="/contacts/:id" element={<ContactDetail />} />
         <Route path="/contacts/import" element={<ContactImport />} />
+        <Route path="/contacts/group" element={<ContactGroups />} />
+        <Route path="/contacts/group/:groupId" element={<GroupDetail />} />
         <Route path="/campaigns" element={<Campaign />} />
+        <Route path="/campaigns/:id" element={<CampaignDetail />} />
         <Route path="/crm-integration" element={<CRMIntegrationPage />} />
         <Route path="/crm" element={<CRM />} />
         <Route path="/agent" element={<Agent />} />

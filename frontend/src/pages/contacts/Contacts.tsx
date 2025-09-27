@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { Plus, Search, Filter, Upload, MoreHorizontal, Users, Building2, Calendar, Phone } from 'lucide-react'
-import { contactsAPI, callsAPI } from '../../lib/api'
+import { Plus, Search, Filter, Upload, MoreHorizontal, Users, Phone } from 'lucide-react'
+import { contactsAPI, callsAPI, groupsAPI } from '../../lib/api'
 import { formatDate, generateInitials } from '../../lib/utils'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -11,6 +11,7 @@ export default function Contacts() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
+  const [callingContactId, setCallingContactId] = useState<string | null>(null)
 
   const { data: contactsResponse, isLoading, error } = useQuery({
     queryKey: ['contacts', { search, status: statusFilter, source: sourceFilter }],
@@ -21,9 +22,15 @@ export default function Contacts() {
     }),
   })
 
+  const { data: groupsResponse } = useQuery({
+    queryKey: ['groups'],
+    queryFn: () => groupsAPI.getGroups({ limit: 1 }), // Just get count
+  })
+
   const callMutation = useMutation({
     mutationFn: (callData: any) => callsAPI.createCall(callData),
     onSuccess: (response) => {
+      setCallingContactId(null)
       if (response.data.twilio_call_sid) {
         toast.success('Call initiated via Twilio successfully!')
       } else {
@@ -31,12 +38,14 @@ export default function Contacts() {
       }
     },
     onError: (error: any) => {
+      setCallingContactId(null)
       toast.error(error.response?.data?.detail || 'Failed to record call')
     },
   })
 
 
   const handleCall = (contact: any) => {
+    setCallingContactId(contact.id)
     const callData = {
       phone_number: contact.phone,
       agent_name: 'Manual Call',
@@ -52,6 +61,7 @@ export default function Contacts() {
 
 
   const contacts = contactsResponse?.data || []
+  const groupsCount = groupsResponse?.data?.total || 0
 
   // Ensure contacts is always an array and map _id to id
   const contactsList = Array.isArray(contacts) ? contacts.map(contact => ({
@@ -157,36 +167,17 @@ export default function Contacts() {
             </div>
           </div>
         </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+        <Link to="/contacts/group" className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer">
           <div className="flex items-center">
             <div className="w-12 h-12 bg-green-50 rounded-xl flex items-center justify-center mr-4">
-              <Building2 className="h-6 w-6 text-green-600" />
+              <Users className="h-6 w-6 text-green-600" />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-600">Companies</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {new Set(contactsList.map(c => c.company).filter(Boolean)).size}
-              </p>
+              <p className="text-sm font-medium text-gray-600">Groups</p>
+              <p className="text-2xl font-bold text-gray-900">{groupsCount}</p>
             </div>
           </div>
-        </div>
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-          <div className="flex items-center">
-            <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center mr-4">
-              <Calendar className="h-6 w-6 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-600">This Month</p>
-              <p className="text-2xl font-bold text-gray-900">
-                {contactsList.filter(c => {
-                  const created = new Date(c.created_at)
-                  const now = new Date()
-                  return created.getMonth() === now.getMonth() && created.getFullYear() === now.getFullYear()
-                }).length}
-              </p>
-            </div>
-          </div>
-        </div>
+        </Link>
       </div>
 
       {/* Filters Section */}
@@ -312,36 +303,20 @@ export default function Contacts() {
                   </div>
                   <div className="flex items-center space-x-3">
                     {contact.phone && (
-                      <>
-                        <button
-                          onClick={() => handleCall(contact)}
-                          disabled={callMutation.isPending}
-                          className="text-green-600 hover:text-green-700 font-medium transition-colors flex items-center disabled:opacity-50"
-                        >
-                          {callMutation.isPending ? (
-                            <LoadingSpinner size="sm" />
-                          ) : (
-                            <>
-                              <Phone className="h-4 w-4 mr-1" />
-                              Record
-                            </>
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleCall(contact)}
-                          disabled={callMutation.isPending}
-                          className="text-blue-600 hover:text-blue-700 font-medium transition-colors flex items-center disabled:opacity-50"
-                        >
-                          {callMutation.isPending ? (
-                            <LoadingSpinner size="sm" />
-                          ) : (
-                            <>
-                              <Phone className="h-4 w-4 mr-1" />
-                              Call
-                            </>
-                          )}
-                        </button>
-                      </>
+                      <button
+                        onClick={() => handleCall(contact)}
+                        disabled={callingContactId === contact.id}
+                        className="text-blue-600 hover:text-blue-700 font-medium transition-colors flex items-center disabled:opacity-50"
+                      >
+                        {callingContactId === contact.id ? (
+                          <LoadingSpinner size="sm" />
+                        ) : (
+                          <>
+                            <Phone className="h-4 w-4 mr-1" />
+                            Call
+                          </>
+                        )}
+                      </button>
                     )}
                     <Link
                       to={`/contacts/${contact.id}`}
