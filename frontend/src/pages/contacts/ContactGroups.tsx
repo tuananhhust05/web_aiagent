@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, Users, MoreHorizontal, Edit, Trash2, Eye, Settings, Download, X, FileText } from 'lucide-react'
+import { Plus, Search, Users, MoreHorizontal, Edit, Trash2, Eye, Download, X, FileText } from 'lucide-react'
 import { groupsAPI, contactsImportAPI, contactsAPI } from '../../lib/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'

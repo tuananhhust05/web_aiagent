@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { 
+import {
   ArrowLeft,
-  Play, 
-  Pause, 
-  Edit, 
+  Play,
+  Pause,
+  Edit,
   Trash2,
   Users, 
   Clock, 
@@ -13,23 +13,20 @@ import {
   Target,
   CheckCircle,
   AlertCircle,
-  Phone,
-  Mail,
-  Building2,
   RefreshCw
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { campaignsAPI, groupsAPI } from '../lib/api'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
-interface Contact {
-  id: string
-  first_name: string
-  last_name: string
-  email: string
-  phone: string
-  company_name?: string
-}
+// interface Contact {
+//   id: string
+//   first_name: string
+//   last_name: string
+//   email: string
+//   phone: string
+//   company_name?: string
+// }
 
 interface Group {
   id: string
@@ -80,7 +77,7 @@ export default function CampaignDetail() {
   })
 
   const groups = Array.isArray(groupsResponse?.data?.groups) ? groupsResponse.data.groups : []
-  const campaignGroups = groups.filter(group => campaign?.data?.group_ids?.includes(group.id))
+  const campaignGroups = groups.filter((group: any) => campaign?.data?.group_ids?.includes(group.id))
 
   // Mutations
   const startCampaignMutation = useMutation({
@@ -325,7 +322,7 @@ export default function CampaignDetail() {
             <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Groups ({campaignGroups.length})</h3>
               <div className="space-y-3">
-                {campaignGroups.map((group) => (
+                {campaignGroups.map((group: any) => (
                   <div key={group.id} className="flex items-center p-3 bg-gray-50 rounded-lg">
                     <div 
                       className="w-4 h-4 rounded-full mr-3" 
@@ -349,11 +346,11 @@ export default function CampaignDetail() {
               Contacts from Groups ({contactsFromGroups.data.total_contacts})
             </h3>
             <div className="space-y-4">
-              {contactsFromGroups.data.groups.map((group) => (
+              {contactsFromGroups.data.groups.map((group: any) => (
                 <div key={group.group_id} className="border border-gray-200 rounded-lg p-4">
                   <h4 className="font-medium text-gray-900 mb-3">{group.group_name} ({group.total_contacts} contacts)</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {group.contacts.map((contact) => (
+                    {group.contacts.map((contact: any) => (
                       <div key={contact.id} className="flex items-center p-3 bg-gray-50 rounded-lg">
                         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
                           <span className="text-sm font-medium text-blue-600">

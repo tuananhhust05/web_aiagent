@@ -10,7 +10,8 @@ import {
   X,
   Users,
   ArrowRight,
-  Sparkles
+  Sparkles,
+  Mail
 } from 'lucide-react'
 import { contactsAPI, statsAPI } from '../../lib/api'
 import { toast } from 'react-hot-toast'

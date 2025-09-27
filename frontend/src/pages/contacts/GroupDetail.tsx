@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Plus, Search, Users, MoreHorizontal, Trash2, Edit, Phone, Mail, Building2, Upload, Download, X } from 'lucide-react'
-import { groupsAPI, contactsAPI } from '../../lib/api'
+import { ArrowLeft, Plus, Search, Users, Trash2, Phone, Mail, Upload, Download, X } from 'lucide-react'
+import { groupsAPI } from '../../lib/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
@@ -181,12 +181,12 @@ export default function GroupDetail() {
               <div className="flex items-center">
                 <div 
                   className="w-12 h-12 rounded-xl flex items-center justify-center mr-4"
-                  style={{ backgroundColor: group.color ? `${group.color}20` : '#3B82F620' }}
+                  style={{ backgroundColor: group?.data?.color ? `${group.data.color}20` : '#3B82F620' }}
                 >
-                  <Users className="h-6 w-6" style={{ color: group.color || '#3B82F6' }} />
+                  <Users className="h-6 w-6" style={{ color: group?.data?.color || '#3B82F6' }} />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">{group.name}</h1>
+                  <h1 className="text-3xl font-bold text-gray-900">{group?.data?.name}</h1>
                   <p className="text-gray-600 mt-1">{members.length} members</p>
                 </div>
               </div>
@@ -202,9 +202,9 @@ export default function GroupDetail() {
             </div>
           </div>
           
-          {group.description && (
+          {group?.data?.description && (
             <div className="mt-4">
-              <p className="text-gray-600">{group.description}</p>
+              <p className="text-gray-600">{group.data.description}</p>
             </div>
           )}
         </div>
