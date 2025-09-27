@@ -14,7 +14,8 @@ import {
   TrendingUp,
   CheckCircle,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Tag
 } from 'lucide-react'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { toast } from 'react-hot-toast'
@@ -28,6 +29,7 @@ interface CallDetail {
   status: 'completed' | 'failed' | 'busy' | 'no_answer' | 'cancelled'
   recording_url?: string
   transcript?: string
+  keywords?: string[]
   sentiment?: 'positive' | 'negative' | 'neutral'
   sentiment_score?: number
   feedback?: string
@@ -383,6 +385,27 @@ export default function CallDetail() {
             <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
               {call.transcript}
             </pre>
+          </div>
+        </div>
+      )}
+
+      {/* Keywords */}
+      {call.keywords && call.keywords.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+            <Tag className="h-5 w-5 mr-2 text-primary-600" />
+            Keywords
+          </h3>
+          
+          <div className="flex flex-wrap gap-2">
+            {call.keywords.map((keyword, index) => (
+              <span
+                key={index}
+                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800 border border-primary-200"
+              >
+                {keyword}
+              </span>
+            ))}
           </div>
         </div>
       )}

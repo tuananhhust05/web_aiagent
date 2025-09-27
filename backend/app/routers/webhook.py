@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, status, Request, Form
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 from app.core.database import get_database
-from app.models.call import CallStatus, SentimentType
+from app.models.call import CallStatus, SentimentType, CallTranscriptUpdate
 
 router = APIRouter()
 
@@ -139,4 +139,61 @@ async def twilio_status_callback(
         "call_id": call["_id"],
         "twilio_call_sid": CallSid,
         "status": new_status
+    }
+
+@router.put("/auto-update-latest_transcript")
+async def auto_update_latest_call_transcript(
+    update_data: CallTranscriptUpdate
+):
+    """
+    Auto update transcript and keywords for the most recent call record.
+    This endpoint is designed for AI agents to update call transcript and extract keywords.
+    Automatically finds and updates the latest call record.
+    """
+    db = get_database()
+    
+    # Find the most recent call in the entire collection
+    latest_call = await db.calls.find_one(
+        {},
+        sort=[("created_at", -1)]
+    )
+    
+    if not latest_call:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No calls found in the database"
+        )
+    
+    # Build update data
+    update_fields = {
+        "transcript": update_data.transcript,
+        "updated_at": datetime.utcnow()
+    }
+    
+    # Add keywords if provided
+    if update_data.keywords:
+        update_fields["keywords"] = update_data.keywords
+    
+    # Update the call
+    result = await db.calls.update_one(
+        {"_id": latest_call["_id"]},
+        {"$set": update_fields}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to update call transcript"
+        )
+    
+    # Get updated call
+    updated_call = await db.calls.find_one({"_id": latest_call["_id"]})
+    
+    return {
+        "message": "Latest call transcript updated successfully",
+        "call_id": updated_call["_id"],
+        "phone_number": updated_call.get("phone_number", "N/A"),
+        "transcript_length": len(update_data.transcript),
+        "keywords_count": len(update_data.keywords) if update_data.keywords else 0,
+        "updated_fields": list(update_fields.keys())
     }

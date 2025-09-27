@@ -29,6 +29,7 @@ class CallBase(BaseModel):
     status: CallStatus = Field(..., description="Call status")
     recording_url: Optional[str] = None
     transcript: Optional[str] = None
+    keywords: Optional[List[str]] = Field(None, description="Keywords extracted from call transcript")
     sentiment: Optional[SentimentType] = None
     sentiment_score: Optional[float] = Field(None, ge=0, le=1, description="Sentiment score 0-1")
     feedback: Optional[str] = None
@@ -47,6 +48,7 @@ class CallUpdate(BaseModel):
     status: Optional[CallStatus] = None
     recording_url: Optional[str] = None
     transcript: Optional[str] = None
+    keywords: Optional[List[str]] = None
     sentiment: Optional[SentimentType] = None
     sentiment_score: Optional[float] = Field(None, ge=0, le=1)
     feedback: Optional[str] = None
@@ -63,6 +65,7 @@ class CallResponse(BaseModel):
     status: CallStatus
     recording_url: Optional[str] = None
     transcript: Optional[str] = None
+    keywords: Optional[List[str]] = None
     sentiment: Optional[SentimentType] = None
     sentiment_score: Optional[float] = None
     feedback: Optional[str] = None
@@ -99,3 +102,7 @@ class CallFilters(BaseModel):
     unique_calls_only: bool = False
     limit: int = Field(50, ge=1, le=1000)
     offset: int = Field(0, ge=0)
+
+class CallTranscriptUpdate(BaseModel):
+    transcript: str = Field(..., description="Call transcript text")
+    keywords: Optional[List[str]] = Field(None, description="Keywords extracted from transcript")
