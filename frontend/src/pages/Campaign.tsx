@@ -704,6 +704,7 @@ function CreateCampaignModal({ onClose, onSubmit, onSelectContacts, selectedCont
                   <option value="America/New_York">America/New_York (EST)</option>
                   <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
                   <option value="Europe/London">Europe/London (GMT)</option>
+                  <option value="Europe/Rome">Europe/Rome (Italy)</option>
                   <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
                 </select>
                 <p className="text-sm text-gray-500 mt-1">
@@ -751,18 +752,6 @@ function CreateCampaignModal({ onClose, onSubmit, onSelectContacts, selectedCont
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Call Script
-            </label>
-            <textarea
-              value={formData.call_script}
-              onChange={(e) => setFormData(prev => ({ ...prev, call_script: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              rows={4}
-              placeholder="Enter your call script..."
-            />
-          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

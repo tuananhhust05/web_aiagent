@@ -36,7 +36,7 @@ class CampaignBase(BaseModel):
     type: CampaignType = CampaignType.MANUAL
     contacts: List[str] = Field(default_factory=list)
     group_ids: List[str] = Field(default_factory=list)  # Groups to include in campaign
-    call_script: str = Field(..., min_length=1)
+    call_script: str = Field(default="", min_length=0)
     schedule_time: Optional[datetime] = None
     schedule_settings: Optional[ScheduleSettings] = None
     settings: Optional[Dict[str, Any]] = Field(default_factory=dict)

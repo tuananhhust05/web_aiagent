@@ -13,6 +13,7 @@ import {
   Phone,
   BarChart3,
   Target,
+  Mic,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -23,7 +24,7 @@ const navigation = [
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Campaigns', href: '/campaigns', icon: Target },
   // { name: 'CRM Integration', href: '/crm-integration', icon: LinkIcon }, // Temporarily hidden
-  // { name: 'Agent', href: '/agent', icon: Mic }, // Temporarily hidden
+  { name: 'Agent', href: '/agent', icon: Mic },
   { name: 'RAG', href: '/ragclient', icon: FileText },
   // { name: 'Voice Training', href: '/voice-training', icon: Headphones }, // Temporarily hidden
   { name: 'Profile', href: '/profile', icon: Settings },

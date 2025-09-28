@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     AI_CALL_API_URL: str = "http://13.210.192.27:5059/outbound-call"
     AI_CALL_DEFAULT_PROMPT: str = "You are an AI assistant"
     
+    # ElevenLabs API Configuration
+    ELEVENLABS_API_KEY: str
+    ELEVENLABS_AGENT_ID: str
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS_ORIGINS string to list"""
@@ -57,5 +61,6 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        extra = "ignore"  # Ignore extra fields from .env
 
 settings = Settings() 
