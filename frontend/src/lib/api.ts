@@ -205,6 +205,20 @@ export const ragAPI = {
     })
   },
   getAgentConfig: () => api.get('/api/rag/agent/config'),
-  updateAgentConfig: (data: { language?: string; prompt?: string; first_message?: string }) => 
+  updateAgentConfig: (data: { language?: string; prompt?: string; first_message?: string }) =>
     api.patch('/api/rag/agent/config', null, { params: data }),
-} 
+  getVoices: () => api.get('/api/rag/voices'),
+  uploadVoice: (file: File, name: string, description?: string) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('name', name)
+    if (description) {
+      formData.append('description', description)
+    }
+    return api.post('/api/rag/voices/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
+}
