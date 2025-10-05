@@ -65,7 +65,7 @@ docker-compose up -d
 ```
 
 3. Access the application:
-- Frontend: http://localhost:5173 (Production)
+- Frontend: https://4skale.com (Production)
 - Backend API: http://localhost:8000
 - API Documentation: http://localhost:8000/docs
 
@@ -81,7 +81,7 @@ docker-compose -f docker-compose.dev.yml up -d
 ```
 
 2. Access the application:
-- Frontend: http://localhost:5173 (Development with hot reload)
+- Frontend: https://4skale.com (Development with hot reload)
 - Backend API: http://localhost:8000
 - API Documentation: http://localhost:8000/docs
 
@@ -236,7 +236,7 @@ The production build includes:
 ```env
 MONGODB_URL=mongodb://admin:password123@localhost:27017/agentvoice?authSource=admin
 JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
-CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+CORS_ORIGINS=https://4skale.com,http://localhost:3000
 ```
 
 ### Frontend (.env)

@@ -11,6 +11,6 @@ echo "🔨 Building and starting production services..."
 docker-compose up -d --build
 
 echo "✅ Production services started!"
-echo "📱 Frontend: http://localhost:5173"
+echo "📱 Frontend: https://4skale.com"
 echo "🔧 Backend API: http://localhost:8000"
 echo "📚 API Docs: http://localhost:8000/docs"

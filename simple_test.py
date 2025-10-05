@@ -11,7 +11,7 @@ print(f"📋 Backend redirect URI: {redirect_uri}")
 
 print("\n📋 Google Cloud Console should have:")
 print(f"   Authorized redirect URIs: {redirect_uri}")
-print(f"   Authorized JavaScript origins: http://localhost:5173")
+print(f"   Authorized JavaScript origins: https://4skale.com")
 
 print("\n🔍 Common redirect URI issues:")
 print("1. Missing /api prefix in Google Console")

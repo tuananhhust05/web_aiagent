@@ -428,7 +428,7 @@ async def google_login_callback(
         print(f"🔐 [GOOGLE_OAUTH] Authentication successful, redirecting to frontend")
         
         # Redirect to frontend login page with token
-        frontend_url = "http://localhost:5173"
+        frontend_url = "https://4skale.com"
         redirect_url = f"{frontend_url}/login?token={result.access_token}&user_id={result.user.id}&is_new={result.is_new_user}"
         
         from fastapi.responses import RedirectResponse
@@ -436,6 +436,6 @@ async def google_login_callback(
         
     except Exception as e:
         print(f"🔐 [GOOGLE_OAUTH] Callback error: {str(e)}")
-        error_url = f"http://localhost:5173/login?error=oauth_failed"
+        error_url = f"https://4skale.com/login?error=oauth_failed"
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=error_url) 

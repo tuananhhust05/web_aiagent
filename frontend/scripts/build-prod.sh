@@ -22,5 +22,5 @@ du -sh dist/
 
 echo "✅ Production build ready!"
 echo "🚀 To start production: docker-compose up -d"
-echo "📱 Access at: http://localhost:5173"
+echo "📱 Access at: https://4skale.com"
 echo "⚡ Using Vite preview server (no nginx required)"
