@@ -6,7 +6,6 @@ import {
   ArrowLeft, 
   Users, 
   UserPlus,
-  Upload,
   X,
   Eye,
   EyeOff

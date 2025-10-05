@@ -1,6 +1,5 @@
 import React, { useState } from 'react'
 import { authAPI } from '../lib/api'
-import { useAuth } from '../hooks/useAuth'
 import { Loader2 } from 'lucide-react'
 
 interface GoogleAuthButtonProps {
@@ -12,14 +11,11 @@ interface GoogleAuthButtonProps {
 }
 
 export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
-  onSuccess,
   onError,
   className = '',
-  children,
-  variant = 'login'
+  children
 }) => {
   const [loading, setLoading] = useState(false)
-  const { login } = useAuth()
 
   const handleGoogleAuth = async () => {
     try {

@@ -40,7 +40,7 @@ const GoogleCallback: React.FC = () => {
         }
 
         // Exchange code for token
-        const response = await authAPI.googleCallback({ code, state })
+        const response = await authAPI.googleCallback({ code, state: state || undefined })
         const { access_token, user: userData, is_new_user } = response.data
 
         // Store authentication data

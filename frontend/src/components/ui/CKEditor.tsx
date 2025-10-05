@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react'
+import React, { useRef } from 'react'
 import { CKEditor } from '@ckeditor/ckeditor5-react'
 import ClassicEditor from '@ckeditor/ckeditor5-build-classic'
 
@@ -24,17 +24,17 @@ const CKEditorComponent: React.FC<CKEditorComponentProps> = ({
     console.log('📝 CKEditor is ready to use!', editor)
   }
 
-  const handleEditorChange = (event: any, editor: any) => {
+  const handleEditorChange = (_event: any, editor: any) => {
     const data = editor.getData()
     console.log('📝 CKEditor content changed:', data)
     onChange(data)
   }
 
-  const handleEditorBlur = (event: any, editor: any) => {
+  const handleEditorBlur = () => {
     console.log('📝 CKEditor blur')
   }
 
-  const handleEditorFocus = (event: any, editor: any) => {
+  const handleEditorFocus = () => {
     console.log('📝 CKEditor focus')
   }
 
@@ -81,13 +81,6 @@ const CKEditorComponent: React.FC<CKEditorComponentProps> = ({
             ]
           },
           language: 'en',
-          image: {
-            toolbar: [
-              'imageTextAlternative',
-              'imageStyle:full',
-              'imageStyle:side'
-            ]
-          },
           table: {
             contentToolbar: [
               'tableColumn',
@@ -98,7 +91,7 @@ const CKEditorComponent: React.FC<CKEditorComponentProps> = ({
         }}
       />
       
-      <style jsx global>{`
+      <style>{`
         .ckeditor-wrapper .ck-editor__editable {
           min-height: ${height}px;
           border: 1px solid #d1d5db;
