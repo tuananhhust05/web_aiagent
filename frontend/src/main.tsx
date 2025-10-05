@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast'
 import App from './App.tsx'
 import { AuthProvider } from './hooks/useAuth'
 import './index.css'
+import './styles/button-overrides.css'
 
 const queryClient = new QueryClient({
   defaultOptions: {

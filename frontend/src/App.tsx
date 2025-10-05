@@ -6,6 +6,8 @@ import Register from './pages/auth/Register'
 import Onboarding from './pages/auth/Onboarding'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
+import GoogleCallback from './pages/auth/GoogleCallback'
+import GoogleSuccess from './pages/auth/GoogleSuccess'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
 import CallsDashboard from './pages/CallsDashboard'
@@ -33,6 +35,9 @@ import AIAgent from './pages/products/AIAgent'
 import RAGClient from './pages/products/RAGClient'
 import CRMIntegration from './pages/products/CRMIntegration'
 import CRMIntegrationPage from './pages/CRMIntegration'
+import EmailList from './pages/emails/EmailList'
+import EmailCreate from './pages/emails/EmailCreate'
+import EmailDetail from './pages/emails/EmailDetail'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 
 function App() {
@@ -56,6 +61,8 @@ function App() {
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/auth/google/callback" element={<GoogleCallback />} />
+        <Route path="/auth/google/success" element={<GoogleSuccess />} />
         <Route path="/about" element={<About />} />
         <Route path="/privacy" element={<Privacy />} />
         <Route path="/pricing" element={<Pricing />} />
@@ -90,6 +97,9 @@ function App() {
         <Route path="/ragclient" element={<RAG />} />
         <Route path="/voice-training" element={<VoiceTraining />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/emails" element={<EmailList />} />
+        <Route path="/emails/create" element={<EmailCreate />} />
+        <Route path="/emails/:id" element={<EmailDetail />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

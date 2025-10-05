@@ -1,11 +1,19 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from datetime import datetime, timedelta
 from bson import ObjectId
 from app.core.database import get_database
 from app.core.auth import verify_password, get_password_hash, create_access_token, get_current_active_user
-from app.models.user import UserCreate, UserLogin, UserResponse, Token, PasswordReset, PasswordResetConfirm, PasswordChange
+from app.models.user import (
+    UserCreate, UserLogin, UserResponse, Token, PasswordReset, PasswordResetConfirm, PasswordChange,
+    GoogleAuthRequest, GoogleAuthResponse, GoogleUserInfo
+)
 from app.core.config import settings
 from app.services.email import send_password_reset_email, generate_reset_token
+from app.services.google_auth import google_auth_service
+import secrets
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -219,4 +227,215 @@ async def gdpr_consent(current_user: UserResponse = Depends(get_current_active_u
         }
     )
     
-    return {"message": "GDPR consent recorded successfully"} 
+    return {"message": "GDPR consent recorded successfully"}
+
+# Google OAuth Endpoints
+@router.get("/google/login")
+async def google_login():
+    """
+    Get Google OAuth authorization URL
+    """
+    try:
+        # Generate a random state for security
+        state = secrets.token_urlsafe(32)
+        auth_url = google_auth_service.get_google_auth_url(state=state)
+        
+        return {
+            "auth_url": auth_url,
+            "state": state
+        }
+    except Exception as e:
+        logger.error(f"Error generating Google auth URL: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate Google authorization URL"
+        )
+
+@router.post("/google/callback", response_model=GoogleAuthResponse)
+async def google_callback(auth_request: GoogleAuthRequest):
+    """
+    Handle Google OAuth callback and create/login user
+    """
+    db = get_database()
+    
+    try:
+        print(f"🔐 [GOOGLE_OAUTH] Starting OAuth callback with code: {auth_request.code[:10]}...")
+        
+        # Exchange code for access token
+        token_data = await google_auth_service.exchange_code_for_token(auth_request.code)
+        access_token = token_data.get("access_token")
+        
+        print(f"🔐 [GOOGLE_OAUTH] Token exchange successful")
+        
+        if not access_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No access token received from Google"
+            )
+        
+        # Get user info from Google
+        google_user = await google_auth_service.get_user_info(access_token)
+        print(f"🔐 [GOOGLE_OAUTH] User info retrieved: {google_user.email}")
+        
+        # Check if user already exists by email (primary check)
+        existing_user = await db.users.find_one({"email": google_user.email})
+        
+        if existing_user:
+            # User exists, log them in and update Google info
+            logger.info(f"Existing user logged in via Google: {google_user.email}")
+            
+            # Update user with Google info
+            await db.users.update_one(
+                {"_id": existing_user["_id"]},
+                {
+                    "$set": {
+                        "google_id": google_user.id,
+                        "auth_provider": "google",
+                        "avatar_url": google_user.picture,
+                        "is_verified": True,  # Google verified emails are trusted
+                        "updated_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            # Create JWT token
+            jwt_token = create_access_token(data={"sub": existing_user["_id"]})
+            user_response = UserResponse(**existing_user)
+            user_response.google_id = google_user.id
+            user_response.auth_provider = "google"
+            user_response.avatar_url = google_user.picture
+            user_response.is_verified = True
+            
+            return GoogleAuthResponse(
+                access_token=jwt_token,
+                user=user_response,
+                is_new_user=False
+            )
+        
+        # Create new user
+        print(f"🔐 [GOOGLE_OAUTH] Creating new user: {google_user.email}")
+        logger.info(f"Creating new Google user: {google_user.email}")
+        
+        # Generate username from email
+        username = google_user.email.split("@")[0]
+        # Ensure username is unique
+        counter = 1
+        original_username = username
+        while await db.users.find_one({"username": username}):
+            username = f"{original_username}{counter}"
+            counter += 1
+        
+        print(f"🔐 [GOOGLE_OAUTH] Generated username: {username}")
+        
+        user_doc = {
+            "_id": str(ObjectId()),
+            "email": google_user.email,
+            "username": username,
+            "first_name": google_user.given_name,
+            "last_name": google_user.family_name,
+            "google_id": google_user.id,
+            "avatar_url": google_user.picture,
+            "auth_provider": "google",
+            "role": "user",
+            "is_active": True,
+            "is_verified": True,  # Google verified emails are trusted
+            "gdpr_consent": False,
+            "terms_accepted": False,
+            "tone": "professional",
+            "language": google_user.locale or "en",
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        await db.users.insert_one(user_doc)
+        print(f"🔐 [GOOGLE_OAUTH] User created successfully: {user_doc['_id']}")
+        
+        # Create JWT token
+        jwt_token = create_access_token(data={"sub": user_doc["_id"]})
+        user_response = UserResponse(**user_doc)
+        
+        print(f"🔐 [GOOGLE_OAUTH] JWT token generated, returning response")
+        
+        return GoogleAuthResponse(
+            access_token=jwt_token,
+            user=user_response,
+            is_new_user=True
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in Google OAuth callback: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication failed"
+        )
+
+@router.get("/me")
+async def get_current_user_info(current_user: UserResponse = Depends(get_current_active_user)):
+    """
+    Get current user's profile information
+    """
+    return current_user
+
+@router.get("/google/user-info")
+async def get_google_user_info(current_user: UserResponse = Depends(get_current_active_user)):
+    """
+    Get current user's Google profile information
+    """
+    if current_user.auth_provider != "google":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not authenticated via Google"
+        )
+    
+    return {
+        "google_id": current_user.google_id,
+        "avatar_url": current_user.avatar_url,
+        "auth_provider": current_user.auth_provider
+    }
+
+@router.get("/login/google")
+async def google_login_callback(
+    code: str = None,
+    state: str = None,
+    error: str = None
+):
+    """
+    Handle Google OAuth callback from redirect
+    """
+    if error:
+        print(f"🔐 [GOOGLE_OAUTH] OAuth error: {error}")
+        return {
+            "error": error,
+            "message": "Google authentication failed"
+        }
+    
+    if not code:
+        print(f"🔐 [GOOGLE_OAUTH] No authorization code received")
+        return {
+            "error": "no_code",
+            "message": "No authorization code received from Google"
+        }
+    
+    try:
+        print(f"🔐 [GOOGLE_OAUTH] Processing callback with code: {code[:10]}...")
+        
+        # Call the existing callback logic
+        auth_request = GoogleAuthRequest(code=code, state=state)
+        result = await google_callback(auth_request)
+        
+        print(f"🔐 [GOOGLE_OAUTH] Authentication successful, redirecting to frontend")
+        
+        # Redirect to frontend login page with token
+        frontend_url = "http://localhost:5173"
+        redirect_url = f"{frontend_url}/login?token={result.access_token}&user_id={result.user.id}&is_new={result.is_new_user}"
+        
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=redirect_url)
+        
+    except Exception as e:
+        print(f"🔐 [GOOGLE_OAUTH] Callback error: {str(e)}")
+        error_url = f"http://localhost:5173/login?error=oauth_failed"
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=error_url) 

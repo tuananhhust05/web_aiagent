@@ -24,6 +24,15 @@ class Settings(BaseSettings):
     PIPEDRIVE_CLIENT_SECRET: str = ""
     
     # Email settings
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_SECURE: bool = False
+    SMTP_USER: str = "4skale.marketing@gmail.com"
+    SMTP_PASS: str = "zgco rdxp kaul pjyf"
+    SMTP_FROM_EMAIL: str = "4skale.marketing@gmail.com"
+    SMTP_FROM_NAME: str = "4Skale"
+    
+    # Legacy email settings (for backward compatibility)
     MAIL_USERNAME: str = "tuananhducly@gmail.com"
     MAIL_PASSWORD: str = "rrgo dqab rwtl cpng"
     MAIL_FROM: str = "tuananhducly@gmail.com"
@@ -51,6 +60,11 @@ class Settings(BaseSettings):
     # ElevenLabs API Configuration
     ELEVENLABS_API_KEY: str
     ELEVENLABS_AGENT_ID: str
+    
+    # Google OAuth Configuration
+    GOOGLE_CLIENT_ID: str 
+    GOOGLE_CLIENT_SECRET: str
+    GOOGLE_REDIRECT_URI: str
     
     @property
     def cors_origins_list(self) -> List[str]:

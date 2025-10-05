@@ -30,15 +30,15 @@
   }
   
   .btn-sm {
-    @apply h-9 px-4 text-sm;
+    @apply h-9 px-10 text-sm;
   }
   
   .btn-md {
-    @apply h-11 px-6 text-sm;
+    @apply h-11 px-10 text-sm;
   }
   
   .btn-lg {
-    @apply h-14 px-8 text-base;
+    @apply h-14 px-10 text-base;
   }
   
   .input {
@@ -77,4 +77,33 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;  /* Safari and Chrome */
   }
+  
+  /* Override button padding globally */
+  .btn {
+    padding: 10px !important;
+  }
+  
+  /* Specific overrides for different button sizes */
+  .btn-sm {
+    padding: 10px !important;
+  }
+  
+  .btn-md {
+    padding: 10px !important;
+  }
+  
+  .btn-lg {
+    padding: 10px !important;
+  }
+  
+  /* Override for any button element with btn class */
+  button.btn {
+    padding: 10px !important;
+  }
+  
+  /* Override for any link element with btn class */
+  a.btn {
+    padding: 10px !important;
+  }
+  
 } 

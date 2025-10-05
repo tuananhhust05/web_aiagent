@@ -7,6 +7,7 @@ import { Eye, EyeOff, Mail, Lock, User, Building2, ArrowRight, Sparkles, CheckCi
 import { useAuth } from '../../hooks/useAuth'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import GoogleAuthButton from '../../components/GoogleAuthButton'
 
 const registerSchema = z.object({
   first_name: z.string().min(2, 'First name must be at least 2 characters'),
@@ -56,6 +57,21 @@ export default function Register() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleGoogleSuccess = (data: any) => {
+    const { user, is_new_user } = data
+    if (is_new_user) {
+      toast.success(`Welcome to AgentVoice, ${user.first_name}!`)
+      navigate('/onboarding')
+    } else {
+      toast.success(`Welcome back, ${user.first_name}!`)
+      navigate('/dashboard')
+    }
+  }
+
+  const handleGoogleError = (error: string) => {
+    toast.error(error)
   }
 
   const features = [
@@ -271,6 +287,23 @@ export default function Register() {
                 )}
               </button>
             </form>
+
+            {/* Divider */}
+            <div className="relative my-8">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-white text-gray-500">Or continue with</span>
+              </div>
+            </div>
+
+            {/* Google OAuth Button */}
+            <GoogleAuthButton
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              variant="register"
+            />
 
             {/* Sign In Link */}
             <div className="text-center mt-6">

@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   if (window.location.protocol === 'https:' && url.startsWith('http://')) {
     return url.replace('http://', 'https://')
@@ -61,16 +61,21 @@ api.interceptors.response.use(
 // Auth API
 export const authAPI = {
   login: (credentials: { email: string; password: string }) =>
-    api.post('/api/auth/login', credentials),
-  register: (userData: any) => api.post('/api/auth/register', userData),
+    api.post('/auth/login', credentials),
+  register: (userData: any) => api.post('/auth/register', userData),
   forgotPassword: (email: string) =>
-    api.post('/api/auth/forgot-password', { email }),
+    api.post('/auth/forgot-password', { email }),
   resetPassword: (token: string, newPassword: string) =>
-    api.post('/api/auth/reset-password', { token, new_password: newPassword }),
+    api.post('/auth/reset-password', { token, new_password: newPassword }),
   changePassword: (data: { current_password: string; new_password: string }) =>
-    api.post('/api/auth/change-password', data),
-  acceptTerms: () => api.post('/api/auth/accept-terms'),
-  gdprConsent: () => api.post('/api/auth/gdpr-consent'),
+    api.post('/auth/change-password', data),
+  acceptTerms: () => api.post('/auth/accept-terms'),
+  gdprConsent: () => api.post('/auth/gdpr-consent'),
+  // Google OAuth
+  getGoogleAuthUrl: () => api.get('/auth/google/login'),
+  googleCallback: (data: { code: string; state?: string }) => api.post('/auth/google/callback', data),
+  getGoogleUserInfo: () => api.get('/auth/google/user-info'),
+  getMe: () => api.get('/auth/me'),
 }
 
 // User API
@@ -221,4 +226,18 @@ export const ragAPI = {
       },
     })
   },
+}
+
+// Email Marketing API
+export const emailsAPI = {
+  getEmails: (params?: any) => api.get('/api/emails/listemails', { params }),
+  getEmail: (id: string) => api.get(`/api/emails/${id}`),
+  createEmail: (data: any) => api.post('/api/emails/sendmail', data),
+  updateEmail: (id: string, data: any) => api.put(`/api/emails/${id}`, data),
+  deleteEmail: (id: string) => api.delete(`/api/emails/${id}`),
+  sendEmail: (id: string) => api.post(`/api/emails/${id}/send`),
+  getEmailStats: () => api.get('/api/emails/stats/summary'),
+  // Test endpoints
+  testEmailAPI: () => api.get('/api/emails/test'),
+  getEmailsSimple: () => api.get('/api/emails/list'),
 }

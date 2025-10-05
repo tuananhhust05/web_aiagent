@@ -14,6 +14,7 @@ import {
   BarChart3,
   Target,
   Mic,
+  Mail,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -23,6 +24,7 @@ const navigation = [
   { name: 'Calls', href: '/calls', icon: Phone },
   { name: 'Contacts', href: '/contacts', icon: Users },
   { name: 'Campaigns', href: '/campaigns', icon: Target },
+  { name: 'Email Marketing', href: '/emails', icon: Mail },
   // { name: 'CRM Integration', href: '/crm-integration', icon: LinkIcon }, // Temporarily hidden
   { name: 'Agent', href: '/agent', icon: Mic },
   { name: 'RAG', href: '/ragclient', icon: FileText },

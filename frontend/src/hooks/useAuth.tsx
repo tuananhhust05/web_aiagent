@@ -2,7 +2,8 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { authAPI } from '../lib/api'
 
 interface User {
-  id: string
+  _id: string
+  id?: string // For backward compatibility
   email: string
   username: string
   first_name: string
@@ -19,6 +20,9 @@ interface User {
   terms_accepted: boolean
   created_at: string
   updated_at: string
+  google_id?: string
+  avatar_url?: string
+  auth_provider?: string
 }
 
 interface AuthContextType {
@@ -27,10 +31,12 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>
   signUp: (userData: any) => Promise<{ error: any }>
   register: (userData: any) => Promise<{ error: any }>
+  login: (userData: User, token: string) => void
   signOut: () => void
   updateUser: (userData: User) => void
   resetPassword: (email: string) => Promise<{ error: any }>
   updatePassword: (password: string) => Promise<{ error: any }>
+  refreshUser: () => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -46,7 +52,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     if (token && storedUser) {
       try {
-        setUser(JSON.parse(storedUser))
+        const userData = JSON.parse(storedUser)
+        // Ensure backward compatibility by adding id field if _id exists
+        if (userData._id && !userData.id) {
+          userData.id = userData._id
+        }
+        setUser(userData)
       } catch (error) {
         console.error('Error parsing stored user data:', error)
         localStorage.removeItem('token')
@@ -114,16 +125,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const login = (userData: User, token: string) => {
+    localStorage.setItem('token', token)
+    localStorage.setItem('user', JSON.stringify(userData))
+    setUser(userData)
+  }
+
+  const refreshUser = () => {
+    const token = localStorage.getItem('token')
+    const storedUser = localStorage.getItem('user')
+    
+    if (token && storedUser) {
+      try {
+        const userData = JSON.parse(storedUser)
+        // Ensure backward compatibility by adding id field if _id exists
+        if (userData._id && !userData.id) {
+          userData.id = userData._id
+        }
+        setUser(userData)
+      } catch (error) {
+        console.error('Error parsing stored user data:', error)
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        setUser(null)
+      }
+    } else {
+      setUser(null)
+    }
+  }
+
   const value = {
     user,
     loading,
     signIn,
     signUp,
     register: signUp, // Alias for backward compatibility
+    login,
     signOut,
     updateUser,
     resetPassword,
     updatePassword,
+    refreshUser,
   }
 
   return (

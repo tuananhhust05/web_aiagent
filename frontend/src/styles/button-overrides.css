@@ -1,0 +1,58 @@
+/* Global Button Padding Override */
+/* This file overrides all button padding to 10px */
+
+/* Override for all buttons with btn class */
+.btn {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+/* Override for button elements */
+button.btn {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+/* Override for link elements */
+a.btn {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+/* Override for different button sizes */
+.btn-sm {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+.btn-md {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+.btn-lg {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+/* Override for button variants */
+.btn-primary {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+.btn-secondary {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+.btn-outline {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
+/* Override for any element with btn class */
+[class*="btn"] {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}

@@ -65,6 +65,10 @@ class UserResponse(BaseModel):
     updated_at: datetime
     gdpr_consent: bool = False
     terms_accepted: bool = False
+    # Google OAuth fields
+    google_id: Optional[str] = None
+    avatar_url: Optional[str] = None
+    auth_provider: str = "email"  # "email" or "google"
 
     class Config:
         from_attributes = True
@@ -88,4 +92,25 @@ class PasswordResetConfirm(BaseModel):
 
 class PasswordChange(BaseModel):
     current_password: str
-    new_password: str = Field(..., min_length=8) 
+    new_password: str = Field(..., min_length=8)
+
+# Google OAuth Models
+class GoogleUserInfo(BaseModel):
+    id: str
+    email: str
+    verified_email: bool
+    name: str
+    given_name: str
+    family_name: str
+    picture: Optional[str] = None
+    locale: Optional[str] = None
+
+class GoogleAuthRequest(BaseModel):
+    code: str
+    state: Optional[str] = None
+
+class GoogleAuthResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+    is_new_user: bool = False 

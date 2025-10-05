@@ -5,7 +5,7 @@ import os
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag
+from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.services.scheduler import start_scheduler, stop_scheduler
@@ -59,7 +59,7 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/api/users", tags=["Users"])
 app.include_router(contacts.router, prefix="/api/contacts", tags=["Contacts"])
 app.include_router(crm.router, prefix="/api/crm", tags=["CRM Integration"])
@@ -72,6 +72,7 @@ app.include_router(groups.router, prefix="/api/groups", tags=["Groups"])
 app.include_router(contacts_import.router, prefix="/api/contacts", tags=["Contacts Import"])
 app.include_router(stats.router, prefix="/api/stats", tags=["Statistics"])
 app.include_router(rag.router, prefix="/api/rag", tags=["RAG & Knowledge Base"])
+app.include_router(emails.router, prefix="/api/emails", tags=["Email Marketing"])
 
 @app.get("/")
 async def root():
