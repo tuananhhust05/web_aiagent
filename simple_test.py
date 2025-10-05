@@ -4,7 +4,7 @@ Simple test to check redirect URI
 """
 
 # Test the current redirect URI
-redirect_uri = "http://localhost:8000/api/auth/login/google"
+redirect_uri = "https://4skale.com:8000/api/auth/login/google"
 
 print("🔍 Current redirect URI configuration:")
 print(f"📋 Backend redirect URI: {redirect_uri}")
@@ -20,8 +20,8 @@ print("3. HTTP vs HTTPS mismatch")
 print("4. Trailing slash differences")
 
 print("\n📋 Try these redirect URIs in Google Console:")
-print("   http://localhost:8000/api/auth/login/google")
-print("   http://localhost:8000/auth/login/google")
-print("   http://localhost:3000/api/auth/login/google")
-print("   http://localhost:3000/auth/login/google")
+print("   https://4skale.com:8000/api/auth/login/google")
+print("   https://4skale.com:8000/auth/login/google")
+print("   https://4skale.com:3000/api/auth/login/google")
+print("   https://4skale.com:3000/auth/login/google")
 

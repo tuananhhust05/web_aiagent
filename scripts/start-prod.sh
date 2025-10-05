@@ -12,5 +12,5 @@ docker-compose up -d --build
 
 echo "✅ Production services started!"
 echo "📱 Frontend: https://4skale.com"
-echo "🔧 Backend API: http://localhost:8000"
-echo "📚 API Docs: http://localhost:8000/docs"
+echo "🔧 Backend API: https://4skale.com:8000"
+echo "📚 API Docs: https://4skale.com:8000/docs"
