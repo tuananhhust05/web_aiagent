@@ -1,7 +1,7 @@
-// import { useState } from 'react'
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useQuery, useMutation } from '@tanstack/react-query'
-import { ArrowLeft, Edit, Trash2, Phone, Mail, Building2, User } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { ArrowLeft, Edit, Trash2, Phone, Mail, Building2, User, Save, X } from 'lucide-react'
 import { contactsAPI, callsAPI } from '../../lib/api'
 import { formatDate, generateInitials } from '../../lib/utils'
 import { toast } from 'react-hot-toast'
@@ -10,6 +10,11 @@ import LoadingSpinner from '../../components/ui/LoadingSpinner'
 export default function ContactDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false)
+  const [editData, setEditData] = useState<any>({})
 
   const { data: contactResponse, isLoading } = useQuery({
     queryKey: ['contact', id],
@@ -27,6 +32,18 @@ export default function ContactDetail() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || 'Failed to delete contact')
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: (data: any) => contactsAPI.updateContact(id!, data),
+    onSuccess: () => {
+      toast.success('Contact updated successfully')
+      setIsEditing(false)
+      queryClient.invalidateQueries({ queryKey: ['contact', id] })
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to update contact')
     },
   })
 
@@ -52,6 +69,29 @@ export default function ContactDetail() {
     }
     
     callMutation.mutate(callData)
+  }
+
+  const handleEdit = () => {
+    if (contact) {
+      setEditData({ ...contact })
+      setIsEditing(true)
+    }
+  }
+
+  const handleCancel = () => {
+    setIsEditing(false)
+    setEditData({})
+  }
+
+  const handleSave = () => {
+    updateMutation.mutate(editData)
+  }
+
+  const handleInputChange = (field: string, value: any) => {
+    setEditData((prev: any) => ({
+      ...prev,
+      [field]: value
+    }))
   }
 
 
@@ -91,26 +131,56 @@ export default function ContactDetail() {
           </div>
         </div>
         <div className="flex space-x-2">
-          <button className="btn btn-outline btn-md">
-            <Edit className="h-4 w-4" />
-            <span className="ml-2">Edit</span>
-          </button>
-          <button
-            onClick={() => {
-              if (window.confirm('Are you sure you want to delete this contact?')) {
-                deleteMutation.mutate()
-              }
-            }}
-            disabled={deleteMutation.isPending}
-            className="btn btn-outline btn-md text-red-600 hover:text-red-700"
-          >
-            {deleteMutation.isPending ? (
-              <LoadingSpinner className="h-4 w-4" />
-            ) : (
-              <Trash2 className="h-4 w-4" />
-            )}
-            <span className="ml-2">Delete</span>
-          </button>
+          {isEditing ? (
+            <>
+              <button
+                onClick={handleSave}
+                disabled={updateMutation.isPending}
+                className="btn btn-primary btn-md"
+              >
+                {updateMutation.isPending ? (
+                  <LoadingSpinner className="h-4 w-4" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                <span className="ml-2">Save</span>
+              </button>
+              <button
+                onClick={handleCancel}
+                disabled={updateMutation.isPending}
+                className="btn btn-outline btn-md"
+              >
+                <X className="h-4 w-4" />
+                <span className="ml-2">Cancel</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={handleEdit}
+                className="btn btn-outline btn-md"
+              >
+                <Edit className="h-4 w-4" />
+                <span className="ml-2">Edit</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to delete this contact?')) {
+                    deleteMutation.mutate()
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+                className="btn btn-outline btn-md text-red-600 hover:text-red-700"
+              >
+                {deleteMutation.isPending ? (
+                  <LoadingSpinner className="h-4 w-4" />
+                ) : (
+                  <Trash2 className="h-4 w-4" />
+                )}
+                <span className="ml-2">Delete</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -134,25 +204,106 @@ export default function ContactDetail() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <label className="block text-sm font-medium text-gray-700">First Name</label>
-                      <p className="mt-1 text-sm text-gray-900">{contact.first_name}</p>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editData.first_name || ''}
+                          onChange={(e) => handleInputChange('first_name', e.target.value)}
+                          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      ) : (
+                        <p className="mt-1 text-sm text-gray-900">{contact.first_name}</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Last Name</label>
-                      <p className="mt-1 text-sm text-gray-900">{contact.last_name}</p>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={editData.last_name || ''}
+                          onChange={(e) => handleInputChange('last_name', e.target.value)}
+                          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        />
+                      ) : (
+                        <p className="mt-1 text-sm text-gray-900">{contact.last_name}</p>
+                      )}
                     </div>
                   </div>
                   
-                  {contact.email && (
-                    <div className="flex items-center space-x-2">
-                      <Mail className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-900">{contact.email}</span>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Email</label>
+                    {isEditing ? (
+                      <input
+                        type="email"
+                        value={editData.email || ''}
+                        onChange={(e) => handleInputChange('email', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                      />
+                    ) : (
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Mail className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-900">{contact.email || 'No email'}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Phone</label>
+                    {isEditing ? (
+                      <input
+                        type="tel"
+                        value={editData.phone || ''}
+                        onChange={(e) => handleInputChange('phone', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                      />
+                    ) : (
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Phone className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-900">{contact.phone || 'No phone'}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Company Information */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="card-title">Company Information</h3>
+            </div>
+            <div className="card-content">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Company</label>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editData.company || ''}
+                      onChange={(e) => handleInputChange('company', e.target.value)}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  ) : (
+                    <div className="flex items-center space-x-2 mt-1">
+                      <Building2 className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm text-gray-900">{contact.company || 'No company'}</span>
                     </div>
                   )}
-                  
-                  {contact.phone && (
-                    <div className="flex items-center space-x-2">
-                      <Phone className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-900">{contact.phone}</span>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Job Title</label>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={editData.job_title || ''}
+                      onChange={(e) => handleInputChange('job_title', e.target.value)}
+                      className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                    />
+                  ) : (
+                    <div className="flex items-center space-x-2 mt-1">
+                      <User className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm text-gray-900">{contact.job_title || 'No job title'}</span>
                     </div>
                   )}
                 </div>
@@ -160,42 +311,25 @@ export default function ContactDetail() {
             </div>
           </div>
 
-          {/* Company Information */}
-          {(contact.company || contact.job_title) && (
-            <div className="card">
-              <div className="card-header">
-                <h3 className="card-title">Company Information</h3>
-              </div>
-              <div className="card-content">
-                <div className="space-y-4">
-                  {contact.company && (
-                    <div className="flex items-center space-x-2">
-                      <Building2 className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-900">{contact.company}</span>
-                    </div>
-                  )}
-                  {contact.job_title && (
-                    <div className="flex items-center space-x-2">
-                      <User className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm text-gray-900">{contact.job_title}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Notes */}
-          {contact.notes && (
-            <div className="card">
-              <div className="card-header">
-                <h3 className="card-title">Notes</h3>
-              </div>
-              <div className="card-content">
-                <p className="text-sm text-gray-900 whitespace-pre-wrap">{contact.notes}</p>
-              </div>
+          <div className="card">
+            <div className="card-header">
+              <h3 className="card-title">Notes</h3>
             </div>
-          )}
+            <div className="card-content">
+              {isEditing ? (
+                <textarea
+                  value={editData.notes || ''}
+                  onChange={(e) => handleInputChange('notes', e.target.value)}
+                  rows={4}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Add notes about this contact..."
+                />
+              ) : (
+                <p className="text-sm text-gray-900 whitespace-pre-wrap">{contact.notes || 'No notes'}</p>
+              )}
+            </div>
+          </div>
 
           {/* Custom Fields */}
           {contact.custom_fields && Object.keys(contact.custom_fields).length > 0 && (
@@ -229,19 +363,47 @@ export default function ContactDetail() {
             <div className="card-content space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Status</label>
-                <span className={`inline-flex mt-1 px-2 py-1 text-xs font-semibold rounded-full ${
-                  contact.status === 'customer' ? 'bg-green-100 text-green-800' :
-                  contact.status === 'lead' ? 'bg-blue-100 text-blue-800' :
-                  contact.status === 'prospect' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-gray-100 text-gray-800'
-                }`}>
-                  {contact.status}
-                </span>
+                {isEditing ? (
+                  <select
+                    value={editData.status || ''}
+                    onChange={(e) => handleInputChange('status', e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="lead">Lead</option>
+                    <option value="prospect">Prospect</option>
+                    <option value="customer">Customer</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                ) : (
+                  <span className={`inline-flex mt-1 px-2 py-1 text-xs font-semibold rounded-full ${
+                    contact.status === 'customer' ? 'bg-green-100 text-green-800' :
+                    contact.status === 'lead' ? 'bg-blue-100 text-blue-800' :
+                    contact.status === 'prospect' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {contact.status}
+                  </span>
+                )}
               </div>
               
               <div>
                 <label className="block text-sm font-medium text-gray-700">Source</label>
-                <p className="mt-1 text-sm text-gray-900 capitalize">{contact.source}</p>
+                {isEditing ? (
+                  <select
+                    value={editData.source || ''}
+                    onChange={(e) => handleInputChange('source', e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="manual">Manual</option>
+                    <option value="csv_import">CSV Import</option>
+                    <option value="hubspot">HubSpot</option>
+                    <option value="salesforce">Salesforce</option>
+                    <option value="pipedrive">Pipedrive</option>
+                  </select>
+                ) : (
+                  <p className="mt-1 text-sm text-gray-900 capitalize">{contact.source}</p>
+                )}
               </div>
             </div>
           </div>
@@ -322,7 +484,7 @@ export default function ContactDetail() {
       <div className="mt-8 flex items-center justify-end space-x-4">
         <button
           onClick={() => handleCall(contact)}
-          disabled={!contact?.phone || callMutation.isPending}
+          disabled={!contact?.phone || callMutation.isPending || isEditing}
           className="btn btn-primary btn-lg"
         >
           {callMutation.isPending ? (
@@ -334,24 +496,35 @@ export default function ContactDetail() {
             </>
           )}
         </button>
-        <button className="btn btn-outline btn-lg">
-          <Edit className="h-5 w-5 mr-2" />
-          Edit Contact
-        </button>
-        <button
-          onClick={() => deleteMutation.mutate()}
-          disabled={deleteMutation.isPending}
-          className="btn btn-outline btn-lg text-red-600 hover:text-red-700 hover:bg-red-50"
-        >
-          {deleteMutation.isPending ? (
-            <LoadingSpinner size="sm" />
-          ) : (
-            <>
-              <Trash2 className="h-5 w-5 mr-2" />
-              Delete
-            </>
-          )}
-        </button>
+        {/* {!isEditing && (
+          <button
+            onClick={handleEdit}
+            className="btn btn-outline btn-lg"
+          >
+            <Edit className="h-5 w-5 mr-2" />
+            Edit Contact
+          </button>
+        )}
+        {!isEditing && (
+          <button
+            onClick={() => {
+              if (window.confirm('Are you sure you want to delete this contact?')) {
+                deleteMutation.mutate()
+              }
+            }}
+            disabled={deleteMutation.isPending}
+            className="btn btn-outline btn-lg text-red-600 hover:text-red-700 hover:bg-red-50"
+          >
+            {deleteMutation.isPending ? (
+              <LoadingSpinner size="sm" />
+            ) : (
+              <>
+                <Trash2 className="h-5 w-5 mr-2" />
+                Delete
+              </>
+            )}
+          </button>
+        )} */}
       </div>
 
     </div>

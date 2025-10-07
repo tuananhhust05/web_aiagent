@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { Plus, Search, Filter, Upload, MoreHorizontal, Users, Phone } from 'lucide-react'
+import { Plus, Search, Filter, Upload,  Users, Phone } from 'lucide-react'
 import { contactsAPI, callsAPI, groupsAPI } from '../../lib/api'
 import { formatDate, generateInitials } from '../../lib/utils'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import '../../styles/contacts-custom.css'
 
 export default function Contacts() {
   const [search, setSearch] = useState('')
@@ -254,7 +255,7 @@ export default function Contacts() {
           <div className="divide-y divide-gray-100">
             {contactsList.map((contact) => (
               <div key={contact.id} className="p-6 hover:bg-gray-50 transition-colors duration-200">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between contact-card">
                   <div className="flex items-center space-x-4">
                     <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center shadow-sm">
                       <span className="text-sm font-semibold text-white">
@@ -301,7 +302,7 @@ export default function Contacts() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-3 contact-actions-row">
                     {contact.phone && (
                       <button
                         onClick={() => handleCall(contact)}
@@ -324,9 +325,7 @@ export default function Contacts() {
                     >
                       View Details
                     </Link>
-                    <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all duration-200">
-                      <MoreHorizontal className="h-5 w-5" />
-                    </button>
+                   
                   </div>
                 </div>
               </div>

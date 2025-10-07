@@ -1,0 +1,101 @@
+/* Custom CSS for Contacts page - 2-line layout on 1280px screens */
+
+/* Contact card container */
+.contact-card {
+  @apply p-6 hover:bg-gray-50 transition-colors duration-200;
+}
+
+/* Main contact info row */
+.contact-main-row {
+  @apply flex items-center justify-between;
+}
+
+/* Contact info section */
+.contact-info {
+  @apply flex items-center space-x-4 flex-1;
+}
+
+/* Contact details */
+.contact-details {
+  @apply flex-1;
+}
+
+/* Contact name and status row */
+.contact-name-row {
+  @apply flex items-center space-x-3 mb-1;
+}
+
+/* Contact metadata row */
+.contact-meta-row {
+  @apply flex items-center space-x-6 text-sm text-gray-600;
+}
+
+/* Action buttons row - hidden by default */
+.contact-actions-row {
+  @apply flex items-center space-x-3 mt-3;
+  display: none;
+}
+
+/* Show action buttons on screens 1280px and above */
+@media (max-width: 1280px) {
+  .contact-card {
+    flex-direction: column;
+    display: flex;
+    justify-content: start !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+  }
+  .contact-actions-row {
+    margin-left: 60px;
+    display: flex;
+  }
+  
+  /* Hide the original action buttons */
+  .contact-original-actions {
+    display: none;
+  }
+  
+  /* Adjust contact info to take full width */
+  .contact-info {
+    @apply flex-col items-start space-x-0 space-y-2;
+  }
+  
+  /* Make contact details full width */
+  .contact-details {
+    @apply w-full;
+  }
+  
+  /* Stack name and status vertically on smaller screens within 1280px+ */
+  .contact-name-row {
+    @apply flex-col items-start space-x-0 space-y-1;
+  }
+  
+  /* Stack metadata vertically */
+  .contact-meta-row {
+    @apply flex-col items-start space-x-0 space-y-1;
+  }
+}
+
+/* Action button styles */
+.contact-action-btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-colors duration-200;
+}
+
+.contact-call-btn {
+  @apply bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.contact-view-btn {
+  @apply bg-primary-600 text-white hover:bg-primary-700;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 1279px) {
+  .contact-original-actions {
+    display: flex;
+  }
+  
+  .contact-actions-row {
+    display: none;
+  }
+}
