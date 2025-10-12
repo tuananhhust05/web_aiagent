@@ -241,3 +241,61 @@ export const emailsAPI = {
   testEmailAPI: () => api.get('/api/emails/test'),
   getEmailsSimple: () => api.get('/api/emails/list'),
 }
+
+// WhatsApp API - using backend proxy
+export const whatsappAPI = {
+  getConversations: (params: { member_id: string; page: number; limit: number }) => 
+    api.post('/api/whatsapp/conversations/member', params),
+  getMessages: (params: { conversation_id: number; page: number; limit: number }) => 
+    api.post('/api/whatsapp/conversations/messages', params),
+  uploadRAGFile: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/api/whatsapp/rag/upload-file', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
+}
+
+// Telegram API
+export const telegramAPI = {
+  // Contacts
+  getTelegramContacts: async (params?: any) => {
+    console.log('🔍 Calling getTelegramContacts with params:', params)
+    const response = await api.get('/api/telegram/contacts', { params })
+    console.log('🔍 getTelegramContacts response:', response)
+    return response
+  },
+  createTelegramContact: (data: any) => api.post('/api/telegram/contacts', data),
+  updateTelegramContact: (id: string, data: any) => api.put(`/api/telegram/contacts/${id}`, data),
+  deleteTelegramContact: (id: string) => api.delete(`/api/telegram/contacts/${id}`),
+  
+  // Campaigns
+  getTelegramCampaigns: async (params?: any) => {
+    console.log('🔍 Calling getTelegramCampaigns with params:', params)
+    const response = await api.get('/api/telegram/campaigns', { params })
+    console.log('🔍 getTelegramCampaigns response:', response)
+    return response
+  },
+  createTelegramCampaign: (data: any) => api.post('/api/telegram/campaigns', data),
+  updateTelegramCampaign: (id: string, data: any) => api.put(`/api/telegram/campaigns/${id}`, data),
+  deleteTelegramCampaign: (id: string) => api.delete(`/api/telegram/campaigns/${id}`),
+  sendTelegramCampaign: (id: string) => api.post(`/api/telegram/campaigns/${id}/send`),
+  
+  // Manual sending
+  sendTelegramMessage: (data: {
+    message: string
+    contact_ids: string[]
+    send_immediately?: boolean
+  }) => api.post('/api/telegram/send', data),
+  
+  // Start campaign
+  startTelegramCampaign: (data: {
+    name: string
+    message: string
+    urls: string[]
+    campaignType: string
+  }) => api.post('/api/telegram/start-campaign', data),
+}

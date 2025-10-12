@@ -38,6 +38,12 @@ import CRMIntegrationPage from './pages/CRMIntegration'
 import EmailList from './pages/emails/EmailList'
 import EmailCreate from './pages/emails/EmailCreate'
 import EmailDetail from './pages/emails/EmailDetail'
+import WhatsApp from './pages/WhatsApp'
+import WhatsAppConversation from './pages/WhatsAppConversation'
+import Telegram from './pages/Telegram'
+import TelegramContacts from './pages/telegram/TelegramContacts'
+import TelegramContactNew from './pages/telegram/TelegramContactNew'
+import TelegramCampaign from './pages/telegram/TelegramCampaign'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 
 function App() {
@@ -100,6 +106,12 @@ function App() {
         <Route path="/emails" element={<EmailList />} />
         <Route path="/emails/create" element={<EmailCreate />} />
         <Route path="/emails/:id" element={<EmailDetail />} />
+        <Route path="/whatsapp" element={<WhatsApp />} />
+        <Route path="/whatsapp/conversation/:id" element={<WhatsAppConversation />} />
+        <Route path="/telegram" element={<Telegram />} />
+        <Route path="/telegram/contacts" element={<TelegramContacts />} />
+        <Route path="/telegram/contacts/new" element={<TelegramContactNew />} />
+        <Route path="/telegram/campaigns" element={<TelegramCampaign />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
