@@ -441,6 +441,10 @@ function CreateCampaignModal({ onClose, onSubmit, onSelectContacts, selectedCont
       toast.error('Campaign name is required')
       return
     }
+    if (!formData.call_script.trim()) {
+      toast.error('Call script is required')
+      return
+    }
     if (formData.group_ids.length === 0 && selectedContactsCount === 0) {
       toast.error('Please select at least one group or contact')
       return
@@ -752,6 +756,23 @@ function CreateCampaignModal({ onClose, onSubmit, onSelectContacts, selectedCont
             </div>
           </div>
 
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Call Script
+            </label>
+            <textarea
+              value={formData.call_script}
+              onChange={(e) => setFormData(prev => ({ ...prev, call_script: e.target.value }))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              rows={4}
+              placeholder="Enter the script that AI will use when making calls..."
+              required
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              This script will guide the AI during phone calls. Be specific about your goals and key talking points.
+            </p>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

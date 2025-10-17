@@ -13,6 +13,8 @@ const contactSchema = z.object({
   last_name: z.string().min(1, 'Last name is required'),
   email: z.string().email('Please enter a valid email address'),
   phone: z.string().optional(),
+  telegram_username: z.string().optional(),
+  whatsapp_number: z.string().optional(),
   company: z.string().optional(),
   job_title: z.string().optional(),
   address: z.string().optional(),
@@ -145,6 +147,41 @@ export default function ContactNew() {
                     placeholder="Enter phone number"
                   />
                 </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Social Media & Communication */}
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-6 flex items-center">
+              <Phone className="h-5 w-5 mr-2" />
+              Social Media & Communication
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Telegram Username
+                </label>
+                <input
+                  {...register('telegram_username')}
+                  type="text"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                  placeholder="@username"
+                />
+                <p className="mt-1 text-sm text-gray-500">Enter Telegram username without @ symbol</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  WhatsApp Number
+                </label>
+                <input
+                  {...register('whatsapp_number')}
+                  type="tel"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                  placeholder="+1234567890"
+                />
+                <p className="mt-1 text-sm text-gray-500">Enter WhatsApp number with country code</p>
               </div>
             </div>
           </div>

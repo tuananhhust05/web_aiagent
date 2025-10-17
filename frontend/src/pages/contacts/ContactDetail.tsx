@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Edit, Trash2, Phone, Mail, Building2, User, Save, X } from 'lucide-react'
+import { ArrowLeft, Edit, Trash2, Phone, Mail, Building2, User, Save, X, MessageCircle, Send } from 'lucide-react'
 import { contactsAPI, callsAPI } from '../../lib/api'
 import { formatDate, generateInitials } from '../../lib/utils'
 import { toast } from 'react-hot-toast'
@@ -260,6 +260,44 @@ export default function ContactDetail() {
                       <div className="flex items-center space-x-2 mt-1">
                         <Phone className="h-4 w-4 text-gray-400" />
                         <span className="text-sm text-gray-900">{contact.phone || 'No phone'}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Telegram Username</label>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editData.telegram_username || ''}
+                        onChange={(e) => handleInputChange('telegram_username', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="@username"
+                      />
+                    ) : (
+                      <div className="flex items-center space-x-2 mt-1">
+                        <MessageCircle className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-900">
+                          {contact.telegram_username ? `@${contact.telegram_username}` : 'No Telegram username'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">WhatsApp Number</label>
+                    {isEditing ? (
+                      <input
+                        type="tel"
+                        value={editData.whatsapp_number || ''}
+                        onChange={(e) => handleInputChange('whatsapp_number', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="+1234567890"
+                      />
+                    ) : (
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Send className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-900">{contact.whatsapp_number || 'No WhatsApp number'}</span>
                       </div>
                     )}
                   </div>

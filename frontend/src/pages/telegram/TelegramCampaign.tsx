@@ -268,10 +268,13 @@ export default function TelegramCampaign() {
                     <button
                       onClick={() => handleStartCampaign(campaign)}
                       disabled={startCampaignMutation.isPending}
-                      className="btn btn-primary btn-sm"
+                      className="btn btn-primary btn-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {startCampaignMutation.isPending ? (
-                        <LoadingSpinner size="sm" />
+                        <>
+                          <LoadingSpinner size="sm" className="mr-1 text-white" />
+                          {campaign.status === 'sent' ? 'Restarting...' : 'Starting...'}
+                        </>
                       ) : (
                         <>
                           <Play className="h-4 w-4 mr-1" />
