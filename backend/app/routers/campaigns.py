@@ -18,6 +18,8 @@ from app.models.campaign import (
     CampaignContactsResponse,
     CampaignGroupContacts
 )
+from app.services.telegram_service import telegram_service
+from app.services.whatsapp_service import whatsapp_service
 
 router = APIRouter()
 
@@ -339,14 +341,68 @@ async def start_campaign(
         # For manual campaigns, execute calls immediately and keep original status
         print(f"📋 Manual Campaign: Executing calls for {len(all_contact_ids)} contacts")
         
-        # Execute AI calls for manual campaigns
+        # Execute AI calls, WhatsApp and Telegram messages for manual campaigns
         if all_contact_ids and contacts:
             call_script = campaign.get("call_script", settings.AI_CALL_DEFAULT_PROMPT)
+            whatsapp_sent_count = 0
+            telegram_sent_count = 0
+            calls_made_count = 0
             
             for contact in contacts:
                 phone = contact.get("phone", "N/A")
+                whatsapp_number = contact.get("whatsapp_number")
+                telegram_username = contact.get("telegram_username")
                 name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
                 
+                # Send WhatsApp message if contact has WhatsApp number
+                if whatsapp_number:
+                    try:
+                        print(f"📱 Sending WhatsApp message to {name} ({whatsapp_number})")
+                        print(f"📝 Message content: {call_script[:100]}...")
+                        
+                        whatsapp_result = await whatsapp_service.send_message_to_contact(
+                            whatsapp_number, 
+                            call_script
+                        )
+                        
+                        if whatsapp_result.get("success"):
+                            print(f"✅ WhatsApp message sent to {name}: {whatsapp_result}")
+                            whatsapp_sent_count += 1
+                        else:
+                            print(f"❌ WhatsApp message failed for {name}: {whatsapp_result}")
+                            # Log detailed error for debugging
+                            if "error" in whatsapp_result:
+                                print(f"🔍 Error details: {whatsapp_result['error']}")
+                            
+                    except Exception as e:
+                        print(f"❌ Failed to send WhatsApp message to {name}: {str(e)}")
+                        print(f"🔍 Exception type: {type(e).__name__}")
+                
+                # Send Telegram message if contact has Telegram username
+                if telegram_username:
+                    try:
+                        print(f"📱 Sending Telegram message to {name} (@{telegram_username})")
+                        print(f"📝 Message content: {call_script[:100]}...")
+                        
+                        telegram_result = await telegram_service.send_message_to_contact(
+                            telegram_username, 
+                            call_script
+                        )
+                        
+                        if telegram_result.get("success"):
+                            print(f"✅ Telegram message sent to {name}: {telegram_result}")
+                            telegram_sent_count += 1
+                        else:
+                            print(f"❌ Telegram message failed for {name}: {telegram_result}")
+                            # Log detailed error for debugging
+                            if "error" in telegram_result:
+                                print(f"🔍 Error details: {telegram_result['error']}")
+                            
+                    except Exception as e:
+                        print(f"❌ Failed to send Telegram message to {name}: {str(e)}")
+                        print(f"🔍 Exception type: {type(e).__name__}")
+                
+                # Make AI call if contact has phone number
                 if phone and phone != "N/A":
                     try:
                         # Prepare AI call API payload
@@ -386,6 +442,7 @@ async def start_campaign(
                                     # Insert call record
                                     await db.calls.insert_one(call_doc)
                                     print(f"📝 Call record created for {name}")
+                                    calls_made_count += 1
                                     
                                 else:
                                     error_text = await response.text()
@@ -393,9 +450,24 @@ async def start_campaign(
                                     
                     except Exception as e:
                         print(f"❌ Failed to call AI API for {name}: {str(e)}")
+        else:
+            # No contacts found
+            calls_made_count = 0
+            whatsapp_sent_count = 0
+            telegram_sent_count = 0
         
         print(f"🔄 Campaign status remains: {campaign['status']}")
-        return {"message": f"Manual campaign executed. Called {len(all_contact_ids)} contacts."}
+        print(f"📊 Campaign Summary: {calls_made_count} calls made, {whatsapp_sent_count} WhatsApp messages sent, {telegram_sent_count} Telegram messages sent")
+        
+        return {
+            "message": f"Manual campaign executed successfully.",
+            "summary": {
+                "total_contacts": len(all_contact_ids),
+                "calls_made": calls_made_count,
+                "whatsapp_messages_sent": whatsapp_sent_count,
+                "telegram_messages_sent": telegram_sent_count
+            }
+        }
     else:
         # For scheduled campaigns, only update status to ACTIVE (scheduler will handle calls)
         await db.campaigns.update_one(
@@ -407,6 +479,40 @@ async def start_campaign(
         )
         print(f"✅ Scheduled Campaign {campaign['name']} activated! Scheduler will handle calls at scheduled time.")
         return {"message": "Scheduled campaign activated. Calls will be made at scheduled time."}
+
+@router.get("/test-telegram")
+async def test_telegram_connection(
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Test Telegram API connection"""
+    try:
+        test_result = await telegram_service.test_connection()
+        return {
+            "message": "Telegram API connection test completed",
+            "result": test_result
+        }
+    except Exception as e:
+        return {
+            "message": "Telegram API connection test failed",
+            "error": str(e)
+        }
+
+@router.get("/test-whatsapp")
+async def test_whatsapp_connection(
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Test WhatsApp API connection"""
+    try:
+        test_result = await whatsapp_service.test_connection()
+        return {
+            "message": "WhatsApp API connection test completed",
+            "result": test_result
+        }
+    except Exception as e:
+        return {
+            "message": "WhatsApp API connection test failed",
+            "error": str(e)
+        }
 
 @router.post("/{campaign_id}/pause")
 async def pause_campaign(

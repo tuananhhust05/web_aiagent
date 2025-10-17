@@ -6,6 +6,8 @@ import aiohttp
 from app.core.database import get_database
 from app.core.config import settings
 from app.models.campaign import CampaignType, ScheduleFrequency
+from app.services.whatsapp_service import whatsapp_service
+from app.services.telegram_service import telegram_service
 import logging
 import sys
 
@@ -281,7 +283,7 @@ class CampaignScheduler:
         return time_diff <= 5
         
     async def start_campaign(self, campaign: Dict[str, Any]):
-        """Start a campaign by calling the AI API for each contact"""
+        """Start a campaign by calling the AI API, sending WhatsApp and Telegram messages for each contact"""
         campaign_id = str(campaign["_id"])
         campaign_name = campaign.get('name', 'Unknown')
         all_contact_ids = list(campaign.get("contacts", []))
@@ -302,15 +304,71 @@ class CampaignScheduler:
         call_script = campaign.get("call_script", settings.AI_CALL_DEFAULT_PROMPT)
         logger.info(f"💬 [CAMPAIGN] Using call script: {call_script[:100]}{'...' if len(call_script) > 100 else ''}")
         
-        logger.info(f"📞 [CAMPAIGN] Starting AI calls for {len(contacts)} contacts...")
+        # Initialize counters
+        calls_made_count = 0
+        whatsapp_sent_count = 0
+        telegram_sent_count = 0
+        
+        logger.info(f"📞 [CAMPAIGN] Starting AI calls, WhatsApp and Telegram messages for {len(contacts)} contacts...")
         
         for i, contact in enumerate(contacts, 1):
             phone = contact.get("phone", "N/A")
+            whatsapp_number = contact.get("whatsapp_number")
+            telegram_username = contact.get("telegram_username")
             name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
             contact_id = str(contact.get('_id', 'Unknown'))
             
             logger.info(f"📞 [CAMPAIGN] Processing contact {i}/{len(contacts)}: {name} (ID: {contact_id})")
             
+            # Send WhatsApp message if contact has WhatsApp number
+            if whatsapp_number:
+                try:
+                    logger.info(f"📱 [WHATSAPP] Sending WhatsApp message to {name} ({whatsapp_number})")
+                    logger.info(f"📝 [WHATSAPP] Message content: {call_script[:100]}...")
+                    
+                    whatsapp_result = await whatsapp_service.send_message_to_contact(
+                        whatsapp_number, 
+                        call_script
+                    )
+                    
+                    if whatsapp_result.get("success"):
+                        logger.info(f"✅ [WHATSAPP] WhatsApp message sent to {name}: {whatsapp_result}")
+                        whatsapp_sent_count += 1
+                    else:
+                        logger.error(f"❌ [WHATSAPP] WhatsApp message failed for {name}: {whatsapp_result}")
+                        # Log detailed error for debugging
+                        if "error" in whatsapp_result:
+                            logger.error(f"🔍 [WHATSAPP] Error details: {whatsapp_result['error']}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ [WHATSAPP] Failed to send WhatsApp message to {name}: {str(e)}")
+                    logger.error(f"🔍 [WHATSAPP] Exception type: {type(e).__name__}")
+            
+            # Send Telegram message if contact has Telegram username
+            if telegram_username:
+                try:
+                    logger.info(f"📱 [TELEGRAM] Sending Telegram message to {name} (@{telegram_username})")
+                    logger.info(f"📝 [TELEGRAM] Message content: {call_script[:100]}...")
+                    
+                    telegram_result = await telegram_service.send_message_to_contact(
+                        telegram_username, 
+                        call_script
+                    )
+                    
+                    if telegram_result.get("success"):
+                        logger.info(f"✅ [TELEGRAM] Telegram message sent to {name}: {telegram_result}")
+                        telegram_sent_count += 1
+                    else:
+                        logger.error(f"❌ [TELEGRAM] Telegram message failed for {name}: {telegram_result}")
+                        # Log detailed error for debugging
+                        if "error" in telegram_result:
+                            logger.error(f"🔍 [TELEGRAM] Error details: {telegram_result['error']}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ [TELEGRAM] Failed to send Telegram message to {name}: {str(e)}")
+                    logger.error(f"🔍 [TELEGRAM] Exception type: {type(e).__name__}")
+            
+            # Make AI call if contact has phone number
             if phone and phone != "N/A":
                 try:
                     # Prepare AI call API payload
@@ -351,6 +409,7 @@ class CampaignScheduler:
                                 # Insert call record
                                 await self.db.calls.insert_one(call_doc)
                                 logger.info(f"📝 [AI_CALL] Call record created for {name} (Call ID: {call_doc['_id']})")
+                                calls_made_count += 1
                                 
                             else:
                                 error_text = await response.text()
@@ -359,9 +418,10 @@ class CampaignScheduler:
                 except Exception as e:
                     logger.error(f"❌ [AI_CALL] Failed to call AI API for {name}: {str(e)}")
             else:
-                logger.warning(f"⚠️  [CAMPAIGN] Contact {name} has no valid phone number, skipping")
+                logger.warning(f"⚠️  [CAMPAIGN] Contact {name} has no valid phone number, skipping AI call")
         
         logger.info(f"🎉 [CAMPAIGN] Completed processing all contacts for campaign '{campaign_name}'")
+        logger.info(f"📊 [CAMPAIGN] Summary: {calls_made_count} calls made, {whatsapp_sent_count} WhatsApp messages sent, {telegram_sent_count} Telegram messages sent")
 
 # Global scheduler instance
 scheduler = CampaignScheduler()

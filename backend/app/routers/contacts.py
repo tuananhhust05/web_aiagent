@@ -28,6 +28,8 @@ async def create_contact(
         "last_name": contact_data.last_name,
         "email": contact_data.email,
         "phone": contact_data.phone,
+        "telegram_username": contact_data.telegram_username,
+        "whatsapp_number": contact_data.whatsapp_number,
         "company": contact_data.company,
         "job_title": contact_data.job_title,
         "address": contact_data.address,
@@ -154,6 +156,10 @@ async def update_contact(
         update_data["email"] = contact_update.email
     if contact_update.phone is not None:
         update_data["phone"] = contact_update.phone
+    if contact_update.telegram_username is not None:
+        update_data["telegram_username"] = contact_update.telegram_username
+    if contact_update.whatsapp_number is not None:
+        update_data["whatsapp_number"] = contact_update.whatsapp_number
     if contact_update.company is not None:
         update_data["company"] = contact_update.company
     if contact_update.job_title is not None:
@@ -240,6 +246,8 @@ async def import_contacts_csv(
                 "last_name": str(contact_data.get('last_name', '')).strip(),
                 "email": contact_data.get('email', '').strip() if contact_data.get('email') else None,
                 "phone": contact_data.get('phone', '').strip() if contact_data.get('phone') else None,
+                "telegram_username": contact_data.get('telegram_username', '').strip() if contact_data.get('telegram_username') else None,
+                "whatsapp_number": contact_data.get('whatsapp_number', '').strip() if contact_data.get('whatsapp_number') else None,
                 "company": contact_data.get('company', '').strip() if contact_data.get('company') else None,
                 "job_title": contact_data.get('job_title', '').strip() if contact_data.get('job_title') else None,
                 "status": "lead",
@@ -253,7 +261,7 @@ async def import_contacts_csv(
             
             # Add custom fields
             for key, value in contact_data.items():
-                if key not in ['first_name', 'last_name', 'email', 'phone', 'company', 'job_title', 'notes']:
+                if key not in ['first_name', 'last_name', 'email', 'phone', 'telegram_username', 'whatsapp_number', 'company', 'job_title', 'notes']:
                     contact_doc['custom_fields'][key] = str(value) if value else None
             
             await db.contacts.insert_one(contact_doc)
@@ -287,6 +295,10 @@ async def bulk_update_contacts(
         update_data["email"] = bulk_update.updates.email
     if bulk_update.updates.phone is not None:
         update_data["phone"] = bulk_update.updates.phone
+    if bulk_update.updates.telegram_username is not None:
+        update_data["telegram_username"] = bulk_update.updates.telegram_username
+    if bulk_update.updates.whatsapp_number is not None:
+        update_data["whatsapp_number"] = bulk_update.updates.whatsapp_number
     if bulk_update.updates.company is not None:
         update_data["company"] = bulk_update.updates.company
     if bulk_update.updates.job_title is not None:

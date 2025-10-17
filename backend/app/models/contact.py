@@ -27,6 +27,8 @@ class ContactBase(BaseModel):
     last_name: str = Field(..., min_length=1, max_length=50)
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    telegram_username: Optional[str] = None
+    whatsapp_number: Optional[str] = None
     company: Optional[str] = None
     job_title: Optional[str] = None
     address: Optional[str] = None
@@ -48,6 +50,8 @@ class ContactUpdate(BaseModel):
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    telegram_username: Optional[str] = None
+    whatsapp_number: Optional[str] = None
     company: Optional[str] = None
     job_title: Optional[str] = None
     address: Optional[str] = None
