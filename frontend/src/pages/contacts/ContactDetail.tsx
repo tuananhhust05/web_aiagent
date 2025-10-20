@@ -84,7 +84,18 @@ export default function ContactDetail() {
   }
 
   const handleSave = () => {
-    updateMutation.mutate(editData)
+    // Clean up empty strings to null for optional fields
+    const cleanedData = { ...editData }
+    const optionalFields = ['linkedin_profile', 'telegram_username', 'whatsapp_number', 'phone', 'email', 'company', 'job_title', 'address', 'city', 'state', 'country', 'postal_code', 'notes']
+    
+    optionalFields.forEach(field => {
+      if (cleanedData[field] === '') {
+        cleanedData[field] = null
+      }
+    })
+    
+    console.log('Saving contact data:', cleanedData)
+    updateMutation.mutate(cleanedData)
   }
 
   const handleInputChange = (field: string, value: any) => {

@@ -148,6 +148,7 @@ async def update_contact(
         )
     
     # Build update document
+    print(f"🔧 [DEBUG] Updating contact {contact_id} with data: {contact_update.dict()}")
     update_data = {"updated_at": datetime.utcnow()}
     if contact_update.first_name is not None:
         update_data["first_name"] = contact_update.first_name
@@ -161,10 +162,22 @@ async def update_contact(
         update_data["telegram_username"] = contact_update.telegram_username
     if contact_update.whatsapp_number is not None:
         update_data["whatsapp_number"] = contact_update.whatsapp_number
+    if contact_update.linkedin_profile is not None:
+        update_data["linkedin_profile"] = contact_update.linkedin_profile if contact_update.linkedin_profile.strip() else None
     if contact_update.company is not None:
         update_data["company"] = contact_update.company
     if contact_update.job_title is not None:
         update_data["job_title"] = contact_update.job_title
+    if contact_update.address is not None:
+        update_data["address"] = contact_update.address
+    if contact_update.city is not None:
+        update_data["city"] = contact_update.city
+    if contact_update.state is not None:
+        update_data["state"] = contact_update.state
+    if contact_update.country is not None:
+        update_data["country"] = contact_update.country
+    if contact_update.postal_code is not None:
+        update_data["postal_code"] = contact_update.postal_code
     if contact_update.status is not None:
         update_data["status"] = contact_update.status
     if contact_update.notes is not None:
