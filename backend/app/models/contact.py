@@ -29,6 +29,7 @@ class ContactBase(BaseModel):
     phone: Optional[str] = None
     telegram_username: Optional[str] = None
     whatsapp_number: Optional[str] = None
+    linkedin_profile: Optional[str] = None
     company: Optional[str] = None
     job_title: Optional[str] = None
     address: Optional[str] = None
@@ -52,6 +53,7 @@ class ContactUpdate(BaseModel):
     phone: Optional[str] = None
     telegram_username: Optional[str] = None
     whatsapp_number: Optional[str] = None
+    linkedin_profile: Optional[str] = None
     company: Optional[str] = None
     job_title: Optional[str] = None
     address: Optional[str] = None

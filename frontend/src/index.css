@@ -77,6 +77,157 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;  /* Safari and Chrome */
   }
+
+  /* Modern Custom Scrollbar */
+  .scrollbar-modern {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(59, 130, 246, 0.3) transparent;
+  }
+
+  .scrollbar-modern::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-modern::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 10px;
+  }
+
+  .scrollbar-modern::-webkit-scrollbar-thumb {
+    background: linear-gradient(45deg, #3b82f6, #8b5cf6, #06b6d4);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    transition: all 0.3s ease;
+  }
+
+  .scrollbar-modern::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(45deg, #2563eb, #7c3aed, #0891b2);
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  }
+
+  .scrollbar-modern::-webkit-scrollbar-thumb:active {
+    background: linear-gradient(45deg, #1d4ed8, #6d28d9, #0e7490);
+  }
+
+  .scrollbar-modern::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Glassmorphism Scrollbar */
+  .scrollbar-glass {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  }
+
+  .scrollbar-glass::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-glass::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+  }
+
+  .scrollbar-glass::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .scrollbar-glass::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+    transform: scale(1.2);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+  }
+
+  /* Neon Scrollbar */
+  .scrollbar-neon {
+    scrollbar-width: thin;
+    scrollbar-color: #00ff88 transparent;
+  }
+
+  .scrollbar-neon::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  .scrollbar-neon::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+  }
+
+  .scrollbar-neon::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #00ff88, #00d4aa);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    box-shadow: 0 0 10px #00ff88;
+    transition: all 0.3s ease;
+  }
+
+  .scrollbar-neon::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #00ff88, #00d4aa);
+    box-shadow: 0 0 20px #00ff88, 0 0 30px #00ff88;
+    transform: scale(1.1);
+  }
+
+  /* Rainbow Scrollbar */
+  .scrollbar-rainbow {
+    scrollbar-width: thin;
+    scrollbar-color: #ff6b6b transparent;
+  }
+
+  .scrollbar-rainbow::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  .scrollbar-rainbow::-webkit-scrollbar-track {
+    background: linear-gradient(90deg, 
+      rgba(255, 107, 107, 0.1) 0%,
+      rgba(255, 193, 7, 0.1) 25%,
+      rgba(40, 167, 69, 0.1) 50%,
+      rgba(0, 123, 255, 0.1) 75%,
+      rgba(108, 117, 125, 0.1) 100%
+    );
+    border-radius: 10px;
+  }
+
+  .scrollbar-rainbow::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, 
+      #ff6b6b 0%,
+      #ffc107 25%,
+      #28a745 50%,
+      #007bff 75%,
+      #6c757d 100%
+    );
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    transition: all 0.3s ease;
+    animation: rainbow-pulse 2s ease-in-out infinite alternate;
+  }
+
+  .scrollbar-rainbow::-webkit-scrollbar-thumb:hover {
+    transform: scale(1.1);
+    animation-duration: 1s;
+  }
+
+  @keyframes rainbow-pulse {
+    0% {
+      filter: brightness(1) saturate(1);
+    }
+    100% {
+      filter: brightness(1.2) saturate(1.3);
+    }
+  }
   
   /* Override button padding globally */
   .btn {

@@ -15,6 +15,7 @@ const contactSchema = z.object({
   phone: z.string().optional(),
   telegram_username: z.string().optional(),
   whatsapp_number: z.string().optional(),
+  linkedin_profile: z.string().optional(),
   company: z.string().optional(),
   job_title: z.string().optional(),
   address: z.string().optional(),
@@ -182,6 +183,19 @@ export default function ContactNew() {
                   placeholder="+1234567890"
                 />
                 <p className="mt-1 text-sm text-gray-500">Enter WhatsApp number with country code</p>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  LinkedIn Profile
+                </label>
+                <input
+                  {...register('linkedin_profile')}
+                  type="url"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                  placeholder="https://linkedin.com/in/username"
+                />
+                <p className="mt-1 text-sm text-gray-500">Enter full LinkedIn profile URL</p>
               </div>
             </div>
           </div>

@@ -161,3 +161,5 @@ python -c "import asyncio; from app.services.telegram_service import telegram_se
 ## Kết luận
 Tính năng scheduled campaign đã được tích hợp hoàn chỉnh với WhatsApp và Telegram messaging. Hệ thống sẽ tự động gửi tin nhắn theo lịch trình đã định, kết hợp với AI calls để tối đa hóa hiệu quả marketing.
 
+
+

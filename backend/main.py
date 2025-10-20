@@ -5,7 +5,7 @@ import os
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp
+from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.services.scheduler import start_scheduler, stop_scheduler
@@ -75,6 +75,7 @@ app.include_router(rag.router, prefix="/api/rag", tags=["RAG & Knowledge Base"])
 app.include_router(emails.router, prefix="/api/emails", tags=["Email Marketing"])
 app.include_router(telegram.router, tags=["Telegram"])
 app.include_router(whatsapp.router, tags=["WhatsApp"])
+app.include_router(inbox.router, prefix="/api/inbox", tags=["Inbox"])
 
 @app.get("/")
 async def root():

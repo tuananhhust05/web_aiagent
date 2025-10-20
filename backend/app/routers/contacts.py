@@ -30,6 +30,7 @@ async def create_contact(
         "phone": contact_data.phone,
         "telegram_username": contact_data.telegram_username,
         "whatsapp_number": contact_data.whatsapp_number,
+        "linkedin_profile": contact_data.linkedin_profile,
         "company": contact_data.company,
         "job_title": contact_data.job_title,
         "address": contact_data.address,

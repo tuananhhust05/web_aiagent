@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
-import { Plus, Search, Filter, Upload,  Users, Phone } from 'lucide-react'
+import { Plus, Search, Filter, Upload, Users, Phone, MessageCircle, Mail, Linkedin } from 'lucide-react'
 import { contactsAPI, callsAPI, groupsAPI } from '../../lib/api'
 import { formatDate, generateInitials } from '../../lib/utils'
 import { toast } from 'react-hot-toast'
@@ -279,13 +279,13 @@ export default function Contacts() {
                       <div className="flex items-center space-x-6 text-sm text-gray-600">
                         {contact.email && (
                           <span className="flex items-center">
-                            <span className="mr-1">📧</span>
+                            <Mail className="h-4 w-4 mr-1" />
                             {contact.email}
                           </span>
                         )}
                         {contact.phone && (
                           <span className="flex items-center">
-                            <span className="mr-1">📞</span>
+                            <Phone className="h-4 w-4 mr-1" />
                             {contact.phone}
                           </span>
                         )}
@@ -299,6 +299,28 @@ export default function Contacts() {
                           <span className="mr-1">📅</span>
                           {formatDate(contact.created_at)}
                         </span>
+                      </div>
+                      
+                      {/* Contact Methods */}
+                      <div className="flex items-center space-x-4 mt-2">
+                        {contact.whatsapp_number && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <MessageCircle className="h-3 w-3 mr-1" />
+                            WhatsApp
+                          </span>
+                        )}
+                        {contact.telegram_username && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <MessageCircle className="h-3 w-3 mr-1" />
+                            Telegram
+                          </span>
+                        )}
+                        {contact.linkedin_profile && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            <Linkedin className="h-3 w-3 mr-1" />
+                            LinkedIn
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -299,3 +299,17 @@ export const telegramAPI = {
     campaignType: string
   }) => api.post('/api/telegram/start-campaign', data),
 }
+
+// Inbox API
+export const inboxAPI = {
+  // Receive inbox response (public endpoint)
+  receiveResponse: (data: {
+    platform: string
+    contact: string
+    content: string
+  }) => api.post('/api/inbox/receive', data),
+  
+  // Get responses by campaign (requires auth)
+  getResponsesByCampaign: (campaignId: string, params?: { limit?: number; skip?: number }) => 
+    api.get(`/api/inbox/by-campaign/${campaignId}`, { params }),
+}

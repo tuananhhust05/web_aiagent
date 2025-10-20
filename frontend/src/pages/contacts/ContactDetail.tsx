@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Edit, Trash2, Phone, Mail, Building2, User, Save, X, MessageCircle, Send } from 'lucide-react'
+import { ArrowLeft, Edit, Trash2, Phone, Mail, Building2, User, Save, X, MessageCircle, Send, Linkedin } from 'lucide-react'
 import { contactsAPI, callsAPI } from '../../lib/api'
 import { formatDate, generateInitials } from '../../lib/utils'
 import { toast } from 'react-hot-toast'
@@ -298,6 +298,35 @@ export default function ContactDetail() {
                       <div className="flex items-center space-x-2 mt-1">
                         <Send className="h-4 w-4 text-gray-400" />
                         <span className="text-sm text-gray-900">{contact.whatsapp_number || 'No WhatsApp number'}</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">LinkedIn Profile</label>
+                    {isEditing ? (
+                      <input
+                        type="url"
+                        value={editData.linkedin_profile || ''}
+                        onChange={(e) => handleInputChange('linkedin_profile', e.target.value)}
+                        className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500"
+                        placeholder="https://linkedin.com/in/username"
+                      />
+                    ) : (
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Linkedin className="h-4 w-4 text-gray-400" />
+                        {contact.linkedin_profile ? (
+                          <a 
+                            href={contact.linkedin_profile} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:text-blue-800 underline"
+                          >
+                            {contact.linkedin_profile}
+                          </a>
+                        ) : (
+                          <span className="text-sm text-gray-900">No LinkedIn profile</span>
+                        )}
                       </div>
                     )}
                   </div>

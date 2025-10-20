@@ -13,10 +13,13 @@ import {
   Target,
   CheckCircle,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  MessageSquare,
+  Mail,
+  Phone
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import { campaignsAPI, groupsAPI } from '../lib/api'
+import { campaignsAPI, groupsAPI, inboxAPI } from '../lib/api'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
 // interface Contact {
@@ -50,11 +53,22 @@ interface Campaign {
   updated_at: string
 }
 
+interface InboxResponse {
+  id: string
+  platform: string
+  contact: string
+  content: string
+  campaign_id?: string
+  contact_id?: string
+  created_at: string
+}
+
 export default function CampaignDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [showEditModal, setShowEditModal] = useState(false)
+  const [activeTab, setActiveTab] = useState<'overview' | 'inbox'>('overview')
 
   // Fetch campaign details
   const { data: campaign, isLoading: campaignLoading, error: campaignError } = useQuery({
@@ -74,6 +88,13 @@ export default function CampaignDetail() {
     queryKey: ['campaign-contacts', campaign?.data?.group_ids],
     queryFn: () => campaignsAPI.getContactsFromGroups(campaign?.data?.group_ids || []),
     enabled: !!campaign?.data?.group_ids?.length
+  })
+
+  // Fetch inbox responses for this campaign
+  const { data: inboxResponses, isLoading: inboxLoading } = useQuery({
+    queryKey: ['inbox-responses', id],
+    queryFn: () => inboxAPI.getResponsesByCampaign(id!, { limit: 50, skip: 0 }),
+    enabled: !!id
   })
 
   const groups = Array.isArray(groupsResponse?.data?.groups) ? groupsResponse.data.groups : []
@@ -251,7 +272,46 @@ export default function CampaignDetail() {
           </div>
         </div>
 
-        {/* Campaign Info Cards */}
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'overview'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveTab('inbox')}
+                className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'inbox'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center">
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Inbox
+                  {inboxResponses?.data && inboxResponses.data.length > 0 && (
+                    <span className="ml-2 bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">
+                      {inboxResponses.data.length}
+                    </span>
+                  )}
+                </div>
+              </button>
+            </nav>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'overview' && (
+          <>
+            {/* Campaign Info Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
             <div className="flex items-center">
@@ -369,6 +429,84 @@ export default function CampaignDetail() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+          </>
+        )}
+
+        {/* Inbox Tab Content */}
+        {activeTab === 'inbox' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+                <MessageSquare className="h-5 w-5 mr-2" />
+                Customer Responses
+              </h3>
+              <p className="text-gray-600 mt-1">
+                All responses from customers for this campaign
+              </p>
+            </div>
+            
+            <div className="p-6">
+              {inboxLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <LoadingSpinner />
+                </div>
+              ) : inboxResponses?.data && inboxResponses.data.length > 0 ? (
+                <div className="space-y-4">
+                  {inboxResponses.data.map((response: InboxResponse) => (
+                    <div key={response.id} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start space-x-3">
+                          <div className="flex-shrink-0">
+                            {response.platform === 'telegram' && (
+                              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                <MessageSquare className="h-4 w-4 text-blue-600" />
+                              </div>
+                            )}
+                            {response.platform === 'whatsapp' && (
+                              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                                <Phone className="h-4 w-4 text-green-600" />
+                              </div>
+                            )}
+                            {response.platform === 'email' && (
+                              <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                                <Mail className="h-4 w-4 text-purple-600" />
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <span className="text-sm font-medium text-gray-900">
+                                {response.contact}
+                              </span>
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                {response.platform}
+                              </span>
+                            </div>
+                            <p className="text-gray-700 text-sm leading-relaxed">
+                              {response.content}
+                            </p>
+                            <div className="flex items-center mt-2 text-xs text-gray-500">
+                              <Clock className="h-3 w-3 mr-1" />
+                              {new Date(response.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No responses yet</h3>
+                  <p className="text-gray-600">
+                    Customer responses will appear here when customers reply to your campaign.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
