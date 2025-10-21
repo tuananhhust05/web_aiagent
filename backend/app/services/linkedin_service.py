@@ -18,7 +18,7 @@ class LinkedInService:
             message: Message content to send
             
         Returns:
-            Dict with success status and response data
+            Dict with success stat us and response data
         """
         try:
             logger.info(f"🔗 [LINKEDIN] Sending message to LinkedIn profile: {linkedin_profile}")
