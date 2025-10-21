@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.models.campaign import CampaignType, ScheduleFrequency
 from app.services.whatsapp_service import whatsapp_service
 from app.services.telegram_service import telegram_service
+from app.services.linkedin_service import linkedin_service
 import logging
 import sys
 
@@ -308,13 +309,15 @@ class CampaignScheduler:
         calls_made_count = 0
         whatsapp_sent_count = 0
         telegram_sent_count = 0
+        linkedin_sent_count = 0
         
-        logger.info(f"📞 [CAMPAIGN] Starting AI calls, WhatsApp and Telegram messages for {len(contacts)} contacts...")
+        logger.info(f"📞 [CAMPAIGN] Starting AI calls, WhatsApp, Telegram and LinkedIn messages for {len(contacts)} contacts...")
         
         for i, contact in enumerate(contacts, 1):
             phone = contact.get("phone", "N/A")
             whatsapp_number = contact.get("whatsapp_number")
             telegram_username = contact.get("telegram_username")
+            linkedin_profile = contact.get("linkedin_profile")
             name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
             contact_id = str(contact.get('_id', 'Unknown'))
             
@@ -367,6 +370,30 @@ class CampaignScheduler:
                 except Exception as e:
                     logger.error(f"❌ [TELEGRAM] Failed to send Telegram message to {name}: {str(e)}")
                     logger.error(f"🔍 [TELEGRAM] Exception type: {type(e).__name__}")
+            
+            # Send LinkedIn message if contact has LinkedIn profile
+            if linkedin_profile:
+                try:
+                    logger.info(f"🔗 [LINKEDIN] Sending LinkedIn message to {name} ({linkedin_profile})")
+                    logger.info(f"📝 [LINKEDIN] Message content: {call_script[:100]}...")
+                    
+                    linkedin_result = await linkedin_service.send_message_to_contact(
+                        linkedin_profile, 
+                        call_script
+                    )
+                    
+                    if linkedin_result.get("success"):
+                        logger.info(f"✅ [LINKEDIN] LinkedIn message sent to {name}: {linkedin_result}")
+                        linkedin_sent_count += 1
+                    else:
+                        logger.error(f"❌ [LINKEDIN] LinkedIn message failed for {name}: {linkedin_result}")
+                        # Log detailed error for debugging
+                        if "error" in linkedin_result:
+                            logger.error(f"🔍 [LINKEDIN] Error details: {linkedin_result['error']}")
+                        
+                except Exception as e:
+                    logger.error(f"❌ [LINKEDIN] Failed to send LinkedIn message to {name}: {str(e)}")
+                    logger.error(f"🔍 [LINKEDIN] Exception type: {type(e).__name__}")
             
             # Make AI call if contact has phone number
             if phone and phone != "N/A":
@@ -421,7 +448,7 @@ class CampaignScheduler:
                 logger.warning(f"⚠️  [CAMPAIGN] Contact {name} has no valid phone number, skipping AI call")
         
         logger.info(f"🎉 [CAMPAIGN] Completed processing all contacts for campaign '{campaign_name}'")
-        logger.info(f"📊 [CAMPAIGN] Summary: {calls_made_count} calls made, {whatsapp_sent_count} WhatsApp messages sent, {telegram_sent_count} Telegram messages sent")
+        logger.info(f"📊 [CAMPAIGN] Summary: {calls_made_count} calls made, {whatsapp_sent_count} WhatsApp messages sent, {telegram_sent_count} Telegram messages sent, {linkedin_sent_count} LinkedIn messages sent")
 
 # Global scheduler instance
 scheduler = CampaignScheduler()

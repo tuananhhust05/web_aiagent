@@ -20,6 +20,7 @@ from app.models.campaign import (
 )
 from app.services.telegram_service import telegram_service
 from app.services.whatsapp_service import whatsapp_service
+from app.services.linkedin_service import linkedin_service
 
 router = APIRouter()
 
@@ -341,17 +342,19 @@ async def start_campaign(
         # For manual campaigns, execute calls immediately and keep original status
         print(f"📋 Manual Campaign: Executing calls for {len(all_contact_ids)} contacts")
         
-        # Execute AI calls, WhatsApp and Telegram messages for manual campaigns
+        # Execute AI calls, WhatsApp, Telegram and LinkedIn messages for manual campaigns
         if all_contact_ids and contacts:
             call_script = campaign.get("call_script", settings.AI_CALL_DEFAULT_PROMPT)
             whatsapp_sent_count = 0
             telegram_sent_count = 0
+            linkedin_sent_count = 0
             calls_made_count = 0
             
             for contact in contacts:
                 phone = contact.get("phone", "N/A")
                 whatsapp_number = contact.get("whatsapp_number")
                 telegram_username = contact.get("telegram_username")
+                linkedin_profile = contact.get("linkedin_profile")
                 name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
                 
                 # Send WhatsApp message if contact has WhatsApp number
@@ -400,6 +403,30 @@ async def start_campaign(
                             
                     except Exception as e:
                         print(f"❌ Failed to send Telegram message to {name}: {str(e)}")
+                        print(f"🔍 Exception type: {type(e).__name__}")
+                
+                # Send LinkedIn message if contact has LinkedIn profile
+                if linkedin_profile:
+                    try:
+                        print(f"🔗 Sending LinkedIn message to {name} ({linkedin_profile})")
+                        print(f"📝 Message content: {call_script[:100]}...")
+                        
+                        linkedin_result = await linkedin_service.send_message_to_contact(
+                            linkedin_profile, 
+                            call_script
+                        )
+                        
+                        if linkedin_result.get("success"):
+                            print(f"✅ LinkedIn message sent to {name}: {linkedin_result}")
+                            linkedin_sent_count += 1
+                        else:
+                            print(f"❌ LinkedIn message failed for {name}: {linkedin_result}")
+                            # Log detailed error for debugging
+                            if "error" in linkedin_result:
+                                print(f"🔍 Error details: {linkedin_result['error']}")
+                            
+                    except Exception as e:
+                        print(f"❌ Failed to send LinkedIn message to {name}: {str(e)}")
                         print(f"🔍 Exception type: {type(e).__name__}")
                 
                 # Make AI call if contact has phone number
@@ -455,9 +482,10 @@ async def start_campaign(
             calls_made_count = 0
             whatsapp_sent_count = 0
             telegram_sent_count = 0
+            linkedin_sent_count = 0
         
         print(f"🔄 Campaign status remains: {campaign['status']}")
-        print(f"📊 Campaign Summary: {calls_made_count} calls made, {whatsapp_sent_count} WhatsApp messages sent, {telegram_sent_count} Telegram messages sent")
+        print(f"📊 Campaign Summary: {calls_made_count} calls made, {whatsapp_sent_count} WhatsApp messages sent, {telegram_sent_count} Telegram messages sent, {linkedin_sent_count} LinkedIn messages sent")
         
         return {
             "message": f"Manual campaign executed successfully.",
@@ -465,7 +493,8 @@ async def start_campaign(
                 "total_contacts": len(all_contact_ids),
                 "calls_made": calls_made_count,
                 "whatsapp_messages_sent": whatsapp_sent_count,
-                "telegram_messages_sent": telegram_sent_count
+                "telegram_messages_sent": telegram_sent_count,
+                "linkedin_messages_sent": linkedin_sent_count
             }
         }
     else:
@@ -511,6 +540,23 @@ async def test_whatsapp_connection(
     except Exception as e:
         return {
             "message": "WhatsApp API connection test failed",
+            "error": str(e)
+        }
+
+@router.get("/test-linkedin")
+async def test_linkedin_connection(
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Test LinkedIn API connection"""
+    try:
+        test_result = await linkedin_service.test_connection()
+        return {
+            "message": "LinkedIn API connection test completed",
+            "result": test_result
+        }
+    except Exception as e:
+        return {
+            "message": "LinkedIn API connection test failed",
             "error": str(e)
         }
 
