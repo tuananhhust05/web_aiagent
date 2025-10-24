@@ -132,6 +132,7 @@ export const callsAPI = {
 // Campaigns API
 export const campaignsAPI = {
   getCampaigns: (filters?: any) => api.get('/api/campaigns', { params: filters }),
+  getCampaignsByGoal: (campaign_goal_id: string) => api.get('/api/campaigns', { params: { campaign_goal_id } }),
   createCampaign: (data: any) => api.post('/api/campaigns', data),
   updateCampaign: (id: string, data: any) => api.put(`/api/campaigns/${id}`, data),
   deleteCampaign: (id: string) => api.delete(`/api/campaigns/${id}`),
@@ -312,4 +313,104 @@ export const inboxAPI = {
   // Get responses by campaign (requires auth)
   getResponsesByCampaign: (campaignId: string, params?: { limit?: number; skip?: number }) => 
     api.get(`/api/inbox/by-campaign/${campaignId}`, { params }),
+}
+
+// Convention Activities API
+export const conventionActivitiesAPI = {
+  // Get convention activities with filtering
+  getActivities: (params?: {
+    is_customer?: boolean;
+    has_campaigns?: boolean;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }) => api.get('/api/convention-activities', { params }),
+  
+  // Update contact status
+  updateContactStatus: (data: {
+    contact_id: string;
+    status: 'customer' | 'lead' | 'prospect' | 'active' | 'inactive';
+  }) => api.put('/api/convention-activities/contact-status', data),
+  
+  // Get convention statistics
+  getStats: () => api.get('/api/convention-activities/stats'),
+  
+  // Get convention campaigns
+  getConventionCampaigns: () => api.get('/api/convention-activities/campaigns'),
+  
+  // Create convention campaign (now uses main campaigns API with source field)
+  // createCampaign: (data: any) => campaignsAPI.createCampaign({ ...data, source: 'convention-activities' }),
+};
+
+// Campaign Goals API
+export const campaignGoalsAPI = {
+  // Get all campaign goals
+  getGoals: (source?: string) => api.get('/api/campaign-goals', { params: source ? { source } : {} }),
+  
+  // Get a single campaign goal
+  getGoal: (goalId: string) => api.get(`/api/campaign-goals/${goalId}`),
+  
+  // Create a new campaign goal
+  createGoal: (data: { name: string; description?: string; source?: string }) => api.post('/api/campaign-goals', data),
+  
+  // Update a campaign goal
+  updateGoal: (goalId: string, data: any) => api.put(`/api/campaign-goals/${goalId}`, data),
+  
+  // Delete a campaign goal
+  deleteGoal: (goalId: string) => api.delete(`/api/campaign-goals/${goalId}`),
+  
+  // Get campaign goal statistics
+  getStats: () => api.get('/api/campaign-goals/stats/summary'),
+};
+
+// Deals API
+export const dealsAPI = {
+  // Get deals with pagination and filtering
+  getDeals: (params?: {
+    page?: number;
+    limit?: number;
+    status?: 'new' | 'contacted' | 'negotiation';
+    search?: string;
+  }) => api.get('/api/deals', { params }),
+  
+  // Get deal by ID
+  getDeal: (dealId: string) => api.get(`/api/deals/${dealId}`),
+  
+  // Create new deal
+  createDeal: (data: {
+    name: string;
+    description?: string;
+    contact_id: string;
+    campaign_id?: string;
+    start_date?: string;
+    end_date?: string;
+    status: 'new' | 'contacted' | 'negotiation';
+    cost: number;
+    revenue: number;
+  }) => api.post('/api/deals', data),
+  
+  // Update deal
+  updateDeal: (dealId: string, data: {
+    name?: string;
+    description?: string;
+    contact_id?: string;
+    campaign_id?: string;
+    start_date?: string;
+    end_date?: string;
+    status?: 'new' | 'contacted' | 'negotiation';
+    cost?: number;
+    revenue?: number;
+  }) => api.put(`/api/deals/${dealId}`, data),
+  
+  // Delete deal
+  deleteDeal: (dealId: string) => api.delete(`/api/deals/${dealId}`),
+  
+  // Get deal statistics
+  getStats: () => api.get('/api/deals/stats'),
+  
+  // Get contacts for deal creation
+  getContacts: () => api.get('/api/deals/contacts/list'),
+  
+  // Get campaigns for deal creation
+  getCampaigns: () => api.get('/api/deals/campaigns/list'),
 }

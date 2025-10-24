@@ -208,6 +208,11 @@ export default function CampaignDetail() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{campaignData.name}</h1>
               <p className="text-gray-600 mt-1">{campaignData.description}</p>
+              <div className="mt-2">
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  Type: {campaignData.type}
+                </span>
+              </div>
             </div>
             
             <div className="flex items-center gap-3">

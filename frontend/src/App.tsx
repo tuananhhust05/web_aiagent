@@ -21,7 +21,7 @@ import ContactNew from './pages/contacts/ContactNew'
 import ContactGroups from './pages/contacts/ContactGroups'
 import GroupDetail from './pages/contacts/GroupDetail'
 import CRM from './pages/crm/CRM'
-import Campaign from './pages/Campaign'
+// import Campaign from './pages/Campaign' // Temporarily commented out
 import CampaignDetail from './pages/CampaignDetail'
 import Agent from './pages/Agent'
 import RAG from './pages/RAG'
@@ -44,6 +44,11 @@ import Telegram from './pages/Telegram'
 import TelegramContacts from './pages/telegram/TelegramContacts'
 import TelegramContactNew from './pages/telegram/TelegramContactNew'
 import TelegramCampaign from './pages/telegram/TelegramCampaign'
+import ConventionActivities from './pages/ConventionActivities'
+import Deals from './pages/Deals'
+import WorkflowBuilder from './pages/WorkflowBuilder'
+import CampaignGoalDetail from './pages/CampaignGoalDetail'
+import ComingSoon from './pages/ComingSoon'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 
 function App() {
@@ -82,39 +87,47 @@ function App() {
   }
 
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-              <Route path="/calls-dashboard" element={<CallsDashboard />} />
-              <Route path="/calls" element={<CallsLog />} />
-              <Route path="/calls/:callId" element={<CallDetail />} />
-              <Route path="/calls/:callId/sentiment" element={<CallSentiment />} />
-        <Route path="/contacts" element={<Contacts />} />
-        <Route path="/contacts/new" element={<ContactNew />} />
-        <Route path="/contacts/:id" element={<ContactDetail />} />
-        <Route path="/contacts/import" element={<ContactImport />} />
-        <Route path="/contacts/group" element={<ContactGroups />} />
-        <Route path="/contacts/group/:groupId" element={<GroupDetail />} />
-        <Route path="/campaigns" element={<Campaign />} />
-        <Route path="/campaigns/:id" element={<CampaignDetail />} />
-        <Route path="/crm-integration" element={<CRMIntegrationPage />} />
-        <Route path="/crm" element={<CRM />} />
-        <Route path="/agent" element={<Agent />} />
-        <Route path="/ragclient" element={<RAG />} />
-        <Route path="/voice-training" element={<VoiceTraining />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/emails" element={<EmailList />} />
-        <Route path="/emails/create" element={<EmailCreate />} />
-        <Route path="/emails/:id" element={<EmailDetail />} />
-        <Route path="/whatsapp" element={<WhatsApp />} />
-        <Route path="/whatsapp/conversation/:id" element={<WhatsAppConversation />} />
-        <Route path="/telegram" element={<Telegram />} />
-        <Route path="/telegram/contacts" element={<TelegramContacts />} />
-        <Route path="/telegram/contacts/new" element={<TelegramContactNew />} />
-        <Route path="/telegram/campaigns" element={<TelegramCampaign />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Layout>
+    <Routes>
+      <Route path="/workflow-builder" element={<WorkflowBuilder />} />
+      <Route path="*" element={
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/calls-dashboard" element={<CallsDashboard />} />
+            <Route path="/calls" element={<CallsLog />} />
+            <Route path="/calls/:callId" element={<CallDetail />} />
+            <Route path="/calls/:callId/sentiment" element={<CallSentiment />} />
+            <Route path="/contacts" element={<Contacts />} />
+            <Route path="/contacts/new" element={<ContactNew />} />
+            <Route path="/contacts/:id" element={<ContactDetail />} />
+            <Route path="/contacts/import" element={<ContactImport />} />
+            <Route path="/contacts/group" element={<ContactGroups />} />
+            <Route path="/contacts/group/:groupId" element={<GroupDetail />} />
+            <Route path="/campaigns" element={<ComingSoon />} />
+            <Route path="/campaigns/:id" element={<CampaignDetail />} />
+            <Route path="/crm-integration" element={<CRMIntegrationPage />} />
+            <Route path="/crm" element={<CRM />} />
+            <Route path="/agent" element={<Agent />} />
+            <Route path="/ragclient" element={<RAG />} />
+            <Route path="/voice-training" element={<VoiceTraining />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/emails" element={<EmailList />} />
+            <Route path="/emails/create" element={<EmailCreate />} />
+            <Route path="/emails/:id" element={<EmailDetail />} />
+            <Route path="/whatsapp" element={<WhatsApp />} />
+            <Route path="/whatsapp/conversation/:id" element={<WhatsAppConversation />} />
+            <Route path="/telegram" element={<Telegram />} />
+            <Route path="/telegram/contacts" element={<TelegramContacts />} />
+            <Route path="/telegram/contacts/new" element={<TelegramContactNew />} />
+            <Route path="/telegram/campaigns" element={<TelegramCampaign />} />
+            <Route path="/convention-activities" element={<ConventionActivities />} />
+            <Route path="/campaign-goals/:goalId" element={<CampaignGoalDetail />} />
+            <Route path="/deals" element={<Deals />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Layout>
+      } />
+    </Routes>
   )
 }
 

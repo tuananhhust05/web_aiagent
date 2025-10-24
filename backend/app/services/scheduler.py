@@ -372,28 +372,33 @@ class CampaignScheduler:
                     logger.error(f"🔍 [TELEGRAM] Exception type: {type(e).__name__}")
             
             # Send LinkedIn message if contact has LinkedIn profile
+            # TEMPORARILY COMMENTED OUT - LinkedIn API has issues
+            # if linkedin_profile:
+            #     try:
+            #         logger.info(f"🔗 [LINKEDIN] Sending LinkedIn message to {name} ({linkedin_profile})")
+            #         logger.info(f"📝 [LINKEDIN] Message content: {call_script[:100]}...")
+            #         
+            #         linkedin_result = await linkedin_service.send_message_to_contact(
+            #             linkedin_profile, 
+            #             call_script
+            #         )
+            #         
+            #         if linkedin_result.get("success"):
+            #             logger.info(f"✅ [LINKEDIN] LinkedIn message sent to {name}: {linkedin_result}")
+            #             linkedin_sent_count += 1
+            #         else:
+            #             logger.error(f"❌ [LINKEDIN] LinkedIn message failed for {name}: {linkedin_result}")
+            #             # Log detailed error for debugging
+            #             if "error" in linkedin_result:
+            #                 logger.error(f"🔍 [LINKEDIN] Error details: {linkedin_result['error']}")
+            #             
+            #     except Exception as e:
+            #         logger.error(f"❌ [LINKEDIN] Failed to send LinkedIn message to {name}: {str(e)}")
+            #         logger.error(f"🔍 [LINKEDIN] Exception type: {type(e).__name__}")
+            
+            # TEMPORARY: Skip LinkedIn for now
             if linkedin_profile:
-                try:
-                    logger.info(f"🔗 [LINKEDIN] Sending LinkedIn message to {name} ({linkedin_profile})")
-                    logger.info(f"📝 [LINKEDIN] Message content: {call_script[:100]}...")
-                    
-                    linkedin_result = await linkedin_service.send_message_to_contact(
-                        linkedin_profile, 
-                        call_script
-                    )
-                    
-                    if linkedin_result.get("success"):
-                        logger.info(f"✅ [LINKEDIN] LinkedIn message sent to {name}: {linkedin_result}")
-                        linkedin_sent_count += 1
-                    else:
-                        logger.error(f"❌ [LINKEDIN] LinkedIn message failed for {name}: {linkedin_result}")
-                        # Log detailed error for debugging
-                        if "error" in linkedin_result:
-                            logger.error(f"🔍 [LINKEDIN] Error details: {linkedin_result['error']}")
-                        
-                except Exception as e:
-                    logger.error(f"❌ [LINKEDIN] Failed to send LinkedIn message to {name}: {str(e)}")
-                    logger.error(f"🔍 [LINKEDIN] Exception type: {type(e).__name__}")
+                logger.info(f"⏸️ [LINKEDIN] LinkedIn message skipped for {name} ({linkedin_profile}) - API temporarily disabled")
             
             # Make AI call if contact has phone number
             if phone and phone != "N/A":

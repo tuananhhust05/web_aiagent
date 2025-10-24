@@ -10,7 +10,8 @@ import {
   Play,
   Star,
   CheckCircle,
-  ChevronDown
+  ChevronDown,
+  Workflow
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Header from '../components/Header'
@@ -127,6 +128,14 @@ export default function Home() {
                 Sign In
               </Link>
               
+              <Link
+                to="/workflow-builder"
+                className="inline-flex items-center px-8 py-4 border border-white/30 text-white font-semibold rounded-full hover:bg-white/10 transition-all duration-300 backdrop-blur-md"
+              >
+                <Workflow className="mr-2 h-5 w-5" />
+                Try Workflow Builder
+              </Link>
+              
               <button className="inline-flex items-center px-8 py-4 border border-white/30 text-white font-semibold rounded-full hover:bg-white/10 transition-all duration-300 backdrop-blur-md">
                 <Play className="mr-2 h-5 w-5" />
                 Watch Demo
@@ -191,6 +200,69 @@ export default function Home() {
             <div>
               <div className="text-4xl md:text-5xl font-bold text-orange-400 mb-2">24/7</div>
               <div className="text-gray-400">Support</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Workflow Builder Section */}
+      <section className="py-24 px-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-16 items-center">
+            <div>
+              <h2 className="text-5xl md:text-6xl font-bold mb-8">
+                Visual Workflow Builder
+              </h2>
+              <p className="text-xl text-gray-400 mb-8 leading-relaxed">
+                Create powerful automation workflows with our intuitive drag-and-drop interface. 
+                Build complex business processes without coding - just like n8n, but integrated with AgentVoice.
+              </p>
+              
+              <div className="space-y-4 mb-8">
+                <div className="flex items-center">
+                  <CheckCircle className="h-5 w-5 text-green-400 mr-3 flex-shrink-0" />
+                  <span className="text-gray-300">Drag & Drop Interface</span>
+                </div>
+                <div className="flex items-center">
+                  <CheckCircle className="h-5 w-5 text-green-400 mr-3 flex-shrink-0" />
+                  <span className="text-gray-300">Pre-built Node Library</span>
+                </div>
+                <div className="flex items-center">
+                  <CheckCircle className="h-5 w-5 text-green-400 mr-3 flex-shrink-0" />
+                  <span className="text-gray-300">Real-time Execution</span>
+                </div>
+                <div className="flex items-center">
+                  <CheckCircle className="h-5 w-5 text-green-400 mr-3 flex-shrink-0" />
+                  <span className="text-gray-300">Conditional Logic</span>
+                </div>
+              </div>
+              
+              <Link
+                to="/workflow-builder"
+                className="group inline-flex items-center px-8 py-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-full hover:from-blue-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105"
+              >
+                <Workflow className="mr-2 h-5 w-5" />
+                Try Workflow Builder
+                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+            
+            <div className="relative">
+              <div className="w-full h-96 bg-gradient-to-br from-blue-500/20 to-purple-500/20 rounded-3xl border border-white/10 backdrop-blur-md flex items-center justify-center">
+                <div className="text-center">
+                  <Workflow className="h-16 w-16 mx-auto mb-4 text-blue-400" />
+                  <h3 className="text-2xl font-bold mb-2">Visual Automation</h3>
+                  <p className="text-gray-400">Build workflows with ease</p>
+                </div>
+              </div>
+              
+              {/* Floating Elements */}
+              <div className="absolute -top-4 -right-4 w-24 h-24 bg-gradient-to-br from-green-500/20 to-teal-500/20 rounded-2xl border border-white/10 backdrop-blur-md flex items-center justify-center">
+                <Zap className="h-8 w-8 text-green-400" />
+              </div>
+              <div className="absolute -bottom-4 -left-4 w-20 h-20 bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-2xl border border-white/10 backdrop-blur-md flex items-center justify-center">
+                <Brain className="h-6 w-6 text-orange-400" />
+              </div>
             </div>
           </div>
         </div>

@@ -34,6 +34,8 @@ class CampaignBase(BaseModel):
     description: Optional[str] = Field(None, max_length=1000)
     status: CampaignStatus = CampaignStatus.DRAFT
     type: CampaignType = CampaignType.MANUAL
+    source: Optional[str] = Field(None, max_length=100)  # Source of campaign (e.g., "convention-activities")
+    campaign_goal_id: Optional[str] = Field(None, max_length=100)  # Associated campaign goal ID
     contacts: List[str] = Field(default_factory=list)
     group_ids: List[str] = Field(default_factory=list)  # Groups to include in campaign
     call_script: str = Field(default="", min_length=0)
@@ -49,6 +51,8 @@ class CampaignUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=1000)
     status: Optional[CampaignStatus] = None
     type: Optional[CampaignType] = None
+    source: Optional[str] = Field(None, max_length=100)  # Source of campaign
+    campaign_goal_id: Optional[str] = Field(None, max_length=100)  # Associated campaign goal ID
     contacts: Optional[List[str]] = None
     group_ids: Optional[List[str]] = None  # Groups to include in campaign
     call_script: Optional[str] = Field(None, min_length=1)

@@ -29,6 +29,7 @@ async def get_campaigns(
     status: Optional[CampaignStatus] = Query(None),
     type: Optional[CampaignType] = Query(None),
     search: Optional[str] = Query(None),
+    campaign_goal_id: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     current_user: UserResponse = Depends(get_current_active_user)
@@ -44,6 +45,9 @@ async def get_campaigns(
     
     if type:
         filter_query["type"] = type.value
+    
+    if campaign_goal_id:
+        filter_query["campaign_goal_id"] = campaign_goal_id
     
     if search:
         filter_query["$or"] = [
@@ -156,6 +160,8 @@ async def create_campaign(
         "description": campaign_data.description,
         "status": campaign_data.status,
         "type": campaign_data.type,
+        "source": campaign_data.source,  # Add source field
+        "campaign_goal_id": campaign_data.campaign_goal_id,  # Add campaign goal ID field
         "contacts": all_contacts,  # All contacts including from groups
         "group_ids": campaign_data.group_ids,  # Store group IDs for reference
         "call_script": campaign_data.call_script,
@@ -406,28 +412,33 @@ async def start_campaign(
                         print(f"🔍 Exception type: {type(e).__name__}")
                 
                 # Send LinkedIn message if contact has LinkedIn profile
+                # TEMPORARILY COMMENTED OUT - LinkedIn API has issues
+                # if linkedin_profile:
+                #     try:
+                #         print(f"🔗 Sending LinkedIn message to {name} ({linkedin_profile})")
+                #         print(f"📝 Message content: {call_script[:100]}...")
+                #         
+                #         linkedin_result = await linkedin_service.send_message_to_contact(
+                #             linkedin_profile, 
+                #             call_script
+                #         )
+                #         
+                #         if linkedin_result.get("success"):
+                #             print(f"✅ LinkedIn message sent to {name}: {linkedin_result}")
+                #             linkedin_sent_count += 1
+                #         else:
+                #             print(f"❌ LinkedIn message failed for {name}: {linkedin_result}")
+                #             # Log detailed error for debugging
+                #             if "error" in linkedin_result:
+                #                 print(f"🔍 Error details: {linkedin_result['error']}")
+                #             
+                #     except Exception as e:
+                #         print(f"❌ Failed to send LinkedIn message to {name}: {str(e)}")
+                #         print(f"🔍 Exception type: {type(e).__name__}")
+                
+                # TEMPORARY: Skip LinkedIn for now
                 if linkedin_profile:
-                    try:
-                        print(f"🔗 Sending LinkedIn message to {name} ({linkedin_profile})")
-                        print(f"📝 Message content: {call_script[:100]}...")
-                        
-                        linkedin_result = await linkedin_service.send_message_to_contact(
-                            linkedin_profile, 
-                            call_script
-                        )
-                        
-                        if linkedin_result.get("success"):
-                            print(f"✅ LinkedIn message sent to {name}: {linkedin_result}")
-                            linkedin_sent_count += 1
-                        else:
-                            print(f"❌ LinkedIn message failed for {name}: {linkedin_result}")
-                            # Log detailed error for debugging
-                            if "error" in linkedin_result:
-                                print(f"🔍 Error details: {linkedin_result['error']}")
-                            
-                    except Exception as e:
-                        print(f"❌ Failed to send LinkedIn message to {name}: {str(e)}")
-                        print(f"🔍 Exception type: {type(e).__name__}")
+                    print(f"⏸️ LinkedIn message skipped for {name} ({linkedin_profile}) - API temporarily disabled")
                 
                 # Make AI call if contact has phone number
                 if phone and phone != "N/A":
