@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     TWILIO_STATUS_CALLBACK_URL: str = "https://4skale.com/twilio/status-callback"
     
     # External AI Call API Configuration
-    AI_CALL_API_URL: str = "http://13.210.192.27:5059/outbound-call"
+    AI_CALL_API_URL: str = "http://54.79.147.183:5059/outbound-call"
     AI_CALL_DEFAULT_PROMPT: str = "You are an AI assistant"
     
     # ElevenLabs API Configuration

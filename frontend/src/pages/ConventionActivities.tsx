@@ -23,7 +23,7 @@ import {
   Pause,
   Trash2
 } from 'lucide-react';
-import { conventionActivitiesAPI, groupsAPI, contactsAPI, campaignsAPI, campaignGoalsAPI } from '../lib/api';
+import { conventionActivitiesAPI, groupsAPI, campaignsAPI, campaignGoalsAPI } from '../lib/api';
 
 interface Contact {
   id: string;
@@ -171,6 +171,14 @@ const ConventionActivities: React.FC = () => {
     fetchCampaignGoals(); // Fetch campaign goals on component mount
   }, [searchTerm, filters]);
 
+  // Separate useEffect to ensure allContacts is loaded when needed
+  useEffect(() => {
+    if (showContactSelector && allContacts.length === 0) {
+      console.log('Contact selector opened but no contacts loaded, fetching...');
+      fetchAllContacts();
+    }
+  }, [showContactSelector]);
+
   useEffect(() => {
     if (showCampaignModal) {
       fetchConventionCampaigns();
@@ -263,27 +271,26 @@ const ConventionActivities: React.FC = () => {
   const fetchAllContacts = async () => {
     try {
       console.log('Starting to fetch contacts...');
-      const response = await contactsAPI.getContacts();
-      console.log('Contacts API response:', response);
-      let contacts = response.data || [];
-      
-      // If no contacts from API, try to use contacts from convention activities
-      if (contacts.length === 0) {
-        console.log('No contacts from API, trying convention activities contacts...');
-        contacts = contacts; // Use the contacts from the main page state
-        console.log('Using convention activities contacts:', contacts);
-      }
+      // Use convention activities API to get contacts with consistent structure
+      const response = await conventionActivitiesAPI.getActivities({
+        limit: 1000, // Get more contacts for selection
+        offset: 0
+      });
+      console.log('Convention activities API response:', response);
+      let contacts = response.data?.contacts || [];
       
       console.log('Fetched contacts for campaign creation:', contacts);
       console.log('Number of contacts:', contacts.length);
       if (contacts.length > 0) {
         console.log('First contact structure:', contacts[0]);
+        console.log('First contact ID:', contacts[0].id);
+        console.log('First contact ID type:', typeof contacts[0].id);
       }
       setAllContacts(contacts);
     } catch (error) {
       console.error('Error fetching contacts:', error);
-      // Fallback to convention activities contacts
-      console.log('Using fallback contacts from convention activities');
+      // Fallback to current contacts state
+      console.log('Using fallback contacts from current state');
       setAllContacts(contacts);
     }
   };
@@ -987,6 +994,9 @@ function CreateConventionCampaignModal({ onClose, onSubmit, onSelectContacts, se
   selectedContacts: string[]
   campaignGoals: CampaignGoal[]
 }) {
+  console.log('CreateConventionCampaignModal - allContacts:', allContacts);
+  console.log('CreateConventionCampaignModal - allContacts length:', allContacts?.length);
+  console.log('CreateConventionCampaignModal - selectedContacts:', selectedContacts);
   const [formData, setFormData] = useState({
     name: '',
     description: '',

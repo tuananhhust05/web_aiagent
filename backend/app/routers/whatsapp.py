@@ -7,7 +7,7 @@ from app.models.user import UserResponse
 router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
 
 # WhatsApp external API base URL
-WHATSAPP_API_BASE = "http://13.210.192.27:8501"
+WHATSAPP_API_BASE = "http://54.79.147.183:8501"
 
 @router.post("/conversations/member")
 async def get_whatsapp_conversations(
