@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -17,7 +17,7 @@ from ..models.deal import (
 
 router = APIRouter()
 
-@router.get("/", response_model=DealListResponse)
+@router.get("/all", response_model=DealListResponse)
 async def get_deals(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(10, ge=1, le=100, description="Items per page"),
@@ -53,9 +53,14 @@ async def get_deals(
     for deal in deals:
         # Get contact info
         contact = await db.contacts.find_one({"_id": ObjectId(deal["contact_id"])})
-        contact_name = contact.get("name", "Unknown") if contact else "Unknown"
-        contact_email = contact.get("email", "") if contact else ""
-        contact_phone = contact.get("phone", "") if contact else ""
+        if contact:
+            contact_name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip() or "Unknown"
+            contact_email = contact.get("email", "")
+            contact_phone = contact.get("phone", "")
+        else:
+            contact_name = "Unknown"
+            contact_email = ""
+            contact_phone = ""
         
         # Get campaign info
         campaign_name = None
@@ -178,7 +183,10 @@ async def get_deal(
     
     # Get contact info
     contact = await db.contacts.find_one({"_id": ObjectId(deal["contact_id"])})
-    contact_name = contact.get("name", "Unknown") if contact else "Unknown"
+    if contact:
+        contact_name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip() or "Unknown"
+    else:
+        contact_name = "Unknown"
     contact_email = contact.get("email", "") if contact else ""
     contact_phone = contact.get("phone", "") if contact else ""
     
@@ -199,7 +207,7 @@ async def get_deal(
     
     return DealResponse(**populated_deal)
 
-@router.post("/", response_model=DealResponse)
+@router.post("/create", response_model=DealResponse)
 async def create_deal(
     deal_data: DealCreate,
     current_user: UserResponse = Depends(get_current_active_user),
@@ -207,14 +215,18 @@ async def create_deal(
 ):
     """Create a new deal"""
     
-    # Validate contact exists
-    if not ObjectId.is_valid(deal_data.contact_id):
-        raise HTTPException(status_code=400, detail="Invalid contact ID")
-    
+    # Validate contact exists - search by string ID
+    # First try to find contact with user_id
     contact = await db.contacts.find_one({
-        "_id": ObjectId(deal_data.contact_id),
+        "_id": deal_data.contact_id,
         "user_id": current_user.id
     })
+    
+    # If not found, try without user_id (for legacy contacts)
+    if not contact:
+        contact = await db.contacts.find_one({
+            "_id": deal_data.contact_id
+        })
     
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
@@ -234,8 +246,17 @@ async def create_deal(
     
     # Create deal
     now = datetime.utcnow()
+    deal_dict = deal_data.dict()
+    
+    # Convert date fields to datetime for MongoDB compatibility
+    if deal_dict.get("start_date") and isinstance(deal_dict["start_date"], date):
+        deal_dict["start_date"] = datetime.combine(deal_dict["start_date"], datetime.min.time())
+    
+    if deal_dict.get("end_date") and isinstance(deal_dict["end_date"], date):
+        deal_dict["end_date"] = datetime.combine(deal_dict["end_date"], datetime.min.time())
+    
     deal_doc = {
-        **deal_data.dict(),
+        **deal_dict,
         "user_id": current_user.id,
         "created_at": now,
         "updated_at": now
@@ -246,7 +267,7 @@ async def create_deal(
     deal_doc["id"] = str(result.inserted_id)
     
     # Get contact and campaign info for response
-    contact_name = contact.get("name", "Unknown")
+    contact_name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip() or "Unknown"
     contact_email = contact.get("email", "")
     contact_phone = contact.get("phone", "")
     
@@ -312,7 +333,16 @@ async def update_deal(
             raise HTTPException(status_code=404, detail="Campaign not found")
     
     # Update deal
-    update_data = {k: v for k, v in deal_data.dict().items() if v is not None}
+    deal_dict = deal_data.dict()
+    
+    # Convert date fields to datetime for MongoDB compatibility
+    if deal_dict.get("start_date") and isinstance(deal_dict["start_date"], date):
+        deal_dict["start_date"] = datetime.combine(deal_dict["start_date"], datetime.min.time())
+    
+    if deal_dict.get("end_date") and isinstance(deal_dict["end_date"], date):
+        deal_dict["end_date"] = datetime.combine(deal_dict["end_date"], datetime.min.time())
+    
+    update_data = {k: v for k, v in deal_dict.items() if v is not None}
     update_data["updated_at"] = datetime.utcnow()
     
     await db.deals.update_one(
@@ -326,7 +356,10 @@ async def update_deal(
     # Get contact info
     contact_id = deal_data.contact_id or existing_deal["contact_id"]
     contact = await db.contacts.find_one({"_id": ObjectId(contact_id)})
-    contact_name = contact.get("name", "Unknown") if contact else "Unknown"
+    if contact:
+        contact_name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip() or "Unknown"
+    else:
+        contact_name = "Unknown"
     contact_email = contact.get("email", "") if contact else ""
     contact_phone = contact.get("phone", "") if contact else ""
     
@@ -386,7 +419,7 @@ async def get_contacts_for_deals(
     return [
         {
             "id": str(contact["_id"]),
-            "name": contact.get("name", "Unknown"),
+            "name": f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip() or "Unknown",
             "email": contact.get("email", ""),
             "phone": contact.get("phone", "")
         }
@@ -415,6 +448,7 @@ async def get_campaigns_for_deals(
         }
         for campaign in campaigns
     ]
+
 
 
 

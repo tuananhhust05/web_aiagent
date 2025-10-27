@@ -46,6 +46,10 @@ import TelegramContactNew from './pages/telegram/TelegramContactNew'
 import TelegramCampaign from './pages/telegram/TelegramCampaign'
 import ConventionActivities from './pages/ConventionActivities'
 import Deals from './pages/Deals'
+import Renewals from './pages/Renewals'
+import CSM from './pages/CSM'
+import Upsell from './pages/Upsell'
+import MarketingData from './pages/MarketingData'
 import WorkflowBuilder from './pages/WorkflowBuilder'
 import CampaignGoalDetail from './pages/CampaignGoalDetail'
 import ComingSoon from './pages/ComingSoon'
@@ -123,6 +127,10 @@ function App() {
             <Route path="/convention-activities" element={<ConventionActivities />} />
             <Route path="/campaign-goals/:goalId" element={<CampaignGoalDetail />} />
             <Route path="/deals" element={<Deals />} />
+            <Route path="/renewals" element={<Renewals />} />
+            <Route path="/csm" element={<CSM />} />
+            <Route path="/upsell" element={<Upsell />} />
+            <Route path="/marketing-data" element={<MarketingData />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>

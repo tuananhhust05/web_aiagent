@@ -371,7 +371,7 @@ export const dealsAPI = {
     limit?: number;
     status?: 'new' | 'contacted' | 'negotiation';
     search?: string;
-  }) => api.get('/api/deals', { params }),
+  }) => api.get('/api/deals/all', { params }),
   
   // Get deal by ID
   getDeal: (dealId: string) => api.get(`/api/deals/${dealId}`),
@@ -387,7 +387,7 @@ export const dealsAPI = {
     status: 'new' | 'contacted' | 'negotiation';
     cost: number;
     revenue: number;
-  }) => api.post('/api/deals', data),
+  }) => api.post('/api/deals/create', data),
   
   // Update deal
   updateDeal: (dealId: string, data: {
@@ -409,8 +409,38 @@ export const dealsAPI = {
   getStats: () => api.get('/api/deals/stats'),
   
   // Get contacts for deal creation
-  getContacts: () => api.get('/api/deals/contacts/list'),
+  getContacts: (search?: string) => api.get('/api/contacts', { params: { search } }),
   
   // Get campaigns for deal creation
   getCampaigns: () => api.get('/api/deals/campaigns/list'),
+}
+
+// Renewals API
+export const renewalsAPI = {
+  getRenewals: (params?: any) => api.get('/api/renewals', { params }),
+  getRenewal: (id: string) => api.get(`/api/renewals/${id}`),
+  createRenewal: (data: any) => api.post('/api/renewals', data),
+  updateRenewal: (id: string, data: any) => api.put(`/api/renewals/${id}`, data),
+  deleteRenewal: (id: string) => api.delete(`/api/renewals/${id}`),
+  getStats: () => api.get('/api/renewals/stats/summary'),
+}
+
+// CSM API
+export const csmAPI = {
+  getCSMRecords: (params?: any) => api.get('/api/csm/getdata', { params }),
+  getCSMRecord: (id: string) => api.get(`/api/csm/${id}`),
+  createCSMRecord: (data: any) => api.post('/api/csm', data),
+  updateCSMRecord: (id: string, data: any) => api.put(`/api/csm/${id}`, data),
+  deleteCSMRecord: (id: string) => api.delete(`/api/csm/${id}`),
+  getStats: () => api.get('/api/csm/stats/overview'),
+}
+
+// Upsell API
+export const upsellAPI = {
+  getUpsellRecords: (params?: any) => api.get('/api/upsell/getdata', { params }),
+  getUpsellRecord: (id: string) => api.get(`/api/upsell/${id}`),
+  createUpsellRecord: (data: any) => api.post('/api/upsell', data),
+  updateUpsellRecord: (id: string, data: any) => api.put(`/api/upsell/${id}`, data),
+  deleteUpsellRecord: (id: string) => api.delete(`/api/upsell/${id}`),
+  getStats: () => api.get('/api/upsell/stats/overview'),
 }

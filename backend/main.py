@@ -5,7 +5,7 @@ import os
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals
+from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.services.scheduler import start_scheduler, stop_scheduler
@@ -79,6 +79,9 @@ app.include_router(inbox.router, prefix="/api/inbox", tags=["Inbox"])
 app.include_router(convention_activities.router, prefix="/api/convention-activities", tags=["Convention Activities"])
 app.include_router(deals.router, prefix="/api/deals", tags=["Deals"])
 app.include_router(campaign_goals.router, prefix="/api/campaign-goals", tags=["Campaign Goals"])
+app.include_router(renewals.router, prefix="/api/renewals", tags=["Renewals"])
+app.include_router(csm.router, prefix="/api/csm", tags=["Customer Success Management"])
+app.include_router(upsell.router, prefix="/api/upsell", tags=["Up/Cross Sell"])
 
 @app.get("/")
 async def root():

@@ -1,81 +1,52 @@
 #!/usr/bin/env python3
 """
-Simple test for deals API without starting server
+Simple test for Deals API
 """
 
-import sys
-import os
+import requests
+import json
 
-# Add current directory to path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-def test_deals_import():
-    """Test if deals can be imported"""
+def test_deals_api():
+    """Test deals API endpoints"""
+    base_url = "http://localhost:8000"
+    
+    print("🧪 Testing Deals API...")
+    
+    # Test 1: Health check
+    print("\n1. Testing health endpoint...")
     try:
-        print("🔧 Testing deals import...")
-        
-        # Test import
-        from app.routers.deals import router
-        print("✅ Deals router imported successfully")
-        
-        # Check routes
-        print(f"📋 Router has {len(router.routes)} routes:")
-        for route in router.routes:
-            if hasattr(route, 'path') and hasattr(route, 'methods'):
-                methods = list(route.methods) if route.methods else []
-                print(f"   {methods} {route.path}")
-        
-        return True
-        
+        response = requests.get(f"{base_url}/health")
+        print(f"   Status: {response.status_code}")
+        print(f"   Response: {response.json()}")
     except Exception as e:
-        print(f"❌ Error importing deals: {e}")
-        return False
-
-def test_main_app():
-    """Test if main app includes deals"""
+        print(f"   Error: {e}")
+        return
+    
+    # Test 2: Get deals (should return 401 without auth)
+    print("\n2. Testing GET /api/deals (without auth)...")
     try:
-        print("\n🔧 Testing main app...")
-        
-        from main import app
-        print("✅ Main app imported successfully")
-        
-        # Check if deals routes are in app
-        deals_routes = []
-        for route in app.routes:
-            if hasattr(route, 'path') and '/deals' in route.path:
-                deals_routes.append(route)
-        
-        print(f"📋 Found {len(deals_routes)} deals routes in main app:")
-        for route in deals_routes:
-            if hasattr(route, 'path') and hasattr(route, 'methods'):
-                methods = list(route.methods) if route.methods else []
-                print(f"   {methods} {route.path}")
-        
-        return len(deals_routes) > 0
-        
+        response = requests.get(f"{base_url}/api/deals?page=1&limit=10")
+        print(f"   Status: {response.status_code}")
+        if response.status_code == 404:
+            print("   ❌ 404 Not Found - Router not loaded properly")
+        elif response.status_code == 401:
+            print("   ✅ 401 Unauthorized - Router working, auth required")
+        else:
+            print(f"   Response: {response.json()}")
     except Exception as e:
-        print(f"❌ Error testing main app: {e}")
-        return False
-
-def main():
-    """Main test function"""
-    print("🧪 Testing Deals API Setup...")
+        print(f"   Error: {e}")
     
-    # Test 1: Import deals router
-    deals_ok = test_deals_import()
-    
-    # Test 2: Check main app
-    app_ok = test_main_app()
-    
-    if deals_ok and app_ok:
-        print("\n✅ All tests passed! Deals API should be working.")
-        print("💡 If you still get 404, try restarting the server.")
-    else:
-        print("\n❌ Some tests failed. Check the errors above.")
+    # Test 3: Check if deals router is loaded
+    print("\n3. Testing router loading...")
+    try:
+        response = requests.get(f"{base_url}/docs")
+        print(f"   Status: {response.status_code}")
+        if response.status_code == 200:
+            print("   ✅ API docs accessible")
+        else:
+            print("   ❌ API docs not accessible")
+    except Exception as e:
+        print(f"   Error: {e}")
 
 if __name__ == "__main__":
-    main()
-
-
-
-
+    test_deals_api()

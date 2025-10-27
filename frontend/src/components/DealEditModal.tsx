@@ -93,7 +93,13 @@ const DealEditModal: React.FC<DealEditModalProps> = ({
         dealsAPI.getCampaigns()
       ])
       
-      setContacts(contactsRes.data)
+      // Transform contacts to include full name
+      const transformedContacts = contactsRes.data.map((contact: any) => ({
+        ...contact,
+        id: contact._id,
+        name: `${contact.first_name} ${contact.last_name}`.trim()
+      }))
+      setContacts(transformedContacts)
       setCampaigns(campaignsRes.data)
     } catch (err: any) {
       setError('Failed to load contacts and campaigns')
@@ -392,6 +398,7 @@ const DealEditModal: React.FC<DealEditModalProps> = ({
 }
 
 export default DealEditModal
+
 
 
 

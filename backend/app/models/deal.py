@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 
 class DealStatus(str, Enum):
@@ -13,8 +13,8 @@ class DealBase(BaseModel):
     description: Optional[str] = Field(None, description="Deal description")
     contact_id: str = Field(..., description="Contact ID")
     campaign_id: Optional[str] = Field(None, description="Campaign ID")
-    start_date: Optional[datetime] = Field(None, description="Deal start date")
-    end_date: Optional[datetime] = Field(None, description="Deal end date")
+    start_date: Optional[date] = Field(None, description="Deal start date")
+    end_date: Optional[date] = Field(None, description="Deal end date")
     status: DealStatus = Field(DealStatus.NEW, description="Deal status")
     cost: float = Field(0.0, description="Deal cost in USD")
     revenue: float = Field(0.0, description="Deal revenue in USD")
@@ -27,8 +27,8 @@ class DealUpdate(BaseModel):
     description: Optional[str] = None
     contact_id: Optional[str] = None
     campaign_id: Optional[str] = None
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
     status: Optional[DealStatus] = None
     cost: Optional[float] = None
     revenue: Optional[float] = None
