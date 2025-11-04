@@ -168,6 +168,7 @@ async def create_campaign(
         "schedule_time": schedule_time,
         "schedule_settings": schedule_settings,
         "settings": campaign_data.settings,
+        "flow": campaign_data.flow,  # Flow channels (default: ['telegram', 'ai_voice', 'whatsapp', 'linkedin'])
         "user_id": current_user.id,
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow()
@@ -348,7 +349,17 @@ async def start_campaign(
         # For manual campaigns, execute calls immediately and keep original status
         print(f"📋 Manual Campaign: Executing calls for {len(all_contact_ids)} contacts")
         
-        # Execute AI calls, WhatsApp, Telegram and LinkedIn messages for manual campaigns
+        # Get flow from campaign (default to ['telegram', 'ai_voice', 'whatsapp', 'linkedin'])
+        flow = campaign.get("flow", ['telegram', 'ai_voice', 'whatsapp', 'linkedin'])
+        if not flow or len(flow) == 0:
+            flow = ['telegram', 'ai_voice', 'whatsapp', 'linkedin']
+        
+        # Only execute the first channel in flow
+        first_channel = flow[0] if flow else 'telegram'
+        print(f"🔄 Campaign flow: {flow}")
+        print(f"🎯 Executing only first channel: {first_channel}")
+        
+        # Execute only the first channel in flow for manual campaigns
         if all_contact_ids and contacts:
             call_script = campaign.get("call_script", settings.AI_CALL_DEFAULT_PROMPT)
             whatsapp_sent_count = 0
@@ -363,131 +374,139 @@ async def start_campaign(
                 linkedin_profile = contact.get("linkedin_profile")
                 name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
                 
-                # Send WhatsApp message if contact has WhatsApp number
-                if whatsapp_number:
-                    try:
-                        print(f"📱 Sending WhatsApp message to {name} ({whatsapp_number})")
-                        print(f"📝 Message content: {call_script[:100]}...")
-                        
-                        whatsapp_result = await whatsapp_service.send_message_to_contact(
-                            whatsapp_number, 
-                            call_script
-                        )
-                        
-                        if whatsapp_result.get("success"):
-                            print(f"✅ WhatsApp message sent to {name}: {whatsapp_result}")
-                            whatsapp_sent_count += 1
-                        else:
-                            print(f"❌ WhatsApp message failed for {name}: {whatsapp_result}")
-                            # Log detailed error for debugging
-                            if "error" in whatsapp_result:
-                                print(f"🔍 Error details: {whatsapp_result['error']}")
+                # Only execute the first channel in flow
+                if first_channel == 'whatsapp':
+                    # Send WhatsApp message if contact has WhatsApp number
+                    if whatsapp_number:
+                        try:
+                            print(f"📱 Sending WhatsApp message to {name} ({whatsapp_number})")
+                            print(f"📝 Message content: {call_script[:100]}...")
                             
-                    except Exception as e:
-                        print(f"❌ Failed to send WhatsApp message to {name}: {str(e)}")
-                        print(f"🔍 Exception type: {type(e).__name__}")
-                
-                # Send Telegram message if contact has Telegram username
-                if telegram_username:
-                    try:
-                        print(f"📱 Sending Telegram message to {name} (@{telegram_username})")
-                        print(f"📝 Message content: {call_script[:100]}...")
-                        
-                        telegram_result = await telegram_service.send_message_to_contact(
-                            telegram_username, 
-                            call_script
-                        )
-                        
-                        if telegram_result.get("success"):
-                            print(f"✅ Telegram message sent to {name}: {telegram_result}")
-                            telegram_sent_count += 1
-                        else:
-                            print(f"❌ Telegram message failed for {name}: {telegram_result}")
-                            # Log detailed error for debugging
-                            if "error" in telegram_result:
-                                print(f"🔍 Error details: {telegram_result['error']}")
+                            whatsapp_result = await whatsapp_service.send_message_to_contact(
+                                whatsapp_number, 
+                                call_script
+                            )
                             
-                    except Exception as e:
-                        print(f"❌ Failed to send Telegram message to {name}: {str(e)}")
-                        print(f"🔍 Exception type: {type(e).__name__}")
+                            if whatsapp_result.get("success"):
+                                print(f"✅ WhatsApp message sent to {name}: {whatsapp_result}")
+                                whatsapp_sent_count += 1
+                            else:
+                                print(f"❌ WhatsApp message failed for {name}: {whatsapp_result}")
+                                if "error" in whatsapp_result:
+                                    print(f"🔍 Error details: {whatsapp_result['error']}")
+                                
+                        except Exception as e:
+                            print(f"❌ Failed to send WhatsApp message to {name}: {str(e)}")
+                            print(f"🔍 Exception type: {type(e).__name__}")
+                    else:
+                        print(f"⚠️ Contact {name} does not have WhatsApp number")
                 
-                # Send LinkedIn message if contact has LinkedIn profile
-                # TEMPORARILY COMMENTED OUT - LinkedIn API has issues
-                # if linkedin_profile:
-                #     try:
-                #         print(f"🔗 Sending LinkedIn message to {name} ({linkedin_profile})")
-                #         print(f"📝 Message content: {call_script[:100]}...")
-                #         
-                #         linkedin_result = await linkedin_service.send_message_to_contact(
-                #             linkedin_profile, 
-                #             call_script
-                #         )
-                #         
-                #         if linkedin_result.get("success"):
-                #             print(f"✅ LinkedIn message sent to {name}: {linkedin_result}")
-                #             linkedin_sent_count += 1
-                #         else:
-                #             print(f"❌ LinkedIn message failed for {name}: {linkedin_result}")
-                #             # Log detailed error for debugging
-                #             if "error" in linkedin_result:
-                #                 print(f"🔍 Error details: {linkedin_result['error']}")
-                #             
-                #     except Exception as e:
-                #         print(f"❌ Failed to send LinkedIn message to {name}: {str(e)}")
-                #         print(f"🔍 Exception type: {type(e).__name__}")
+                elif first_channel == 'telegram':
+                    # Send Telegram message if contact has Telegram username
+                    if telegram_username:
+                        try:
+                            print(f"📱 Sending Telegram message to {name} (@{telegram_username})")
+                            print(f"📝 Message content: {call_script[:100]}...")
+                            
+                            telegram_result = await telegram_service.send_message_to_contact(
+                                telegram_username, 
+                                call_script
+                            )
+                            
+                            if telegram_result.get("success"):
+                                print(f"✅ Telegram message sent to {name}: {telegram_result}")
+                                telegram_sent_count += 1
+                            else:
+                                print(f"❌ Telegram message failed for {name}: {telegram_result}")
+                                if "error" in telegram_result:
+                                    print(f"🔍 Error details: {telegram_result['error']}")
+                                
+                        except Exception as e:
+                            print(f"❌ Failed to send Telegram message to {name}: {str(e)}")
+                            print(f"🔍 Exception type: {type(e).__name__}")
+                    else:
+                        print(f"⚠️ Contact {name} does not have Telegram username")
                 
-                # TEMPORARY: Skip LinkedIn for now
-                if linkedin_profile:
-                    print(f"⏸️ LinkedIn message skipped for {name} ({linkedin_profile}) - API temporarily disabled")
+                elif first_channel == 'linkedin':
+                    # Send LinkedIn message if contact has LinkedIn profile
+                    if linkedin_profile:
+                        try:
+                            print(f"🔗 Sending LinkedIn message to {name} ({linkedin_profile})")
+                            print(f"📝 Message content: {call_script[:100]}...")
+                            
+                            linkedin_result = await linkedin_service.send_message_to_contact(
+                                linkedin_profile, 
+                                call_script
+                            )
+                            
+                            if linkedin_result.get("success"):
+                                print(f"✅ LinkedIn message sent to {name}: {linkedin_result}")
+                                linkedin_sent_count += 1
+                            else:
+                                print(f"❌ LinkedIn message failed for {name}: {linkedin_result}")
+                                if "error" in linkedin_result:
+                                    print(f"🔍 Error details: {linkedin_result['error']}")
+                                
+                        except Exception as e:
+                            print(f"❌ Failed to send LinkedIn message to {name}: {str(e)}")
+                            print(f"🔍 Exception type: {type(e).__name__}")
+                    else:
+                        print(f"⚠️ Contact {name} does not have LinkedIn profile")
                 
-                # Make AI call if contact has phone number
-                if phone and phone != "N/A":
-                    try:
-                        # Prepare AI call API payload
-                        ai_call_payload = {
-                            "number": phone,
-                            "prompt": call_script
-                        }
-                        
-                        print(f"🤖 Calling AI API for {name} ({phone})")
-                        
-                        # Make async HTTP request to AI call API
-                        async with aiohttp.ClientSession() as session:
-                            async with session.post(
-                                settings.AI_CALL_API_URL,
-                                json=ai_call_payload,
-                                headers={"Content-Type": "application/json"},
-                                timeout=aiohttp.ClientTimeout(total=30)
-                            ) as response:
-                                if response.status == 200:
-                                    ai_response = await response.json()
-                                    print(f"✅ AI call initiated for {name}: {ai_response}")
-                                    
-                                    # Create call record in database
-                                    call_doc = {
-                                        "_id": str(ObjectId()),
-                                        "user_id": current_user.id,
-                                        "contact_id": str(contact["_id"]),
-                                        "campaign_id": campaign_id,
-                                        "phone_number": phone,
-                                        "call_type": "outbound",
-                                        "status": "connecting",
-                                        "created_at": datetime.utcnow(),
-                                        "updated_at": datetime.utcnow(),
-                                        "notes": f"Manual campaign call for {name}"
-                                    }
-                                    
-                                    # Insert call record
-                                    await db.calls.insert_one(call_doc)
-                                    print(f"📝 Call record created for {name}")
-                                    calls_made_count += 1
-                                    
-                                else:
-                                    error_text = await response.text()
-                                    print(f"❌ AI call failed for {name}: {response.status} - {error_text}")
-                                    
-                    except Exception as e:
-                        print(f"❌ Failed to call AI API for {name}: {str(e)}")
+                elif first_channel == 'ai_voice':
+                    # Make AI call if contact has phone number
+                    if phone and phone != "N/A":
+                        try:
+                            # Prepare AI call API payload
+                            ai_call_payload = {
+                                "number": phone,
+                                "prompt": call_script
+                            }
+                            
+                            print(f"🤖 Calling AI API for {name} ({phone})")
+                            
+                            # Make async HTTP request to AI call API
+                            async with aiohttp.ClientSession() as session:
+                                async with session.post(
+                                    settings.AI_CALL_API_URL,
+                                    json=ai_call_payload,
+                                    headers={"Content-Type": "application/json"},
+                                    timeout=aiohttp.ClientTimeout(total=30)
+                                ) as response:
+                                    if response.status == 200:
+                                        ai_response = await response.json()
+                                        print(f"✅ AI call initiated for {name}: {ai_response}")
+                                        
+                                        # Create call record in database
+                                        call_doc = {
+                                            "_id": str(ObjectId()),
+                                            "user_id": current_user.id,
+                                            "contact_id": str(contact["_id"]),
+                                            "campaign_id": campaign_id,
+                                            "phone_number": phone,
+                                            "call_type": "outbound",
+                                            "status": "connecting",
+                                            "created_at": datetime.utcnow(),
+                                            "updated_at": datetime.utcnow(),
+                                            "notes": f"Manual campaign call for {name}"
+                                        }
+                                        
+                                        # Insert call record
+                                        await db.calls.insert_one(call_doc)
+                                        print(f"📝 Call record created for {name}")
+                                        calls_made_count += 1
+                                        
+                                    else:
+                                        error_text = await response.text()
+                                        print(f"❌ AI call failed for {name}: {response.status} - {error_text}")
+                                        
+                        except Exception as e:
+                            print(f"❌ Failed to call AI API for {name}: {str(e)}")
+                    else:
+                        print(f"⚠️ Contact {name} does not have phone number")
+                
+                else:
+                    print(f"⚠️ Unknown flow channel: {first_channel}")
         else:
             # No contacts found
             calls_made_count = 0
@@ -496,10 +515,24 @@ async def start_campaign(
             linkedin_sent_count = 0
         
         print(f"🔄 Campaign status remains: {campaign['status']}")
-        print(f"📊 Campaign Summary: {calls_made_count} calls made, {whatsapp_sent_count} WhatsApp messages sent, {telegram_sent_count} Telegram messages sent, {linkedin_sent_count} LinkedIn messages sent")
+        
+        # Build summary based on which channel was executed
+        summary_message = f"📊 Campaign Summary ({first_channel}): "
+        if first_channel == 'ai_voice':
+            summary_message += f"{calls_made_count} calls made"
+        elif first_channel == 'whatsapp':
+            summary_message += f"{whatsapp_sent_count} WhatsApp messages sent"
+        elif first_channel == 'telegram':
+            summary_message += f"{telegram_sent_count} Telegram messages sent"
+        elif first_channel == 'linkedin':
+            summary_message += f"{linkedin_sent_count} LinkedIn messages sent"
+        
+        print(summary_message)
         
         return {
-            "message": f"Manual campaign executed successfully.",
+            "message": f"Manual campaign executed successfully. Only first channel ({first_channel}) from flow was executed.",
+            "flow": flow,
+            "executed_channel": first_channel,
             "summary": {
                 "total_contacts": len(all_contact_ids),
                 "calls_made": calls_made_count,

@@ -42,6 +42,7 @@ class CampaignBase(BaseModel):
     schedule_time: Optional[datetime] = None
     schedule_settings: Optional[ScheduleSettings] = None
     settings: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    flow: List[str] = Field(default_factory=lambda: ['telegram', 'ai_voice', 'whatsapp', 'linkedin'])  # Default flow channels
 
 class CampaignCreate(CampaignBase):
     pass
@@ -59,6 +60,7 @@ class CampaignUpdate(BaseModel):
     schedule_time: Optional[datetime] = None
     schedule_settings: Optional[ScheduleSettings] = None
     settings: Optional[Dict[str, Any]] = None
+    flow: Optional[List[str]] = None  # Flow channels
 
 class CampaignResponse(CampaignBase):
     id: str
