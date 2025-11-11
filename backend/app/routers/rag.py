@@ -2,12 +2,16 @@ from fastapi import APIRouter, HTTPException, Depends, Path, UploadFile, File, F
 from app.core.auth import get_current_active_user
 from app.models.user import UserResponse
 from app.core.config import settings
+from app.core.database import get_database
 import httpx
 import os
 import traceback
 import tempfile
 import shutil
 from typing import Optional
+import json
+import base64
+from datetime import datetime
 router = APIRouter()
 
 @router.get("/knowledge-base")
@@ -185,7 +189,38 @@ async def get_voices(current_user: UserResponse = Depends(get_current_active_use
             ]
 
             print(f"🎯 [ELEVENLABS] Filtered clone/cloned voices: {len(clone_voices)}")
-            print(f"🎯 [ELEVENLABS] Clone/cloned voices details: {[{'id': v.get('voice_id'), 'name': v.get('name'), 'category': v.get('category')} for v in clone_voices]}")
+            # print(f"🎯 [ELEVENLABS] Clone/cloned voices details: {[{'id': v.get('voice_id'), 'name': v.get('name'), 'category': v.get('category')} for v in clone_voices]}")
+
+            # Enrich with uploaded source samples stored in DB for playback
+            try:
+                db = get_database()
+                voice_ids = [v.get("voice_id") for v in clone_voices if v.get("voice_id")]
+                uploads_by_voice: dict[str, list] = {}
+                if voice_ids:
+                    cursor = db.voices_uploads.find({
+                        "user_id": current_user.id,
+                        "voice_id": {"$in": voice_ids}
+                    })
+                    uploads = await cursor.to_list(length=None)
+                    for up in uploads:
+                        vid = up.get("voice_id")
+                        if not vid:
+                            continue
+                        uploads_by_voice.setdefault(vid, []).append({
+                            "filename": up.get("filename"),
+                            "content_type": up.get("content_type"),
+                            "size_bytes": up.get("size_bytes"),
+                            "uploaded_base64": up.get("uploaded_base64"),
+                            "created_at": up.get("created_at"),
+                        })
+                # Attach to voices
+                for v in clone_voices:
+                    vid = v.get("voice_id")
+                    if vid and vid in uploads_by_voice:
+                        v["source_samples"] = uploads_by_voice[vid]
+            except Exception as e:
+                print(f"⚠️  [ELEVENLABS] Failed to enrich voices with source samples: {str(e)}")
+                traceback.print_exc()
 
             result = {
                 "voices": clone_voices,
@@ -256,20 +291,24 @@ async def upload_voice(
                 detail=f"Invalid file type. Allowed types: {', '.join(allowed_types)}"
             )
 
-        # Validate file size (max 25MB for ElevenLabs)
-        max_size = 25 * 1024 * 1024  # 25MB
-        if file.size and file.size > max_size:
-            print(f"❌ [ELEVENLABS] File too large: {file.size} bytes")
+        # Read file content to enforce custom 5MB limit and for DB storage
+        file_bytes = await file.read()
+        actual_size = len(file_bytes) if file_bytes else 0
+
+        # Validate file size (custom limit 5MB)
+        max_size = 5 * 1024 * 1024  # 5MB
+        if actual_size > max_size:
+            print(f"❌ [ELEVENLABS] File too large: {actual_size} bytes (limit 5MB)")
             raise HTTPException(
                 status_code=400,
-                detail="File size exceeds 25MB limit"
+                detail="File size exceeds 5MB limit"
             )
 
         print(f"✅ [ELEVENLABS] File validation passed")
 
         # Prepare form data for ElevenLabs API
         files_data = {
-            "files": (file.filename, await file.read(), file.content_type)
+            "files": (file.filename, file_bytes, file.content_type)
         }
         
         form_data = {
@@ -278,6 +317,17 @@ async def upload_voice(
         
         if description:
             form_data["description"] = description
+        
+        form_data = {
+            "name": name,
+            "description": description or f"Voice clone created",  # Always include description
+            "labels": json.dumps({  # Add labels like the website does
+                "accent": "neutral",  # or detect from audio
+                "age": "middle_aged",  # or specify based on your needs
+                "gender": "neutral",   # or detect from audio
+                "use case": "general"
+            })
+        }
 
         print(f"🌐 [ELEVENLABS] Making request to: https://api.elevenlabs.io/v1/voices/add")
         print(f"📤 [ELEVENLABS] Form data: {form_data}")
@@ -307,6 +357,36 @@ async def upload_voice(
             result = response.json()
             print(f"✅ [ELEVENLABS] Voice uploaded successfully: {result}")
             print(f"✅ [ELEVENLABS] Voice ID: {result.get('voice_id', 'unknown')}")
+            
+            # Store uploaded source sample (base64) with voice_id for later playback
+            try:
+                db = get_database()
+                voice_id = result.get("voice_id") or (result.get("voice") or {}).get("voice_id")
+                if not voice_id:
+                    print("⚠️  [ELEVENLABS] No voice_id in response; skip storing source sample")
+                else:
+                    source_doc = {
+                        "_id": f"{current_user.id}:{voice_id}:{file.filename}:{actual_size}",
+                        "user_id": current_user.id,
+                        "voice_id": voice_id,
+                        "name": name,
+                        "description": description,
+                        "filename": file.filename,
+                        "content_type": file.content_type,
+                        "size_bytes": actual_size,
+                        "uploaded_base64": base64.b64encode(file_bytes).decode("utf-8"),
+                        "created_at": datetime.utcnow(),
+                        "updated_at": datetime.utcnow(),
+                    }
+                    await db.voices_uploads.update_one(
+                        {"_id": source_doc["_id"]},
+                        {"$set": source_doc},
+                        upsert=True
+                    )
+                    print(f"💾 [ELEVENLABS] Stored uploaded source sample (base64) for voice_id={voice_id}")
+            except Exception as e:
+                print(f"⚠️  [ELEVENLABS] Failed to store uploaded source sample: {str(e)}")
+                traceback.print_exc()
             
             return result
 

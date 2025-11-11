@@ -23,6 +23,14 @@ interface Language {
   flag: string
 }
 
+interface SourceSample {
+  filename: string
+  content_type: string
+  size_bytes: number
+  uploaded_base64: string
+  created_at: string
+}
+
 interface Voice {
   voice_id: string
   name: string
@@ -36,7 +44,8 @@ interface Voice {
     use_case: string
   }
   description: string
-  preview_url: string
+  preview_url?: string
+  source_samples?: SourceSample[]
 }
 
 interface AgentConfig {
@@ -163,16 +172,32 @@ export default function Agent() {
     }
   }
 
-  const handleVoicePlay = async (voiceId: string, previewUrl: string) => {
+  const handleVoicePlay = async (voiceId: string, sourceSample: SourceSample) => {
     try {
       setPlayingVoice(voiceId)
-      const audio = new Audio(previewUrl)
+      
+      // Create data URL from base64
+      const base64Data = sourceSample.uploaded_base64
+      const mimeType = sourceSample.content_type || 'audio/mpeg'
+      const dataUrl = `data:${mimeType};base64,${base64Data}`
+      
+      const audio = new Audio(dataUrl)
       await audio.play()
       audio.onended = () => setPlayingVoice(null)
     } catch (error) {
       console.error('Error playing voice preview:', error)
       setPlayingVoice(null)
     }
+  }
+  
+  // Helper function to get playable source sample
+  const getPlayableSample = (voice: Voice): SourceSample | null => {
+    if (voice.source_samples && voice.source_samples.length > 0) {
+      // Find first sample with uploaded_base64
+      const sample = voice.source_samples.find(s => s.uploaded_base64)
+      return sample || null
+    }
+    return null
   }
 
   const handleSaveConfig = async () => {
@@ -405,20 +430,28 @@ export default function Agent() {
                             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                           )}
                         </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleVoicePlay(voice.voice_id, voice.preview_url)
-                        }}
-                        className="p-1 rounded-full hover:bg-gray-100 transition-colors"
-                        disabled={playingVoice === voice.voice_id}
-                      >
-                        {playingVoice === voice.voice_id ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-primary-600" />
-                        ) : (
-                          <Play className="h-4 w-4 text-gray-600" />
-                        )}
-                      </button>
+                      {(() => {
+                        const playableSample = getPlayableSample(voice)
+                        if (!playableSample) {
+                          return null // Don't show play button if no source sample
+                        }
+                        return (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleVoicePlay(voice.voice_id, playableSample)
+                            }}
+                            className="p-1 rounded-full hover:bg-gray-100 transition-colors"
+                            disabled={playingVoice === voice.voice_id}
+                          >
+                            {playingVoice === voice.voice_id ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-primary-600" />
+                            ) : (
+                              <Play className="h-4 w-4 text-gray-600" />
+                            )}
+                          </button>
+                        )
+                      })()}
                     </div>
                     
                     <div className="space-y-1 text-sm text-gray-600">
