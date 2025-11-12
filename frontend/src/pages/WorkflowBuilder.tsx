@@ -1,48 +1,21 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { 
-  // Play, // Temporarily unused
-  // Save, // Temporarily unused
-  // Download, // Temporarily unused
-  // Upload, // Temporarily unused
-  // Settings, // Temporarily unused
-  // Plus, // Temporarily unused
   Trash2,
-  // Copy, // Temporarily unused
   Undo,
   Redo,
   ZoomIn,
   ZoomOut,
   Maximize2,
-  // Minimize2, // Temporarily unused
-  // MousePointer, // Temporarily unused
-  // Move, // Temporarily unused
   Link,
   Workflow,
-  // Zap, // Temporarily unused
-  // Database, // Temporarily unused
   Mail,
-  // MessageSquare, // Temporarily unused
-  // Calendar, // Temporarily unused
-  // FileText, // Temporarily unused
-  // Filter, // Temporarily unused
-  // Code, // Temporarily unused
-  // Globe, // Temporarily unused
-  // Smartphone, // Temporarily unused
-  // Bot, // Temporarily unused
-  // User, // Temporarily unused
   Clock,
   CheckCircle,
-  // AlertCircle, // Temporarily unused
   XCircle,
-  // Phone, // Temporarily unused
   MessageCircle,
   Send,
   PhoneCall,
-  // Mic, // Temporarily unused
-  // Brain, // Temporarily unused
   Users,
-  // Hash, // Temporarily unused
-  // AtSign // Temporarily unused
 } from 'lucide-react'
 
 interface Node {
@@ -61,6 +34,7 @@ interface Connection {
   target: string
   sourceHandle?: string
   targetHandle?: string
+  strokeType?: 'solid' | 'dashed' // Loại đường: nét liền hoặc nét đứt
 }
 
 const nodeTypes = [
@@ -101,7 +75,7 @@ const nodeTypes = [
   }
 ]
 
-// Pre-built workflows with different node orders
+// Pre-built workflows
 const preBuiltWorkflows = [
   {
     id: 'workflow-1',
@@ -195,159 +169,378 @@ const preBuiltWorkflows = [
   }
 ]
 
+// History state interface
+interface HistoryState {
+  nodes: Node[]
+  connections: Connection[]
+}
+
 export default function WorkflowBuilder() {
   const [nodes, setNodes] = useState<Node[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
-  const [draggedNode, setDraggedNode] = useState<string | null>(null)
-  // const [isDragging, setIsDragging] = useState(false) // Temporarily unused
-  const [isDraggingNode, setIsDraggingNode] = useState(false)
-  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null)
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
-  const [isPanning, setIsPanning] = useState(false)
-  const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 })
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectionStart, setConnectionStart] = useState<string | null>(null)
-  const [connectionStartHandle, setConnectionStartHandle] = useState<string | null>(null)
   const [tempConnection, setTempConnection] = useState<{ x: number; y: number } | null>(null)
   const [isDrawMode, setIsDrawMode] = useState(false)
   const [drawStartNode, setDrawStartNode] = useState<string | null>(null)
-  const [drawEndNode, setDrawEndNode] = useState<string | null>(null)
+  const [connectionStrokeType, setConnectionStrokeType] = useState<'solid' | 'dashed'>('solid') // Loại đường mặc định
+  
+  // Drag states - đơn giản và rõ ràng
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
+  const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number } | null>(null)
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null)
+  const [draggedNodeType, setDraggedNodeType] = useState<string | null>(null) // For drag from sidebar
+  const mouseMovedRef = useRef(false)
+  
+  // Panning states
+  const [isPanning, setIsPanning] = useState(false)
+  const [panStartPos, setPanStartPos] = useState<{ x: number; y: number } | null>(null)
+  const [spacePressed, setSpacePressed] = useState(false)
+  
+  // Undo/Redo system
+  const [history, setHistory] = useState<HistoryState[]>([])
+  const [historyIndex, setHistoryIndex] = useState(-1)
+  const isUndoRedoRef = useRef(false)
   
   const canvasRef = useRef<HTMLDivElement>(null)
-  // const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 }) // Temporarily unused
 
+  // Save state to history
+  const saveToHistory = useCallback((newNodes: Node[], newConnections: Connection[]) => {
+    if (isUndoRedoRef.current) {
+      isUndoRedoRef.current = false
+      return
+    }
+    
+    setHistory(prev => {
+      const newHistory = prev.slice(0, historyIndex + 1)
+      newHistory.push({ nodes: [...newNodes], connections: [...newConnections] })
+      // Giới hạn history tối đa 50 bước
+      if (newHistory.length > 50) {
+        newHistory.shift()
+        return newHistory
+      }
+      return newHistory
+    })
+    setHistoryIndex(prev => {
+      const newIndex = prev + 1
+      return newIndex >= 50 ? newIndex : newIndex
+    })
+  }, [historyIndex])
+
+  // Undo
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      isUndoRedoRef.current = true
+      const prevState = history[historyIndex - 1]
+      setNodes([...prevState.nodes])
+      setConnections([...prevState.connections])
+      setHistoryIndex(prev => prev - 1)
+    }
+  }, [history, historyIndex])
+
+  // Redo
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      isUndoRedoRef.current = true
+      const nextState = history[historyIndex + 1]
+      setNodes([...nextState.nodes])
+      setConnections([...nextState.connections])
+      setHistoryIndex(prev => prev + 1)
+    }
+  }, [history, historyIndex])
+
+  // Update node position
   const updateNodePosition = useCallback((nodeId: string, position: { x: number; y: number }) => {
-    setNodes(prev => prev.map(node => 
+    setNodes(prev => {
+      const newNodes = prev.map(node => 
       node.id === nodeId ? { ...node, position } : node
-    ))
+      )
+      // Chỉ save history khi kết thúc drag (trong mouseUp)
+      return newNodes
+    })
   }, [])
 
+  // Delete node
   const deleteNode = useCallback((nodeId: string) => {
-    setNodes(prev => prev.filter(node => node.id !== nodeId))
-    setConnections(prev => prev.filter(conn => conn.source !== nodeId && conn.target !== nodeId))
+    setNodes(prev => {
+      const newNodes = prev.filter(node => node.id !== nodeId)
+      setConnections(prevConn => {
+        const newConnections = prevConn.filter(conn => conn.source !== nodeId && conn.target !== nodeId)
+        saveToHistory(newNodes, newConnections)
+        return newConnections
+      })
     if (selectedNode === nodeId) {
       setSelectedNode(null)
     }
-  }, [selectedNode])
+      return newNodes
+    })
+  }, [selectedNode, saveToHistory])
 
-  // useEffect(() => {
-  //   const updateCanvasSize = () => {
-  //     if (canvasRef.current) {
-  //       const rect = canvasRef.current.getBoundingClientRect()
-  //       setCanvasSize({ width: rect.width, height: rect.height })
-  //     }
-  //   }
-  //   
-  //   updateCanvasSize()
-  //   window.addEventListener('resize', updateCanvasSize)
-  //   return () => window.removeEventListener('resize', updateCanvasSize)
-  // }, []) // Temporarily commented out - setCanvasSize is unused
-
-  // Global mouse events for dragging
-  useEffect(() => {
-    const handleGlobalMouseMove = (e: MouseEvent) => {
-      if (isDraggingNode && draggedNodeId && canvasRef.current) {
-        const rect = canvasRef.current.getBoundingClientRect()
-        const newX = (e.clientX - rect.left - pan.x) / zoom - dragOffset.x
-        const newY = (e.clientY - rect.top - pan.y) / zoom - dragOffset.y
-        updateNodePosition(draggedNodeId, { x: newX, y: newY })
-      }
-    }
-
-    const handleGlobalMouseUp = () => {
-      setIsDraggingNode(false)
-      setDraggedNodeId(null)
-    }
-
-    if (isDraggingNode) {
-      document.addEventListener('mousemove', handleGlobalMouseMove)
-      document.addEventListener('mouseup', handleGlobalMouseUp)
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleGlobalMouseMove)
-      document.removeEventListener('mouseup', handleGlobalMouseUp)
-    }
-  }, [isDraggingNode, draggedNodeId, dragOffset, pan, zoom, updateNodePosition])
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedNode) {
-          deleteNode(selectedNode)
-        }
-      }
-      if (e.key === 'Escape') {
-        setSelectedNode(null)
-        setIsConnecting(false)
-        setConnectionStart(null)
-        setConnectionStartHandle(null)
-        setTempConnection(null)
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [selectedNode, deleteNode])
-
+  // Add node
   const addNode = useCallback((type: string, position: { x: number; y: number }) => {
     const newNode: Node = {
-      id: `${type}_${Date.now()}`,
+      id: `${Date.now()}`,
       type,
       position,
       data: {},
       title: nodeTypes.find(nt => nt.id === type)?.name || type,
       status: 'idle'
     }
-    setNodes(prev => [...prev, newNode])
-  }, [])
+    setNodes(prev => {
+      const newNodes = [...prev, newNode]
+      saveToHistory(newNodes, connections)
+      return newNodes
+    })
+  }, [connections, saveToHistory])
 
+  // Load workflow
+  const loadWorkflow = (workflowId: string) => {
+    const workflow = preBuiltWorkflows.find(w => w.id === workflowId)
+    if (workflow) {
+      const newNodes = [...workflow.nodes]
+      const newConnections = [...workflow.connections]
+      setNodes(newNodes)
+      setConnections(newConnections)
+      setSelectedNode(null)
+      saveToHistory(newNodes, newConnections)
+    }
+  }
+
+  // Handle node mouse down - bắt đầu drag node trên canvas
+  const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
+    // Không drag nếu click vào button hoặc connection point
+    const target = e.target as HTMLElement
+    if (target.closest('button') || target.closest('[class*="rounded-full"]')) {
+      return
+    }
+    
+    e.stopPropagation()
+    e.preventDefault()
+    
+    const node = nodes.find(n => n.id === nodeId)
+    if (!node || !canvasRef.current) return
+    
+    setSelectedNode(nodeId)
+    setDraggingNodeId(nodeId)
+    
+        const rect = canvasRef.current.getBoundingClientRect()
+    const mouseX = e.clientX
+    const mouseY = e.clientY
+    
+    // Tính toán offset từ vị trí chuột đến góc trên trái của node
+    const nodeX = (node.position.x * zoom) + pan.x
+    const nodeY = (node.position.y * zoom) + pan.y
+    const offsetX = (mouseX - rect.left - nodeX) / zoom
+    const offsetY = (mouseY - rect.top - nodeY) / zoom
+    
+    setDragOffset({ x: offsetX, y: offsetY })
+    setDragStartPos({ x: mouseX, y: mouseY })
+  }
+
+  // Handle canvas mouse move
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (!canvasRef.current) return
+    
+    const rect = canvasRef.current.getBoundingClientRect()
+    const mouseX = e.clientX
+    const mouseY = e.clientY
+    
+    // Ưu tiên panning trước
+    if (isPanning && panStartPos) {
+      const deltaX = mouseX - panStartPos.x
+      const deltaY = mouseY - panStartPos.y
+      setPan(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }))
+      setPanStartPos({ x: mouseX, y: mouseY })
+      return
+    }
+    
+    // Nếu đang drag node
+    if (draggingNodeId && dragOffset && dragStartPos) {
+      // Check if mouse moved significantly
+      const deltaX = Math.abs(mouseX - dragStartPos.x)
+      const deltaY = Math.abs(mouseY - dragStartPos.y)
+      if (deltaX > 3 || deltaY > 3) {
+        mouseMovedRef.current = true
+      }
+      
+      // Tính toán vị trí mới của node (không giới hạn)
+      const newX = (mouseX - rect.left - pan.x) / zoom - dragOffset.x
+      const newY = (mouseY - rect.top - pan.y) / zoom - dragOffset.y
+      
+      updateNodePosition(draggingNodeId, { 
+        x: newX, 
+        y: newY 
+      })
+    }
+    // Nếu đang kết nối
+    else if (isConnecting && tempConnection) {
+      const x = (mouseX - rect.left - pan.x) / zoom
+      const y = (mouseY - rect.top - pan.y) / zoom
+      setTempConnection({ x, y })
+    }
+  }
+
+  // Handle canvas mouse down
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    // Không pan nếu đang drag node
+    if (draggingNodeId) return
+    
+    // Middle mouse button hoặc Space + Left click hoặc Right click để pan
+    if (e.button === 1 || e.button === 2 || (e.button === 0 && spacePressed)) {
+      e.preventDefault()
+      e.stopPropagation()
+      setIsPanning(true)
+      setPanStartPos({ x: e.clientX, y: e.clientY })
+      return
+    }
+  }
+
+  // Handle canvas mouse up
+  const handleCanvasMouseUp = () => {
+    // Kết thúc panning
+    if (isPanning) {
+      setIsPanning(false)
+      setPanStartPos(null)
+    }
+    
+    // Nếu đang drag node, save vào history khi kết thúc
+    if (draggingNodeId && mouseMovedRef.current) {
+      saveToHistory(nodes, connections)
+    }
+    
+    // Reset drag state
+    setDraggingNodeId(null)
+    setDragStartPos(null)
+    setDragOffset(null)
+    mouseMovedRef.current = false
+  }
+  
+  // Handle wheel zoom và pan
+  const handleCanvasWheel = (e: React.WheelEvent) => {
+    if (!canvasRef.current) return
+    
+    e.preventDefault()
+    
+    // Ctrl + Wheel hoặc Cmd + Wheel để zoom
+    if (e.ctrlKey || e.metaKey) {
+      const rect = canvasRef.current.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
+      
+      // Zoom point (vị trí chuột trên canvas trong không gian đã zoom)
+      const zoomPointX = (mouseX - pan.x) / zoom
+      const zoomPointY = (mouseY - pan.y) / zoom
+      
+      // Tính zoom mới
+      const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1
+      const newZoom = Math.max(0.1, Math.min(3, zoom * zoomDelta))
+      
+      // Điều chỉnh pan để zoom point giữ nguyên vị trí trên màn hình
+      const newPanX = mouseX - zoomPointX * newZoom
+      const newPanY = mouseY - zoomPointY * newZoom
+      
+      setZoom(newZoom)
+      setPan({ x: newPanX, y: newPanY })
+    }
+    // Shift + Wheel = pan ngang
+    else if (e.shiftKey) {
+      setPan(prev => ({
+        x: prev.x - e.deltaY * 0.5,
+        y: prev.y
+      }))
+    }
+    // Wheel thông thường = pan
+    else {
+      setPan(prev => ({
+        x: prev.x - e.deltaX * 0.5,
+        y: prev.y - e.deltaY * 0.5
+      }))
+    }
+  }
+
+  // Handle canvas click
   const handleCanvasClick = (e: React.MouseEvent) => {
-    if (e.target === canvasRef.current) {
+    if (e.target === canvasRef.current || (e.target as HTMLElement).classList.contains('canvas-bg')) {
       setSelectedNode(null)
       if (isConnecting) {
         setIsConnecting(false)
         setConnectionStart(null)
-        setConnectionStartHandle(null)
         setTempConnection(null)
       }
     }
   }
 
-  const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
+  // Handle canvas drop - nhận node từ sidebar
+  const handleCanvasDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    if (draggedNodeType && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect()
+      const x = (e.clientX - rect.left - pan.x) / zoom
+      const y = (e.clientY - rect.top - pan.y) / zoom
+      addNode(draggedNodeType, { x, y })
+    }
+    setDraggedNodeType(null)
+  }
+
+  const handleCanvasDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+  }
+
+  // Connection handlers
+  const handleConnectionPointClick = (e: React.MouseEvent, nodeId: string, handle: 'input' | 'output') => {
     e.stopPropagation()
-    setSelectedNode(nodeId)
-    setIsDraggingNode(true)
-    setDraggedNodeId(nodeId)
+    
+    if (!isConnecting) {
+      setIsConnecting(true)
+      setConnectionStart(nodeId)
     
     const node = nodes.find(n => n.id === nodeId)
     if (node && canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect()
-      setDragOffset({
-        x: (e.clientX - rect.left - pan.x) / zoom - node.position.x,
-        y: (e.clientY - rect.top - pan.y) / zoom - node.position.y
-      })
+        const nodeWidth = 192
+        const nodeHeight = 80
+        
+        const nodeX = handle === 'output' 
+          ? node.position.x + nodeWidth - 16 // Center of output connection point
+          : node.position.x // Center of input connection point
+        const nodeY = node.position.y + nodeHeight / 2 // Center Y
+        setTempConnection({ 
+          x: nodeX, 
+          y: nodeY 
+        })
+      }
+    } else {
+      if (connectionStart && connectionStart !== nodeId) {
+        const newConnection: Connection = {
+          id: `conn_${Date.now()}`,
+          source: connectionStart,
+          target: nodeId,
+          sourceHandle: 'output',
+          targetHandle: handle,
+          strokeType: connectionStrokeType // Lưu loại đường đã chọn
+        }
+        setConnections(prev => {
+          const newConnections = [...prev, newConnection]
+          saveToHistory(nodes, newConnections)
+          return newConnections
+        })
+      }
+      
+      setIsConnecting(false)
+      setConnectionStart(null)
+      setTempConnection(null)
     }
   }
 
-  const handleNodeDragStartOnCanvas = (e: React.DragEvent, nodeId: string) => {
-    e.dataTransfer.setData('text/plain', nodeId)
-    setSelectedNode(nodeId)
-  }
-
-  const handleNodeDragEnd = () => {
-    setIsDraggingNode(false)
-    setDraggedNodeId(null)
-  }
-
+  // Draw mode
   const handleDrawModeToggle = () => {
     setIsDrawMode(!isDrawMode)
     setDrawStartNode(null)
-    setDrawEndNode(null)
     setSelectedNode(null)
   }
 
@@ -357,124 +550,130 @@ export default function WorkflowBuilder() {
     if (!drawStartNode) {
       setDrawStartNode(nodeId)
       setSelectedNode(nodeId)
-    } else if (!drawEndNode && nodeId !== drawStartNode) {
-      setDrawEndNode(nodeId)
-      // Create connection
+    } else if (nodeId !== drawStartNode) {
       const newConnection: Connection = {
         id: `conn_${Date.now()}`,
         source: drawStartNode,
         target: nodeId,
         sourceHandle: 'output',
-        targetHandle: 'input'
+        targetHandle: 'input',
+        strokeType: connectionStrokeType // Lưu loại đường đã chọn
       }
-      setConnections(prev => [...prev, newConnection])
+      setConnections(prev => {
+        const newConnections = [...prev, newConnection]
+        saveToHistory(nodes, newConnections)
+        return newConnections
+      })
       
-      // Reset draw mode
       setIsDrawMode(false)
       setDrawStartNode(null)
-      setDrawEndNode(null)
       setSelectedNode(null)
     }
   }
 
-  const loadWorkflow = (workflowId: string) => {
-    const workflow = preBuiltWorkflows.find(w => w.id === workflowId)
-    if (workflow) {
-      setNodes(workflow.nodes)
-      setConnections(workflow.connections)
-      setSelectedNode(null)
-    }
-  }
-
-
-
-  const handleConnectionPointClick = (e: React.MouseEvent, nodeId: string, handle: 'input' | 'output') => {
-    e.stopPropagation()
-    
-    if (!isConnecting) {
-      // Start connection
-      setIsConnecting(true)
-      setConnectionStart(nodeId)
-      setConnectionStartHandle(handle)
-      
-      const node = nodes.find(n => n.id === nodeId)
-      if (node) {
-        const x = handle === 'output' ? node.position.x + 192 : node.position.x
-        const y = node.position.y + 48
-        setTempConnection({ x, y })
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Space để pan
+      if (e.key === ' ') {
+        e.preventDefault()
+        setSpacePressed(true)
+        return
       }
-    } else {
-      // Complete connection
-      if (connectionStart && connectionStart !== nodeId) {
-        const newConnection: Connection = {
-          id: `conn_${Date.now()}`,
-          source: connectionStart,
-          target: nodeId,
-          sourceHandle: connectionStartHandle || undefined,
-          targetHandle: handle
+      
+      // Undo: Ctrl+Z or Cmd+Z
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        undo()
+        return
+      }
+      
+      // Redo: Ctrl+Y or Ctrl+Shift+Z or Cmd+Shift+Z
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        redo()
+        return
+      }
+      
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedNode) {
+          deleteNode(selectedNode)
         }
-        setConnections(prev => [...prev, newConnection])
       }
-      
+      if (e.key === 'Escape') {
+        setSelectedNode(null)
       setIsConnecting(false)
       setConnectionStart(null)
-      setConnectionStartHandle(null)
       setTempConnection(null)
-    }
-  }
-
-  const handleCanvasMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      const deltaX = e.clientX - lastPanPoint.x
-      const deltaY = e.clientY - lastPanPoint.y
-      setPan(prev => ({
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }))
-      setLastPanPoint({ x: e.clientX, y: e.clientY })
-    } else if (isDraggingNode) {
-      // handleNodeMouseMove(e) // Function not implemented yet
-    } else if (isConnecting && tempConnection) {
-      if (canvasRef.current) {
-        const rect = canvasRef.current.getBoundingClientRect()
-        const x = (e.clientX - rect.left - pan.x) / zoom
-        const y = (e.clientY - rect.top - pan.y) / zoom
-        setTempConnection({ x, y })
+        setIsDrawMode(false)
+        setDrawStartNode(null)
       }
     }
-  }
-
-  const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 1 || (e.button === 0 && e.metaKey)) { // Middle mouse or Cmd+click
-      setIsPanning(true)
-      setLastPanPoint({ x: e.clientX, y: e.clientY })
+    
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === ' ') {
+        e.preventDefault()
+        setSpacePressed(false)
+      }
     }
-  }
 
-
-  const handleCanvasMouseUp = () => {
-    setIsPanning(false)
-  }
-
-  // const handleNodeDragStart = (e: React.DragEvent, nodeType: string) => {
-  //   setDraggedNode(nodeType)
-  // } // Temporarily unused
-
-  const handleCanvasDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    if (draggedNode && canvasRef.current) {
-      const rect = canvasRef.current.getBoundingClientRect()
-      const x = (e.clientX - rect.left - pan.x) / zoom
-      const y = (e.clientY - rect.top - pan.y) / zoom
-      addNode(draggedNode, { x, y })
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('keyup', handleKeyUp)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keyup', handleKeyUp)
     }
-    setDraggedNode(null)
+  }, [selectedNode, deleteNode, undo, redo])
+
+  // Global mouse up để đảm bảo drag kết thúc
+  useEffect(() => {
+    const handleGlobalMouseUp = () => {
+      setDraggingNodeId(null)
+      setDragStartPos(null)
+      setDragOffset(null)
+    }
+
+    document.addEventListener('mouseup', handleGlobalMouseUp)
+    return () => document.removeEventListener('mouseup', handleGlobalMouseUp)
+  }, [])
+
+  // Calculate smart bezier curve path for connections
+  const getBezierPath = (
+    sourceX: number,
+    sourceY: number,
+    targetX: number,
+    targetY: number
+  ): string => {
+    const dx = targetX - sourceX
+    
+    // Tính toán control points dựa trên khoảng cách và hướng
+    const curvature = 0.5
+    const controlPointOffset = Math.min(Math.abs(dx) * curvature, 150)
+    
+    // Nếu nodes nằm ngang nhau, tạo curve dọc
+    if (Math.abs(dx) < 50) {
+      const midY = (sourceY + targetY) / 2
+      return `M ${sourceX} ${sourceY} C ${sourceX} ${midY}, ${targetX} ${midY}, ${targetX} ${targetY}`
+    }
+    
+    // Nếu source ở bên trái target
+    if (dx > 0) {
+      const cp1x = sourceX + controlPointOffset
+      const cp1y = sourceY
+      const cp2x = targetX - controlPointOffset
+      const cp2y = targetY
+      return `M ${sourceX} ${sourceY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${targetX} ${targetY}`
+    }
+    
+    // Nếu source ở bên phải target (backward connection)
+    const cp1x = sourceX - controlPointOffset
+    const cp1y = sourceY
+    const cp2x = targetX + controlPointOffset
+    const cp2y = targetY
+    return `M ${sourceX} ${sourceY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${targetX} ${targetY}`
   }
 
-  const handleCanvasDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-  }
-
+  // Helper functions
   const getNodeIcon = (type: string) => {
     const nodeType = nodeTypes.find(nt => nt.id === type)
     return nodeType?.icon || <Workflow className="h-4 w-4" />
@@ -520,17 +719,36 @@ export default function WorkflowBuilder() {
         </div>
         
           <div className="flex items-center space-x-2">
-            <button className="flex items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+          <button 
+            onClick={undo}
+            disabled={historyIndex <= 0}
+            className={`flex items-center px-3 py-2 rounded-lg transition-colors ${
+              historyIndex <= 0 
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                : 'bg-gray-100 hover:bg-gray-200'
+            }`}
+          >
               <Undo className="h-4 w-4 mr-2" />
               Undo
             </button>
-            <button className="flex items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+          <button 
+            onClick={redo}
+            disabled={historyIndex >= history.length - 1}
+            className={`flex items-center px-3 py-2 rounded-lg transition-colors ${
+              historyIndex >= history.length - 1 
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                : 'bg-gray-100 hover:bg-gray-200'
+            }`}
+          >
               <Redo className="h-4 w-4 mr-2" />
               Redo
             </button>
             <div className="w-px h-6 bg-gray-300 mx-2" />
             <button 
-              onClick={() => setConnections([])}
+            onClick={() => {
+              setConnections([])
+              saveToHistory(nodes, [])
+            }}
               className="flex items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
             >
               <Trash2 className="h-4 w-4 mr-2" />
@@ -547,10 +765,35 @@ export default function WorkflowBuilder() {
               <Link className="h-4 w-4 mr-2" />
               {isDrawMode ? 'Cancel Draw' : 'Draw Connection'}
             </button>
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg">
+              <span className="text-sm text-gray-700 mr-1">Line:</span>
+              <button
+                onClick={() => setConnectionStrokeType('solid')}
+                className={`px-2 py-1 rounded text-xs transition-colors ${
+                  connectionStrokeType === 'solid'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-200'
+                }`}
+                title="Solid line"
+              >
+                ─
+              </button>
+              <button
+                onClick={() => setConnectionStrokeType('dashed')}
+                className={`px-2 py-1 rounded text-xs transition-colors ${
+                  connectionStrokeType === 'dashed'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-700 hover:bg-gray-200'
+                }`}
+                title="Dashed line"
+              >
+                ╌
+              </button>
+            </div>
             {selectedNode && (
               <button 
                 onClick={() => deleteNode(selectedNode)}
-                className="flex items-center px-3 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+              className="flex items-center px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete Node
@@ -575,13 +818,12 @@ export default function WorkflowBuilder() {
               {preBuiltWorkflows.map((workflow) => (
                 <div
                   key={workflow.id}
-                  className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer bg-white"
+                  className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 hover:shadow-sm transition-all cursor-pointer bg-white h-32 flex flex-col"
                   onClick={() => loadWorkflow(workflow.id)}
                 >
-                  <h4 className="text-sm font-semibold text-gray-900 mb-1">{workflow.name}</h4>
-                  <p className="text-xs text-gray-600 mb-3">{workflow.description}</p>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-1 line-clamp-1">{workflow.name}</h4>
+                  <p className="text-xs text-gray-600 mb-3 line-clamp-2 flex-1">{workflow.description}</p>
                   
-                  {/* Visual representation of the workflow */}
                   <div className="flex items-center space-x-1 mb-2">
                     {workflow.nodes.map((node, index) => (
                       <div key={node.id} className="flex items-center">
@@ -595,11 +837,41 @@ export default function WorkflowBuilder() {
                     ))}
             </div>
             
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mt-auto">
                     <span className="text-xs text-gray-500">5 nodes • 4 connections</span>
                     <button className="text-xs px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors">
                       Load
                 </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Node Elements */}
+            <div className="mt-6 space-y-3">
+              <h3 className="text-sm font-semibold text-gray-700">Node Elements</h3>
+              <div className="text-xs text-gray-500 mb-3">
+                Drag and drop nodes onto the canvas
+              </div>
+              {nodeTypes.map((nodeType) => (
+                <div
+                  key={nodeType.id}
+                  draggable
+                  onDragStart={(e) => {
+                    setDraggedNodeType(nodeType.id)
+                    e.dataTransfer.effectAllowed = 'copy'
+                  }}
+                  onDragEnd={() => setDraggedNodeType(null)}
+                  className="border border-gray-200 rounded-lg p-3 hover:border-blue-300 hover:shadow-sm transition-all cursor-move bg-white h-20 flex items-center"
+                >
+                  <div className="flex items-center space-x-3 w-full">
+                    <div className={`w-10 h-10 ${nodeType.color} rounded-lg flex items-center justify-center text-white flex-shrink-0`}>
+                      {nodeType.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-1">{nodeType.name}</h4>
+                      <p className="text-xs text-gray-600 truncate">{nodeType.description}</p>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -611,25 +883,31 @@ export default function WorkflowBuilder() {
         <div className="flex-1 relative overflow-hidden">
           <div
             ref={canvasRef}
-            className="w-full h-full bg-white relative cursor-grab active:cursor-grabbing"
+            className={`canvas-bg w-full h-full bg-white relative ${
+              isPanning ? 'cursor-grabbing' : spacePressed ? 'cursor-grab' : 'cursor-default'
+            }`}
             onClick={handleCanvasClick}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleCanvasMouseMove}
             onMouseUp={handleCanvasMouseUp}
+            onWheel={handleCanvasWheel}
             onDrop={handleCanvasDrop}
             onDragOver={handleCanvasDragOver}
+            onContextMenu={(e) => e.preventDefault()}
             style={{
-              backgroundImage: `
-                radial-gradient(circle, #E5E7EB 1px, transparent 1px)
-              `,
+              backgroundImage: `radial-gradient(circle, #E5E7EB 1px, transparent 1px)`,
               backgroundSize: '20px 20px',
               backgroundPosition: `${pan.x}px ${pan.y}px`
             }}
           >
-            {/* Grid */}
+            {/* Transform container - không giới hạn không gian */}
             <div
-              className="absolute inset-0 pointer-events-none"
+              className="absolute"
               style={{
+                left: 0,
+                top: 0,
+                width: '10000px',
+                height: '10000px',
                 transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                 transformOrigin: '0 0'
               }}
@@ -638,43 +916,41 @@ export default function WorkflowBuilder() {
               {nodes.map((node) => (
                 <div
                   key={node.id}
-                  className={`absolute w-48 bg-white border-2 rounded-lg shadow-lg transition-all ${
+                  className={`absolute w-48 bg-white border-2 rounded-lg shadow-lg transition-all select-none ${
                     isDrawMode 
                       ? 'cursor-pointer border-yellow-400 shadow-yellow-400/20' 
                       : selectedNode === node.id 
                         ? 'border-blue-400 shadow-blue-400/20 cursor-move' 
                         : 'border-gray-600 hover:border-gray-500 cursor-move'
-                  } ${isDraggingNode && draggedNodeId === node.id ? 'z-10' : ''} ${
+                  } ${draggingNodeId === node.id ? 'z-10' : ''} ${
                     drawStartNode === node.id ? 'ring-2 ring-yellow-400' : ''
                   }`}
                   style={{
                     left: node.position.x,
                     top: node.position.y,
-                    transform: `scale(${zoom})`
+                    userSelect: 'none'
                   }}
                   onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                   onClick={(e) => {
                     e.stopPropagation()
+                    // Chỉ handle click nếu không phải drag (mouse không di chuyển)
+                    if (!mouseMovedRef.current) {
                     if (isDrawMode) {
                       handleNodeClickForDraw(node.id)
                     } else {
                       setSelectedNode(node.id)
+                      }
                     }
                   }}
                   onDoubleClick={(e) => {
                     e.stopPropagation()
-                    console.log('Double click to delete node:', node.id)
                     deleteNode(node.id)
                   }}
                   onContextMenu={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    console.log('Right click to delete node:', node.id)
                     deleteNode(node.id)
                   }}
-                  draggable
-                  onDragStart={(e) => handleNodeDragStartOnCanvas(e, node.id)}
-                  onDragEnd={handleNodeDragEnd}
                 >
                   <div className="p-3">
                     <div className="flex items-center justify-between mb-2">
@@ -687,21 +963,15 @@ export default function WorkflowBuilder() {
                       {getStatusIcon(node.status || 'idle')}
                     </div>
                     <div className="flex items-center justify-between">
-                      <div className="text-xs text-gray-500">ID: {node.id}</div>
+                      <div className="text-xs text-gray-500">ID: {node.id.includes('_') ? node.id.split('_')[1] : node.id}</div>
                       <button
                         onMouseDown={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
-                          console.log('Delete button clicked for node:', node.id)
                           deleteNode(node.id)
-                        }}
-                        onMouseUp={(e) => {
-                          e.preventDefault()
-                          e.stopPropagation()
                         }}
                         className="text-gray-600 hover:text-red-500 transition-colors p-1 z-10 relative"
                         title="Delete node"
-                        style={{ pointerEvents: 'auto' }}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -737,11 +1007,37 @@ export default function WorkflowBuilder() {
                 
                 if (!sourceNode || !targetNode) return null
 
-                // Calculate connection points at the center of the connection circles
-                const startX = sourceNode.position.x + 192 + 8 // Node width + connection circle radius (8px from right edge)
-                const startY = sourceNode.position.y + 40 // Node height / 2 (estimated)
-                const endX = targetNode.position.x - 8 // Connection circle radius (8px from left edge)
-                const endY = targetNode.position.y + 40 // Node height / 2 (estimated)
+                // Tính toán đơn giản và chính xác
+                // Node: w-48 = 192px
+                // Connection point: w-4 h-4 = 16px, positioned với -right-2 và -left-2
+                // -right-2: right edge của connection = right edge của node - 8px
+                //   => right edge = node.x + 192 - 8 = node.x + 184
+                //   => center = node.x + 184 - 8 = node.x + 176
+                // -left-2: left edge của connection = left edge của node - 8px  
+                //   => left edge = node.x - 8
+                //   => center = node.x - 8 + 8 = node.x
+                const NODE_WIDTH = 192
+                const CONNECTION_SIZE = 16
+                const CONNECTION_OFFSET = 8
+                const NODE_HEIGHT = 80
+                
+                // Center của connection points
+                const outputCenterX = sourceNode.position.x + NODE_WIDTH - CONNECTION_OFFSET - (CONNECTION_SIZE / 2)
+                const inputCenterX = targetNode.position.x - CONNECTION_OFFSET + (CONNECTION_SIZE / 2)
+                const centerY = sourceNode.position.y + NODE_HEIGHT / 2
+                
+                // Path: rút ngắn ở cả 2 đầu để line không thừa ra ngoài connection points
+                // Arrowhead có refX=10, tip ở (10,5), nên cần rút ngắn 10px ở cuối để tip vừa đúng center
+                // Ở đầu rút ngắn xuống âm để line bắt đầu từ sâu trong connection point
+                const arrowheadTipOffset = 0
+                const startOffset = -15 // Âm để path bắt đầu từ sâu trong connection point
+                const startX = outputCenterX - startOffset 
+                const startY = centerY
+                const endX = inputCenterX - arrowheadTipOffset // Rút ngắn để arrowhead tip vừa đúng center
+                const endY = targetNode.position.y + NODE_HEIGHT / 2
+
+                // Sử dụng bezier curve
+                const path = getBezierPath(startX, startY, endX, endY)
 
                 return (
                   <svg
@@ -754,25 +1050,35 @@ export default function WorkflowBuilder() {
                     <defs>
                       <marker
                         id={`arrowhead-${connection.id}`}
-                        markerWidth="8"
-                        markerHeight="6"
-                        refX="7"
-                        refY="3"
+                        markerWidth="10"
+                        markerHeight="10"
+                        refX="10"
+                        refY="5"
                         orient="auto"
-                        markerUnits="strokeWidth"
+                        markerUnits="userSpaceOnUse"
                   >
                     <path
-                          d="M0,0 L0,6 L8,3 z"
+                          d="M0,0 L0,10 L10,5 z"
                           fill="#3B82F6"
+                          className="transition-all"
                         />
                       </marker>
+                      <linearGradient id={`gradient-${connection.id}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.8" />
+                        <stop offset="100%" stopColor="#60A5FA" stopOpacity="1" />
+                      </linearGradient>
                     </defs>
                     <path
-                      d={`M ${startX} ${startY} L ${endX} ${endY}`}
-                      stroke="#3B82F6"
-                      strokeWidth="2"
+                      d={path}
+                      stroke={`url(#gradient-${connection.id})`}
+                      strokeWidth="2.5"
                       fill="none"
+                      strokeDasharray={(connection.strokeType || 'solid') === 'dashed' ? '8,4' : 'none'}
                       markerEnd={`url(#arrowhead-${connection.id})`}
+                      className="transition-all duration-200"
+                      style={{
+                        filter: 'drop-shadow(0 1px 2px rgba(59, 130, 246, 0.3))'
+                      }}
                     />
                   </svg>
                 )
@@ -789,30 +1095,55 @@ export default function WorkflowBuilder() {
                   <defs>
                     <marker
                       id="tempArrowhead"
-                      markerWidth="8"
-                      markerHeight="6"
-                      refX="7"
-                      refY="3"
+                      markerWidth="10"
+                      markerHeight="10"
+                      refX="10"
+                      refY="5"
                       orient="auto"
-                      markerUnits="strokeWidth"
+                      markerUnits="userSpaceOnUse"
                     >
                       <path
-                        d="M0,0 L0,6 L8,3 z"
+                        d="M0,0 L0,10 L10,5 z"
                         fill="#3B82F6"
+                        opacity="0.7"
                       />
                     </marker>
                   </defs>
+                  {(() => {
+                    const sourceNode = nodes.find(n => n.id === connectionStart)
+                    if (!sourceNode) return null
+                    
+                    // Tính toán tương tự như connection thật
+                    const nodeWidth = 192
+                    const nodeHeight = 80
+                    const CONNECTION_SIZE = 16
+                    const CONNECTION_OFFSET = 8
+                    
+                    // Center của output connection point
+                    const outputCenterX = sourceNode.position.x + nodeWidth - CONNECTION_OFFSET - (CONNECTION_SIZE / 2)
+                    // Bắt đầu từ ngoài connection point một chút (cộng thêm 8px)
+                    const startX = outputCenterX + 16 // Ngoài connection point một chút
+                    const startY = sourceNode.position.y + nodeHeight / 2
+                    const endX = tempConnection.x
+                    const endY = tempConnection.y
+                    
+                    const path = getBezierPath(startX, startY, endX, endY)
+                    
+                    return (
                   <path
-                    d={`M ${tempConnection.x} ${tempConnection.y} L ${tempConnection.x + 100} ${tempConnection.y}`}
+                        d={path}
                     stroke="#3B82F6"
-                    strokeWidth="2"
+                        strokeWidth="2.5"
                     fill="none"
-                    strokeDasharray="6,3"
+                        strokeDasharray="8,4"
                     markerEnd="url(#tempArrowhead)"
+                        opacity="0.7"
+                        className="animate-pulse"
                   />
+                    )
+                  })()}
                 </svg>
               )}
-
             </div>
           </div>
 
@@ -1045,55 +1376,10 @@ export default function WorkflowBuilder() {
                     </div>
                   )}
                   
-                  {node.type === 'condition' && (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-yellow-400">Condition Settings</h4>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Condition</label>
-                        <select className="w-full p-2 bg-white border border-gray-300 rounded text-sm">
-                          <option>If email contains</option>
-                          <option>If phone number exists</option>
-                          <option>If LinkedIn connected</option>
-                          <option>If response received</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Value</label>
-                        <input 
-                          type="text" 
-                          placeholder="Condition value"
-                          className="w-full p-2 bg-white border border-gray-300 rounded text-sm"
-                        />
-                      </div>
-                    </div>
-                  )}
-                  
-                  {node.type === 'delay' && (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-gray-400">Delay Settings</h4>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Duration</label>
-                        <div className="flex space-x-2">
-                          <input 
-                            type="number" 
-                            placeholder="5"
-                            className="flex-1 p-2 bg-gray-700 border border-gray-600 rounded text-sm"
-                          />
-                          <select className="p-2 bg-gray-700 border border-gray-600 rounded text-sm">
-                            <option>seconds</option>
-                            <option>minutes</option>
-                            <option>hours</option>
-                            <option>days</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
                   <div className="pt-4 border-t border-gray-200">
                     <button
                       onClick={() => deleteNode(selectedNode)}
-                      className="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                      className="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
                     >
                       <Trash2 className="h-4 w-4 mr-2" />
                       Delete Node
@@ -1105,7 +1391,6 @@ export default function WorkflowBuilder() {
           </div>
         )}
       </div>
-
     </div>
   )
 }
