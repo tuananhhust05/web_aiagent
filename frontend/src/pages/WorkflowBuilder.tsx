@@ -1,4 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { workflowsAPI } from '../lib/api'
 import { 
   Trash2,
   Undo,
@@ -22,10 +24,12 @@ interface Node {
   id: string
   type: string
   position: { x: number; y: number }
-  data: any
+  data: {
+    max_no_response_time?: number // Maximum customer no-response time (seconds)
+    [key: string]: any
+  }
   title: string
   description?: string
-  status?: 'idle' | 'running' | 'success' | 'error'
 }
 
 interface Connection {
@@ -82,11 +86,11 @@ const preBuiltWorkflows = [
     name: 'Workflow 1: WhatsApp → AI Call → LinkedIn → Telegram → Email',
     description: 'Start with WhatsApp, then AI Call, LinkedIn, Telegram, and finish with Email',
     nodes: [
-      { id: 'whatsapp_1', type: 'whatsapp', position: { x: 50, y: 100 }, data: {}, title: 'WhatsApp', status: 'idle' as const },
-      { id: 'ai-call_1', type: 'ai-call', position: { x: 300, y: 100 }, data: {}, title: 'AI Call', status: 'idle' as const },
-      { id: 'linkedin_1', type: 'linkedin', position: { x: 550, y: 100 }, data: {}, title: 'LinkedIn', status: 'idle' as const },
-      { id: 'telegram_1', type: 'telegram', position: { x: 800, y: 100 }, data: {}, title: 'Telegram', status: 'idle' as const },
-      { id: 'email_1', type: 'email', position: { x: 1050, y: 100 }, data: {}, title: 'Email', status: 'idle' as const }
+      { id: 'whatsapp_1', type: 'whatsapp', position: { x: 50, y: 100 }, data: {}, title: 'WhatsApp' },
+      { id: 'ai-call_1', type: 'ai-call', position: { x: 300, y: 100 }, data: {}, title: 'AI Call' },
+      { id: 'linkedin_1', type: 'linkedin', position: { x: 550, y: 100 }, data: {}, title: 'LinkedIn' },
+      { id: 'telegram_1', type: 'telegram', position: { x: 800, y: 100 }, data: {}, title: 'Telegram' },
+      { id: 'email_1', type: 'email', position: { x: 1050, y: 100 }, data: {}, title: 'Email' }
     ],
     connections: [
       { id: 'conn1', source: 'whatsapp_1', target: 'ai-call_1' },
@@ -100,11 +104,11 @@ const preBuiltWorkflows = [
     name: 'Workflow 2: AI Call → LinkedIn → WhatsApp → Email → Telegram',
     description: 'Start with AI Call, then LinkedIn, WhatsApp, Email, and finish with Telegram',
     nodes: [
-      { id: 'ai-call_2', type: 'ai-call', position: { x: 50, y: 100 }, data: {}, title: 'AI Call', status: 'idle' as const },
-      { id: 'linkedin_2', type: 'linkedin', position: { x: 300, y: 100 }, data: {}, title: 'LinkedIn', status: 'idle' as const },
-      { id: 'whatsapp_2', type: 'whatsapp', position: { x: 550, y: 100 }, data: {}, title: 'WhatsApp', status: 'idle' as const },
-      { id: 'email_2', type: 'email', position: { x: 800, y: 100 }, data: {}, title: 'Email', status: 'idle' as const },
-      { id: 'telegram_2', type: 'telegram', position: { x: 1050, y: 100 }, data: {}, title: 'Telegram', status: 'idle' as const }
+      { id: 'ai-call_2', type: 'ai-call', position: { x: 50, y: 100 }, data: {}, title: 'AI Call' },
+      { id: 'linkedin_2', type: 'linkedin', position: { x: 300, y: 100 }, data: {}, title: 'LinkedIn' },
+      { id: 'whatsapp_2', type: 'whatsapp', position: { x: 550, y: 100 }, data: {}, title: 'WhatsApp' },
+      { id: 'email_2', type: 'email', position: { x: 800, y: 100 }, data: {}, title: 'Email' },
+      { id: 'telegram_2', type: 'telegram', position: { x: 1050, y: 100 }, data: {}, title: 'Telegram' }
     ],
     connections: [
       { id: 'conn1', source: 'ai-call_2', target: 'linkedin_2' },
@@ -118,11 +122,11 @@ const preBuiltWorkflows = [
     name: 'Workflow 3: LinkedIn → Email → AI Call → Telegram → WhatsApp',
     description: 'Start with LinkedIn, then Email, AI Call, Telegram, and finish with WhatsApp',
     nodes: [
-      { id: 'linkedin_3', type: 'linkedin', position: { x: 50, y: 100 }, data: {}, title: 'LinkedIn', status: 'idle' as const },
-      { id: 'email_3', type: 'email', position: { x: 300, y: 100 }, data: {}, title: 'Email', status: 'idle' as const },
-      { id: 'ai-call_3', type: 'ai-call', position: { x: 550, y: 100 }, data: {}, title: 'AI Call', status: 'idle' as const },
-      { id: 'telegram_3', type: 'telegram', position: { x: 800, y: 100 }, data: {}, title: 'Telegram', status: 'idle' as const },
-      { id: 'whatsapp_3', type: 'whatsapp', position: { x: 1050, y: 100 }, data: {}, title: 'WhatsApp', status: 'idle' as const }
+      { id: 'linkedin_3', type: 'linkedin', position: { x: 50, y: 100 }, data: {}, title: 'LinkedIn' },
+      { id: 'email_3', type: 'email', position: { x: 300, y: 100 }, data: {}, title: 'Email' },
+      { id: 'ai-call_3', type: 'ai-call', position: { x: 550, y: 100 }, data: {}, title: 'AI Call' },
+      { id: 'telegram_3', type: 'telegram', position: { x: 800, y: 100 }, data: {}, title: 'Telegram' },
+      { id: 'whatsapp_3', type: 'whatsapp', position: { x: 1050, y: 100 }, data: {}, title: 'WhatsApp' }
     ],
     connections: [
       { id: 'conn1', source: 'linkedin_3', target: 'email_3' },
@@ -136,11 +140,11 @@ const preBuiltWorkflows = [
     name: 'Workflow 4: Email → WhatsApp → LinkedIn → AI Call → Telegram',
     description: 'Start with Email, then WhatsApp, LinkedIn, AI Call, and finish with Telegram',
     nodes: [
-      { id: 'email_4', type: 'email', position: { x: 50, y: 100 }, data: {}, title: 'Email', status: 'idle' as const },
-      { id: 'whatsapp_4', type: 'whatsapp', position: { x: 300, y: 100 }, data: {}, title: 'WhatsApp', status: 'idle' as const },
-      { id: 'linkedin_4', type: 'linkedin', position: { x: 550, y: 100 }, data: {}, title: 'LinkedIn', status: 'idle' as const },
-      { id: 'ai-call_4', type: 'ai-call', position: { x: 800, y: 100 }, data: {}, title: 'AI Call', status: 'idle' as const },
-      { id: 'telegram_4', type: 'telegram', position: { x: 1050, y: 100 }, data: {}, title: 'Telegram', status: 'idle' as const }
+      { id: 'email_4', type: 'email', position: { x: 50, y: 100 }, data: {}, title: 'Email' },
+      { id: 'whatsapp_4', type: 'whatsapp', position: { x: 300, y: 100 }, data: {}, title: 'WhatsApp' },
+      { id: 'linkedin_4', type: 'linkedin', position: { x: 550, y: 100 }, data: {}, title: 'LinkedIn' },
+      { id: 'ai-call_4', type: 'ai-call', position: { x: 800, y: 100 }, data: {}, title: 'AI Call' },
+      { id: 'telegram_4', type: 'telegram', position: { x: 1050, y: 100 }, data: {}, title: 'Telegram' }
     ],
     connections: [
       { id: 'conn1', source: 'email_4', target: 'whatsapp_4' },
@@ -154,11 +158,11 @@ const preBuiltWorkflows = [
     name: 'Workflow 5: Telegram → AI Call → Email → WhatsApp → LinkedIn',
     description: 'Start with Telegram, then AI Call, Email, WhatsApp, and finish with LinkedIn',
     nodes: [
-      { id: 'telegram_5', type: 'telegram', position: { x: 50, y: 100 }, data: {}, title: 'Telegram', status: 'idle' as const },
-      { id: 'ai-call_5', type: 'ai-call', position: { x: 300, y: 100 }, data: {}, title: 'AI Call', status: 'idle' as const },
-      { id: 'email_5', type: 'email', position: { x: 550, y: 100 }, data: {}, title: 'Email', status: 'idle' as const },
-      { id: 'whatsapp_5', type: 'whatsapp', position: { x: 800, y: 100 }, data: {}, title: 'WhatsApp', status: 'idle' as const },
-      { id: 'linkedin_5', type: 'linkedin', position: { x: 1050, y: 100 }, data: {}, title: 'LinkedIn', status: 'idle' as const }
+      { id: 'telegram_5', type: 'telegram', position: { x: 50, y: 100 }, data: {}, title: 'Telegram' },
+      { id: 'ai-call_5', type: 'ai-call', position: { x: 300, y: 100 }, data: {}, title: 'AI Call' },
+      { id: 'email_5', type: 'email', position: { x: 550, y: 100 }, data: {}, title: 'Email' },
+      { id: 'whatsapp_5', type: 'whatsapp', position: { x: 800, y: 100 }, data: {}, title: 'WhatsApp' },
+      { id: 'linkedin_5', type: 'linkedin', position: { x: 1050, y: 100 }, data: {}, title: 'LinkedIn' }
     ],
     connections: [
       { id: 'conn1', source: 'telegram_5', target: 'ai-call_5' },
@@ -176,6 +180,9 @@ interface HistoryState {
 }
 
 export default function WorkflowBuilder() {
+  const [searchParams] = useSearchParams()
+  const functionName = searchParams.get('function') || null
+  
   const [nodes, setNodes] = useState<Node[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
@@ -187,6 +194,9 @@ export default function WorkflowBuilder() {
   const [isDrawMode, setIsDrawMode] = useState(false)
   const [drawStartNode, setDrawStartNode] = useState<string | null>(null)
   const [connectionStrokeType, setConnectionStrokeType] = useState<'solid' | 'dashed'>('solid') // Loại đường mặc định
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   
   // Drag states - đơn giản và rõ ràng
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
@@ -263,6 +273,58 @@ export default function WorkflowBuilder() {
     })
   }, [])
 
+  // Load workflow from database
+  const loadWorkflowFromDB = useCallback(async () => {
+    if (!functionName) return
+    
+    try {
+      setIsLoading(true)
+      const response = await workflowsAPI.getWorkflow(functionName)
+      
+      if (response.data) {
+        const workflow = response.data
+        setNodes(workflow.nodes || [])
+        setConnections(workflow.connections || [])
+        
+        // Initialize history with loaded workflow
+        setHistory([{ nodes: workflow.nodes || [], connections: workflow.connections || [] }])
+        setHistoryIndex(0)
+      }
+    } catch (error: any) {
+      // If workflow doesn't exist, start with empty state
+      if (error.response?.status !== 404) {
+        console.error('Error loading workflow:', error)
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }, [functionName])
+
+  // Save workflow to database (with debounce)
+  const saveWorkflowToDB = useCallback(async (nodesToSave: Node[], connectionsToSave: Connection[]) => {
+    if (!functionName) return
+    
+    // Clear existing timeout
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current)
+    }
+    
+    // Debounce save by 1 second
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        setIsSaving(true)
+        await workflowsAPI.updateWorkflow(functionName, {
+          nodes: nodesToSave,
+          connections: connectionsToSave
+        })
+      } catch (error) {
+        console.error('Error saving workflow:', error)
+      } finally {
+        setIsSaving(false)
+      }
+    }, 1000)
+  }, [functionName])
+
   // Delete node
   const deleteNode = useCallback((nodeId: string) => {
     setNodes(prev => {
@@ -286,8 +348,7 @@ export default function WorkflowBuilder() {
       type,
       position,
       data: {},
-      title: nodeTypes.find(nt => nt.id === type)?.name || type,
-      status: 'idle'
+      title: nodeTypes.find(nt => nt.id === type)?.name || type
     }
     setNodes(prev => {
       const newNodes = [...prev, newNode]
@@ -571,6 +632,39 @@ export default function WorkflowBuilder() {
     }
   }
 
+  // Load workflow from database on mount or when functionName changes
+  useEffect(() => {
+    if (functionName) {
+      loadWorkflowFromDB()
+    }
+  }, [functionName, loadWorkflowFromDB])
+
+  // Auto-save workflow when nodes or connections change (skip on initial load)
+  const isInitialLoadRef = useRef(true)
+  useEffect(() => {
+    if (functionName && !isLoading) {
+      // Skip save on initial load
+      if (isInitialLoadRef.current) {
+        isInitialLoadRef.current = false
+        return
+      }
+      
+      saveWorkflowToDB(nodes, connections)
+    }
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current)
+      }
+    }
+  }, [nodes, connections, functionName, isLoading, saveWorkflowToDB])
+  
+  // Reset initial load flag when functionName changes
+  useEffect(() => {
+    isInitialLoadRef.current = true
+  }, [functionName])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -684,18 +778,6 @@ export default function WorkflowBuilder() {
     return nodeType?.color || 'bg-gray-500'
   }
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'running':
-        return <Clock className="h-3 w-3 text-blue-400 animate-spin" />
-      case 'success':
-        return <CheckCircle className="h-3 w-3 text-green-400" />
-      case 'error':
-        return <XCircle className="h-3 w-3 text-red-400" />
-      default:
-        return null
-    }
-  }
 
   return (
     <div className="h-screen bg-white text-gray-900 flex flex-col">
@@ -790,6 +872,28 @@ export default function WorkflowBuilder() {
                 ╌
               </button>
             </div>
+            {functionName && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg">
+                {isLoading && (
+                  <span className="text-xs text-gray-600 flex items-center">
+                    <Clock className="h-3 w-3 mr-1 animate-spin" />
+                    Loading...
+                  </span>
+                )}
+                {isSaving && !isLoading && (
+                  <span className="text-xs text-gray-600 flex items-center">
+                    <Clock className="h-3 w-3 mr-1 animate-spin" />
+                    Saving...
+                  </span>
+                )}
+                {!isLoading && !isSaving && (
+                  <span className="text-xs text-green-600 flex items-center">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Saved
+                  </span>
+                )}
+              </div>
+            )}
             {selectedNode && (
               <button 
                 onClick={() => deleteNode(selectedNode)}
@@ -960,7 +1064,6 @@ export default function WorkflowBuilder() {
                         </div>
                         <span className="font-medium text-sm">{node.title}</span>
                       </div>
-                      {getStatusIcon(node.status || 'idle')}
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="text-xs text-gray-500">ID: {node.id.includes('_') ? node.id.split('_')[1] : node.id}</div>
@@ -1231,150 +1334,41 @@ export default function WorkflowBuilder() {
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium mb-2">Status</label>
-                    <select
-                      value={node.status || 'idle'}
+                    <label className="block text-sm font-medium mb-2">
+                      Maximum Customer No-Response Time (seconds)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={node.data?.max_no_response_time || ''}
                       onChange={(e) => {
+                          const value = e.target.value ? parseInt(e.target.value) : undefined
                         setNodes(prev => prev.map(n => 
-                          n.id === selectedNode ? { ...n, status: e.target.value as any } : n
-                        ))
-                      }}
-                      className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
-                    >
-                      <option value="idle">Idle</option>
-                      <option value="running">Running</option>
-                      <option value="success">Success</option>
-                      <option value="error">Error</option>
-                    </select>
-                  </div>
-                  
-                  {/* Node-specific configuration */}
-                  {node.type === 'linkedin' && (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-blue-400">LinkedIn Settings</h4>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Action</label>
-                        <select className="w-full p-2 bg-white border border-gray-300 rounded text-sm">
-                          <option>Send Message</option>
-                          <option>Connect Request</option>
-                          <option>Post Update</option>
-                          <option>Like Post</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Message Template</label>
-                        <textarea 
-                          placeholder="Enter your message template..."
-                          className="w-full p-2 bg-white border border-gray-300 rounded text-sm"
-                          rows={3}
-                        />
+                            n.id === selectedNode ? { 
+                              ...n, 
+                              data: { 
+                                ...n.data, 
+                                max_no_response_time: value 
+                              } 
+                            } : n
+                          ))
+                        }}
+                        placeholder="Example: 300 (5 minutes)"
+                        className="flex-1 p-2 bg-white border border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                      />
+                      <div className="text-xs text-gray-500 whitespace-nowrap">
+                        {node.data?.max_no_response_time 
+                          ? `≈ ${Math.floor((node.data.max_no_response_time || 0) / 60)} min ${(node.data.max_no_response_time || 0) % 60} sec`
+                          : 'Not configured'
+                        }
                       </div>
                     </div>
-                  )}
-                  
-                  {node.type === 'email' && (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-purple-400">Email Settings</h4>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">To</label>
-                        <input 
-                          type="email" 
-                          placeholder="recipient@example.com"
-                          className="w-full p-2 bg-white border border-gray-300 rounded text-sm"
-                        />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Maximum time to wait for customer response before moving to next node
+                    </p>
                       </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Subject</label>
-                        <input 
-                          type="text" 
-                          placeholder="Email subject"
-                          className="w-full p-2 bg-white border border-gray-300 rounded text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Template</label>
-                        <textarea 
-                          placeholder="Email content..."
-                          className="w-full p-2 bg-white border border-gray-300 rounded text-sm"
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  
-                  {node.type === 'whatsapp' && (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-green-400">WhatsApp Settings</h4>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Phone Number</label>
-                        <input 
-                          type="tel" 
-                          placeholder="+1234567890"
-                          className="w-full p-2 bg-white border border-gray-300 rounded text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Message</label>
-                        <textarea 
-                          placeholder="WhatsApp message..."
-                          className="w-full p-2 bg-white border border-gray-300 rounded text-sm"
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-                  )}
-                  
-                  {node.type === 'ai-call' && (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-orange-400">AI Call Settings</h4>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Phone Number</label>
-                        <input 
-                          type="tel" 
-                          placeholder="+1234567890"
-                          className="w-full p-2 bg-white border border-gray-300 rounded text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Script</label>
-                        <textarea 
-                          placeholder="AI call script..."
-                          className="w-full p-2 bg-white border border-gray-300 rounded text-sm"
-                          rows={3}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Voice</label>
-                        <select className="w-full p-2 bg-white border border-gray-300 rounded text-sm">
-                          <option>Male Voice</option>
-                          <option>Female Voice</option>
-                          <option>Custom Voice</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {node.type === 'telegram' && (
-                    <div className="space-y-3">
-                      <h4 className="text-sm font-semibold text-blue-400">Telegram Settings</h4>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Chat ID</label>
-                        <input 
-                          type="text" 
-                          placeholder="@username or chat_id"
-                          className="w-full p-2 bg-white border border-gray-300 rounded text-sm"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Message</label>
-                        <textarea 
-                          placeholder="Telegram message..."
-                          className="w-full p-2 bg-white border border-gray-300 rounded text-sm"
-                          rows={3}
-                        />
-                      </div>
-                    </div>
-                  )}
                   
                   <div className="pt-4 border-t border-gray-200">
                     <button

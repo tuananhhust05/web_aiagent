@@ -444,3 +444,29 @@ export const upsellAPI = {
   deleteUpsellRecord: (id: string) => api.delete(`/api/upsell/${id}`),
   getStats: () => api.get('/api/upsell/stats/overview'),
 }
+
+// Workflows API
+export const workflowsAPI = {
+  // Get workflow by function
+  getWorkflow: (functionName: string) => api.get('/api/workflows', { params: { function: functionName } }),
+  
+  // Create workflow
+  createWorkflow: (data: {
+    function: string;
+    name?: string;
+    description?: string;
+    nodes: any[];
+    connections: any[];
+  }) => api.post('/api/workflows', data),
+  
+  // Update workflow (creates if not exists)
+  updateWorkflow: (functionName: string, data: {
+    name?: string;
+    description?: string;
+    nodes?: any[];
+    connections?: any[];
+  }) => api.put('/api/workflows', data, { params: { function: functionName } }),
+  
+  // Delete workflow
+  deleteWorkflow: (functionName: string) => api.delete('/api/workflows', { params: { function: functionName } }),
+}

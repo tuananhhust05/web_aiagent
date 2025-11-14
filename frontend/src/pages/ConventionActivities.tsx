@@ -430,7 +430,7 @@ const ConventionActivities: React.FC = () => {
             <p className="text-gray-600">Manage and track customer activities</p>
           </div>
           <Link
-            to="/workflow-builder"
+            to="/workflow-builder?function=convention-activities"
             className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
           >
             <Workflow className="h-5 w-5 mr-2" />
