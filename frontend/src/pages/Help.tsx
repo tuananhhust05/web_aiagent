@@ -14,31 +14,31 @@ export default function Help() {
       icon: <BookOpen className="h-6 w-6" />,
       articles: [
         { title: 'Quick Start Guide', url: '#', popular: true },
-        { title: 'Setting Up Your First Voice Agent', url: '#' },
-        { title: 'Understanding Voice AI Basics', url: '#' },
+        { title: 'Setting Up Your First Campaign', url: '#' },
+        { title: 'Understanding Multi-Channel Marketing', url: '#' },
         { title: 'Account Setup and Configuration', url: '#' }
       ]
     },
     {
       id: 'voice-agents',
-      title: 'Voice Agents',
+      title: 'Voice Calls',
       icon: <MessageCircle className="h-6 w-6" />,
       articles: [
-        { title: 'Creating Custom Voice Agents', url: '#', popular: true },
-        { title: 'Training Your AI Agent', url: '#' },
-        { title: 'Voice Customization Options', url: '#' },
-        { title: 'Agent Performance Optimization', url: '#' }
+        { title: 'Setting Up Voice Call Campaigns', url: '#', popular: true },
+        { title: 'Voice Call Best Practices', url: '#' },
+        { title: 'Call Analytics & Reporting', url: '#' },
+        { title: 'Optimizing Call Performance', url: '#' }
       ]
     },
     {
       id: 'integrations',
-      title: 'Integrations',
+      title: 'Channels & Integrations',
       icon: <ExternalLink className="h-6 w-6" />,
       articles: [
-        { title: 'CRM Integration Guide', url: '#', popular: true },
-        { title: 'API Documentation', url: '#' },
-        { title: 'Webhook Setup', url: '#' },
-        { title: 'Third-party Tools', url: '#' }
+        { title: 'WhatsApp & Telegram Setup', url: '#', popular: true },
+        { title: 'LinkedIn Integration Guide', url: '#' },
+        { title: 'Email Configuration', url: '#' },
+        { title: 'API Documentation', url: '#' }
       ]
     },
     {
@@ -55,10 +55,10 @@ export default function Help() {
   ]
 
   const popularArticles = [
-    { title: 'How to Set Up Your First Voice Agent', category: 'Getting Started', readTime: '5 min read' },
-    { title: 'Best Practices for Voice AI Training', category: 'Voice Agents', readTime: '8 min read' },
-    { title: 'Integrating with Salesforce CRM', category: 'Integrations', readTime: '6 min read' },
-    { title: 'Troubleshooting Voice Recognition Issues', category: 'Troubleshooting', readTime: '4 min read' }
+    { title: 'How to Set Up Your First Campaign', category: 'Getting Started', readTime: '5 min read' },
+    { title: 'Best Practices for Multi-Channel Marketing', category: 'Voice Calls', readTime: '8 min read' },
+    { title: 'Setting Up WhatsApp & Telegram', category: 'Channels & Integrations', readTime: '6 min read' },
+    { title: 'Troubleshooting Campaign Issues', category: 'Troubleshooting', readTime: '4 min read' }
   ]
 
   const toggleCategory = (categoryId: string) => {
@@ -86,7 +86,7 @@ export default function Help() {
             How Can We Help?
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed mb-8">
-            Find answers to your questions, learn best practices, and get the most out of AgentVoice.
+            Find answers to your questions, learn best practices, and get the most out of For Skale.
           </p>
           
           {/* Search Bar */}
@@ -224,11 +224,11 @@ export default function Help() {
             Still Need Help?
           </h2>
           <p className="text-xl text-blue-100 mb-8">
-            Our support team is here to help you succeed with AgentVoice.
+            Our support team is here to help you succeed with For Skale.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="mailto:support@agentvoice.com"
+              href="mailto:support@forskale.com"
               className="inline-flex items-center px-8 py-4 bg-white text-blue-600 font-semibold rounded-lg hover:bg-gray-100 transition-colors"
             >
               <MessageCircle className="mr-2 h-5 w-5" />

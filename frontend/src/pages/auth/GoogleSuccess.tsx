@@ -53,7 +53,7 @@ const GoogleSuccess: React.FC = () => {
 
         // Show success toast
         if (isNew) {
-          toast.success(`Welcome to AgentVoice, ${userData.first_name}!`)
+          toast.success(`Welcome to For Skale, ${userData.first_name}!`)
         } else {
           toast.success(`Welcome back, ${userData.first_name}!`)
         }

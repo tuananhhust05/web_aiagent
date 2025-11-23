@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   if (window.location.protocol === 'https:' && url.startsWith('http://')) {
     return url.replace('http://', 'https://')
@@ -241,6 +241,10 @@ export const emailsAPI = {
   // Test endpoints
   testEmailAPI: () => api.get('/api/emails/test'),
   getEmailsSimple: () => api.get('/api/emails/list'),
+  // Email credentials
+  saveCredentials: (data: { email: string; app_password: string; from_name?: string }) =>
+    api.post('/api/emails/credentials', data),
+  getCredentials: () => api.get('/api/emails/credentials'),
 }
 
 // WhatsApp API - using backend proxy
@@ -249,6 +253,10 @@ export const whatsappAPI = {
     api.post('/api/whatsapp/conversations/member', params),
   getMessages: (params: { conversation_id: number; page: number; limit: number }) => 
     api.post('/api/whatsapp/conversations/messages', params),
+  createLoginProfile: () =>
+    api.post('/api/whatsapp/profile/create'),
+  login: () =>
+    api.post('/api/whatsapp/login'),
   uploadRAGFile: (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
@@ -299,6 +307,8 @@ export const telegramAPI = {
     urls: string[]
     campaignType: string
   }) => api.post('/api/telegram/start-campaign', data),
+  createLoginProfile: () => api.post('/api/telegram/profile/create'),
+  login: () => api.post('/api/telegram/login'),
 }
 
 // Inbox API

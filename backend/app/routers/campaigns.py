@@ -21,6 +21,7 @@ from app.models.campaign import (
 from app.services.telegram_service import telegram_service
 from app.services.whatsapp_service import whatsapp_service
 from app.services.linkedin_service import linkedin_service
+from app.services.email_service import email_service
 
 router = APIRouter()
 
@@ -349,15 +350,54 @@ async def start_campaign(
         # For manual campaigns, execute calls immediately and keep original status
         print(f"📋 Manual Campaign: Executing calls for {len(all_contact_ids)} contacts")
         
+        # Try to load workflow from source (e.g., "convention-activities")
+        workflow = None
+        campaign_source = campaign.get("source")
+        if campaign_source:
+            print(f"🔍 Looking for workflow with source: {campaign_source}")
+            workflow = await db.workflows.find_one({
+                "user_id": current_user.id,
+                "function": campaign_source
+            })
+            if workflow:
+                print(f"✅ Found workflow for source '{campaign_source}' with {len(workflow.get('nodes', []))} nodes")
+            else:
+                print(f"⚠️ No workflow found for source '{campaign_source}', using campaign flow instead")
+        
         # Get flow from campaign (default to ['telegram', 'ai_voice', 'whatsapp', 'linkedin'])
         flow = campaign.get("flow", ['telegram', 'ai_voice', 'whatsapp', 'linkedin'])
         if not flow or len(flow) == 0:
             flow = ['telegram', 'ai_voice', 'whatsapp', 'linkedin']
         
-        # Only execute the first channel in flow
-        first_channel = flow[0] if flow else 'telegram'
-        print(f"🔄 Campaign flow: {flow}")
-        print(f"🎯 Executing only first channel: {first_channel}")
+        # If workflow exists and has nodes, use workflow nodes instead of flow
+        if workflow and workflow.get("nodes") and len(workflow.get("nodes", [])) > 0:
+            print(f"📋 Using workflow nodes from source '{campaign_source}'")
+            # For now, we'll still use the first channel approach
+            # TODO: Implement full workflow node execution in sequence
+            workflow_nodes = workflow.get("nodes", [])
+            if workflow_nodes:
+                first_node = workflow_nodes[0]
+                first_channel = first_node.get("type", "telegram")
+                # Map workflow node types to flow channel names
+                node_type_to_channel = {
+                    "whatsapp": "whatsapp",
+                    "ai-call": "ai_voice",
+                    "telegram": "telegram",
+                    "linkedin": "linkedin",
+                    "email": "email"
+                }
+                first_channel = node_type_to_channel.get(first_channel, first_channel)
+                print(f"🔄 Workflow nodes: {[node.get('type') for node in workflow_nodes]}")
+                print(f"🎯 Executing first workflow node: {first_node.get('type')} -> {first_channel}")
+            else:
+                first_channel = flow[0] if flow else 'telegram'
+                print(f"🔄 Campaign flow: {flow}")
+                print(f"🎯 Executing only first channel: {first_channel}")
+        else:
+            # Only execute the first channel in flow
+            first_channel = flow[0] if flow else 'telegram'
+            print(f"🔄 Campaign flow: {flow}")
+            print(f"🎯 Executing only first channel: {first_channel}")
         
         # Execute only the first channel in flow for manual campaigns
         if all_contact_ids and contacts:
@@ -366,6 +406,7 @@ async def start_campaign(
             telegram_sent_count = 0
             linkedin_sent_count = 0
             calls_made_count = 0
+            email_sent_count = 0
             
             for contact in contacts:
                 phone = contact.get("phone", "N/A")
@@ -505,6 +546,68 @@ async def start_campaign(
                     else:
                         print(f"⚠️ Contact {name} does not have phone number")
                 
+                elif first_channel == 'email':
+                    # Send email if contact has email address
+                    contact_email = contact.get("email")
+                    if contact_email:
+                        try:
+                            print(f"📧 Sending email to {name} ({contact_email})")
+                            print(f"📝 Email content: {call_script[:100]}...")
+                            
+                            # Get email credentials from database
+                            email_credentials = await db.email_credentials.find_one({"user_id": current_user.id})
+                            
+                            if not email_credentials:
+                                print(f"❌ Email credentials not found for user {current_user.id}")
+                                print(f"⚠️ Skipping email for {name} - Please configure email credentials first")
+                                continue
+                            
+                            # Prepare email data
+                            email_addr = email_credentials.get("email")
+                            app_password = email_credentials.get("app_password")
+                            from_name = email_credentials.get("from_name")
+                            
+                            if not email_addr or not app_password:
+                                print(f"❌ Email credentials incomplete for user {current_user.id}")
+                                print(f"⚠️ Skipping email for {name}")
+                                continue
+                            
+                            # Prepare recipients
+                            recipients = [{
+                                "email": contact_email,
+                                "name": name,
+                                "contact_id": str(contact["_id"])
+                            }]
+                            
+                            # Use call_script as email content
+                            email_subject = "Email Marketing"
+                            email_content = call_script
+                            
+                            # Send email with custom credentials
+                            email_result = await email_service.send_email_with_credentials_async(
+                                email=email_addr,
+                                app_password=app_password,
+                                from_name=from_name,
+                                subject=email_subject,
+                                content=email_content,
+                                is_html=False,
+                                recipients=recipients
+                            )
+                            
+                            if email_result.get("success"):
+                                print(f"✅ Email sent to {name}: {email_result}")
+                                email_sent_count += 1
+                            else:
+                                print(f"❌ Email failed for {name}: {email_result}")
+                                if "error" in email_result:
+                                    print(f"🔍 Error details: {email_result['error']}")
+                                
+                        except Exception as e:
+                            print(f"❌ Failed to send email to {name}: {str(e)}")
+                            print(f"🔍 Exception type: {type(e).__name__}")
+                    else:
+                        print(f"⚠️ Contact {name} does not have email address")
+                
                 else:
                     print(f"⚠️ Unknown flow channel: {first_channel}")
         else:
@@ -513,6 +616,7 @@ async def start_campaign(
             whatsapp_sent_count = 0
             telegram_sent_count = 0
             linkedin_sent_count = 0
+            email_sent_count = 0
         
         print(f"🔄 Campaign status remains: {campaign['status']}")
         
@@ -526,6 +630,8 @@ async def start_campaign(
             summary_message += f"{telegram_sent_count} Telegram messages sent"
         elif first_channel == 'linkedin':
             summary_message += f"{linkedin_sent_count} LinkedIn messages sent"
+        elif first_channel == 'email':
+            summary_message += f"{email_sent_count} emails sent"
         
         print(summary_message)
         
@@ -538,7 +644,8 @@ async def start_campaign(
                 "calls_made": calls_made_count,
                 "whatsapp_messages_sent": whatsapp_sent_count,
                 "telegram_messages_sent": telegram_sent_count,
-                "linkedin_messages_sent": linkedin_sent_count
+                "linkedin_messages_sent": linkedin_sent_count,
+                "emails_sent": email_sent_count
             }
         }
     else:

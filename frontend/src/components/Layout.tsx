@@ -26,6 +26,7 @@ import {
   Database,
   Search,
   MoreHorizontal,
+  LogIn,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -48,8 +49,11 @@ const settingsNavigation: NavigationItem[] = [
 const moreFunctionsNavigation: NavigationItem[] = [
   { name: 'Calls Dashboard', href: '/calls-dashboard', icon: BarChart3 },
   { name: 'Email Marketing', href: '/emails', icon: Mail },
+  { name: 'Email Login', href: '/email-login', icon: Mail },
   { name: 'WhatsApp Chatbot', href: '/whatsapp', icon: MessageCircle },
+  { name: 'WhatsApp Login', href: '/whatsapp-login', icon: LogIn },
   { name: 'Telegram Campaigns', href: '/telegram', icon: Send },
+  { name: 'Telegram Login', href: '/telegram-login', icon: LogIn },
 ]
 
 // New main navigation for sidebar

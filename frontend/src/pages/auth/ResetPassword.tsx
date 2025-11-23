@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react'
+import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Zap } from 'lucide-react'
 import { authAPI } from '../../lib/api'
 
 export default function ResetPassword() {
@@ -65,7 +65,6 @@ export default function ResetPassword() {
         text: 'Password reset successfully! Redirecting to login...'
       })
 
-      // Redirect to login after 2 seconds
       setTimeout(() => {
         navigate('/login')
       }, 2000)
@@ -82,21 +81,21 @@ export default function ResetPassword() {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-purple-900 to-black py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-emerald-50/20 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center">
-            <div className="mx-auto h-16 w-16 bg-red-500 rounded-full flex items-center justify-center mb-6">
+            <div className="mx-auto h-16 w-16 bg-red-500 rounded-3xl flex items-center justify-center mb-6 shadow-xl">
               <AlertCircle className="h-8 w-8 text-white" />
             </div>
-            <h2 className="text-3xl font-bold text-white mb-2">
+            <h2 className="text-3xl font-semibold text-gray-900 mb-3 tracking-tight">
               Invalid Reset Link
             </h2>
-            <p className="text-gray-300 mb-6">
+            <p className="text-gray-600 mb-6 font-light">
               This password reset link is invalid or has expired.
             </p>
             <Link
               to="/forgot-password"
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-2xl text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-lg shadow-blue-600/20"
             >
               Request New Reset Link
             </Link>
@@ -107,26 +106,26 @@ export default function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-purple-900 to-black py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-emerald-50/20 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
           <Link
             to="/login"
-            className="inline-flex items-center text-blue-400 hover:text-blue-300 mb-6 transition-colors"
+            className="inline-flex items-center text-blue-600 hover:text-blue-700 mb-6 transition-colors font-light"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Login
           </Link>
           
-          <div className="mx-auto h-16 w-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center mb-6">
+          <div className="mx-auto h-16 w-16 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-3xl flex items-center justify-center mb-6 shadow-xl shadow-emerald-500/20">
             <Lock className="h-8 w-8 text-white" />
           </div>
           
-          <h2 className="text-3xl font-bold text-white mb-2">
+          <h2 className="text-3xl font-semibold text-gray-900 mb-3 tracking-tight">
             Reset Your Password
           </h2>
-          <p className="text-gray-300">
+          <p className="text-gray-600 font-light">
             Enter your new password below
           </p>
         </div>
@@ -135,7 +134,7 @@ export default function ResetPassword() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {/* New Password */}
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
               New Password
             </label>
             <div className="relative">
@@ -147,13 +146,13 @@ export default function ResetPassword() {
                 required
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="appearance-none relative block w-full px-3 py-3 pr-12 border border-gray-600 placeholder-gray-400 text-white bg-gray-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
+                className="appearance-none relative block w-full px-4 py-3.5 pr-12 border-2 border-gray-200 placeholder-gray-400 text-gray-900 bg-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 font-light"
                 placeholder="Enter new password"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -162,7 +161,7 @@ export default function ResetPassword() {
 
           {/* Confirm Password */}
           <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-2">
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
               Confirm New Password
             </label>
             <div className="relative">
@@ -174,13 +173,13 @@ export default function ResetPassword() {
                 required
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                className="appearance-none relative block w-full px-3 py-3 pr-12 border border-gray-600 placeholder-gray-400 text-white bg-gray-800/50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent backdrop-blur-sm transition-all duration-200"
+                className="appearance-none relative block w-full px-4 py-3.5 pr-12 border-2 border-gray-200 placeholder-gray-400 text-gray-900 bg-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 font-light"
                 placeholder="Confirm new password"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-300"
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
               >
                 {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
               </button>
@@ -189,18 +188,18 @@ export default function ResetPassword() {
 
           {/* Message Display */}
           {message && (
-            <div className={`p-4 rounded-lg border ${
+            <div className={`p-4 rounded-2xl border-2 ${
               message.type === 'success' 
-                ? 'bg-green-900/20 border-green-500/30 text-green-300' 
-                : 'bg-red-900/20 border-red-500/30 text-red-300'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+                : 'bg-red-50 border-red-200 text-red-700'
             }`}>
               <div className="flex items-center">
                 {message.type === 'success' ? (
-                  <CheckCircle className="h-5 w-5 mr-3 text-green-400" />
+                  <CheckCircle className="h-5 w-5 mr-3 text-emerald-500" />
                 ) : (
-                  <AlertCircle className="h-5 w-5 mr-3 text-red-400" />
+                  <AlertCircle className="h-5 w-5 mr-3 text-red-500" />
                 )}
-                <span className="text-sm">{message.text}</span>
+                <span className="text-sm font-light">{message.text}</span>
               </div>
             </div>
           )}
@@ -209,7 +208,7 @@ export default function ResetPassword() {
           <button
             type="submit"
             disabled={loading}
-            className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02]"
+            className="group relative w-full flex justify-center py-3.5 px-4 border border-transparent text-sm font-medium rounded-2xl text-white bg-emerald-500 hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-emerald-500/20"
           >
             {loading ? (
               <div className="flex items-center">
@@ -223,11 +222,11 @@ export default function ResetPassword() {
 
           {/* Additional Links */}
           <div className="text-center space-y-2">
-            <p className="text-sm text-gray-400">
+            <p className="text-sm text-gray-600 font-light">
               Remember your password?{' '}
               <Link
                 to="/login"
-                className="font-medium text-green-400 hover:text-green-300 transition-colors"
+                className="font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
               >
                 Sign in here
               </Link>
@@ -236,11 +235,11 @@ export default function ResetPassword() {
         </form>
 
         {/* Help Section */}
-        <div className="mt-8 p-4 bg-white/5 rounded-lg border border-white/10">
-          <h3 className="text-sm font-medium text-white mb-2">Need Help?</h3>
-          <p className="text-xs text-gray-400">
+        <div className="mt-8 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+          <h3 className="text-sm font-medium text-gray-900 mb-2">Need Help?</h3>
+          <p className="text-xs text-gray-600 font-light">
             If you're still having trouble, contact our support team at{' '}
-            <a href="mailto:support@agentvoice.com" className="text-green-400 hover:text-green-300">
+            <a href="mailto:support@agentvoice.com" className="text-emerald-600 hover:text-emerald-700">
               support@agentvoice.com
             </a>
           </p>

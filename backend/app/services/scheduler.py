@@ -9,6 +9,7 @@ from app.models.campaign import CampaignType, ScheduleFrequency
 from app.services.whatsapp_service import whatsapp_service
 from app.services.telegram_service import telegram_service
 from app.services.linkedin_service import linkedin_service
+from app.services.email_service import email_service
 import logging
 import sys
 
@@ -310,6 +311,7 @@ class CampaignScheduler:
         whatsapp_sent_count = 0
         telegram_sent_count = 0
         linkedin_sent_count = 0
+        email_sent_count = 0
         
         logger.info(f"📞 [CAMPAIGN] Starting AI calls, WhatsApp, Telegram and LinkedIn messages for {len(contacts)} contacts...")
         
@@ -400,6 +402,63 @@ class CampaignScheduler:
             if linkedin_profile:
                 logger.info(f"⏸️ [LINKEDIN] LinkedIn message skipped for {name} ({linkedin_profile}) - API temporarily disabled")
             
+            # Send email if contact has email address
+            contact_email = contact.get("email")
+            if contact_email:
+                try:
+                    logger.info(f"📧 [EMAIL] Sending email to {name} ({contact_email})")
+                    logger.info(f"📝 [EMAIL] Email content: {call_script[:100]}...")
+                    
+                    # Get email credentials from database
+                    email_credentials = await self.db.email_credentials.find_one({"user_id": campaign["user_id"]})
+                    
+                    if not email_credentials:
+                        logger.warning(f"⚠️ [EMAIL] Email credentials not found for user {campaign['user_id']}")
+                        logger.warning(f"⚠️ [EMAIL] Skipping email for {name} - Please configure email credentials first")
+                    else:
+                        # Prepare email data
+                        email_addr = email_credentials.get("email")
+                        app_password = email_credentials.get("app_password")
+                        from_name = email_credentials.get("from_name")
+                        
+                        if not email_addr or not app_password:
+                            logger.warning(f"⚠️ [EMAIL] Email credentials incomplete for user {campaign['user_id']}")
+                            logger.warning(f"⚠️ [EMAIL] Skipping email for {name}")
+                        else:
+                            # Prepare recipients
+                            recipients = [{
+                                "email": contact_email,
+                                "name": name,
+                                "contact_id": contact_id
+                            }]
+                            
+                            # Use call_script as email content
+                            email_subject = "Email Marketing"
+                            email_content = call_script
+                            
+                            # Send email with custom credentials
+                            email_result = await email_service.send_email_with_credentials_async(
+                                email=email_addr,
+                                app_password=app_password,
+                                from_name=from_name,
+                                subject=email_subject,
+                                content=email_content,
+                                is_html=False,
+                                recipients=recipients
+                            )
+                            
+                            if email_result.get("success"):
+                                logger.info(f"✅ [EMAIL] Email sent to {name}: {email_result}")
+                                email_sent_count += 1
+                            else:
+                                logger.error(f"❌ [EMAIL] Email failed for {name}: {email_result}")
+                                if "error" in email_result:
+                                    logger.error(f"🔍 [EMAIL] Error details: {email_result['error']}")
+                                
+                except Exception as e:
+                    logger.error(f"❌ [EMAIL] Failed to send email to {name}: {str(e)}")
+                    logger.error(f"🔍 [EMAIL] Exception type: {type(e).__name__}")
+            
             # Make AI call if contact has phone number
             if phone and phone != "N/A":
                 try:
@@ -453,12 +512,13 @@ class CampaignScheduler:
                 logger.warning(f"⚠️  [CAMPAIGN] Contact {name} has no valid phone number, skipping AI call")
         
         logger.info(f"🎉 [CAMPAIGN] Completed processing all contacts for campaign '{campaign_name}'")
-        logger.info(f"📊 [CAMPAIGN] Summary: {calls_made_count} calls made, {whatsapp_sent_count} WhatsApp messages sent, {telegram_sent_count} Telegram messages sent, {linkedin_sent_count} LinkedIn messages sent")
+        logger.info(f"📊 [CAMPAIGN] Summary: {calls_made_count} calls made, {whatsapp_sent_count} WhatsApp messages sent, {telegram_sent_count} Telegram messages sent, {linkedin_sent_count} LinkedIn messages sent, {email_sent_count} emails sent")
 
 # Global scheduler instance
 scheduler = CampaignScheduler()
 
 async def start_scheduler():
+    return None
     """Start the campaign scheduler"""
     print("🔧 [DEBUG] start_scheduler() called")
     logger.info("🔧 [DEBUG] start_scheduler() called")
@@ -480,4 +540,5 @@ async def start_scheduler():
 
 async def stop_scheduler():
     """Stop the campaign scheduler"""
+    return None
     await scheduler.stop()

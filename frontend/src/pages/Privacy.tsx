@@ -9,7 +9,7 @@ export default function Privacy() {
       content: [
         "Personal information (name, email, company)",
         "Usage data and analytics",
-        "Voice interaction recordings (with consent)",
+        "Campaign data and analytics",
         "Technical information and device data"
       ]
     },
@@ -72,7 +72,7 @@ export default function Privacy() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="prose prose-lg max-w-none">
             <p className="text-lg text-gray-600 leading-relaxed mb-6">
-              At AgentVoice, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI voice technology services.
+              At For Skale, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our marketing automation platform.
             </p>
             <p className="text-lg text-gray-600 leading-relaxed">
               By using our services, you agree to the collection and use of information in accordance with this policy. If you have any questions about this Privacy Policy, please contact us.
@@ -192,7 +192,7 @@ export default function Privacy() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
-              href="mailto:privacy@agentvoice.com"
+              href="mailto:privacy@forskale.com"
               className="inline-flex items-center px-8 py-4 bg-white text-blue-600 font-semibold rounded-lg hover:bg-gray-100 transition-colors"
             >
               <Mail className="mr-2 h-5 w-5" />

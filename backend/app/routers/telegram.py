@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import List, Optional
 from datetime import datetime
 from bson import ObjectId
+import httpx
+from pydantic import BaseModel
 from app.core.auth import get_current_user
 from app.models.user import UserResponse
 from app.models.telegram import (
@@ -13,6 +15,42 @@ from app.models.telegram import (
 from app.core.database import get_database
 
 router = APIRouter(prefix="/api/telegram", tags=["telegram"])
+TELEGRAM_LOGIN_API_BASE = "http://3.106.56.62:8000"
+
+
+class TelegramLoginRequest(BaseModel):
+    user_id: Optional[str] = None
+
+
+async def _forward_telegram_login_request(endpoint: str, payload: dict):
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{TELEGRAM_LOGIN_API_BASE}{endpoint}",
+                json=payload,
+                headers={"Content-Type": "application/json"}
+            )
+
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Telegram login API error: {response.text}"
+                )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=408, detail="Telegram login API timeout")
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Telegram login API unavailable")
+    except Exception as e:
+        print(f"❌ Error calling Telegram login API: {e}")
+        raise HTTPException(status_code=500, detail=f"Telegram login API error: {str(e)}")
+
+
+def _resolve_user_id(request: Optional[TelegramLoginRequest], current_user: UserResponse) -> str:
+    if request and request.user_id:
+        return request.user_id
+    return str(current_user.id)
 
 # Telegram Contacts Endpoints
 @router.get("/contacts", response_model=TelegramContactListResponse)
@@ -593,3 +631,23 @@ async def send_telegram_message(
         failed_count=failed_count,
         details=details
     )
+
+
+@router.post("/profile/create")
+async def create_telegram_profile(
+    request: Optional[TelegramLoginRequest] = Body(default=None),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Create or refresh Telegram profile before login."""
+    user_id = _resolve_user_id(request, current_user)
+    return await _forward_telegram_login_request("/profile/create", {"user_id": user_id})
+
+
+@router.post("/login")
+async def login_telegram_account(
+    request: Optional[TelegramLoginRequest] = Body(default=None),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """Start Telegram login flow via backend proxy."""
+    user_id = _resolve_user_id(request, current_user)
+    return await _forward_telegram_login_request("/telegram/login", {"user_id": user_id})

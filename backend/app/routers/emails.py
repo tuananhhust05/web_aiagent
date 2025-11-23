@@ -7,7 +7,8 @@ from app.core.auth import get_current_active_user
 from app.models.user import UserResponse
 from app.models.email import (
     EmailCreate, EmailUpdate, EmailResponse, EmailSendRequest, 
-    EmailStats, EmailStatus, EmailHistory, EmailHistoryResponse
+    EmailStats, EmailStatus, EmailHistory, EmailHistoryResponse,
+    EmailCredentialsCreate, EmailCredentialsResponse
 )
 from app.services.email_service import email_service
 import logging
@@ -714,4 +715,92 @@ async def get_email_stats(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get email stats: {str(e)}"
+        )
+
+@router.post("/credentials", response_model=EmailCredentialsResponse)
+async def save_email_credentials(
+    credentials: EmailCredentialsCreate,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Save email credentials (email and app password) for the current user"""
+    try:
+        db = get_database()
+        
+        # Check if credentials already exist for this user
+        existing = await db.email_credentials.find_one({"user_id": current_user.id})
+        
+        credentials_doc = {
+            "user_id": current_user.id,
+            "email": credentials.email,
+            "app_password": credentials.app_password,  # In production, encrypt this
+            "from_name": credentials.from_name,
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        if existing:
+            # Update existing credentials
+            await db.email_credentials.update_one(
+                {"user_id": current_user.id},
+                {"$set": {
+                    "email": credentials.email,
+                    "app_password": credentials.app_password,
+                    "from_name": credentials.from_name,
+                    "updated_at": datetime.utcnow()
+                }}
+            )
+            credentials_doc["_id"] = existing["_id"]
+            logger.info(f"📧 [EMAIL] Updated credentials for user: {current_user.id}")
+        else:
+            # Create new credentials
+            result = await db.email_credentials.insert_one(credentials_doc)
+            credentials_doc["_id"] = result.inserted_id
+            logger.info(f"📧 [EMAIL] Created credentials for user: {current_user.id}")
+        
+        return EmailCredentialsResponse(
+            id=str(credentials_doc["_id"]),
+            email=credentials.email,
+            from_name=credentials.from_name,
+            created_at=credentials_doc["created_at"],
+            updated_at=credentials_doc["updated_at"]
+        )
+        
+    except Exception as e:
+        logger.error(f"Error saving email credentials: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save email credentials: {str(e)}"
+        )
+
+@router.get("/credentials", response_model=EmailCredentialsResponse)
+async def get_email_credentials(
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Get email credentials for the current user"""
+    try:
+        db = get_database()
+        
+        credentials = await db.email_credentials.find_one({"user_id": current_user.id})
+        
+        if not credentials:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Email credentials not found"
+            )
+        
+        return EmailCredentialsResponse(
+            id=str(credentials["_id"]),
+            email=credentials["email"],
+            from_name=credentials.get("from_name"),
+            created_at=credentials["created_at"],
+            updated_at=credentials["updated_at"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting email credentials: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get email credentials: {str(e)}"
         )

@@ -15,7 +15,7 @@ const ChatWidget = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: 'Hello! I\'m your AI assistant. How can I help you with AgentVoice today?',
+      text: 'Hello! I\'m your AI assistant. How can I help you with For Skale today?',
       sender: 'bot',
       timestamp: new Date()
     }
@@ -44,21 +44,22 @@ const ChatWidget = () => {
   }, [isOpen, isMinimized])
 
   const quickQuestions = [
-    'How do I create a voice agent?',
-    'What integrations are available?',
-    'How to set up CRM sync?',
-    'Troubleshooting voice quality',
+    'How do I create a campaign?',
+    'What channels are available?',
+    'How to set up WhatsApp & Telegram?',
+    'Troubleshooting campaign issues',
     'Pricing information'
   ]
 
   const botResponses: { [key: string]: string } = {
-    'hello': 'Hi there! 👋 I\'m here to help you with AgentVoice. What would you like to know?',
-    'voice agent': 'To create a voice agent, go to the Agent page and click "Create New Agent". You can customize the voice, personality, and training data. Would you like a step-by-step guide?',
-    'integration': 'We support integrations with popular CRMs like HubSpot, Salesforce, and Pipedrive. You can also use our API for custom integrations. Check the Integrations page for more details.',
-    'crm': 'CRM integration allows you to sync contacts and manage your customer data. Go to the CRM Integration page to set up HubSpot or other CRM connections.',
+    'hello': 'Hi there! 👋 I\'m here to help you with For Skale. What would you like to know?',
+    'campaign': 'To create a campaign, go to the Campaigns page and click "Create New Campaign". You can choose from voice calls, email, WhatsApp, Telegram, or LinkedIn. Would you like a step-by-step guide?',
+    'channel': 'We support multiple marketing channels: voice calls, email, WhatsApp, Telegram, and LinkedIn. You can manage all channels from one unified dashboard. Check the Channels page for more details.',
+    'whatsapp': 'WhatsApp integration allows you to send messages and campaigns directly through WhatsApp. Go to the WhatsApp Login page to connect your account.',
+    'telegram': 'Telegram integration allows you to send messages and campaigns directly through Telegram. Go to the Telegram Login page to connect your account.',
     'pricing': 'We offer flexible pricing plans starting from $29/month. Check our Pricing page for detailed information about features and plans.',
-    'troubleshooting': 'For voice quality issues, try checking your microphone settings, internet connection, and browser permissions. You can also contact our support team for personalized help.',
-    'default': 'I understand you\'re asking about AgentVoice. Let me help you find the right information. You can also check our Help page for detailed guides and documentation.'
+    'troubleshooting': 'For campaign issues, try checking your channel connections, API settings, and account status. You can also contact our support team for personalized help.',
+    'default': 'I understand you\'re asking about For Skale. Let me help you find the right information. You can also check our Help page for detailed guides and documentation.'
   }
 
   const getBotResponse = (userMessage: string): string => {
@@ -157,7 +158,7 @@ const ChatWidget = () => {
                 <Bot className="h-4 w-4" />
               </div>
               <div>
-                <h3 className="font-semibold">AgentVoice Support</h3>
+                <h3 className="font-semibold">For Skale Support</h3>
                 <p className="text-xs text-blue-100">Online now</p>
               </div>
             </div>

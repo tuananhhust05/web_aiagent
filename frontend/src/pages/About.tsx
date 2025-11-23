@@ -11,33 +11,33 @@ export default function About() {
     {
       icon: <Zap className="h-8 w-8" />,
       title: "Innovation",
-      description: "We constantly push the boundaries of what's possible with AI and voice technology."
+      description: "We constantly push the boundaries of what's possible with multi-channel marketing automation."
     },
     {
       icon: <Globe className="h-8 w-8" />,
       title: "Global Impact",
-      description: "Making AI voice technology accessible to businesses and people around the world."
+      description: "Making multi-channel marketing accessible to businesses and marketers around the world."
     }
   ]
 
   const team = [
     {
-      name: "Alex Chen",
-      role: "CEO & Founder",
-      bio: "Former AI researcher at Stanford, passionate about democratizing voice AI technology.",
-      image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face"
+      name: "Andrea Marino",
+      role: "CEO",
+      bio: "Negoziatore esperto con background B2B. Head of Business in ScaleUp. Focalizzato sulla crescita.",
+      image: "/images/andrea.png"
     },
     {
-      name: "Sarah Kim",
+      name: "Tuan Anh",
       role: "CTO",
-      bio: "Expert in natural language processing with 15+ years building scalable AI systems.",
-      image: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=150&h=150&fit=crop&crop=face"
+      bio: "Full-stack developer con expertise in AI. Tech Leader in Corporate. Esperto in progetti complessi.",
+      image: "/images/tuan.png"
     },
     {
-      name: "Marcus Rodriguez",
-      role: "Head of Product",
-      bio: "Product visionary with experience at Google and Microsoft, focused on user experience.",
-      image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face"
+      name: "Martina Noberini",
+      role: "CBO",
+      bio: "Esperta di Sales e Marketing. Sales Manager in ScaleUp. Focalizzata su Sales&Partnership.",
+      image: "/images/martina.png"
     }
   ]
 
@@ -49,10 +49,10 @@ export default function About() {
       <section className="pt-32 pb-20 bg-gradient-to-br from-blue-50 via-white to-purple-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-            About <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">AgentVoice</span>
+            About <span className="bg-gradient-to-r from-blue-600 to-emerald-500 bg-clip-text text-transparent">For Skale</span>
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            We're on a mission to revolutionize how businesses interact with their customers through intelligent, natural voice AI technology.
+            We're on a mission to revolutionize how marketers reach their audience through a unified multi-channel marketing platform.
           </p>
         </div>
       </section>
@@ -66,10 +66,10 @@ export default function About() {
                 Our Mission
               </h2>
               <p className="text-lg text-gray-600 mb-6 leading-relaxed">
-                To democratize AI voice technology and make it accessible to businesses of all sizes. We believe that every company deserves to provide exceptional customer experiences through intelligent, natural conversations.
+                To simplify multi-channel marketing and make it accessible to businesses of all sizes. We believe that every marketer deserves powerful tools to reach customers across voice calls, email, WhatsApp, Telegram, and LinkedIn—all from one platform.
               </p>
               <p className="text-lg text-gray-600 leading-relaxed">
-                Founded in 2024, AgentVoice has grown from a small startup to a leading provider of voice AI solutions, serving thousands of businesses worldwide.
+                Founded in 2024, For Skale has grown from a small startup to a leading provider of marketing automation solutions, serving thousands of businesses worldwide.
               </p>
             </div>
             <div className="relative">
@@ -117,7 +117,7 @@ export default function About() {
               Meet Our Team
             </h2>
             <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              The brilliant minds behind AgentVoice
+              The brilliant minds behind For Skale
             </p>
           </div>
           
@@ -125,11 +125,17 @@ export default function About() {
             {team.map((member, index) => (
               <div key={index} className="text-center">
                 <div className="w-32 h-32 mx-auto mb-6 rounded-full overflow-hidden border-4 border-gray-100 shadow-lg">
-                  <img 
-                    src={member.image} 
-                    alt={member.name}
-                    className="w-full h-full object-cover"
-                  />
+                  {member.image ? (
+                    <img 
+                      src={member.image} 
+                      alt={member.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-blue-600 to-emerald-500 flex items-center justify-center">
+                      <span className="text-4xl font-bold text-white">{member.initials}</span>
+                    </div>
+                  )}
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">{member.name}</h3>
                 <p className="text-blue-600 font-medium mb-3">{member.role}</p>
@@ -171,7 +177,7 @@ export default function About() {
             Join Us on This Journey
           </h2>
           <p className="text-xl text-gray-600 mb-8">
-            Ready to transform your business with intelligent voice AI? Let's build the future together.
+            Ready to scale your marketing across all channels? Let's build the future together.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a

@@ -18,16 +18,18 @@ async def lifespan(app: FastAPI):
     print("🔧 [DEBUG] Database initialized")
     
     # Start campaign scheduler
-    print("🔧 [DEBUG] Starting scheduler...")
-    # Start scheduler directly in background
-    from app.services.scheduler import scheduler
-    await scheduler.initialize()
-    scheduler_task = asyncio.create_task(scheduler.start())
-    print(f"🔧 [DEBUG] Scheduler task created: {scheduler_task}")
-    
-    # Ensure the task is scheduled
-    await asyncio.sleep(0.1)
-    print(f"🔧 [DEBUG] Scheduler task status: {scheduler_task.done()}")
+    # TEMPORARILY DISABLED - Uncomment to enable scheduler
+    # print("🔧 [DEBUG] Starting scheduler...")
+    # # Start scheduler directly in background
+    # from app.services.scheduler import scheduler
+    # await scheduler.initialize()
+    # scheduler_task = asyncio.create_task(scheduler.start())
+    # print(f"🔧 [DEBUG] Scheduler task created: {scheduler_task}")
+    # 
+    # # Ensure the task is scheduled
+    # await asyncio.sleep(0.1)
+    # print(f"🔧 [DEBUG] Scheduler task status: {scheduler_task.done()}")
+    print("🔧 [DEBUG] Scheduler is temporarily disabled")
     
     yield
     

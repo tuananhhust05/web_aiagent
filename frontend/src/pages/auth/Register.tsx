@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff, Mail, Lock, User, Building2, ArrowRight, Sparkles, CheckCircle } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User, Building2, ArrowRight, Zap, CheckCircle } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -62,7 +62,7 @@ export default function Register() {
   const handleGoogleSuccess = (data: any) => {
     const { user, is_new_user } = data
     if (is_new_user) {
-      toast.success(`Welcome to AgentVoice, ${user.first_name}!`)
+      toast.success(`Welcome to For Skale, ${user.first_name}!`)
       navigate('/onboarding')
     } else {
       toast.success(`Welcome back, ${user.first_name}!`)
@@ -76,43 +76,43 @@ export default function Register() {
 
   const features = [
     {
-      icon: Sparkles,
-      title: 'AI Voice Agents',
-      description: 'Natural conversations that convert leads'
+      icon: CheckCircle,
+      title: 'Multi-Channel Marketing',
+      description: 'Voice calls, email, WhatsApp, Telegram, LinkedIn'
     },
     {
       icon: CheckCircle,
-      title: 'Easy Integration',
-      description: 'Connect with your existing CRM systems'
+      title: 'Unified Dashboard',
+      description: 'Manage all channels from one platform'
     },
     {
       icon: CheckCircle,
       title: 'Advanced Analytics',
-      description: 'Track performance and optimize campaigns'
+      description: 'Track performance across all channels'
     }
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-emerald-50/20 flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         {/* Left Side - Registration Form */}
         <div>
           {/* Header */}
           <div className="text-center lg:text-left mb-8">
-            <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center mx-auto lg:mx-0 mb-6 shadow-lg">
-              <Sparkles className="h-8 w-8 text-white" />
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-emerald-500 rounded-3xl flex items-center justify-center mx-auto lg:mx-0 mb-6 shadow-xl shadow-blue-600/20">
+              <Zap className="h-8 w-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">
+            <h1 className="text-4xl font-semibold text-gray-900 tracking-tight mb-3">
               Create your account
             </h1>
-            <p className="text-gray-600 leading-relaxed">
-              Join thousands of businesses using AI voice agents to grow their sales
+            <p className="text-gray-600 leading-relaxed font-light">
+              Join thousands of marketers using For Skale to reach customers across all channels
             </p>
           </div>
 
           {/* Registration Form */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div className="bg-white rounded-3xl shadow-xl border border-gray-100 p-8">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               {/* Name Fields */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -124,7 +124,7 @@ export default function Register() {
                     <input
                       type="text"
                       {...register('first_name')}
-                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                      className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-light"
                     />
                   </div>
                   {errors.first_name && (
@@ -141,7 +141,7 @@ export default function Register() {
                     <input
                       type="text"
                       {...register('last_name')}
-                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                      className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-light"
                     />
                   </div>
                   {errors.last_name && (
@@ -160,7 +160,7 @@ export default function Register() {
                   <input
                     type="email"
                     {...register('email')}
-                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                    className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-light"
                   />
                 </div>
                 {errors.email && (
@@ -178,7 +178,7 @@ export default function Register() {
                   <input
                     type="text"
                     {...register('username')}
-                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                    className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-light"
                   />
                 </div>
                 {errors.username && (
@@ -196,7 +196,7 @@ export default function Register() {
                   <input
                     type="text"
                     {...register('company_name')}
-                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                    className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-light"
                   />
                 </div>
               </div>
@@ -212,7 +212,7 @@ export default function Register() {
                     <input
                       type={showPassword ? 'text' : 'password'}
                       {...register('password')}
-                      className="w-full pl-12 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                      className="w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-light"
                     />
                     <button
                       type="button"
@@ -236,7 +236,7 @@ export default function Register() {
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
                       {...register('confirm_password')}
-                      className="w-full pl-12 pr-12 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                      className="w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-light"
                     />
                     <button
                       type="button"
@@ -257,15 +257,15 @@ export default function Register() {
                 <input
                   type="checkbox"
                   required
-                  className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded mt-1"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-1"
                 />
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-gray-600 font-light">
                   I agree to the{' '}
-                  <Link to="/terms" className="text-primary-600 hover:text-primary-700 font-medium">
+                  <Link to="/terms" className="text-blue-600 hover:text-blue-700 font-medium">
                     Terms of Service
                   </Link>{' '}
                   and{' '}
-                  <Link to="/privacy" className="text-primary-600 hover:text-primary-700 font-medium">
+                  <Link to="/privacy" className="text-blue-600 hover:text-blue-700 font-medium">
                     Privacy Policy
                   </Link>
                 </div>
@@ -275,14 +275,14 @@ export default function Register() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full btn btn-primary btn-lg group"
+                className="w-full bg-blue-600 text-white py-3.5 rounded-2xl hover:bg-blue-700 transition-all duration-200 shadow-lg shadow-blue-600/20 font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <LoadingSpinner size="sm" />
                 ) : (
                   <>
                     Create Account
-                    <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                    <ArrowRight className="h-5 w-5" />
                   </>
                 )}
               </button>
@@ -294,7 +294,7 @@ export default function Register() {
                 <div className="w-full border-t border-gray-200" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-4 bg-white text-gray-500">Or continue with</span>
+                <span className="px-4 bg-white text-gray-500 font-light">Or continue with</span>
               </div>
             </div>
 
@@ -307,11 +307,11 @@ export default function Register() {
 
             {/* Sign In Link */}
             <div className="text-center mt-6">
-              <p className="text-gray-600">
+              <p className="text-gray-600 font-light">
                 Already have an account?{' '}
                 <Link
                   to="/login"
-                  className="text-primary-600 hover:text-primary-700 font-semibold transition-colors"
+                  className="text-blue-600 hover:text-blue-700 font-semibold transition-colors"
                 >
                   Sign in here
                 </Link>
@@ -324,41 +324,41 @@ export default function Register() {
         <div className="hidden lg:block">
           <div className="space-y-8">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                Transform your sales with AI voice agents
+              <h2 className="text-3xl font-semibold text-gray-900 mb-4 tracking-tight">
+                Scale your marketing across all channels
               </h2>
-              <p className="text-lg text-gray-600 leading-relaxed">
-                Join thousands of businesses that are already using our AI-powered voice agents to increase their sales and improve customer engagement.
+              <p className="text-lg text-gray-600 leading-relaxed font-light">
+                Join thousands of marketers using For Skale to manage voice calls, emails, WhatsApp, Telegram, and LinkedIn campaigns from one platform.
               </p>
             </div>
 
             <div className="space-y-6">
               {features.map((feature, index) => (
                 <div key={index} className="flex items-start space-x-4">
-                  <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <feature.icon className="h-5 w-5 text-primary-600" />
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-emerald-50 rounded-2xl flex items-center justify-center flex-shrink-0 border border-gray-100">
+                    <feature.icon className="h-6 w-6 text-emerald-500" />
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-1">{feature.title}</h3>
-                    <p className="text-gray-600">{feature.description}</p>
+                    <p className="text-gray-600 font-light">{feature.description}</p>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Testimonial */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+            <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-lg">
               <div className="flex items-center space-x-4 mb-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center">
-                  <span className="text-white font-semibold">JD</span>
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-emerald-500 rounded-full flex items-center justify-center">
+                  <span className="text-white font-semibold">SM</span>
                 </div>
                 <div>
-                  <h4 className="font-semibold text-gray-900">John Doe</h4>
-                  <p className="text-sm text-gray-600">Sales Director, TechCorp</p>
+                  <h4 className="font-semibold text-gray-900">Sarah Martinez</h4>
+                  <p className="text-sm text-gray-600 font-light">Marketing Director, GrowthCo</p>
                 </div>
               </div>
-              <p className="text-gray-600 italic">
-                "AgentVoice has transformed our sales process. Our conversion rates increased by 40% in just the first month."
+              <p className="text-gray-600 italic font-light">
+                "For Skale has transformed our marketing. We can now reach customers across all channels from one platform. Our campaign efficiency increased by 85%."
               </p>
             </div>
           </div>
@@ -366,4 +366,4 @@ export default function Register() {
       </div>
     </div>
   )
-} 
+}

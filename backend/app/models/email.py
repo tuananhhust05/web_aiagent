@@ -80,3 +80,15 @@ class EmailHistoryResponse(BaseModel):
     email_id: str
     email_subject: str
     history: List[EmailHistory]
+
+class EmailCredentialsCreate(BaseModel):
+    email: str
+    app_password: str
+    from_name: Optional[str] = None
+
+class EmailCredentialsResponse(BaseModel):
+    id: str
+    email: str
+    from_name: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime

@@ -1,0 +1,4 @@
+# Assets directory
+# Import assets in your components like:
+# import logo from '../assets/images/logo.png'
+

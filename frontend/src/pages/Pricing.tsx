@@ -9,11 +9,11 @@ export default function Pricing() {
       period: "forever",
       description: "Perfect for individuals and small projects",
       features: [
-        "Up to 100 voice interactions/month",
-        "Basic AI voice agent",
-        "Email support",
-        "Standard voice models",
-        "Basic analytics"
+        "Up to 1,000 voice calls/month",
+        "Up to 5,000 emails/month",
+        "WhatsApp & Telegram campaigns",
+        "Basic analytics",
+        "Email support"
       ],
       popular: false,
       cta: "Get Started Free",
@@ -25,14 +25,14 @@ export default function Pricing() {
       period: "per month",
       description: "Ideal for growing businesses",
       features: [
-        "Up to 10,000 voice interactions/month",
-        "Advanced AI voice agent",
-        "Priority email support",
-        "Premium voice models",
+        "Up to 50,000 voice calls/month",
+        "Up to 100,000 emails/month",
+        "Unlimited WhatsApp & Telegram",
+        "LinkedIn integration",
         "Advanced analytics & insights",
-        "Custom voice branding",
+        "Priority email support",
         "API access",
-        "Multi-language support"
+        "Multi-channel automation"
       ],
       popular: true,
       cta: "Start Free Trial",
@@ -44,18 +44,18 @@ export default function Pricing() {
       period: "contact us",
       description: "For large organizations with specific needs",
       features: [
-        "Unlimited voice interactions",
-        "Custom AI voice agent",
+        "Unlimited voice calls",
+        "Unlimited emails",
+        "Unlimited WhatsApp & Telegram",
+        "LinkedIn & all channels",
         "24/7 phone & email support",
-        "Custom voice models",
         "Advanced analytics & reporting",
-        "Custom voice branding",
-        "Full API access",
-        "Multi-language support",
-        "Dedicated account manager",
         "Custom integrations",
+        "Full API access",
+        "Dedicated account manager",
         "SLA guarantees",
-        "On-premise deployment options"
+        "White-label options",
+        "On-premise deployment"
       ],
       popular: false,
       cta: "Contact Sales",
@@ -67,7 +67,7 @@ export default function Pricing() {
     {
       icon: <Zap className="h-6 w-6" />,
       title: "Lightning Fast",
-      description: "Real-time voice processing with minimal latency"
+      description: "Real-time campaign delivery across all channels"
     },
     {
       icon: <Shield className="h-6 w-6" />,
@@ -260,7 +260,7 @@ export default function Pricing() {
             Ready to Get Started?
           </h2>
           <p className="text-xl text-blue-100 mb-8">
-            Join thousands of businesses already using AgentVoice to transform their customer experience.
+            Join thousands of marketers already using For Skale to scale their multi-channel campaigns.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a

@@ -128,5 +128,99 @@ class EmailService:
             )
         return result
 
+    def send_email_with_credentials_sync(self,
+                                        email: str,
+                                        app_password: str,
+                                        from_name: Optional[str],
+                                        subject: str,
+                                        content: str,
+                                        is_html: bool,
+                                        recipients: List[Dict],
+                                        attachments: List[Dict] = None) -> Dict[str, Any]:
+        """Send email synchronously with custom credentials"""
+        try:
+            logger.info(f"📧 [EMAIL] Starting email send with custom credentials - Subject: '{subject}'")
+            logger.info(f"📧 [EMAIL] From: {from_name or email}")
+            logger.info(f"📧 [EMAIL] Recipients: {len(recipients)} emails")
+            
+            # Add recipients
+            to_emails = [recipient['email'] for recipient in recipients if self.validate_email(recipient['email'])]
+            logger.info(f"📧 [EMAIL] Sending to: {', '.join(to_emails)}")
+            logger.info(f"📧 [EMAIL] Content type: {'HTML' if is_html else 'Plain text'}")
+            
+            # Create message with custom from_name
+            msg = MIMEMultipart()
+            from_display = f"{from_name} <{email}>" if from_name else email
+            msg['From'] = from_display
+            msg['Subject'] = subject
+            msg['To'] = ', '.join(to_emails)
+            
+            # Add content
+            if is_html:
+                msg.attach(MIMEText(content, 'html'))
+            else:
+                msg.attach(MIMEText(content, 'plain'))
+            
+            # Connect to SMTP server (Gmail default)
+            smtp_host = "smtp.gmail.com"
+            smtp_port = 587
+            smtp_secure = False
+            
+            server = smtplib.SMTP(smtp_host, smtp_port)
+            server.starttls()
+            
+            # Login with custom credentials
+            server.login(email, app_password)
+            
+            # Send email
+            text = msg.as_string()
+            server.sendmail(email, to_emails, text)
+            server.quit()
+            
+            logger.info(f"✅ [EMAIL] Successfully sent to {len(to_emails)} recipients")
+            
+            return {
+                "success": True,
+                "sent_count": len(to_emails),
+                "failed_count": 0,
+                "message": f"Email sent successfully to {len(to_emails)} recipients"
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ [EMAIL] Failed to send email: {str(e)}")
+            return {
+                "success": False,
+                "sent_count": 0,
+                "failed_count": len(recipients),
+                "error": str(e),
+                "message": f"Failed to send email: {str(e)}"
+            }
+
+    async def send_email_with_credentials_async(self,
+                                                email: str,
+                                                app_password: str,
+                                                from_name: Optional[str],
+                                                subject: str,
+                                                content: str,
+                                                is_html: bool,
+                                                recipients: List[Dict],
+                                                attachments: List[Dict] = None) -> Dict[str, Any]:
+        """Send email asynchronously with custom credentials"""
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor() as executor:
+            result = await loop.run_in_executor(
+                executor,
+                self.send_email_with_credentials_sync,
+                email,
+                app_password,
+                from_name,
+                subject,
+                content,
+                is_html,
+                recipients,
+                attachments
+            )
+        return result
+
 # Create global instance
 email_service = EmailService()
