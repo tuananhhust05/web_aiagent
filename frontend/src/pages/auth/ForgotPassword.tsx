@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Mail, CheckCircle, AlertCircle, Zap } from 'lucide-react'
+import { ArrowLeft, Mail, CheckCircle, AlertCircle } from 'lucide-react'
 import { authAPI } from '../../lib/api'
 
 export default function ForgotPassword() {

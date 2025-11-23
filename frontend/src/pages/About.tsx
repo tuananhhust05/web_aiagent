@@ -133,7 +133,9 @@ export default function About() {
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-blue-600 to-emerald-500 flex items-center justify-center">
-                      <span className="text-4xl font-bold text-white">{member.initials}</span>
+                      <span className="text-4xl font-bold text-white">
+                        {member.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                      </span>
                     </div>
                   )}
                 </div>

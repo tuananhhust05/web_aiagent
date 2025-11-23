@@ -3,14 +3,12 @@ import {
   Phone, 
   Mail, 
   MessageCircle, 
-  Send, 
   Linkedin, 
   ArrowRight, 
   Star,
   CheckCircle,
   ChevronDown,
   Zap,
-  Shield,
   BarChart3,
   Workflow
 } from 'lucide-react'

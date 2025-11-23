@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { emailsAPI } from '../lib/api'
-import LoadingSpinner from '../components/ui/LoadingSpinner'
 import { CheckCircle2, Mail, Loader2, Eye, EyeOff } from 'lucide-react'
 
 const EmailLogin = () => {

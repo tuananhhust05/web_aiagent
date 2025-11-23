@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft, Zap } from 'lucide-react'
+import { Lock, Eye, EyeOff, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react'
 import { authAPI } from '../../lib/api'
 
 export default function ResetPassword() {
