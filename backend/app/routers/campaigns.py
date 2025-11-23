@@ -3,6 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 from bson import ObjectId
 import aiohttp
+import asyncio
 from app.core.database import get_database
 from app.core.auth import get_current_active_user
 from app.core.config import settings
@@ -369,37 +370,32 @@ async def start_campaign(
         if not flow or len(flow) == 0:
             flow = ['telegram', 'ai_voice', 'whatsapp', 'linkedin']
         
-        # If workflow exists and has nodes, use workflow nodes instead of flow
+        # Determine which nodes to execute
+        nodes_to_execute = []
         if workflow and workflow.get("nodes") and len(workflow.get("nodes", [])) > 0:
             print(f"📋 Using workflow nodes from source '{campaign_source}'")
-            # For now, we'll still use the first channel approach
-            # TODO: Implement full workflow node execution in sequence
             workflow_nodes = workflow.get("nodes", [])
-            if workflow_nodes:
-                first_node = workflow_nodes[0]
-                first_channel = first_node.get("type", "telegram")
-                # Map workflow node types to flow channel names
-                node_type_to_channel = {
-                    "whatsapp": "whatsapp",
-                    "ai-call": "ai_voice",
-                    "telegram": "telegram",
-                    "linkedin": "linkedin",
-                    "email": "email"
-                }
-                first_channel = node_type_to_channel.get(first_channel, first_channel)
-                print(f"🔄 Workflow nodes: {[node.get('type') for node in workflow_nodes]}")
-                print(f"🎯 Executing first workflow node: {first_node.get('type')} -> {first_channel}")
-            else:
-                first_channel = flow[0] if flow else 'telegram'
-                print(f"🔄 Campaign flow: {flow}")
-                print(f"🎯 Executing only first channel: {first_channel}")
+            # Map workflow node types to channel names
+            node_type_to_channel = {
+                "whatsapp": "whatsapp",
+                "ai-call": "ai_voice",
+                "telegram": "telegram",
+                "linkedin": "linkedin",
+                "email": "email"
+            }
+            for node in workflow_nodes:
+                node_type = node.get("type", "")
+                channel = node_type_to_channel.get(node_type, node_type)
+                nodes_to_execute.append(channel)
+            print(f"🔄 Workflow nodes: {[node.get('type') for node in workflow_nodes]}")
+            print(f"🎯 Will execute nodes in sequence: {nodes_to_execute}")
         else:
-            # Only execute the first channel in flow
-            first_channel = flow[0] if flow else 'telegram'
-            print(f"🔄 Campaign flow: {flow}")
-            print(f"🎯 Executing only first channel: {first_channel}")
+            # Use campaign flow as nodes
+            nodes_to_execute = flow if flow else ['telegram']
+            print(f"🔄 Campaign flow: {nodes_to_execute}")
+            print(f"🎯 Will execute nodes in sequence: {nodes_to_execute}")
         
-        # Execute only the first channel in flow for manual campaigns
+        # Execute nodes sequentially with 1 minute delay between nodes
         if all_contact_ids and contacts:
             call_script = campaign.get("call_script", settings.AI_CALL_DEFAULT_PROMPT)
             whatsapp_sent_count = 0
@@ -408,208 +404,219 @@ async def start_campaign(
             calls_made_count = 0
             email_sent_count = 0
             
+            # Process each contact
             for contact in contacts:
                 phone = contact.get("phone", "N/A")
                 whatsapp_number = contact.get("whatsapp_number")
                 telegram_username = contact.get("telegram_username")
                 linkedin_profile = contact.get("linkedin_profile")
+                contact_email = contact.get("email")
                 name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
                 
-                # Only execute the first channel in flow
-                if first_channel == 'whatsapp':
-                    # Send WhatsApp message if contact has WhatsApp number
-                    if whatsapp_number:
-                        try:
-                            print(f"📱 Sending WhatsApp message to {name} ({whatsapp_number})")
-                            print(f"📝 Message content: {call_script[:100]}...")
-                            
-                            whatsapp_result = await whatsapp_service.send_message_to_contact(
-                                whatsapp_number, 
-                                call_script
-                            )
-                            
-                            if whatsapp_result.get("success"):
-                                print(f"✅ WhatsApp message sent to {name}: {whatsapp_result}")
-                                whatsapp_sent_count += 1
-                            else:
-                                print(f"❌ WhatsApp message failed for {name}: {whatsapp_result}")
-                                if "error" in whatsapp_result:
-                                    print(f"🔍 Error details: {whatsapp_result['error']}")
+                # Execute nodes sequentially with 1 minute delay between nodes
+                for node_index, node_channel in enumerate(nodes_to_execute):
+                    if node_index > 0:
+                        # Wait 1 minute (60 seconds) before executing next node
+                        print(f"⏳ Waiting 60 seconds before executing next node...")
+                        await asyncio.sleep(60)
+                    
+                    print(f"🔄 [{node_index + 1}/{len(nodes_to_execute)}] Executing node: {node_channel} for {name}")
+                    
+                    if node_channel == 'whatsapp':
+                        # Send WhatsApp message if contact has WhatsApp number
+                        if whatsapp_number:
+                            try:
+                                print(f"📱 Sending WhatsApp message to {name} ({whatsapp_number})")
+                                print(f"📝 Message content: {call_script[:100]}...")
                                 
-                        except Exception as e:
-                            print(f"❌ Failed to send WhatsApp message to {name}: {str(e)}")
-                            print(f"🔍 Exception type: {type(e).__name__}")
-                    else:
-                        print(f"⚠️ Contact {name} does not have WhatsApp number")
-                
-                elif first_channel == 'telegram':
-                    # Send Telegram message if contact has Telegram username
-                    if telegram_username:
-                        try:
-                            print(f"📱 Sending Telegram message to {name} (@{telegram_username})")
-                            print(f"📝 Message content: {call_script[:100]}...")
+                                whatsapp_result = await whatsapp_service.send_message_to_contact(
+                                    whatsapp_number, 
+                                    call_script,
+                                    user_id=current_user.id
+                                )
                             
-                            telegram_result = await telegram_service.send_message_to_contact(
-                                telegram_username, 
-                                call_script
-                            )
-                            
-                            if telegram_result.get("success"):
-                                print(f"✅ Telegram message sent to {name}: {telegram_result}")
-                                telegram_sent_count += 1
-                            else:
-                                print(f"❌ Telegram message failed for {name}: {telegram_result}")
-                                if "error" in telegram_result:
-                                    print(f"🔍 Error details: {telegram_result['error']}")
+                                if whatsapp_result.get("success"):
+                                    print(f"✅ WhatsApp message sent to {name}: {whatsapp_result}")
+                                    whatsapp_sent_count += 1
+                                else:
+                                    print(f"❌ WhatsApp message failed for {name}: {whatsapp_result}")
+                                    if "error" in whatsapp_result:
+                                        print(f"🔍 Error details: {whatsapp_result['error']}")
+                                    
+                            except Exception as e:
+                                print(f"❌ Failed to send WhatsApp message to {name}: {str(e)}")
+                                print(f"🔍 Exception type: {type(e).__name__}")
+                        else:
+                            print(f"⚠️ Contact {name} does not have WhatsApp number")
+                    
+                    elif node_channel == 'telegram':
+                        # Send Telegram message if contact has Telegram username
+                        if telegram_username:
+                            try:
+                                print(f"📱 Sending Telegram message to {name} (@{telegram_username})")
+                                print(f"📝 Message content: {call_script[:100]}...")
                                 
-                        except Exception as e:
-                            print(f"❌ Failed to send Telegram message to {name}: {str(e)}")
-                            print(f"🔍 Exception type: {type(e).__name__}")
-                    else:
-                        print(f"⚠️ Contact {name} does not have Telegram username")
-                
-                elif first_channel == 'linkedin':
-                    # Send LinkedIn message if contact has LinkedIn profile
-                    if linkedin_profile:
-                        try:
-                            print(f"🔗 Sending LinkedIn message to {name} ({linkedin_profile})")
-                            print(f"📝 Message content: {call_script[:100]}...")
+                                telegram_result = await telegram_service.send_message_to_contact(
+                                    telegram_username, 
+                                    call_script,
+                                    user_id=current_user.id
+                                )
                             
-                            linkedin_result = await linkedin_service.send_message_to_contact(
-                                linkedin_profile, 
-                                call_script
-                            )
-                            
-                            if linkedin_result.get("success"):
-                                print(f"✅ LinkedIn message sent to {name}: {linkedin_result}")
-                                linkedin_sent_count += 1
-                            else:
-                                print(f"❌ LinkedIn message failed for {name}: {linkedin_result}")
-                                if "error" in linkedin_result:
-                                    print(f"🔍 Error details: {linkedin_result['error']}")
+                                if telegram_result.get("success"):
+                                    print(f"✅ Telegram message sent to {name}: {telegram_result}")
+                                    telegram_sent_count += 1
+                                else:
+                                    print(f"❌ Telegram message failed for {name}: {telegram_result}")
+                                    if "error" in telegram_result:
+                                        print(f"🔍 Error details: {telegram_result['error']}")
+                                    
+                            except Exception as e:
+                                print(f"❌ Failed to send Telegram message to {name}: {str(e)}")
+                                print(f"🔍 Exception type: {type(e).__name__}")
+                        else:
+                            print(f"⚠️ Contact {name} does not have Telegram username")
+                    
+                    elif node_channel == 'linkedin':
+                        # Send LinkedIn message if contact has LinkedIn profile
+                        if linkedin_profile:
+                            try:
+                                print(f"🔗 Sending LinkedIn message to {name} ({linkedin_profile})")
+                                print(f"📝 Message content: {call_script[:100]}...")
                                 
-                        except Exception as e:
-                            print(f"❌ Failed to send LinkedIn message to {name}: {str(e)}")
-                            print(f"🔍 Exception type: {type(e).__name__}")
-                    else:
-                        print(f"⚠️ Contact {name} does not have LinkedIn profile")
-                
-                elif first_channel == 'ai_voice':
-                    # Make AI call if contact has phone number
-                    if phone and phone != "N/A":
-                        try:
-                            # Prepare AI call API payload
-                            ai_call_payload = {
-                                "number": phone,
-                                "prompt": call_script
-                            }
-                            
-                            print(f"🤖 Calling AI API for {name} ({phone})")
-                            
-                            # Make async HTTP request to AI call API
-                            async with aiohttp.ClientSession() as session:
-                                async with session.post(
-                                    settings.AI_CALL_API_URL,
-                                    json=ai_call_payload,
-                                    headers={"Content-Type": "application/json"},
-                                    timeout=aiohttp.ClientTimeout(total=30)
-                                ) as response:
-                                    if response.status == 200:
-                                        ai_response = await response.json()
-                                        print(f"✅ AI call initiated for {name}: {ai_response}")
-                                        
-                                        # Create call record in database
-                                        call_doc = {
-                                            "_id": str(ObjectId()),
-                                            "user_id": current_user.id,
-                                            "contact_id": str(contact["_id"]),
-                                            "campaign_id": campaign_id,
-                                            "phone_number": phone,
-                                            "call_type": "outbound",
-                                            "status": "connecting",
-                                            "created_at": datetime.utcnow(),
-                                            "updated_at": datetime.utcnow(),
-                                            "notes": f"Manual campaign call for {name}"
-                                        }
-                                        
-                                        # Insert call record
-                                        await db.calls.insert_one(call_doc)
-                                        print(f"📝 Call record created for {name}")
-                                        calls_made_count += 1
-                                        
-                                    else:
-                                        error_text = await response.text()
-                                        print(f"❌ AI call failed for {name}: {response.status} - {error_text}")
-                                        
-                        except Exception as e:
-                            print(f"❌ Failed to call AI API for {name}: {str(e)}")
-                    else:
-                        print(f"⚠️ Contact {name} does not have phone number")
-                
-                elif first_channel == 'email':
-                    # Send email if contact has email address
-                    contact_email = contact.get("email")
-                    if contact_email:
-                        try:
-                            print(f"📧 Sending email to {name} ({contact_email})")
-                            print(f"📝 Email content: {call_script[:100]}...")
-                            
-                            # Get email credentials from database
-                            email_credentials = await db.email_credentials.find_one({"user_id": current_user.id})
-                            
-                            if not email_credentials:
-                                print(f"❌ Email credentials not found for user {current_user.id}")
-                                print(f"⚠️ Skipping email for {name} - Please configure email credentials first")
-                                continue
-                            
-                            # Prepare email data
-                            email_addr = email_credentials.get("email")
-                            app_password = email_credentials.get("app_password")
-                            from_name = email_credentials.get("from_name")
-                            
-                            if not email_addr or not app_password:
-                                print(f"❌ Email credentials incomplete for user {current_user.id}")
-                                print(f"⚠️ Skipping email for {name}")
-                                continue
-                            
-                            # Prepare recipients
-                            recipients = [{
-                                "email": contact_email,
-                                "name": name,
-                                "contact_id": str(contact["_id"])
-                            }]
-                            
-                            # Use call_script as email content
-                            email_subject = "Email Marketing"
-                            email_content = call_script
-                            
-                            # Send email with custom credentials
-                            email_result = await email_service.send_email_with_credentials_async(
-                                email=email_addr,
-                                app_password=app_password,
-                                from_name=from_name,
-                                subject=email_subject,
-                                content=email_content,
-                                is_html=False,
-                                recipients=recipients
-                            )
-                            
-                            if email_result.get("success"):
-                                print(f"✅ Email sent to {name}: {email_result}")
-                                email_sent_count += 1
-                            else:
-                                print(f"❌ Email failed for {name}: {email_result}")
-                                if "error" in email_result:
-                                    print(f"🔍 Error details: {email_result['error']}")
+                                linkedin_result = await linkedin_service.send_message_to_contact(
+                                    linkedin_profile, 
+                                    call_script
+                                )
                                 
-                        except Exception as e:
-                            print(f"❌ Failed to send email to {name}: {str(e)}")
-                            print(f"🔍 Exception type: {type(e).__name__}")
+                                if linkedin_result.get("success"):
+                                    print(f"✅ LinkedIn message sent to {name}: {linkedin_result}")
+                                    linkedin_sent_count += 1
+                                else:
+                                    print(f"❌ LinkedIn message failed for {name}: {linkedin_result}")
+                                    if "error" in linkedin_result:
+                                        print(f"🔍 Error details: {linkedin_result['error']}")
+                                    
+                            except Exception as e:
+                                print(f"❌ Failed to send LinkedIn message to {name}: {str(e)}")
+                                print(f"🔍 Exception type: {type(e).__name__}")
+                        else:
+                            print(f"⚠️ Contact {name} does not have LinkedIn profile")
+                    
+                    elif node_channel == 'ai_voice':
+                        # Make AI call if contact has phone number
+                        if phone and phone != "N/A":
+                            try:
+                                # Prepare AI call API payload
+                                ai_call_payload = {
+                                    "number": phone,
+                                    "prompt": call_script
+                                }
+                                
+                                print(f"🤖 Calling AI API for {name} ({phone})")
+                                
+                                # Make async HTTP request to AI call API
+                                async with aiohttp.ClientSession() as session:
+                                    async with session.post(
+                                        settings.AI_CALL_API_URL,
+                                        json=ai_call_payload,
+                                        headers={"Content-Type": "application/json"},
+                                        timeout=aiohttp.ClientTimeout(total=30)
+                                    ) as response:
+                                        if response.status == 200:
+                                            ai_response = await response.json()
+                                            print(f"✅ AI call initiated for {name}: {ai_response}")
+                                            
+                                            # Create call record in database
+                                            call_doc = {
+                                                "_id": str(ObjectId()),
+                                                "user_id": current_user.id,
+                                                "contact_id": str(contact["_id"]),
+                                                "campaign_id": campaign_id,
+                                                "phone_number": phone,
+                                                "call_type": "outbound",
+                                                "status": "connecting",
+                                                "created_at": datetime.utcnow(),
+                                                "updated_at": datetime.utcnow(),
+                                                "notes": f"Manual campaign call for {name}"
+                                            }
+                                            
+                                            # Insert call record
+                                            await db.calls.insert_one(call_doc)
+                                            print(f"📝 Call record created for {name}")
+                                            calls_made_count += 1
+                                            
+                                        else:
+                                            error_text = await response.text()
+                                            print(f"❌ AI call failed for {name}: {response.status} - {error_text}")
+                                            
+                            except Exception as e:
+                                print(f"❌ Failed to call AI API for {name}: {str(e)}")
+                        else:
+                            print(f"⚠️ Contact {name} does not have phone number")
+                    
+                    elif node_channel == 'email':
+                        # Send email if contact has email address
+                        if contact_email:
+                            try:
+                                print(f"📧 Sending email to {name} ({contact_email})")
+                                print(f"📝 Email content: {call_script[:100]}...")
+                                
+                                # Get email credentials from database
+                                email_credentials = await db.email_credentials.find_one({"user_id": current_user.id})
+                                
+                                if not email_credentials:
+                                    print(f"❌ Email credentials not found for user {current_user.id}")
+                                    print(f"⚠️ Skipping email for {name} - Please configure email credentials first")
+                                    continue
+                                
+                                # Prepare email data
+                                email_addr = email_credentials.get("email")
+                                app_password = email_credentials.get("app_password")
+                                from_name = email_credentials.get("from_name")
+                                
+                                if not email_addr or not app_password:
+                                    print(f"❌ Email credentials incomplete for user {current_user.id}")
+                                    print(f"⚠️ Skipping email for {name}")
+                                    continue
+                                
+                                # Prepare recipients
+                                recipients = [{
+                                    "email": contact_email,
+                                    "name": name,
+                                    "contact_id": str(contact["_id"])
+                                }]
+                                
+                                # Use call_script as email content
+                                email_subject = "Email Marketing"
+                                email_content = call_script
+                                
+                                # Send email with custom credentials
+                                email_result = await email_service.send_email_with_credentials_async(
+                                    email=email_addr,
+                                    app_password=app_password,
+                                    from_name=from_name,
+                                    subject=email_subject,
+                                    content=email_content,
+                                    is_html=False,
+                                    recipients=recipients
+                                )
+                                
+                                if email_result.get("success"):
+                                    print(f"✅ Email sent to {name}: {email_result}")
+                                    email_sent_count += 1
+                                else:
+                                    print(f"❌ Email failed for {name}: {email_result}")
+                                    if "error" in email_result:
+                                        print(f"🔍 Error details: {email_result['error']}")
+                                    
+                            except Exception as e:
+                                print(f"❌ Failed to send email to {name}: {str(e)}")
+                                print(f"🔍 Exception type: {type(e).__name__}")
+                        else:
+                            print(f"⚠️ Contact {name} does not have email address")
+                    
                     else:
-                        print(f"⚠️ Contact {name} does not have email address")
-                
-                else:
-                    print(f"⚠️ Unknown flow channel: {first_channel}")
+                        print(f"⚠️ Unknown node channel: {node_channel}")
         else:
             # No contacts found
             calls_made_count = 0
@@ -620,25 +627,26 @@ async def start_campaign(
         
         print(f"🔄 Campaign status remains: {campaign['status']}")
         
-        # Build summary based on which channel was executed
-        summary_message = f"📊 Campaign Summary ({first_channel}): "
-        if first_channel == 'ai_voice':
-            summary_message += f"{calls_made_count} calls made"
-        elif first_channel == 'whatsapp':
-            summary_message += f"{whatsapp_sent_count} WhatsApp messages sent"
-        elif first_channel == 'telegram':
-            summary_message += f"{telegram_sent_count} Telegram messages sent"
-        elif first_channel == 'linkedin':
-            summary_message += f"{linkedin_sent_count} LinkedIn messages sent"
-        elif first_channel == 'email':
-            summary_message += f"{email_sent_count} emails sent"
+        # Build summary
+        summary_message = f"📊 Campaign Summary: "
+        summary_parts = []
+        if calls_made_count > 0:
+            summary_parts.append(f"{calls_made_count} calls made")
+        if whatsapp_sent_count > 0:
+            summary_parts.append(f"{whatsapp_sent_count} WhatsApp messages sent")
+        if telegram_sent_count > 0:
+            summary_parts.append(f"{telegram_sent_count} Telegram messages sent")
+        if linkedin_sent_count > 0:
+            summary_parts.append(f"{linkedin_sent_count} LinkedIn messages sent")
+        if email_sent_count > 0:
+            summary_parts.append(f"{email_sent_count} emails sent")
         
+        summary_message += ", ".join(summary_parts) if summary_parts else "No actions executed"
         print(summary_message)
         
         return {
-            "message": f"Manual campaign executed successfully. Only first channel ({first_channel}) from flow was executed.",
-            "flow": flow,
-            "executed_channel": first_channel,
+            "message": f"Manual campaign executed successfully. Executed {len(nodes_to_execute)} nodes sequentially with 1 minute delay between nodes.",
+            "nodes_executed": nodes_to_execute,
             "summary": {
                 "total_contacts": len(all_contact_ids),
                 "calls_made": calls_made_count,

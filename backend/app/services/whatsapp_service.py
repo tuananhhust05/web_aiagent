@@ -10,13 +10,14 @@ class WhatsAppService:
     def __init__(self):
         self.whatsapp_api_url = "http://3.106.56.62:8000/whatsapp/send"
     
-    async def send_message(self, phone_numbers: List[str], message: str) -> Dict[str, Any]:
+    async def send_message(self, phone_numbers: List[str], message: str, user_id: str = None) -> Dict[str, Any]:
         """
         Send WhatsApp message to multiple phone numbers
         
         Args:
             phone_numbers: List of phone numbers (e.g., ["+84 33 917 0155"])
             message: Message content to send
+            user_id: User ID to include in the request
             
         Returns:
             Dict containing response data
@@ -28,6 +29,9 @@ class WhatsAppService:
             "phone_numbers": phone_numbers,
             "message": message
         }
+        
+        if user_id:
+            payload["user_id"] = user_id
         
         try:
             async with aiohttp.ClientSession() as session:
@@ -85,18 +89,19 @@ class WhatsAppService:
                 "sent_to": phone_numbers
             }
     
-    async def send_message_to_contact(self, whatsapp_number: str, message: str) -> Dict[str, Any]:
+    async def send_message_to_contact(self, whatsapp_number: str, message: str, user_id: str = None) -> Dict[str, Any]:
         """
         Send WhatsApp message to a single contact
         
         Args:
             whatsapp_number: Phone number (e.g., "+84 33 917 0155")
             message: Message content to send
+            user_id: User ID to include in the request
             
         Returns:
             Dict containing response data
         """
-        return await self.send_message([whatsapp_number], message)
+        return await self.send_message([whatsapp_number], message, user_id)
     
     async def test_connection(self) -> Dict[str, Any]:
         """

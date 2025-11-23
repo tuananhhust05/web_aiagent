@@ -24,13 +24,14 @@ class TelegramService:
         clean_username = username.lstrip('@')
         return f"https://web.telegram.org/k/#@{clean_username}"
     
-    async def send_message(self, urls: List[str], message: str) -> Dict[str, Any]:
+    async def send_message(self, urls: List[str], message: str, user_id: str = None) -> Dict[str, Any]:
         """
         Send Telegram message to multiple URLs
         
         Args:
             urls: List of Telegram URLs (e.g., ["https://web.telegram.org/k/#@username"])
             message: Message content to send
+            user_id: User ID to include in the request
             
         Returns:
             Dict containing response data
@@ -42,6 +43,9 @@ class TelegramService:
             "urls": urls,
             "message": message
         }
+        
+        if user_id:
+            payload["user_id"] = user_id
         
         try:
             async with aiohttp.ClientSession() as session:
@@ -99,19 +103,20 @@ class TelegramService:
                 "sent_to": urls
             }
     
-    async def send_message_to_contact(self, telegram_username: str, message: str) -> Dict[str, Any]:
+    async def send_message_to_contact(self, telegram_username: str, message: str, user_id: str = None) -> Dict[str, Any]:
         """
         Send Telegram message to a single contact
         
         Args:
             telegram_username: Telegram username (e.g., "binhnt86" or "@binhnt86")
             message: Message content to send
+            user_id: User ID to include in the request
             
         Returns:
             Dict containing response data
         """
         telegram_url = self.build_telegram_url(telegram_username)
-        return await self.send_message([telegram_url], message)
+        return await self.send_message([telegram_url], message, user_id)
     
     async def test_connection(self) -> Dict[str, Any]:
         """

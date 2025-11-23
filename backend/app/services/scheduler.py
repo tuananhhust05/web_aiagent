@@ -306,6 +306,50 @@ class CampaignScheduler:
         call_script = campaign.get("call_script", settings.AI_CALL_DEFAULT_PROMPT)
         logger.info(f"💬 [CAMPAIGN] Using call script: {call_script[:100]}{'...' if len(call_script) > 100 else ''}")
         
+        # Try to load workflow from source (e.g., "convention-activities")
+        workflow = None
+        campaign_source = campaign.get("source")
+        if campaign_source:
+            logger.info(f"🔍 [CAMPAIGN] Looking for workflow with source: {campaign_source}")
+            workflow = await self.db.workflows.find_one({
+                "user_id": campaign["user_id"],
+                "function": campaign_source
+            })
+            if workflow:
+                logger.info(f"✅ [CAMPAIGN] Found workflow for source '{campaign_source}' with {len(workflow.get('nodes', []))} nodes")
+            else:
+                logger.info(f"⚠️ [CAMPAIGN] No workflow found for source '{campaign_source}', using campaign flow instead")
+        
+        # Get flow from campaign (default to ['telegram', 'ai_voice', 'whatsapp', 'linkedin'])
+        flow = campaign.get("flow", ['telegram', 'ai_voice', 'whatsapp', 'linkedin'])
+        if not flow or len(flow) == 0:
+            flow = ['telegram', 'ai_voice', 'whatsapp', 'linkedin']
+        
+        # Determine which nodes to execute
+        nodes_to_execute = []
+        if workflow and workflow.get("nodes") and len(workflow.get("nodes", [])) > 0:
+            logger.info(f"📋 [CAMPAIGN] Using workflow nodes from source '{campaign_source}'")
+            workflow_nodes = workflow.get("nodes", [])
+            # Map workflow node types to channel names
+            node_type_to_channel = {
+                "whatsapp": "whatsapp",
+                "ai-call": "ai_voice",
+                "telegram": "telegram",
+                "linkedin": "linkedin",
+                "email": "email"
+            }
+            for node in workflow_nodes:
+                node_type = node.get("type", "")
+                channel = node_type_to_channel.get(node_type, node_type)
+                nodes_to_execute.append(channel)
+            logger.info(f"🔄 [CAMPAIGN] Workflow nodes: {[node.get('type') for node in workflow_nodes]}")
+            logger.info(f"🎯 [CAMPAIGN] Will execute nodes in sequence: {nodes_to_execute}")
+        else:
+            # Use campaign flow as nodes
+            nodes_to_execute = flow if flow else ['telegram']
+            logger.info(f"🔄 [CAMPAIGN] Campaign flow: {nodes_to_execute}")
+            logger.info(f"🎯 [CAMPAIGN] Will execute nodes in sequence: {nodes_to_execute}")
+        
         # Initialize counters
         calls_made_count = 0
         whatsapp_sent_count = 0
@@ -313,203 +357,206 @@ class CampaignScheduler:
         linkedin_sent_count = 0
         email_sent_count = 0
         
-        logger.info(f"📞 [CAMPAIGN] Starting AI calls, WhatsApp, Telegram and LinkedIn messages for {len(contacts)} contacts...")
+        logger.info(f"📞 [CAMPAIGN] Starting sequential node execution for {len(contacts)} contacts...")
         
         for i, contact in enumerate(contacts, 1):
             phone = contact.get("phone", "N/A")
             whatsapp_number = contact.get("whatsapp_number")
             telegram_username = contact.get("telegram_username")
             linkedin_profile = contact.get("linkedin_profile")
+            contact_email = contact.get("email")
             name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
             contact_id = str(contact.get('_id', 'Unknown'))
             
             logger.info(f"📞 [CAMPAIGN] Processing contact {i}/{len(contacts)}: {name} (ID: {contact_id})")
             
-            # Send WhatsApp message if contact has WhatsApp number
-            if whatsapp_number:
-                try:
-                    logger.info(f"📱 [WHATSAPP] Sending WhatsApp message to {name} ({whatsapp_number})")
-                    logger.info(f"📝 [WHATSAPP] Message content: {call_script[:100]}...")
-                    
-                    whatsapp_result = await whatsapp_service.send_message_to_contact(
-                        whatsapp_number, 
-                        call_script
-                    )
-                    
-                    if whatsapp_result.get("success"):
-                        logger.info(f"✅ [WHATSAPP] WhatsApp message sent to {name}: {whatsapp_result}")
-                        whatsapp_sent_count += 1
-                    else:
-                        logger.error(f"❌ [WHATSAPP] WhatsApp message failed for {name}: {whatsapp_result}")
-                        # Log detailed error for debugging
-                        if "error" in whatsapp_result:
-                            logger.error(f"🔍 [WHATSAPP] Error details: {whatsapp_result['error']}")
-                        
-                except Exception as e:
-                    logger.error(f"❌ [WHATSAPP] Failed to send WhatsApp message to {name}: {str(e)}")
-                    logger.error(f"🔍 [WHATSAPP] Exception type: {type(e).__name__}")
-            
-            # Send Telegram message if contact has Telegram username
-            if telegram_username:
-                try:
-                    logger.info(f"📱 [TELEGRAM] Sending Telegram message to {name} (@{telegram_username})")
-                    logger.info(f"📝 [TELEGRAM] Message content: {call_script[:100]}...")
-                    
-                    telegram_result = await telegram_service.send_message_to_contact(
-                        telegram_username, 
-                        call_script
-                    )
-                    
-                    if telegram_result.get("success"):
-                        logger.info(f"✅ [TELEGRAM] Telegram message sent to {name}: {telegram_result}")
-                        telegram_sent_count += 1
-                    else:
-                        logger.error(f"❌ [TELEGRAM] Telegram message failed for {name}: {telegram_result}")
-                        # Log detailed error for debugging
-                        if "error" in telegram_result:
-                            logger.error(f"🔍 [TELEGRAM] Error details: {telegram_result['error']}")
-                        
-                except Exception as e:
-                    logger.error(f"❌ [TELEGRAM] Failed to send Telegram message to {name}: {str(e)}")
-                    logger.error(f"🔍 [TELEGRAM] Exception type: {type(e).__name__}")
-            
-            # Send LinkedIn message if contact has LinkedIn profile
-            # TEMPORARILY COMMENTED OUT - LinkedIn API has issues
-            # if linkedin_profile:
-            #     try:
-            #         logger.info(f"🔗 [LINKEDIN] Sending LinkedIn message to {name} ({linkedin_profile})")
-            #         logger.info(f"📝 [LINKEDIN] Message content: {call_script[:100]}...")
-            #         
-            #         linkedin_result = await linkedin_service.send_message_to_contact(
-            #             linkedin_profile, 
-            #             call_script
-            #         )
-            #         
-            #         if linkedin_result.get("success"):
-            #             logger.info(f"✅ [LINKEDIN] LinkedIn message sent to {name}: {linkedin_result}")
-            #             linkedin_sent_count += 1
-            #         else:
-            #             logger.error(f"❌ [LINKEDIN] LinkedIn message failed for {name}: {linkedin_result}")
-            #             # Log detailed error for debugging
-            #             if "error" in linkedin_result:
-            #                 logger.error(f"🔍 [LINKEDIN] Error details: {linkedin_result['error']}")
-            #             
-            #     except Exception as e:
-            #         logger.error(f"❌ [LINKEDIN] Failed to send LinkedIn message to {name}: {str(e)}")
-            #         logger.error(f"🔍 [LINKEDIN] Exception type: {type(e).__name__}")
-            
-            # TEMPORARY: Skip LinkedIn for now
-            if linkedin_profile:
-                logger.info(f"⏸️ [LINKEDIN] LinkedIn message skipped for {name} ({linkedin_profile}) - API temporarily disabled")
-            
-            # Send email if contact has email address
-            contact_email = contact.get("email")
-            if contact_email:
-                try:
-                    logger.info(f"📧 [EMAIL] Sending email to {name} ({contact_email})")
-                    logger.info(f"📝 [EMAIL] Email content: {call_script[:100]}...")
-                    
-                    # Get email credentials from database
-                    email_credentials = await self.db.email_credentials.find_one({"user_id": campaign["user_id"]})
-                    
-                    if not email_credentials:
-                        logger.warning(f"⚠️ [EMAIL] Email credentials not found for user {campaign['user_id']}")
-                        logger.warning(f"⚠️ [EMAIL] Skipping email for {name} - Please configure email credentials first")
-                    else:
-                        # Prepare email data
-                        email_addr = email_credentials.get("email")
-                        app_password = email_credentials.get("app_password")
-                        from_name = email_credentials.get("from_name")
-                        
-                        if not email_addr or not app_password:
-                            logger.warning(f"⚠️ [EMAIL] Email credentials incomplete for user {campaign['user_id']}")
-                            logger.warning(f"⚠️ [EMAIL] Skipping email for {name}")
-                        else:
-                            # Prepare recipients
-                            recipients = [{
-                                "email": contact_email,
-                                "name": name,
-                                "contact_id": contact_id
-                            }]
+            # Execute nodes sequentially with 1 minute delay between nodes
+            for node_index, node_channel in enumerate(nodes_to_execute):
+                if node_index > 0:
+                    # Wait 1 minute (60 seconds) before executing next node
+                    logger.info(f"⏳ [CAMPAIGN] Waiting 60 seconds before executing next node...")
+                    await asyncio.sleep(60)
+                
+                logger.info(f"🔄 [CAMPAIGN] [{node_index + 1}/{len(nodes_to_execute)}] Executing node: {node_channel} for {name}")
+                
+                if node_channel == 'whatsapp':
+                    # Send WhatsApp message if contact has WhatsApp number
+                    if whatsapp_number:
+                        try:
+                            logger.info(f"📱 [WHATSAPP] Sending WhatsApp message to {name} ({whatsapp_number})")
+                            logger.info(f"📝 [WHATSAPP] Message content: {call_script[:100]}...")
                             
-                            # Use call_script as email content
-                            email_subject = "Email Marketing"
-                            email_content = call_script
-                            
-                            # Send email with custom credentials
-                            email_result = await email_service.send_email_with_credentials_async(
-                                email=email_addr,
-                                app_password=app_password,
-                                from_name=from_name,
-                                subject=email_subject,
-                                content=email_content,
-                                is_html=False,
-                                recipients=recipients
+                            whatsapp_result = await whatsapp_service.send_message_to_contact(
+                                whatsapp_number, 
+                                call_script,
+                                user_id=campaign["user_id"]
                             )
+                    
+                            if whatsapp_result.get("success"):
+                                logger.info(f"✅ [WHATSAPP] WhatsApp message sent to {name}: {whatsapp_result}")
+                                whatsapp_sent_count += 1
+                            else:
+                                logger.error(f"❌ [WHATSAPP] WhatsApp message failed for {name}: {whatsapp_result}")
+                                # Log detailed error for debugging
+                                if "error" in whatsapp_result:
+                                    logger.error(f"🔍 [WHATSAPP] Error details: {whatsapp_result['error']}")
+                                
+                        except Exception as e:
+                            logger.error(f"❌ [WHATSAPP] Failed to send WhatsApp message to {name}: {str(e)}")
+                            logger.error(f"🔍 [WHATSAPP] Exception type: {type(e).__name__}")
+                    else:
+                        logger.warning(f"⚠️ [WHATSAPP] Contact {name} does not have WhatsApp number")
+                
+                elif node_channel == 'telegram':
+                    # Send Telegram message if contact has Telegram username
+                    if telegram_username:
+                        try:
+                            logger.info(f"📱 [TELEGRAM] Sending Telegram message to {name} (@{telegram_username})")
+                            logger.info(f"📝 [TELEGRAM] Message content: {call_script[:100]}...")
                             
-                            if email_result.get("success"):
-                                logger.info(f"✅ [EMAIL] Email sent to {name}: {email_result}")
-                                email_sent_count += 1
-                            else:
-                                logger.error(f"❌ [EMAIL] Email failed for {name}: {email_result}")
-                                if "error" in email_result:
-                                    logger.error(f"🔍 [EMAIL] Error details: {email_result['error']}")
-                                
-                except Exception as e:
-                    logger.error(f"❌ [EMAIL] Failed to send email to {name}: {str(e)}")
-                    logger.error(f"🔍 [EMAIL] Exception type: {type(e).__name__}")
-            
-            # Make AI call if contact has phone number
-            if phone and phone != "N/A":
-                try:
-                    # Prepare AI call API payload
-                    ai_call_payload = {
-                        "number": phone,
-                        "prompt": call_script
-                    }
+                            telegram_result = await telegram_service.send_message_to_contact(
+                                telegram_username, 
+                                call_script,
+                                user_id=campaign["user_id"]
+                            )
                     
-                    logger.info(f"🤖 [AI_CALL] Calling AI API for {name} ({phone})")
-                    logger.info(f"📡 [AI_CALL] API URL: {settings.AI_CALL_API_URL}")
-                    
-                    # Make async HTTP request to AI call API
-                    async with aiohttp.ClientSession() as session:
-                        async with session.post(
-                            settings.AI_CALL_API_URL,
-                            json=ai_call_payload,
-                            headers={"Content-Type": "application/json"},
-                            timeout=aiohttp.ClientTimeout(total=30)
-                        ) as response:
-                            if response.status == 200:
-                                ai_response = await response.json()
-                                logger.info(f"✅ [AI_CALL] AI call initiated for {name}: {ai_response}")
-                                
-                                # Create call record in database
-                                call_doc = {
-                                    "_id": str(ObjectId()),
-                                    "user_id": campaign["user_id"],
-                                    "contact_id": contact_id,
-                                    "campaign_id": campaign_id,
-                                    "phone_number": phone,
-                                    "call_type": "outbound",
-                                    "status": "connecting",
-                                    "created_at": datetime.utcnow(),
-                                    "updated_at": datetime.utcnow(),
-                                    "notes": f"Scheduled campaign call for {name}"
-                                }
-                                
-                                # Insert call record
-                                await self.db.calls.insert_one(call_doc)
-                                logger.info(f"📝 [AI_CALL] Call record created for {name} (Call ID: {call_doc['_id']})")
-                                calls_made_count += 1
-                                
+                            if telegram_result.get("success"):
+                                logger.info(f"✅ [TELEGRAM] Telegram message sent to {name}: {telegram_result}")
+                                telegram_sent_count += 1
                             else:
-                                error_text = await response.text()
-                                logger.error(f"❌ [AI_CALL] AI call failed for {name}: {response.status} - {error_text}")
+                                logger.error(f"❌ [TELEGRAM] Telegram message failed for {name}: {telegram_result}")
+                                # Log detailed error for debugging
+                                if "error" in telegram_result:
+                                    logger.error(f"🔍 [TELEGRAM] Error details: {telegram_result['error']}")
                                 
-                except Exception as e:
-                    logger.error(f"❌ [AI_CALL] Failed to call AI API for {name}: {str(e)}")
-            else:
-                logger.warning(f"⚠️  [CAMPAIGN] Contact {name} has no valid phone number, skipping AI call")
+                        except Exception as e:
+                            logger.error(f"❌ [TELEGRAM] Failed to send Telegram message to {name}: {str(e)}")
+                            logger.error(f"🔍 [TELEGRAM] Exception type: {type(e).__name__}")
+                    else:
+                        logger.warning(f"⚠️ [TELEGRAM] Contact {name} does not have Telegram username")
+                
+                elif node_channel == 'linkedin':
+                    # Send LinkedIn message if contact has LinkedIn profile
+                    # TEMPORARILY COMMENTED OUT - LinkedIn API has issues
+                    if linkedin_profile:
+                        logger.info(f"⏸️ [LINKEDIN] LinkedIn message skipped for {name} ({linkedin_profile}) - API temporarily disabled")
+                    else:
+                        logger.warning(f"⚠️ [LINKEDIN] Contact {name} does not have LinkedIn profile")
+                
+                elif node_channel == 'email':
+                    # Send email if contact has email address
+                    if contact_email:
+                        try:
+                            logger.info(f"📧 [EMAIL] Sending email to {name} ({contact_email})")
+                            logger.info(f"📝 [EMAIL] Email content: {call_script[:100]}...")
+                            
+                            # Get email credentials from database
+                            email_credentials = await self.db.email_credentials.find_one({"user_id": campaign["user_id"]})
+                            
+                            if not email_credentials:
+                                logger.warning(f"⚠️ [EMAIL] Email credentials not found for user {campaign['user_id']}")
+                                logger.warning(f"⚠️ [EMAIL] Skipping email for {name} - Please configure email credentials first")
+                            else:
+                                # Prepare email data
+                                email_addr = email_credentials.get("email")
+                                app_password = email_credentials.get("app_password")
+                                from_name = email_credentials.get("from_name")
+                                
+                                if not email_addr or not app_password:
+                                    logger.warning(f"⚠️ [EMAIL] Email credentials incomplete for user {campaign['user_id']}")
+                                    logger.warning(f"⚠️ [EMAIL] Skipping email for {name}")
+                                else:
+                                    # Prepare recipients
+                                    recipients = [{
+                                        "email": contact_email,
+                                        "name": name,
+                                        "contact_id": contact_id
+                                    }]
+                                    
+                                    # Use call_script as email content
+                                    email_subject = "Email Marketing"
+                                    email_content = call_script
+                                    
+                                    # Send email with custom credentials
+                                    email_result = await email_service.send_email_with_credentials_async(
+                                        email=email_addr,
+                                        app_password=app_password,
+                                        from_name=from_name,
+                                        subject=email_subject,
+                                        content=email_content,
+                                        is_html=False,
+                                        recipients=recipients
+                                    )
+                                    
+                                    if email_result.get("success"):
+                                        logger.info(f"✅ [EMAIL] Email sent to {name}: {email_result}")
+                                        email_sent_count += 1
+                                    else:
+                                        logger.error(f"❌ [EMAIL] Email failed for {name}: {email_result}")
+                                        if "error" in email_result:
+                                            logger.error(f"🔍 [EMAIL] Error details: {email_result['error']}")
+                                    
+                        except Exception as e:
+                            logger.error(f"❌ [EMAIL] Failed to send email to {name}: {str(e)}")
+                            logger.error(f"🔍 [EMAIL] Exception type: {type(e).__name__}")
+                    else:
+                        logger.warning(f"⚠️ [EMAIL] Contact {name} does not have email address")
+                
+                elif node_channel == 'ai_voice':
+                    # Make AI call if contact has phone number
+                    if phone and phone != "N/A":
+                        try:
+                            # Prepare AI call API payload
+                            ai_call_payload = {
+                                "number": phone,
+                                "prompt": call_script
+                            }
+                            
+                            logger.info(f"🤖 [AI_CALL] Calling AI API for {name} ({phone})")
+                            logger.info(f"📡 [AI_CALL] API URL: {settings.AI_CALL_API_URL}")
+                            
+                            # Make async HTTP request to AI call API
+                            async with aiohttp.ClientSession() as session:
+                                async with session.post(
+                                    settings.AI_CALL_API_URL,
+                                    json=ai_call_payload,
+                                    headers={"Content-Type": "application/json"},
+                                    timeout=aiohttp.ClientTimeout(total=30)
+                                ) as response:
+                                    if response.status == 200:
+                                        ai_response = await response.json()
+                                        logger.info(f"✅ [AI_CALL] AI call initiated for {name}: {ai_response}")
+                                        
+                                        # Create call record in database
+                                        call_doc = {
+                                            "_id": str(ObjectId()),
+                                            "user_id": campaign["user_id"],
+                                            "contact_id": contact_id,
+                                            "campaign_id": campaign_id,
+                                            "phone_number": phone,
+                                            "call_type": "outbound",
+                                            "status": "connecting",
+                                            "created_at": datetime.utcnow(),
+                                            "updated_at": datetime.utcnow(),
+                                            "notes": f"Scheduled campaign call for {name}"
+                                        }
+                                        
+                                        # Insert call record
+                                        await self.db.calls.insert_one(call_doc)
+                                        logger.info(f"📝 [AI_CALL] Call record created for {name} (Call ID: {call_doc['_id']})")
+                                        calls_made_count += 1
+                                        
+                                    else:
+                                        error_text = await response.text()
+                                        logger.error(f"❌ [AI_CALL] AI call failed for {name}: {response.status} - {error_text}")
+                                        
+                        except Exception as e:
+                            logger.error(f"❌ [AI_CALL] Failed to call AI API for {name}: {str(e)}")
+                    else:
+                        logger.warning(f"⚠️  [CAMPAIGN] Contact {name} has no valid phone number, skipping AI call")
+                
+                else:
+                    logger.warning(f"⚠️ [CAMPAIGN] Unknown node channel: {node_channel}")
         
         logger.info(f"🎉 [CAMPAIGN] Completed processing all contacts for campaign '{campaign_name}'")
         logger.info(f"📊 [CAMPAIGN] Summary: {calls_made_count} calls made, {whatsapp_sent_count} WhatsApp messages sent, {telegram_sent_count} Telegram messages sent, {linkedin_sent_count} LinkedIn messages sent, {email_sent_count} emails sent")
