@@ -310,6 +310,9 @@ export const telegramAPI = {
   }) => api.post('/api/telegram/start-campaign', data),
   createLoginProfile: () => api.post('/api/telegram/profile/create'),
   login: () => api.post('/api/telegram/login'),
+  getAppConfig: () => api.get('/api/telegram/app-config'),
+  saveAppConfig: (data: { api_id: string; api_hash: string }) =>
+    api.post('/api/telegram/app-config', data),
 }
 
 // Inbox API

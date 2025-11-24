@@ -16,6 +16,12 @@ const TelegramLogin = () => {
   const [imageReady, setImageReady] = useState(false)
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageVersion, setImageVersion] = useState(0)
+  const [apiId, setApiId] = useState('')
+  const [apiHash, setApiHash] = useState('')
+  const [configLoading, setConfigLoading] = useState(false)
+  const [configSaving, setConfigSaving] = useState(false)
+  const [configMessage, setConfigMessage] = useState<string | null>(null)
+  const [configError, setConfigError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!userId) {
@@ -24,6 +30,7 @@ const TelegramLogin = () => {
     }
     resetState()
     createProfile()
+    fetchAppConfig()
   }, [userId])
 
   const resetState = () => {
@@ -43,6 +50,45 @@ const TelegramLogin = () => {
     } catch (error: any) {
       console.error('Failed to create Telegram profile', error)
       setProfileStatus('error')
+    }
+  }
+
+  const fetchAppConfig = async () => {
+    if (!userId) return
+    setConfigLoading(true)
+    setConfigError(null)
+    try {
+      const { data } = await telegramAPI.getAppConfig()
+      setApiId(data?.api_id || '')
+      setApiHash(data?.api_hash || '')
+    } catch (error: any) {
+      console.error('Failed to fetch Telegram app config', error)
+      setConfigError('Failed to load saved Telegram App credentials.')
+    } finally {
+      setConfigLoading(false)
+    }
+  }
+
+  const handleSaveConfig = async () => {
+    if (!apiId.trim() || !apiHash.trim()) {
+      setConfigError('Please provide both api_id and api_hash.')
+      return
+    }
+
+    setConfigSaving(true)
+    setConfigError(null)
+    setConfigMessage(null)
+    try {
+      await telegramAPI.saveAppConfig({
+        api_id: apiId.trim(),
+        api_hash: apiHash.trim(),
+      })
+      setConfigMessage('Telegram App credentials saved successfully.')
+    } catch (error: any) {
+      console.error('Failed to save Telegram app config', error)
+      setConfigError(error?.response?.data?.detail || 'Failed to save Telegram App credentials.')
+    } finally {
+      setConfigSaving(false)
     }
   }
 
@@ -145,6 +191,62 @@ const TelegramLogin = () => {
                 <li>You need to <strong>scan the QR code within 1 minute</strong> after it appears to successfully log in.</li>
                 <li>If the displayed image is not a QR code (e.g., a profile picture or other notification), this means you have already successfully logged in previously. You can <strong>proceed to create campaigns immediately</strong> without needing to log in again.</li>
               </ul>
+            </div>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Telegram App Credentials</p>
+                <p className="text-xs text-gray-500">Provide your Telegram App API ID & API Hash so we can authenticate on your behalf.</p>
+              </div>
+              {configLoading && (
+                <div className="flex items-center gap-2 text-xs text-blue-600">
+                  <LoadingSpinner size="sm" className="text-blue-600" />
+                  Loading...
+                </div>
+              )}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Telegram App api_id</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition"
+                  placeholder="Enter your api_id"
+                  value={apiId}
+                  onChange={(e) => setApiId(e.target.value)}
+                  disabled={configSaving}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Telegram App api_hash</label>
+                <input
+                  type="password"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition"
+                  placeholder="Enter your api_hash"
+                  value={apiHash}
+                  onChange={(e) => setApiHash(e.target.value)}
+                  disabled={configSaving}
+                />
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleSaveConfig}
+                disabled={configSaving || !apiId.trim() || !apiHash.trim()}
+                className="inline-flex items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-black/90 disabled:opacity-60 disabled:cursor-not-allowed transition"
+              >
+                {configSaving ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save credentials'
+                )}
+              </button>
+              {configMessage && <p className="text-xs text-emerald-600">{configMessage}</p>}
+              {configError && <p className="text-xs text-red-600">{configError}</p>}
             </div>
           </div>
         </div>

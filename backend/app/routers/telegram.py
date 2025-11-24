@@ -22,6 +22,11 @@ class TelegramLoginRequest(BaseModel):
     user_id: Optional[str] = None
 
 
+class TelegramAppConfigRequest(BaseModel):
+    api_id: str
+    api_hash: str
+
+
 async def _forward_telegram_login_request(endpoint: str, payload: dict):
     try:
         async with httpx.AsyncClient(timeout=200.0) as client:
@@ -651,3 +656,60 @@ async def login_telegram_account(
     """Start Telegram login flow via backend proxy."""
     user_id = _resolve_user_id(request, current_user)
     return await _forward_telegram_login_request("/telegram/login", {"user_id": user_id})
+
+
+@router.get("/app-config")
+async def get_telegram_app_config(
+    current_user: UserResponse = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """Return saved Telegram API credentials for the current user."""
+    config = await db.telegram_app_configs.find_one({"user_id": current_user.id})
+    if not config:
+        return {"api_id": "", "api_hash": ""}
+
+    return {
+        "api_id": config.get("api_id", ""),
+        "api_hash": config.get("api_hash", "")
+    }
+
+
+@router.post("/app-config")
+async def save_telegram_app_config(
+    request: TelegramAppConfigRequest,
+    current_user: UserResponse = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """Create or update Telegram API credentials for the current user."""
+    api_id = request.api_id.strip()
+    api_hash = request.api_hash.strip()
+
+    if not api_id or not api_hash:
+        raise HTTPException(status_code=400, detail="api_id and api_hash are required")
+
+    now = datetime.utcnow()
+    existing = await db.telegram_app_configs.find_one({"user_id": current_user.id})
+
+    if existing:
+        await db.telegram_app_configs.update_one(
+            {"_id": existing["_id"]},
+            {
+                "$set": {
+                    "api_id": api_id,
+                    "api_hash": api_hash,
+                    "updated_at": now
+                }
+            }
+        )
+    else:
+        await db.telegram_app_configs.insert_one(
+            {
+                "user_id": current_user.id,
+                "api_id": api_id,
+                "api_hash": api_hash,
+                "created_at": now,
+                "updated_at": now
+            }
+        )
+
+    return {"api_id": api_id, "api_hash": api_hash}
