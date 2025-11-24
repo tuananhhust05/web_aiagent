@@ -149,13 +149,24 @@ async def upload_whatsapp_rag_file_proper(
 
 
 async def _forward_whatsapp_login_request(endpoint: str, payload: dict):
+    import time
+    request_id = f"{int(time.time() * 1000)}"
+    url = f"{WHATSAPP_LOGIN_API_BASE}{endpoint}"
+    
+    print(f"🔵 [WHATSAPP LOGIN] Request #{request_id} - Starting request to {url}")
+    print(f"🔵 [WHATSAPP LOGIN] Request #{request_id} - Payload: {payload}")
+    
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=200.0) as client:
+            print(f"🔵 [WHATSAPP LOGIN] Request #{request_id} - Sending POST request (timeout: 200s)...")
             response = await client.post(
-                f"{WHATSAPP_LOGIN_API_BASE}{endpoint}",
+                url,
                 json=payload,
                 headers={"Content-Type": "application/json"}
             )
+            
+            print(f"🔵 [WHATSAPP LOGIN] Request #{request_id} - Response status: {response.status_code}")
+            print(f"🔵 [WHATSAPP LOGIN] Request #{request_id} - Response received successfully")
 
             if response.status_code == 200:
                 return response.json()
@@ -164,12 +175,15 @@ async def _forward_whatsapp_login_request(endpoint: str, payload: dict):
                     status_code=response.status_code,
                     detail=f"WhatsApp login API error: {response.text}"
                 )
-    except httpx.TimeoutException:
+    except httpx.TimeoutException as e:
+        print(f"❌ [WHATSAPP LOGIN] Request #{request_id} - TimeoutException: {e}")
         raise HTTPException(status_code=408, detail="WhatsApp login API timeout")
-    except httpx.ConnectError:
+    except httpx.ConnectError as e:
+        print(f"❌ [WHATSAPP LOGIN] Request #{request_id} - ConnectError: {e}")
         raise HTTPException(status_code=503, detail="WhatsApp login API unavailable")
     except Exception as e:
-        print(f"❌ Error calling WhatsApp login API: {e}")
+        print(f"❌ [WHATSAPP LOGIN] Request #{request_id} - Error calling WhatsApp login API: {e}")
+        print(f"❌ [WHATSAPP LOGIN] Request #{request_id} - Exception type: {type(e).__name__}")
         raise HTTPException(status_code=500, detail=f"WhatsApp login API error: {str(e)}")
 
 
