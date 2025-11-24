@@ -24,7 +24,7 @@ class TelegramLoginRequest(BaseModel):
 
 async def _forward_telegram_login_request(endpoint: str, payload: dict):
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=200.0) as client:
             response = await client.post(
                 f"{TELEGRAM_LOGIN_API_BASE}{endpoint}",
                 json=payload,
