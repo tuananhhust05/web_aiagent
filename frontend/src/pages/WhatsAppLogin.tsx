@@ -51,7 +51,7 @@ const WhatsAppLogin = () => {
     setLoginStatus('loading')
     try {
       whatsappAPI.login()
-      await sleep(25000)
+      await sleep(15000)
       // setLoginStatus('success')
     } catch (error: any) {
       console.error('Failed to login WhatsApp', error)
