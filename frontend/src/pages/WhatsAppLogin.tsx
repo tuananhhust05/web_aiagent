@@ -51,7 +51,7 @@ const WhatsAppLogin = () => {
     setLoginStatus('loading')
     try {
       whatsappAPI.login()
-      await sleep(15000)
+      await sleep(10000)
       // setLoginStatus('success')
     } catch (error: any) {
       console.error('Failed to login WhatsApp', error)
@@ -60,8 +60,10 @@ const WhatsAppLogin = () => {
       setImageReady(true)
       reloadImage()
     }
-    await sleep(3000)
-    reloadImage()
+    for(let i = 0; i < 100; i++) {
+      reloadImage()
+      await sleep(4000)
+    }
     setLoginStatus('success')
   }
 
