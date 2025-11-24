@@ -53,7 +53,7 @@ const TelegramLogin = () => {
     setLoginStatus('loading')
     try {
       telegramAPI.login()
-      await sleep(28000)
+      await sleep(12000)
     } catch (error) {
       // console.error('Failed to login Telegram', error)
     } finally {
