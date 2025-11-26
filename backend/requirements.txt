@@ -18,3 +18,4 @@ fastapi-mail
 twilio
 aiohttp==3.9.1
 pytz==2023.3
+telethon==1.35.0

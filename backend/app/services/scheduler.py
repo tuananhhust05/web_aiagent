@@ -10,6 +10,7 @@ from app.services.whatsapp_service import whatsapp_service
 from app.services.telegram_service import telegram_service
 from app.services.linkedin_service import linkedin_service
 from app.services.email_service import email_service
+from app.services.workflow_executor import workflow_executor
 import logging
 import sys
 
@@ -325,50 +326,52 @@ class CampaignScheduler:
         if not flow or len(flow) == 0:
             flow = ['telegram', 'ai_voice', 'whatsapp', 'linkedin']
         
-        # Determine which nodes to execute
-        nodes_to_execute = []
+        # Execute workflow with response-based routing
+        logger.info(f"📞 [CAMPAIGN] Starting workflow execution for {len(contacts)} contacts...")
+        
+        # Use WorkflowExecutor if workflow exists with nodes
         if workflow and workflow.get("nodes") and len(workflow.get("nodes", [])) > 0:
-            logger.info(f"📋 [CAMPAIGN] Using workflow nodes from source '{campaign_source}'")
-            workflow_nodes = workflow.get("nodes", [])
-            # Map workflow node types to channel names
-            node_type_to_channel = {
-                "whatsapp": "whatsapp",
-                "ai-call": "ai_voice",
-                "telegram": "telegram",
-                "linkedin": "linkedin",
-                "email": "email"
-            }
-            for node in workflow_nodes:
-                node_type = node.get("type", "")
-                channel = node_type_to_channel.get(node_type, node_type)
-                nodes_to_execute.append(channel)
-            logger.info(f"🔄 [CAMPAIGN] Workflow nodes: {[node.get('type') for node in workflow_nodes]}")
-            logger.info(f"🎯 [CAMPAIGN] Will execute nodes in sequence: {nodes_to_execute}")
+            logger.info(f"📋 [CAMPAIGN] Using workflow executor with response-based routing from source '{campaign_source}'")
+            logger.info(f"🔄 [CAMPAIGN] Workflow nodes: {[node.get('type') for node in workflow.get('nodes', [])]}")
+            
+            # Execute workflow for each contact
+            for i, contact in enumerate(contacts, 1):
+                name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
+                logger.info(f"📞 [CAMPAIGN] Processing contact {i}/{len(contacts)}: {name}")
+                try:
+                    await workflow_executor.execute_workflow_for_contact(
+                        workflow,
+                        contact,
+                        campaign,
+                        call_script
+                    )
+                except Exception as e:
+                    logger.error(f"❌ [CAMPAIGN] Failed to execute workflow for contact {contact.get('_id')}: {str(e)}")
+                    continue
         else:
+            # Fallback to legacy sequential execution
+            logger.info(f"⚠️ [CAMPAIGN] No workflow found, using legacy sequential execution")
             # Use campaign flow as nodes
             nodes_to_execute = flow if flow else ['telegram']
             logger.info(f"🔄 [CAMPAIGN] Campaign flow: {nodes_to_execute}")
-            logger.info(f"🎯 [CAMPAIGN] Will execute nodes in sequence: {nodes_to_execute}")
-        
-        # Initialize counters
-        calls_made_count = 0
-        whatsapp_sent_count = 0
-        telegram_sent_count = 0
-        linkedin_sent_count = 0
-        email_sent_count = 0
-        
-        logger.info(f"📞 [CAMPAIGN] Starting sequential node execution for {len(contacts)} contacts...")
-        
-        for i, contact in enumerate(contacts, 1):
-            phone = contact.get("phone", "N/A")
-            whatsapp_number = contact.get("whatsapp_number")
-            telegram_username = contact.get("telegram_username")
-            linkedin_profile = contact.get("linkedin_profile")
-            contact_email = contact.get("email")
-            name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
-            contact_id = str(contact.get('_id', 'Unknown'))
             
-            logger.info(f"📞 [CAMPAIGN] Processing contact {i}/{len(contacts)}: {name} (ID: {contact_id})")
+            # Initialize counters
+            calls_made_count = 0
+            whatsapp_sent_count = 0
+            telegram_sent_count = 0
+            linkedin_sent_count = 0
+            email_sent_count = 0
+            
+            for i, contact in enumerate(contacts, 1):
+                phone = contact.get("phone", "N/A")
+                whatsapp_number = contact.get("whatsapp_number")
+                telegram_username = contact.get("telegram_username")
+                linkedin_profile = contact.get("linkedin_profile")
+                contact_email = contact.get("email")
+                name = f"{contact.get('first_name', '')} {contact.get('last_name', '')}".strip()
+                contact_id = str(contact.get('_id', 'Unknown'))
+                
+                logger.info(f"📞 [CAMPAIGN] Processing contact {i}/{len(contacts)}: {name} (ID: {contact_id})")
             
             # Execute nodes sequentially with 1 minute delay between nodes
             for node_index, node_channel in enumerate(nodes_to_execute):

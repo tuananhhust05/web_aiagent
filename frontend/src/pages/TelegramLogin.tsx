@@ -18,10 +18,17 @@ const TelegramLogin = () => {
   const [imageVersion, setImageVersion] = useState(0)
   const [apiId, setApiId] = useState('')
   const [apiHash, setApiHash] = useState('')
+  const [phoneNumber, setPhoneNumber] = useState('')
   const [configLoading, setConfigLoading] = useState(false)
   const [configSaving, setConfigSaving] = useState(false)
   const [configMessage, setConfigMessage] = useState<string | null>(null)
   const [configError, setConfigError] = useState<string | null>(null)
+  const [isVerified, setIsVerified] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
+  const [otpMessage, setOtpMessage] = useState<string | null>(null)
+  const [otpError, setOtpError] = useState<string | null>(null)
+  const [otpRequesting, setOtpRequesting] = useState(false)
+  const [otpVerifying, setOtpVerifying] = useState(false)
 
   useEffect(() => {
     if (!userId) {
@@ -61,6 +68,8 @@ const TelegramLogin = () => {
       const { data } = await telegramAPI.getAppConfig()
       setApiId(data?.api_id || '')
       setApiHash(data?.api_hash || '')
+      setPhoneNumber(data?.phone_number || '')
+      setIsVerified(Boolean(data?.is_verified))
     } catch (error: any) {
       console.error('Failed to fetch Telegram app config', error)
       setConfigError('Failed to load saved Telegram App credentials.')
@@ -79,16 +88,60 @@ const TelegramLogin = () => {
     setConfigError(null)
     setConfigMessage(null)
     try {
-      await telegramAPI.saveAppConfig({
+      const { data } = await telegramAPI.saveAppConfig({
         api_id: apiId.trim(),
         api_hash: apiHash.trim(),
+        phone_number: phoneNumber.trim(),
       })
+      setPhoneNumber(data?.phone_number || phoneNumber.trim())
+      setIsVerified(Boolean(data?.is_verified))
       setConfigMessage('Telegram App credentials saved successfully.')
     } catch (error: any) {
       console.error('Failed to save Telegram app config', error)
       setConfigError(error?.response?.data?.detail || 'Failed to save Telegram App credentials.')
     } finally {
       setConfigSaving(false)
+    }
+  }
+
+  const handleRequestOtp = async () => {
+    if (!phoneNumber.trim()) {
+      setOtpError('Please enter your Telegram phone number (include country code).')
+      return
+    }
+    setOtpRequesting(true)
+    setOtpError(null)
+    setOtpMessage(null)
+    try {
+      await telegramAPI.requestOtp({ phone_number: phoneNumber.trim() })
+      setOtpMessage('OTP sent to your Telegram app. Please enter the code below.')
+      setIsVerified(false)
+    } catch (error: any) {
+      console.error('Failed to request Telegram OTP', error)
+      setOtpError(error?.response?.data?.detail || 'Failed to request OTP.')
+    } finally {
+      setOtpRequesting(false)
+    }
+  }
+
+  const handleVerifyOtp = async () => {
+    if (!otpCode.trim()) {
+      setOtpError('Please enter the OTP code you received.')
+      return
+    }
+    setOtpVerifying(true)
+    setOtpError(null)
+    setOtpMessage(null)
+    try {
+      await telegramAPI.verifyOtp({ code: otpCode.trim() })
+      setOtpMessage('Telegram session verified successfully.')
+      setIsVerified(true)
+      setOtpCode('')
+    } catch (error: any) {
+      console.error('Failed to verify Telegram OTP', error)
+      setOtpError(error?.response?.data?.detail || 'Failed to verify OTP.')
+    } finally {
+      setOtpVerifying(false)
     }
   }
 
@@ -112,7 +165,7 @@ const TelegramLogin = () => {
     }
   }
 
-  const canLogin = profileStatus === 'success' && !!userId
+  const canLogin = profileStatus === 'success' && !!userId && isVerified
 
   const reloadImage = () => {
     setImageLoaded(false)
@@ -197,7 +250,9 @@ const TelegramLogin = () => {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-sm font-semibold text-gray-900">Telegram App Credentials</p>
-                <p className="text-xs text-gray-500">Provide your Telegram App API ID & API Hash so we can authenticate on your behalf.</p>
+                <p className="text-xs text-gray-500">
+                  Provide your Telegram App API ID, API Hash, and Telegram phone number (with country code).
+                </p>
               </div>
               {configLoading && (
                 <div className="flex items-center gap-2 text-xs text-blue-600">
@@ -206,7 +261,7 @@ const TelegramLogin = () => {
                 </div>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Telegram App api_id</label>
                 <input
@@ -229,6 +284,17 @@ const TelegramLogin = () => {
                   disabled={configSaving}
                 />
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Telegram Phone Number</label>
+                <input
+                  type="tel"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition"
+                  placeholder="+84123456789"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
+                  disabled={configSaving}
+                />
+              </div>
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <button
@@ -245,8 +311,74 @@ const TelegramLogin = () => {
                   'Save credentials'
                 )}
               </button>
-              {configMessage && <p className="text-xs text-emerald-600">{configMessage}</p>}
-              {configError && <p className="text-xs text-red-600">{configError}</p>}
+              <div className="flex items-center gap-2 text-xs">
+                <span
+                  className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] uppercase tracking-wide ${
+                    isVerified ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'
+                  }`}
+                >
+                  {isVerified ? 'Session verified' : 'Verification required'}
+                </span>
+                {configMessage && <p className="text-emerald-600">{configMessage}</p>}
+                {configError && <p className="text-red-600">{configError}</p>}
+              </div>
+            </div>
+          </div>
+          <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-900">Telegram OTP Verification</p>
+                <p className="text-xs text-gray-500">
+                  Request an OTP to your Telegram app and verify it to establish a persistent session.
+                </p>
+              </div>
+              <button
+                onClick={handleRequestOtp}
+                disabled={otpRequesting || !apiId.trim() || !apiHash.trim() || !phoneNumber.trim()}
+                className="inline-flex items-center justify-center rounded-md border border-gray-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-900 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition"
+              >
+                {otpRequesting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
+                    Sending OTP...
+                  </>
+                ) : (
+                  'Send OTP'
+                )}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Enter OTP Code</label>
+                <input
+                  type="text"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-sky-500 focus:ring-2 focus:ring-sky-200 transition"
+                  placeholder="12345"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  disabled={otpVerifying}
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={handleVerifyOtp}
+                  disabled={otpVerifying || !otpCode.trim()}
+                  className="w-full inline-flex items-center justify-center rounded-md bg-sky-600 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-sm hover:bg-sky-700 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                >
+                  {otpVerifying ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
+                      Verifying...
+                    </>
+                  ) : (
+                    'Verify OTP'
+                  )}
+                </button>
+              </div>
+            </div>
+            <div className="mt-3 text-xs">
+              {otpMessage && <p className="text-emerald-600">{otpMessage}</p>}
+              {otpError && <p className="text-red-600">{otpError}</p>}
             </div>
           </div>
         </div>

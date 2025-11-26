@@ -1,9 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import List, Optional
 from datetime import datetime
+from pathlib import Path
 from bson import ObjectId
 import httpx
 from pydantic import BaseModel
+from telethon import TelegramClient
+from telethon.errors import (
+    PhoneCodeExpiredError,
+    PhoneCodeInvalidError,
+    PhoneNumberInvalidError,
+    SessionPasswordNeededError,
+)
 from app.core.auth import get_current_user
 from app.models.user import UserResponse
 from app.models.telegram import (
@@ -13,9 +21,11 @@ from app.models.telegram import (
     TelegramContactListResponse, TelegramCampaignListResponse
 )
 from app.core.database import get_database
+from app.services.telegram_listener import telegram_listener
 
 router = APIRouter(prefix="/api/telegram", tags=["telegram"])
 TELEGRAM_LOGIN_API_BASE = "http://3.106.56.62:8000"
+TELEGRAM_SESSION_DIR = Path("session_telegram")
 
 
 class TelegramLoginRequest(BaseModel):
@@ -25,6 +35,15 @@ class TelegramLoginRequest(BaseModel):
 class TelegramAppConfigRequest(BaseModel):
     api_id: str
     api_hash: str
+    phone_number: Optional[str] = None
+
+
+class TelegramOtpRequest(BaseModel):
+    phone_number: Optional[str] = None
+
+
+class TelegramOtpVerifyRequest(BaseModel):
+    code: str
 
 
 async def _forward_telegram_login_request(endpoint: str, payload: dict):
@@ -56,6 +75,22 @@ def _resolve_user_id(request: Optional[TelegramLoginRequest], current_user: User
     if request and request.user_id:
         return request.user_id
     return str(current_user.id)
+
+
+def _get_session_path(user_id: str) -> str:
+    TELEGRAM_SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    return str(TELEGRAM_SESSION_DIR / f"{user_id}")
+
+
+async def _get_app_config(db, user_id: str) -> Optional[dict]:
+    return await db.telegram_app_configs.find_one({"user_id": user_id})
+
+
+def _parse_api_id(raw_api_id: Optional[str]) -> int:
+    try:
+        return int(raw_api_id)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="api_id must be a numeric value")
 
 # Telegram Contacts Endpoints
 @router.get("/contacts", response_model=TelegramContactListResponse)
@@ -664,13 +699,20 @@ async def get_telegram_app_config(
     db = Depends(get_database)
 ):
     """Return saved Telegram API credentials for the current user."""
-    config = await db.telegram_app_configs.find_one({"user_id": current_user.id})
+    config = await _get_app_config(db, current_user.id)
     if not config:
-        return {"api_id": "", "api_hash": ""}
+        return {
+            "api_id": "",
+            "api_hash": "",
+            "phone_number": "",
+            "is_verified": False,
+        }
 
     return {
         "api_id": config.get("api_id", ""),
-        "api_hash": config.get("api_hash", "")
+        "api_hash": config.get("api_hash", ""),
+        "phone_number": config.get("phone_number", ""),
+        "is_verified": config.get("is_verified", False),
     }
 
 
@@ -683,12 +725,13 @@ async def save_telegram_app_config(
     """Create or update Telegram API credentials for the current user."""
     api_id = request.api_id.strip()
     api_hash = request.api_hash.strip()
+    phone_number = (request.phone_number or "").strip()
 
     if not api_id or not api_hash:
         raise HTTPException(status_code=400, detail="api_id and api_hash are required")
 
     now = datetime.utcnow()
-    existing = await db.telegram_app_configs.find_one({"user_id": current_user.id})
+    existing = await _get_app_config(db, current_user.id)
 
     if existing:
         await db.telegram_app_configs.update_one(
@@ -697,6 +740,9 @@ async def save_telegram_app_config(
                 "$set": {
                     "api_id": api_id,
                     "api_hash": api_hash,
+                    "phone_number": phone_number or existing.get("phone_number"),
+                    "phone_code_hash": None if phone_number else existing.get("phone_code_hash"),
+                    "is_verified": False if phone_number else existing.get("is_verified", False),
                     "updated_at": now
                 }
             }
@@ -707,9 +753,146 @@ async def save_telegram_app_config(
                 "user_id": current_user.id,
                 "api_id": api_id,
                 "api_hash": api_hash,
+                "phone_number": phone_number,
+                "phone_code_hash": None,
+                "is_verified": False,
                 "created_at": now,
                 "updated_at": now
             }
         )
 
-    return {"api_id": api_id, "api_hash": api_hash}
+    final_config = await _get_app_config(db, current_user.id)
+    return {
+        "api_id": final_config.get("api_id", api_id),
+        "api_hash": final_config.get("api_hash", api_hash),
+        "phone_number": final_config.get("phone_number", phone_number),
+        "is_verified": final_config.get("is_verified", False),
+    }
+
+
+@router.post("/otp/request")
+async def request_telegram_otp(
+    request: TelegramOtpRequest,
+    current_user: UserResponse = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """Send an OTP code to the configured Telegram phone number."""
+    config = await _get_app_config(db, current_user.id)
+    if not config or not config.get("api_id") or not config.get("api_hash"):
+        raise HTTPException(status_code=400, detail="Please save api_id and api_hash before requesting OTP.")
+
+    phone_number = (request.phone_number or config.get("phone_number") or "").strip()
+    if not phone_number:
+        raise HTTPException(status_code=400, detail="phone_number is required to request OTP.")
+
+    api_id_int = _parse_api_id(config.get("api_id"))
+    session_path = _get_session_path(str(current_user.id))
+    client = TelegramClient(session_path, api_id_int, config.get("api_hash"))
+
+    try:
+        await client.connect()
+        sent = await client.send_code_request(phone_number)
+        phone_code_hash = sent.phone_code_hash
+    except PhoneNumberInvalidError:
+        raise HTTPException(status_code=400, detail="Invalid Telegram phone number.")
+    except Exception as e:
+        print(f"❌ Error requesting Telegram OTP: {e}")
+        raise HTTPException(status_code=500, detail="Failed to request Telegram OTP. Please try again.")
+    finally:
+        await client.disconnect()
+
+    now = datetime.utcnow()
+    update_doc = {
+        "phone_number": phone_number,
+        "phone_code_hash": phone_code_hash,
+        "is_verified": False,
+        "session_file": session_path,
+        "updated_at": now,
+    }
+    if config:
+        await db.telegram_app_configs.update_one(
+            {"user_id": current_user.id},
+            {"$set": update_doc},
+            upsert=True
+        )
+    else:
+        # In theory we already checked, but keep fallback.
+        await db.telegram_app_configs.insert_one(
+            {
+                "user_id": current_user.id,
+                "api_id": str(api_id_int),
+                "api_hash": config.get("api_hash"),
+                **update_doc,
+                "created_at": now,
+            }
+        )
+
+    await telegram_listener.stop_user_session(str(current_user.id))
+
+    return {
+        "message": "OTP sent successfully. Please check your Telegram app.",
+        "phone_code_hash": phone_code_hash,
+    }
+
+
+@router.post("/otp/verify")
+async def verify_telegram_otp(
+    request: TelegramOtpVerifyRequest,
+    current_user: UserResponse = Depends(get_current_user),
+    db = Depends(get_database)
+):
+    """Verify OTP code and finalize Telegram session."""
+    config = await _get_app_config(db, current_user.id)
+    if not config or not config.get("api_id") or not config.get("api_hash"):
+        raise HTTPException(status_code=400, detail="Please configure Telegram App credentials first.")
+
+    phone_number = config.get("phone_number")
+    phone_code_hash = config.get("phone_code_hash")
+    if not phone_number or not phone_code_hash:
+        raise HTTPException(status_code=400, detail="No OTP request found. Please request a new OTP.")
+
+    code = request.code.strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="OTP code is required.")
+
+    api_id_int = _parse_api_id(config.get("api_id"))
+    session_path = _get_session_path(str(current_user.id))
+    client = TelegramClient(session_path, api_id_int, config.get("api_hash"))
+
+    try:
+        await client.connect()
+        await client.sign_in(
+            phone=phone_number,
+            code=code,
+            phone_code_hash=phone_code_hash
+        )
+    except PhoneCodeInvalidError:
+        raise HTTPException(status_code=400, detail="Invalid OTP code. Please try again.")
+    except PhoneCodeExpiredError:
+        raise HTTPException(status_code=400, detail="OTP code has expired. Please request a new one.")
+    except SessionPasswordNeededError:
+        raise HTTPException(
+            status_code=401,
+            detail="Two-factor password is enabled on this Telegram account. Please disable it temporarily."
+        )
+    except Exception as e:
+        print(f"❌ Error verifying Telegram OTP: {e}")
+        raise HTTPException(status_code=500, detail="Failed to verify OTP. Please try again.")
+    finally:
+        await client.disconnect()
+
+    await db.telegram_app_configs.update_one(
+        {"user_id": current_user.id},
+        {
+            "$set": {
+                "is_verified": True,
+                "phone_code_hash": None,
+                "session_file": session_path,
+                "updated_at": datetime.utcnow()
+            }
+        }
+    )
+
+    await telegram_listener.reload_user_session(str(current_user.id))
+
+    return {"message": "Telegram session verified successfully.", "session_file": session_path}

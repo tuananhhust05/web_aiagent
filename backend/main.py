@@ -9,6 +9,7 @@ from app.routers import auth, contacts, users, crm, offers, calls, webhook, camp
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.services.scheduler import start_scheduler, stop_scheduler
+from app.services.telegram_listener import telegram_listener
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,6 +17,8 @@ async def lifespan(app: FastAPI):
     print("🔧 [DEBUG] FastAPI lifespan startup")
     await init_db()
     print("🔧 [DEBUG] Database initialized")
+    await telegram_listener.start()
+    print("🔧 [DEBUG] Telegram listener started")
     
     # Start campaign scheduler
     # TEMPORARILY DISABLED - Uncomment to enable scheduler
@@ -34,7 +37,8 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
-    # print("🔧 [DEBUG] FastAPI lifespan shutdown")
+    print("🔧 [DEBUG] FastAPI lifespan shutdown")
+    await telegram_listener.stop()
     # await stop_scheduler()
     # scheduler_task.cancel()
     # try:

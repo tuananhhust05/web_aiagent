@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   if (window.location.protocol === 'https:' && url.startsWith('http://')) {
     return url.replace('http://', 'https://')
@@ -311,8 +311,12 @@ export const telegramAPI = {
   createLoginProfile: () => api.post('/api/telegram/profile/create'),
   login: () => api.post('/api/telegram/login'),
   getAppConfig: () => api.get('/api/telegram/app-config'),
-  saveAppConfig: (data: { api_id: string; api_hash: string }) =>
+  saveAppConfig: (data: { api_id: string; api_hash: string; phone_number?: string }) =>
     api.post('/api/telegram/app-config', data),
+  requestOtp: (data: { phone_number?: string }) =>
+    api.post('/api/telegram/otp/request', data),
+  verifyOtp: (data: { code: string }) =>
+    api.post('/api/telegram/otp/verify', data),
 }
 
 // Inbox API
