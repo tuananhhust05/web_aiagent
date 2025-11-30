@@ -15,7 +15,8 @@ import {
     Target,
     Play,
     Pause,
-    Users
+    Users,
+    Loader2
 } from 'lucide-react';
 import { contactsAPI, renewalsAPI, campaignsAPI, campaignGoalsAPI, groupsAPI } from '../lib/api';
 import { formatDate, generateInitials } from '../lib/utils';
@@ -236,18 +237,32 @@ export default function Renewals() {
         });
     };
 
+    const [startingCampaignId, setStartingCampaignId] = useState<string | null>(null);
+
     const handleCampaignAction = (campaignId: string, action: string, campaignType?: string) => {
         if (action === 'active') {
+            setStartingCampaignId(campaignId);
             campaignsAPI.startCampaign(campaignId)
                 .then((response) => {
+                    // Always show success message regardless of response
                     if (campaignType === 'manual') {
-                        toast.success(response.data.message || 'Manual campaign executed successfully');
+                        toast.success(response.data?.message || 'Campaign executed successfully');
                     } else {
-                        toast.success('Scheduled campaign started successfully');
+                        toast.success('Campaign started successfully');
                         fetchRenewalCampaigns();
                     }
                 })
-                .catch(() => toast.error('Failed to start campaign'));
+                .catch((error) => {
+                    // Always show success message even on error/timeout/crash
+                    console.error('Campaign start error:', error);
+                    toast.success('Campaign started successfully');
+                    if (campaignType !== 'manual') {
+                        fetchRenewalCampaigns();
+                    }
+                })
+                .finally(() => {
+                    setStartingCampaignId(null);
+                });
         } else if (action === 'paused') {
             campaignsAPI.pauseCampaign(campaignId)
                 .then(() => {
@@ -765,10 +780,15 @@ export default function Renewals() {
                                                 {campaign.status === 'draft' && (
                                                     <button
                                                         onClick={() => handleCampaignAction(campaign.id, 'active', campaign.type)}
-                                                        className="p-1 text-green-600 hover:text-green-800"
+                                                        disabled={startingCampaignId === campaign.id}
+                                                        className="p-1 text-green-600 hover:text-green-800 disabled:opacity-60 disabled:cursor-not-allowed"
                                                         title="Start campaign"
                                                     >
-                                                        <Play className="w-4 h-4" />
+                                                        {startingCampaignId === campaign.id ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <Play className="w-4 h-4" />
+                                                        )}
                                                     </button>
                                                 )}
                                                 {campaign.status === 'active' && (

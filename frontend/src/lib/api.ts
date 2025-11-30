@@ -1,12 +1,12 @@
 import axios from 'axios'
 
-// const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
-// const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com:8000'
-// const API_URL = 'https://4skale.com:8000'
+// const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5173'
+// const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5173:8000'
+// const API_URL = 'http://localhost:5173:8000'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  // const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5173'
   const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   if (window.location.protocol === 'https:' && url.startsWith('http://')) {
@@ -19,7 +19,7 @@ const FINAL_API_URL = getApiUrl()
 
 // Debug log
 console.log('🔧 API Configuration:', {
-  originalUrl: (import.meta as any).env?.VITE_API_URL || 'https://4skale.com',
+  originalUrl: (import.meta as any).env?.VITE_API_URL || 'http://localhost:5173',
   finalUrl: FINAL_API_URL,
   protocol: window.location.protocol
 })
@@ -464,6 +464,14 @@ export const upsellAPI = {
 }
 
 // Workflows API
+// Gmail API
+export const gmailAPI = {
+  getLatestEmails: (maxResults: number = 10, query?: string) =>
+    api.get('/api/gmail/latest', { params: { max_results: maxResults, query } }),
+  getStatus: () => api.get('/api/gmail/status'),
+  getReauthorizeUrl: () => api.get('/api/gmail/reauthorize'),
+}
+
 export const workflowsAPI = {
   // Get workflow by function
   getWorkflow: (functionName: string) => api.get('/api/workflows', { params: { function: functionName } }),

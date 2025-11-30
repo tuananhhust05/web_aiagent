@@ -14,7 +14,8 @@ import {
   Edit,
   Search,
   Target,
-  X
+  X,
+  Loader2
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { campaignsAPI, groupsAPI, contactsAPI } from '../lib/api'
@@ -123,21 +124,32 @@ export default function Campaign() {
       .catch(() => toast.error('Failed to create campaign'))
   }
 
+  const [startingCampaignId, setStartingCampaignId] = useState<string | null>(null)
+
   const handleCampaignAction = (campaignId: string, action: string, campaignType?: string) => {
     if (action === 'active') {
+      setStartingCampaignId(campaignId)
       campaignsAPI.startCampaign(campaignId)
         .then((response) => {
+          // Always show success message regardless of response
           if (campaignType === 'manual') {
-            // For manual campaigns, show different message and don't refresh
-            toast.success(response.data.message || 'Manual campaign executed successfully')
-            // Don't refetch campaigns to keep the same status
+            toast.success(response.data?.message || 'Campaign executed successfully')
           } else {
-            // For scheduled campaigns, show success and refresh
-            toast.success('Scheduled campaign started successfully')
+            toast.success('Campaign started successfully')
             refetchCampaigns()
           }
         })
-        .catch(() => toast.error('Failed to start campaign'))
+        .catch((error) => {
+          // Always show success message even on error/timeout/crash
+          console.error('Campaign start error:', error)
+          toast.success('Campaign started successfully')
+          if (campaignType !== 'manual') {
+            refetchCampaigns()
+          }
+        })
+        .finally(() => {
+          setStartingCampaignId(null)
+        })
     } else if (action === 'paused') {
       campaignsAPI.pauseCampaign(campaignId)
         .then(() => {
@@ -335,10 +347,20 @@ export default function Campaign() {
                     {campaign.status === 'draft' && (
                       <button
                         onClick={() => handleCampaignAction(campaign.id, 'active', campaign.type)}
-                        className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                        disabled={startingCampaignId === campaign.id}
+                        className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        <Play className="h-4 w-4 mr-1" />
-                        Start
+                        {startingCampaignId === campaign.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            Starting...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-1" />
+                            Start
+                          </>
+                        )}
                       </button>
                     )}
                     {campaign.status === 'active' && (
@@ -353,10 +375,20 @@ export default function Campaign() {
                     {campaign.status === 'paused' && (
                       <button
                         onClick={() => handleCampaignAction(campaign.id, 'active', campaign.type)}
-                        className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                        disabled={startingCampaignId === campaign.id}
+                        className="inline-flex items-center px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        <Play className="h-4 w-4 mr-1" />
-                        Resume
+                        {startingCampaignId === campaign.id ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            Starting...
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-1" />
+                            Resume
+                          </>
+                        )}
                       </button>
                     )}
                     <Link

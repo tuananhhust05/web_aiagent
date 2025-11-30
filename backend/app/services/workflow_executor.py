@@ -3,9 +3,13 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from bson import ObjectId
+import imaplib
+import email
+from email.header import decode_header
+from email.utils import parseaddr, parsedate_to_datetime
 
 from app.core.database import get_database
-from app.services.telegram_service import telegram_service
+from app.services.telegram_service import telegram_service, send_message_to_user
 from app.services.whatsapp_service import whatsapp_service
 from app.services.linkedin_service import linkedin_service
 from app.services.email_service import email_service
@@ -90,6 +94,193 @@ class WorkflowExecutor:
                 return node
         return None
     
+    def _decode_email_text(self, raw):
+        """Decode email header text."""
+        if raw is None:
+            return ""
+        decoded, enc = decode_header(raw)[0]
+        if isinstance(decoded, bytes):
+            return decoded.decode(enc if enc else "utf-8", errors="ignore")
+        return decoded
+    
+    def _get_email_body(self, msg):
+        """Extract email body from message."""
+        if msg.is_multipart():
+            for part in msg.walk():
+                if part.get_content_type() == "text/plain":
+                    return part.get_payload(decode=True).decode("utf-8", errors="ignore")
+        else:
+            return msg.get_payload(decode=True).decode("utf-8", errors="ignore")
+        return ""
+    
+    async def _fetch_email_responses(
+        self,
+        email_credentials: Dict,
+        contact_emails: List[str],
+        node_executed_at: datetime
+    ) -> List[Dict]:
+        """
+        Fetch email responses from IMAP server.
+        
+        Args:
+            email_credentials: Dict with email, app_password
+            contact_emails: List of contact email addresses to check
+            node_executed_at: When the email was sent (to filter recent emails)
+            
+        Returns:
+            List of email dicts with from, subject, body
+        """
+        try:
+            # Run IMAP operations in thread pool since imaplib is blocking
+            def _fetch_emails_sync():
+                IMAP_SERVER = "imap.gmail.com"  # Gmail
+                email_user = email_credentials.get("email")
+                app_password = email_credentials.get("app_password")
+                
+                if not email_user or not app_password:
+                    logger.error("❌ [EMAIL] Missing email credentials")
+                    return []
+                
+                mail = imaplib.IMAP4_SSL(IMAP_SERVER)
+                mail.login(email_user, app_password)
+                mail.select("INBOX")
+                
+                # Search for recent emails (last 10 to be safe)
+                result, data = mail.search(None, "ALL")
+                mail_ids = data[0].split()
+                latest_10 = mail_ids[-10:] if len(mail_ids) >= 10 else mail_ids
+                
+                emails = []
+                for i in latest_10[::-1]:  # Reverse to get newest first
+                    try:
+                        _, msg_data = mail.fetch(i, "(RFC822)")
+                        msg = email.message_from_bytes(msg_data[0][1])
+                        
+                        # Get sender email
+                        raw_from = msg.get("From")
+                        _, email_addr = parseaddr(raw_from)
+                        
+                        # Only process emails from contacts in campaign
+                        if email_addr.lower() not in [e.lower() for e in contact_emails]:
+                            continue
+                        
+                        subject = self._decode_email_text(msg.get("Subject"))
+                        body = self._get_email_body(msg)
+                        
+                        # Check if email is after node execution (with small buffer before)
+                        email_date = msg.get("Date")
+                        if email_date:
+                            try:
+                                email_datetime = parsedate_to_datetime(email_date)
+                                # Only include emails after node execution (with 1 minute buffer before)
+                                if email_datetime < (node_executed_at - timedelta(minutes=1)):
+                                    continue
+                            except:
+                                pass  # If date parsing fails, include the email anyway
+                        
+                        emails.append({
+                            "from": email_addr,
+                            "subject": subject,
+                            "body": body.strip()
+                        })
+                    except Exception as e:
+                        logger.warning(f"⚠️ [EMAIL] Error processing email {i}: {str(e)}")
+                        continue
+                
+                mail.close()
+                mail.logout()
+                return emails
+            
+            # Run blocking IMAP operations in thread pool
+            emails = await asyncio.to_thread(_fetch_emails_sync)
+            logger.info(f"📧 [EMAIL] Fetched {len(emails)} email responses from IMAP")
+            return emails
+            
+        except Exception as e:
+            logger.error(f"❌ [EMAIL] Failed to fetch email responses: {str(e)}")
+            return []
+    
+    async def _check_and_save_email_responses(
+        self,
+        campaign_id: str,
+        contact_id: str,
+        contact: Dict,
+        campaign: Dict,
+        node_executed_at: datetime
+    ) -> bool:
+        """
+        Check for email responses from IMAP and save to inbox_responses.
+        Returns True if response found and saved.
+        """
+        try:
+            # Get email credentials
+            email_credentials = await self._get_db().email_credentials.find_one({
+                "user_id": campaign.get("user_id")
+            })
+            
+            if not email_credentials:
+                logger.warning("⚠️ [EMAIL] Email credentials not found for checking responses")
+                return False
+            
+            # Get contact email
+            contact_email = contact.get("email")
+            if not contact_email:
+                logger.warning("⚠️ [EMAIL] Contact has no email address")
+                return False
+            
+            # Fetch email responses from IMAP
+            emails = await self._fetch_email_responses(
+                email_credentials,
+                [contact_email],
+                node_executed_at
+            )
+            
+            if not emails:
+                logger.info(f"📧 [EMAIL] No email responses found for {contact_email}")
+                return False
+            
+            # Save the first (newest) email response to inbox_responses
+            db = self._get_db()
+            for email_response in emails:
+                # Check if this response already exists
+                existing = await db.inbox_responses.find_one({
+                    "platform": "email",
+                    "contact": email_response["from"],
+                    "contact_id": contact_id,
+                    "campaign_id": campaign_id,
+                    "content": email_response["body"][:100]  # Match by first 100 chars
+                })
+                
+                if existing:
+                    logger.info(f"📧 [EMAIL] Email response already exists in inbox")
+                    continue
+                
+                # Create inbox response document
+                inbox_doc = {
+                    "_id": str(datetime.utcnow().timestamp()).replace(".", ""),
+                    "user_id": campaign.get("user_id"),
+                    "platform": "email",
+                    "contact": email_response["from"],
+                    "content": email_response["body"],
+                    "campaign_id": campaign_id,
+                    "contact_id": contact_id,
+                    "created_at": datetime.utcnow(),
+                }
+                
+                await db.inbox_responses.insert_one(inbox_doc)
+                logger.info(
+                    f"✅ [EMAIL] Saved email response to inbox: from={email_response['from']}, "
+                    f"subject={email_response['subject'][:50]}"
+                )
+                print(f"✅ [EMAIL] Email response saved: {email_response['from']} - {email_response['subject'][:50]}")
+                return True
+            
+            return False
+            
+        except Exception as e:
+            logger.error(f"❌ [EMAIL] Failed to check and save email responses: {str(e)}")
+            return False
+    
     async def _check_response(
         self, 
         campaign_id: str, 
@@ -153,6 +344,13 @@ class WorkflowExecutor:
                 whatsapp_number = contact.get("whatsapp_number") or contact.get("phone")
                 if whatsapp_number:
                     contact_field_query["contact"] = whatsapp_number
+                    if campaign_id:
+                        contact_field_query["campaign_id"] = campaign_id
+                    or_conditions.append(contact_field_query)
+            elif platform == "email":
+                contact_email = contact.get("email")
+                if contact_email:
+                    contact_field_query["contact"] = contact_email
                     if campaign_id:
                         contact_field_query["campaign_id"] = campaign_id
                     or_conditions.append(contact_field_query)
@@ -229,12 +427,27 @@ class WorkflowExecutor:
             elif channel == 'telegram':
                 telegram_username = contact.get("telegram_username")
                 if telegram_username:
-                    result = await telegram_service.send_message_to_contact(
-                        telegram_username,
-                        call_script,
-                        user_id=campaign.get("user_id")
+                    # Kiểm tra và thêm @ nếu chưa có
+                    if not telegram_username.startswith('@'):
+                        telegram_username = f"@{telegram_username}"
+                        logger.info(f"📝 [WORKFLOW] Added @ prefix to telegram_username: {telegram_username}")
+                    
+                    user_id = campaign.get("user_id")
+                    logger.info(f"📤 [WORKFLOW] Sending Telegram message to {telegram_username} for contact {name} (user_id: {user_id})")
+                    
+                    # Sử dụng hàm send_message_to_user thay vì API call
+                    success = await send_message_to_user(
+                        recipient=telegram_username,
+                        message=call_script,
+                        user_id=user_id
                     )
-                    return result.get("success", False)
+                    
+                    if success:
+                        logger.info(f"✅ [WORKFLOW] Telegram message sent successfully to {name} ({telegram_username})")
+                    else:
+                        logger.error(f"❌ [WORKFLOW] Failed to send Telegram message to {name} ({telegram_username})")
+                    
+                    return success
                 else:
                     logger.warning(f"⚠️ [WORKFLOW] Contact {name} has no Telegram username")
                     return False
@@ -385,6 +598,17 @@ class WorkflowExecutor:
             # Wait for max_no_response_time
             logger.info(f"⏳ [WORKFLOW] Waiting {max_wait_time} seconds for response...")
             await asyncio.sleep(max_wait_time)
+            
+            # For email nodes, check IMAP for responses and save to inbox_responses
+            if node_type == "email":
+                logger.info(f"📧 [WORKFLOW] Checking email responses from IMAP for {name}...")
+                await self._check_and_save_email_responses(
+                    campaign_id,
+                    contact_id,
+                    contact,
+                    campaign,
+                    node_executed_at
+                )
             
             # Check for response - use node_type directly as platform
             # Example: node_type="telegram" → platform="telegram"

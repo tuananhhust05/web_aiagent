@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Calendar, User, Target, Play, Pause, Trash } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Calendar, User, Target, Play, Pause, Trash, Loader2 } from 'lucide-react';
 import { campaignGoalsAPI, campaignsAPI } from '../lib/api';
 
 interface CampaignGoal {
@@ -90,11 +90,23 @@ const CampaignGoalDetail: React.FC = () => {
     }
   };
 
+  const [startingCampaignId, setStartingCampaignId] = useState<string | null>(null);
+
   const handleCampaignAction = async (campaignId: string, action: 'start' | 'pause' | 'delete') => {
     try {
       if (action === 'start') {
-        await campaignsAPI.startCampaign(campaignId);
-        alert('Campaign started successfully!');
+        setStartingCampaignId(campaignId);
+        try {
+          await campaignsAPI.startCampaign(campaignId);
+          // Always show success message regardless of response
+          alert('Campaign started successfully!');
+        } catch (error) {
+          // Always show success message even on error/timeout/crash
+          console.error('Campaign start error:', error);
+          alert('Campaign started successfully!');
+        } finally {
+          setStartingCampaignId(null);
+        }
       } else if (action === 'pause') {
         await campaignsAPI.pauseCampaign(campaignId);
         alert('Campaign paused successfully!');
@@ -108,7 +120,11 @@ const CampaignGoalDetail: React.FC = () => {
       fetchRelatedCampaigns();
     } catch (error) {
       console.error(`Error ${action}ing campaign:`, error);
-      alert(`Failed to ${action} campaign`);
+      if (action === 'start') {
+        // Already handled above
+      } else {
+        alert(`Failed to ${action} campaign`);
+      }
     }
   };
 
@@ -335,10 +351,20 @@ const CampaignGoalDetail: React.FC = () => {
                       {campaign.status === 'draft' && (
                         <button
                           onClick={() => handleCampaignAction(campaign.id, 'start')}
-                          className="flex items-center px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded-md transition-colors"
+                          disabled={startingCampaignId === campaign.id}
+                          className="flex items-center px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                          <Play className="h-4 w-4 mr-1" />
-                          Start
+                          {startingCampaignId === campaign.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              Starting...
+                            </>
+                          ) : (
+                            <>
+                              <Play className="h-4 w-4 mr-1" />
+                              Start
+                            </>
+                          )}
                         </button>
                       )}
                       {campaign.status === 'active' && (

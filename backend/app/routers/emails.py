@@ -110,6 +110,40 @@ async def get_emails_simple():
         }
 
 
+@router.get("/credentials", response_model=EmailCredentialsResponse)
+async def get_email_credentials(
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Get email credentials for the current user"""
+    try:
+        db = get_database()
+        
+        credentials = await db.email_credentials.find_one({"user_id": current_user.id})
+        
+        if not credentials:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Email credentials not found"
+            )
+        
+        return EmailCredentialsResponse(
+            id=str(credentials["_id"]),
+            email=credentials["email"],
+            from_name=credentials.get("from_name"),
+            created_at=credentials["created_at"],
+            updated_at=credentials["updated_at"]
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting email credentials: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get email credentials: {str(e)}"
+        )
+
+
 @router.get("/{email_id}", response_model=EmailResponse)
 async def get_email(
     email_id: str,
@@ -770,37 +804,4 @@ async def save_email_credentials(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to save email credentials: {str(e)}"
-        )
-
-@router.get("/credentials", response_model=EmailCredentialsResponse)
-async def get_email_credentials(
-    current_user: UserResponse = Depends(get_current_active_user)
-):
-    """Get email credentials for the current user"""
-    try:
-        db = get_database()
-        
-        credentials = await db.email_credentials.find_one({"user_id": current_user.id})
-        
-        if not credentials:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Email credentials not found"
-            )
-        
-        return EmailCredentialsResponse(
-            id=str(credentials["_id"]),
-            email=credentials["email"],
-            from_name=credentials.get("from_name"),
-            created_at=credentials["created_at"],
-            updated_at=credentials["updated_at"]
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error getting email credentials: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get email credentials: {str(e)}"
         )

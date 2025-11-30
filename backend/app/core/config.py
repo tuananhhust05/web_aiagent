@@ -44,14 +44,14 @@ class Settings(BaseSettings):
     VALIDATE_CERTS: bool = True
     
     # Frontend URL for password reset
-    FRONTEND_URL: str = "https://4skale.com"
+    FRONTEND_URL: str = "http://localhost:5173"
     
     # Twilio Configuration
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_PHONE_NUMBER: str = "+16075249116"
-    TWILIO_WEBHOOK_URL: str = "https://4skale.com/outbound-twiml"
-    TWILIO_STATUS_CALLBACK_URL: str = "https://4skale.com/twilio/status-callback"
+    TWILIO_WEBHOOK_URL: str = "http://localhost:5173/outbound-twiml"
+    TWILIO_STATUS_CALLBACK_URL: str = "http://localhost:5173/twilio/status-callback"
     
     # External AI Call API Configuration
     AI_CALL_API_URL: str = "http://54.79.147.183:5059/outbound-call"

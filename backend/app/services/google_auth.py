@@ -74,22 +74,39 @@ class GoogleAuthService:
     
     def get_google_auth_url(self, state: Optional[str] = None) -> str:
         """
-        Generate Google OAuth authorization URL
+        Generate Google OAuth authorization URL with Gmail scopes
+        This will ALWAYS show consent screen to request Gmail permissions
         """
+        # Include Gmail scopes for reading and sending emails
+        scopes = [
+            "openid",
+            "email",
+            "profile",
+            "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/gmail.readonly"
+        ]
+        scope_string = " ".join(scopes)
+        
+        # Log scopes for debugging
+        logger.info(f"🔐 [GOOGLE_OAUTH] Generating auth URL with scopes: {scopes}")
+        
         params = {
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
-            "scope": "openid email profile",
+            "scope": scope_string,
             "response_type": "code",
-            "access_type": "offline",
-            "prompt": "consent"
+            "access_type": "offline",  # Required to get refresh_token
+            "prompt": "select_account consent"  # Force account selection AND consent screen to show Gmail permissions
         }
         
         if state:
             params["state"] = state
         
         query_string = "&".join([f"{k}={v}" for k, v in params.items()])
-        return f"https://accounts.google.com/o/oauth2/auth?{query_string}"
+        auth_url = f"https://accounts.google.com/o/oauth2/auth?{query_string}"
+        
+        logger.info(f"🔐 [GOOGLE_OAUTH] Generated auth URL (length: {len(auth_url)})")
+        return auth_url
 
 # Create global instance
 google_auth_service = GoogleAuthService()

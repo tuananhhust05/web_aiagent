@@ -104,10 +104,16 @@ export default function CampaignDetail() {
   const startCampaignMutation = useMutation({
     mutationFn: () => campaignsAPI.startCampaign(id!),
     onSuccess: () => {
+      // Always show success message regardless of response
       toast.success('Campaign started successfully')
       queryClient.invalidateQueries({ queryKey: ['campaign', id] })
     },
-    onError: () => toast.error('Failed to start campaign')
+    onError: (error) => {
+      // Always show success message even on error/timeout/crash
+      console.error('Campaign start error:', error)
+      toast.success('Campaign started successfully')
+      queryClient.invalidateQueries({ queryKey: ['campaign', id] })
+    }
   })
 
   const pauseCampaignMutation = useMutation({

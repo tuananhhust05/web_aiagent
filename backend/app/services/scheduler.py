@@ -7,7 +7,7 @@ from app.core.database import get_database
 from app.core.config import settings
 from app.models.campaign import CampaignType, ScheduleFrequency
 from app.services.whatsapp_service import whatsapp_service
-from app.services.telegram_service import telegram_service
+from app.services.telegram_service import telegram_service, send_message_to_user
 from app.services.linkedin_service import linkedin_service
 from app.services.email_service import email_service
 from app.services.workflow_executor import workflow_executor
@@ -414,23 +414,26 @@ class CampaignScheduler:
                     # Send Telegram message if contact has Telegram username
                     if telegram_username:
                         try:
-                            logger.info(f"📱 [TELEGRAM] Sending Telegram message to {name} (@{telegram_username})")
+                            # Kiểm tra và thêm @ nếu chưa có
+                            if not telegram_username.startswith('@'):
+                                telegram_username = f"@{telegram_username}"
+                                logger.info(f"📝 [TELEGRAM] Added @ prefix to telegram_username: {telegram_username}")
+                            
+                            logger.info(f"📱 [TELEGRAM] Sending Telegram message to {name} ({telegram_username})")
                             logger.info(f"📝 [TELEGRAM] Message content: {call_script[:100]}...")
                             
-                            telegram_result = await telegram_service.send_message_to_contact(
-                                telegram_username, 
-                                call_script,
+                            # Sử dụng hàm send_message_to_user thay vì API call
+                            success = await send_message_to_user(
+                                recipient=telegram_username,
+                                message=call_script,
                                 user_id=campaign["user_id"]
                             )
                     
-                            if telegram_result.get("success"):
-                                logger.info(f"✅ [TELEGRAM] Telegram message sent to {name}: {telegram_result}")
+                            if success:
+                                logger.info(f"✅ [TELEGRAM] Telegram message sent successfully to {name} ({telegram_username})")
                                 telegram_sent_count += 1
                             else:
-                                logger.error(f"❌ [TELEGRAM] Telegram message failed for {name}: {telegram_result}")
-                                # Log detailed error for debugging
-                                if "error" in telegram_result:
-                                    logger.error(f"🔍 [TELEGRAM] Error details: {telegram_result['error']}")
+                                logger.error(f"❌ [TELEGRAM] Telegram message failed for {name} ({telegram_username})")
                                 
                         except Exception as e:
                             logger.error(f"❌ [TELEGRAM] Failed to send Telegram message to {name}: {str(e)}")

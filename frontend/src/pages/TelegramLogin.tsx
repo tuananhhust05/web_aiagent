@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { telegramAPI } from '../lib/api'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
-import { CheckCircle2, Image as ImageIcon, Loader2, Info, AlertCircle } from 'lucide-react'
+import { CheckCircle2, Loader2, Info, AlertCircle } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
 type RequestStatus = 'idle' | 'loading' | 'success' | 'error'
@@ -9,13 +9,9 @@ type RequestStatus = 'idle' | 'loading' | 'success' | 'error'
 const TelegramLogin = () => {
   const { user } = useAuth()
   const userId = useMemo(() => user?.id || (user as any)?._id || '', [user])
-  const loginImageUrl = userId ? `https://4skale.com/image_profile_login/telegram_login_${userId}.png` : ''
 
   const [profileStatus, setProfileStatus] = useState<RequestStatus>('idle')
   const [loginStatus, setLoginStatus] = useState<RequestStatus>('idle')
-  const [imageReady, setImageReady] = useState(false)
-  const [imageLoaded, setImageLoaded] = useState(false)
-  const [imageVersion, setImageVersion] = useState(0)
   const [apiId, setApiId] = useState('')
   const [apiHash, setApiHash] = useState('')
   const [phoneNumber, setPhoneNumber] = useState('')
@@ -43,9 +39,6 @@ const TelegramLogin = () => {
   const resetState = () => {
     setProfileStatus('idle')
     setLoginStatus('idle')
-    setImageReady(false)
-    setImageLoaded(false)
-    setImageVersion(0)
   }
 
   const createProfile = async () => {
@@ -145,32 +138,19 @@ const TelegramLogin = () => {
     }
   }
 
-  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
   const handleLogin = async () => {
     if (!userId || loginStatus === 'loading') return
     setLoginStatus('loading')
     try {
-      telegramAPI.login()
-      await sleep(10000)
-    } catch (error) {
-      // console.error('Failed to login Telegram', error)
-    } finally {
-      setImageReady(true)
-      for(let i = 0; i < 100; i++) {
-        reloadImage()
-        await sleep(4000)
-      }
+      await telegramAPI.login()
       setLoginStatus('success')
+    } catch (error) {
+      console.error('Failed to login Telegram', error)
+      setLoginStatus('error')
     }
   }
 
   const canLogin = profileStatus === 'success' && !!userId && isVerified
-
-  const reloadImage = () => {
-    setImageLoaded(false)
-    setImageVersion((prev) => prev + 1)
-  }
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -240,9 +220,10 @@ const TelegramLogin = () => {
             <div className="space-y-1 text-blue-800">
               <p className="font-semibold">Login Instructions:</p>
               <ul className="list-disc list-inside space-y-0.5 text-blue-700">
-                <li>Please wait approximately <strong>15 seconds</strong> after clicking Login for the system to generate the QR code.</li>
-                <li>You need to <strong>scan the QR code within 1 minute</strong> after it appears to successfully log in.</li>
-                <li>If the displayed image is not a QR code (e.g., a profile picture or other notification), this means you have already successfully logged in previously. You can <strong>proceed to create campaigns immediately</strong> without needing to log in again.</li>
+                <li>Enter your Telegram App API credentials (api_id and api_hash) and save them.</li>
+                <li>Enter your Telegram phone number (with country code) and request an OTP.</li>
+                <li>Enter the OTP code you receive in your Telegram app to verify and establish a session.</li>
+                <li>Once verified, you can <strong>proceed to create campaigns</strong> and send messages using the session.</li>
               </ul>
             </div>
           </div>
@@ -252,6 +233,16 @@ const TelegramLogin = () => {
                 <p className="text-sm font-semibold text-gray-900">Telegram App Credentials</p>
                 <p className="text-xs text-gray-500">
                   Provide your Telegram App API ID, API Hash, and Telegram phone number (with country code).
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  <a 
+                    href="https://core-telegram-org.translate.goog/api/obtaining_api_id?_x_tr_sl=en&_x_tr_tl=vi&_x_tr_hl=vi&_x_tr_pto=tc" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="underline hover:text-blue-700 font-medium"
+                  >
+                    📖 Guide to get App ID and App Hash
+                  </a>
                 </p>
               </div>
               {configLoading && (
@@ -384,46 +375,6 @@ const TelegramLogin = () => {
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-6 bg-gray-50">
-        <div className="w-full max-w-7xl">
-          {imageReady && loginImageUrl ? (
-            <div className="relative w-full aspect-square max-w-4xl mx-auto bg-white rounded-2xl border-2 border-gray-200 shadow-xl overflow-hidden">
-              {!imageLoaded && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/90 z-10">
-                  <LoadingSpinner size="lg" className="text-blue-600" />
-                </div>
-              )}
-              <div className="w-full h-full flex items-center justify-center overflow-hidden">
-                <img
-                  key={imageVersion}
-                  src={loginImageUrl}
-                  alt="Telegram login QR code"
-                  className="w-full h-full object-contain scale-120"
-                  style={{ transform: 'scale(1.2)', objectPosition: 'center' }}
-                  onLoad={() => setImageLoaded(true)}
-                  onError={() => setImageLoaded(true)}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="w-full max-w-4xl mx-auto aspect-square bg-white rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center">
-              <div className="text-center space-y-2">
-                <ImageIcon className="h-12 w-12 text-gray-400 mx-auto" />
-                <p className="text-gray-500 font-medium">
-                  {userId
-                    ? imageReady
-                      ? 'Preparing your login image...'
-                      : 'Press Login to load your Telegram QR code.'
-                    : 'User ID is required before the image can be loaded.'}
-                </p>
-                {loginImageUrl && (
-                  <p className="text-xs text-gray-400 mt-2 break-all px-4">{loginImageUrl}</p>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   )
 }

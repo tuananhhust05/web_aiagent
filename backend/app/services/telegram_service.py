@@ -1,7 +1,8 @@
 import aiohttp
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from app.core.config import settings
+from app.services.telegram_listener import telegram_listener
 import logging
 
 logger = logging.getLogger(__name__)
@@ -146,6 +147,56 @@ class TelegramService:
 
 # Create global instance
 telegram_service = TelegramService()
+
+
+async def send_message_to_user(recipient: str, message: str, user_id: Optional[str] = None) -> bool:
+    """
+    Send a message to a user or chat using Telegram client from session.
+    
+    :param recipient: username (str) hoặc user_id (int) hoặc chat_id
+    :param message: nội dung tin nhắn
+    :param user_id: User ID để lấy Telegram client từ session
+    :return: True nếu gửi thành công, False nếu thất bại
+    """
+    try:
+        if not user_id:
+            logger.error("❌ [TELEGRAM] user_id is required to get Telegram client from session")
+            return False
+        
+        # Đảm bảo user_id là string (telegram_listener sử dụng string keys)
+        user_id_str = str(user_id)
+        
+        # Lấy client từ telegram_listener
+        client = telegram_listener.clients.get(user_id_str)
+        if not client:
+            logger.error(f"❌ [TELEGRAM] Telegram client not found for user_id: {user_id_str}")
+            logger.info(f"📋 [TELEGRAM] Available clients: {list(telegram_listener.clients.keys())}")
+            return False
+        
+        # Kiểm tra xem client có đang kết nối không
+        if not client.is_connected():
+            logger.warning(f"⚠️ [TELEGRAM] Client not connected for user_id: {user_id_str}, attempting to connect...")
+            await client.connect()
+        
+        # Kiểm tra recipient có @ chưa, nếu chưa thì thêm vào
+        if recipient and not recipient.startswith('@'):
+            recipient = f"@{recipient}"
+            logger.info(f"📝 [TELEGRAM] Added @ prefix to recipient: {recipient}")
+        
+        logger.info(f"📤 [TELEGRAM] Sending message to {recipient} (user_id: {user_id_str})")
+        logger.info(f"📝 [TELEGRAM] Message content: {message[:100]}{'...' if len(message) > 100 else ''}")
+        
+        # Gửi tin nhắn
+        await client.send_message(recipient, message)
+        
+        logger.info(f"✅ [TELEGRAM] Message sent successfully to {recipient}")
+        print(f"✅ Message sent to {recipient}: {message[:50]}{'...' if len(message) > 50 else ''}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ [TELEGRAM] Failed to send message to {recipient}: {str(e)}")
+        print(f"❌ Failed to send message to {recipient}: {e}")
+        return False
 
 
 

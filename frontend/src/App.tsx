@@ -47,6 +47,7 @@ import Telegram from './pages/Telegram'
 import TelegramContacts from './pages/telegram/TelegramContacts'
 import TelegramContactNew from './pages/telegram/TelegramContactNew'
 import TelegramCampaign from './pages/telegram/TelegramCampaign'
+import LatestMail from './pages/LatestMail'
 import ConventionActivities from './pages/ConventionActivities'
 import Deals from './pages/Deals'
 import Renewals from './pages/Renewals'
@@ -122,6 +123,7 @@ function App() {
             <Route path="/emails/create" element={<EmailCreate />} />
             <Route path="/emails/:id" element={<EmailDetail />} />
             <Route path="/email-login" element={<EmailLogin />} />
+            <Route path="/latest-mail" element={<LatestMail />} />
             <Route path="/whatsapp" element={<WhatsApp />} />
             <Route path="/whatsapp/conversation/:id" element={<WhatsAppConversation />} />
             <Route path="/whatsapp-login" element={<WhatsAppLogin />} />

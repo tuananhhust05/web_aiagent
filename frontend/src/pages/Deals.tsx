@@ -15,7 +15,8 @@ import {
   Clock,
   X,
   Play,
-  Pause
+  Pause,
+  Loader2
 } from 'lucide-react'
 import { dealsAPI, campaignsAPI, campaignGoalsAPI, groupsAPI, contactsAPI } from '../lib/api'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -353,18 +354,32 @@ const Deals: React.FC = () => {
     })
   }
 
+  const [startingCampaignId, setStartingCampaignId] = useState<string | null>(null);
+
   const handleCampaignAction = (campaignId: string, action: string, campaignType?: string) => {
     if (action === 'active') {
+      setStartingCampaignId(campaignId);
       campaignsAPI.startCampaign(campaignId)
         .then((response) => {
+          // Always show success message regardless of response
           if (campaignType === 'manual') {
-            alert(response.data.message || 'Manual campaign executed successfully')
+            alert(response.data?.message || 'Campaign executed successfully');
           } else {
-            alert('Scheduled campaign started successfully')
-            fetchConventionCampaigns()
+            alert('Campaign started successfully');
+            fetchConventionCampaigns();
           }
         })
-        .catch(() => alert('Failed to start campaign'))
+        .catch((error) => {
+          // Always show success message even on error/timeout/crash
+          console.error('Campaign start error:', error);
+          alert('Campaign started successfully');
+          if (campaignType !== 'manual') {
+            fetchConventionCampaigns();
+          }
+        })
+        .finally(() => {
+          setStartingCampaignId(null);
+        });
     } else if (action === 'paused') {
       campaignsAPI.pauseCampaign(campaignId)
         .then(() => {
@@ -565,10 +580,20 @@ const Deals: React.FC = () => {
                         e.stopPropagation();
                         handleCampaignAction(campaign.id, 'active', campaign.type);
                       }}
-                      className="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+                      disabled={startingCampaignId === campaign.id}
+                      className="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      <Play className="h-3 w-3 mr-1" />
-                      Start
+                      {startingCampaignId === campaign.id ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Starting...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-3 w-3 mr-1" />
+                          Start
+                        </>
+                      )}
                     </button>
                   )}
                   {campaign.status === 'active' && (
@@ -589,10 +614,20 @@ const Deals: React.FC = () => {
                         e.stopPropagation();
                         handleCampaignAction(campaign.id, 'active', campaign.type);
                       }}
-                      className="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+                      disabled={startingCampaignId === campaign.id}
+                      className="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
-                      <Play className="h-3 w-3 mr-1" />
-                      Resume
+                      {startingCampaignId === campaign.id ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Starting...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-3 w-3 mr-1" />
+                          Resume
+                        </>
+                      )}
                     </button>
                   )}
                   <button

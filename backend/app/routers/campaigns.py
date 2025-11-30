@@ -19,7 +19,7 @@ from app.models.campaign import (
     CampaignContactsResponse,
     CampaignGroupContacts
 )
-from app.services.telegram_service import telegram_service
+from app.services.telegram_service import telegram_service, send_message_to_user
 from app.services.whatsapp_service import whatsapp_service
 from app.services.linkedin_service import linkedin_service
 from app.services.email_service import email_service
@@ -378,12 +378,15 @@ async def start_campaign(
         telegram_sent_count = 0
         linkedin_sent_count = 0
         email_sent_count = 0
+        nodes_to_execute = []  # Initialize to avoid UnboundLocalError
         
         if all_contact_ids and contacts:
             call_script = campaign.get("call_script", settings.AI_CALL_DEFAULT_PROMPT)
             
             # Use WorkflowExecutor if workflow exists with nodes
             if workflow and workflow.get("nodes") and len(workflow.get("nodes", [])) > 0:
+                # Extract node types for summary
+                nodes_to_execute = [node.get('type') for node in workflow.get('nodes', [])]
                 print(f"📋 Using workflow executor with response-based routing from source '{campaign_source}'")
                 print(f"🔄 Workflow nodes: {[node.get('type') for node in workflow.get('nodes', [])]}")
                 
@@ -456,22 +459,26 @@ async def start_campaign(
                             # Send Telegram message if contact has Telegram username
                             if telegram_username:
                                 try:
-                                    print(f"📱 Sending Telegram message to {name} (@{telegram_username})")
+                                    # Kiểm tra và thêm @ nếu chưa có
+                                    if not telegram_username.startswith('@'):
+                                        telegram_username = f"@{telegram_username}"
+                                        print(f"📝 Added @ prefix to telegram_username: {telegram_username}")
+                                    
+                                    print(f"📱 Sending Telegram message to {name} ({telegram_username})")
                                     print(f"📝 Message content: {call_script[:100]}...")
                                     
-                                    telegram_result = await telegram_service.send_message_to_contact(
-                                        telegram_username, 
-                                        call_script,
+                                    # Sử dụng hàm send_message_to_user thay vì API call
+                                    success = await send_message_to_user(
+                                        recipient=telegram_username,
+                                        message=call_script,
                                         user_id=current_user.id
                                     )
                                 
-                                    if telegram_result.get("success"):
-                                        print(f"✅ Telegram message sent to {name}: {telegram_result}")
+                                    if success:
+                                        print(f"✅ Telegram message sent successfully to {name} ({telegram_username})")
                                         telegram_sent_count += 1
                                     else:
-                                        print(f"❌ Telegram message failed for {name}: {telegram_result}")
-                                        if "error" in telegram_result:
-                                            print(f"🔍 Error details: {telegram_result['error']}")
+                                        print(f"❌ Telegram message failed for {name} ({telegram_username})")
                                         
                                 except Exception as e:
                                     print(f"❌ Failed to send Telegram message to {name}: {str(e)}")
@@ -647,9 +654,15 @@ async def start_campaign(
         summary_message += ", ".join(summary_parts) if summary_parts else "No actions executed"
         print(summary_message)
         
+        # Build response message based on execution type
+        if nodes_to_execute:
+            message = f"Manual campaign executed successfully. Executed {len(nodes_to_execute)} nodes sequentially with 1 minute delay between nodes."
+        else:
+            message = "Manual campaign executed successfully."
+        
         return {
-            "message": f"Manual campaign executed successfully. Executed {len(nodes_to_execute)} nodes sequentially with 1 minute delay between nodes.",
-            "nodes_executed": nodes_to_execute,
+            "message": message,
+            "nodes_executed": nodes_to_execute if nodes_to_execute else [],
             "summary": {
                 "total_contacts": len(all_contact_ids),
                 "calls_made": calls_made_count,

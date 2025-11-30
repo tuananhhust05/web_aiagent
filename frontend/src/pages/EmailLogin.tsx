@@ -8,6 +8,7 @@ const EmailLogin = () => {
   const [fromName, setFromName] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadingCredentials, setLoadingCredentials] = useState(true)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [existingCredentials, setExistingCredentials] = useState<{ email: string; from_name?: string } | null>(null)
@@ -17,6 +18,7 @@ const EmailLogin = () => {
   }, [])
 
   const loadExistingCredentials = async () => {
+    setLoadingCredentials(true)
     try {
       const response = await emailsAPI.getCredentials()
       if (response.data) {
@@ -26,12 +28,20 @@ const EmailLogin = () => {
         })
         setEmail(response.data.email)
         setFromName(response.data.from_name || '')
+        console.log('✅ Loaded existing credentials:', {
+          email: response.data.email,
+          from_name: response.data.from_name
+        })
       }
     } catch (error: any) {
       // If 404, no credentials exist yet - that's fine
       if (error.response?.status !== 404) {
         console.error('Failed to load existing credentials', error)
+      } else {
+        console.log('No existing credentials found - user needs to configure')
       }
+    } finally {
+      setLoadingCredentials(false)
     }
   }
 
@@ -69,6 +79,19 @@ const EmailLogin = () => {
     }
   }
 
+  if (loadingCredentials) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-md">
+          <div className="flex flex-col items-center justify-center space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+            <p className="text-sm text-gray-500">Loading email configuration...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
       <div className="bg-white shadow-xl rounded-2xl p-8 w-full max-w-md">
@@ -79,7 +102,9 @@ const EmailLogin = () => {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Email Login</h1>
             <p className="text-sm text-gray-500">
-              Enter your email and app password to configure email sending
+              {existingCredentials 
+                ? 'Update your email configuration' 
+                : 'Enter your email and app password to configure email sending'}
             </p>
           </div>
 
@@ -87,10 +112,13 @@ const EmailLogin = () => {
             <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 flex items-center gap-2 text-sm text-emerald-700">
               <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
               <div>
-                <span>Credentials saved for: <strong>{existingCredentials.email}</strong></span>
+                <span>Current configuration: <strong>{existingCredentials.email}</strong></span>
                 {existingCredentials.from_name && (
                   <span className="block text-xs mt-1">From Name: <strong>{existingCredentials.from_name}</strong></span>
                 )}
+                <span className="block text-xs mt-1 text-emerald-600">
+                  Enter your app password below to update credentials
+                </span>
               </div>
             </div>
           )}
@@ -159,7 +187,15 @@ const EmailLogin = () => {
                 </button>
               </div>
               <p className="mt-1 text-xs text-gray-500">
-                For Gmail, generate an app password from your Google Account settings
+                For Gmail, generate an app password from your Google Account settings.{' '}
+                <a 
+                  href="https://support.google.com/mail/answer/185833?hl=en" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 underline hover:text-blue-700 font-medium"
+                >
+                  📖 Guide to get App Password
+                </a>
               </p>
             </div>
 
@@ -199,6 +235,16 @@ const EmailLogin = () => {
               <li>For Gmail, use an app password (not your regular password)</li>
               <li>You can update your credentials at any time</li>
             </ul>
+            <p className="mt-2 text-blue-700">
+              <a 
+                href="https://support.google.com/mail/answer/185833?hl=en" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-blue-600 underline hover:text-blue-800 font-medium"
+              >
+                📖 Guide to get Gmail App Password
+              </a>
+            </p>
           </div>
         </div>
       </div>

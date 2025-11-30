@@ -50,6 +50,7 @@ const moreFunctionsNavigation: NavigationItem[] = [
   { name: 'Calls Dashboard', href: '/calls-dashboard', icon: BarChart3 },
   { name: 'Email Marketing', href: '/emails', icon: Mail },
   { name: 'Email Login', href: '/email-login', icon: Mail },
+  { name: 'Latest Mail', href: '/latest-mail', icon: Mail },
   { name: 'WhatsApp Chatbot', href: '/whatsapp', icon: MessageCircle },
   { name: 'WhatsApp Login', href: '/whatsapp-login', icon: LogIn },
   { name: 'Telegram Campaigns', href: '/telegram', icon: Send },
