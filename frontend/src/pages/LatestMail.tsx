@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Mail, RefreshCw, AlertCircle, Calendar, User, FileText, Loader2, CheckCircle } from 'lucide-react'
+import { Mail, RefreshCw, AlertCircle, Calendar, User, Loader2, CheckCircle } from 'lucide-react'
 import { gmailAPI } from '../lib/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
