@@ -8,7 +8,7 @@ from app.models.user import UserResponse
 router = APIRouter(prefix="/api/whatsapp", tags=["whatsapp"])
 
 # WhatsApp external API base URL
-WHATSAPP_API_BASE = "http://54.79.147.183:8501"
+WHATSAPP_API_BASE = "http://13.236.136.21:8501"
 WHATSAPP_LOGIN_API_BASE = "http://3.106.56.62:8000"
 
 
