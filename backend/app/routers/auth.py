@@ -149,6 +149,10 @@ async def forgot_password(password_reset: PasswordReset):
 async def reset_password(password_reset: PasswordResetConfirm):
     db = get_database()
     
+    logger.info("🔐 [RESET_PASSWORD] Incoming reset password request")
+    logger.info(f"   Token (first 10 chars): {password_reset.token[:10] if password_reset.token else 'None'}")
+    logger.info(f"   New password length: {len(password_reset.new_password) if password_reset.new_password else 0}")
+    
     # Find user with valid reset token
     user = await db.users.find_one({
         "reset_token": password_reset.token,
@@ -156,10 +160,14 @@ async def reset_password(password_reset: PasswordResetConfirm):
     })
     
     if not user:
+        logger.warning("⚠️ [RESET_PASSWORD] No user found with valid reset token")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired reset token"
         )
+    
+    logger.info(f"✅ [RESET_PASSWORD] Found user for token: {user.get('email')} (id={user.get('_id')})")
+    logger.info("🔐 [RESET_PASSWORD] Updating password and clearing reset token...")
     
     # Update password and clear reset token
     await db.users.update_one(

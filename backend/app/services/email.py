@@ -31,6 +31,7 @@ async def send_password_reset_email(email: str, reset_token: str, username: str 
         
         # Create reset link
         reset_link = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+        print(f"   Raw reset token: {reset_token}")
         print(f"   Reset Link: {reset_link}")
         
         # Email body
