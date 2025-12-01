@@ -63,20 +63,20 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (credentials: { email: string; password: string }) =>
     api.post('/api/auth/login', credentials),
-  register: (userData: any) => api.post('/api/auth/register', userData),
+  register: (userData: any) => api.post('/auth/register', userData),
   forgotPassword: (email: string) =>
-    api.post('/api/auth/forgot-password', { email }),
+    api.post('/auth/forgot-password', { email }),
   resetPassword: (token: string, newPassword: string) =>
-    api.post('/api/auth/reset-password', { token, new_password: newPassword }),
+    api.post('/auth/reset-password', { token, new_password: newPassword }),
   changePassword: (data: { current_password: string; new_password: string }) =>
-    api.post('/api/auth/change-password', data),
-  acceptTerms: () => api.post('/api/auth/accept-terms'),
-  gdprConsent: () => api.post('/api/auth/gdpr-consent'),
+    api.post('/auth/change-password', data),
+  acceptTerms: () => api.post('/auth/accept-terms'),
+  gdprConsent: () => api.post('/auth/gdpr-consent'),
   // Google OAuth
-  getGoogleAuthUrl: () => api.get('/api/auth/google/login'),
-  googleCallback: (data: { code: string; state?: string }) => api.post('/api/auth/google/callback', data),
-  getGoogleUserInfo: () => api.get('/api/auth/google/user-info'),
-  getMe: () => api.get('/api/auth/me'),
+  getGoogleAuthUrl: () => api.get('/auth/google/login'),
+  googleCallback: (data: { code: string; state?: string }) => api.post('/auth/google/callback', data),
+  getGoogleUserInfo: () => api.get('/auth/google/user-info'),
+  getMe: () => api.get('/auth/me'),
 }
 
 // User API
