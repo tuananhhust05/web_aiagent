@@ -119,6 +119,17 @@ async def forgot_password(password_reset: PasswordReset):
         }
     )
     
+    # Print email configuration before sending
+    logger.info("📧 [FORGOT_PASSWORD] Email configuration:")
+    logger.info(f"   MAIL_SERVER: {settings.MAIL_SERVER}")
+    logger.info(f"   MAIL_PORT: {settings.MAIL_PORT}")
+    logger.info(f"   MAIL_FROM: {settings.MAIL_FROM}")
+    logger.info(f"   MAIL_USERNAME: {settings.MAIL_USERNAME}")
+    logger.info(f"   MAIL_PASSWORD: {'*' * len(settings.MAIL_PASSWORD) if settings.MAIL_PASSWORD else 'NOT SET'}")
+    logger.info(f"   FRONTEND_URL: {settings.FRONTEND_URL}")
+    logger.info(f"   Recipient: {password_reset.email}")
+    logger.info(f"   Reset Token: {reset_token[:10]}...")
+    
     # Send password reset email
     email_sent = await send_password_reset_email(
         email=password_reset.email,

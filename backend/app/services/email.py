@@ -13,6 +13,16 @@ def generate_reset_token(length: int = 32) -> str:
 async def send_password_reset_email(email: str, reset_token: str, username: str = None) -> bool:
     """Send password reset email to user"""
     try:
+        # Print email configuration
+        print("📧 [EMAIL_SERVICE] Email configuration before sending:")
+        print(f"   SMTP Server: {settings.MAIL_SERVER}")
+        print(f"   SMTP Port: {settings.MAIL_PORT}")
+        print(f"   From: {settings.MAIL_FROM}")
+        print(f"   To: {email}")
+        print(f"   Username: {settings.MAIL_USERNAME}")
+        print(f"   Password: {'*' * len(settings.MAIL_PASSWORD) if settings.MAIL_PASSWORD else 'NOT SET'}")
+        print(f"   Frontend URL: {settings.FRONTEND_URL}")
+        
         # Create message
         msg = MIMEMultipart()
         msg['From'] = settings.MAIL_FROM
@@ -21,6 +31,7 @@ async def send_password_reset_email(email: str, reset_token: str, username: str 
         
         # Create reset link
         reset_link = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+        print(f"   Reset Link: {reset_link}")
         
         # Email body
         body = f"""
@@ -76,19 +87,28 @@ async def send_password_reset_email(email: str, reset_token: str, username: str 
         msg.attach(MIMEText(body, 'html'))
         
         # Create SMTP session
+        print(f"📧 [EMAIL_SERVICE] Connecting to SMTP server {settings.MAIL_SERVER}:{settings.MAIL_PORT}...")
         server = smtplib.SMTP(settings.MAIL_SERVER, settings.MAIL_PORT)
+        print("📧 [EMAIL_SERVICE] Starting TLS...")
         server.starttls()
         
         # Login
+        print(f"📧 [EMAIL_SERVICE] Logging in with username: {settings.MAIL_USERNAME}")
         server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
+        print("📧 [EMAIL_SERVICE] Login successful!")
         
         # Send email
+        print(f"📧 [EMAIL_SERVICE] Sending email to {email}...")
         text = msg.as_string()
         server.sendmail(settings.MAIL_FROM, email, text)
         server.quit()
+        print("📧 [EMAIL_SERVICE] Email sent successfully!")
         
         return True
         
     except Exception as e:
-        print(f"Error sending email: {e}")
+        print(f"❌ [EMAIL_SERVICE] Error sending email: {e}")
+        print(f"❌ [EMAIL_SERVICE] Error type: {type(e).__name__}")
+        import traceback
+        print(f"❌ [EMAIL_SERVICE] Traceback:\n{traceback.format_exc()}")
         return False
