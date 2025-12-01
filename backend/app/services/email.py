@@ -15,17 +15,17 @@ async def send_password_reset_email(email: str, reset_token: str, username: str 
     try:
         # Print email configuration
         print("📧 [EMAIL_SERVICE] Email configuration before sending:")
-        print(f"   SMTP Server: {settings.MAIL_SERVER}")
-        print(f"   SMTP Port: {settings.MAIL_PORT}")
-        print(f"   From: {settings.MAIL_FROM}")
+        print(f"   SMTP Server: {settings.SMTP_HOST}")
+        print(f"   SMTP Port: {settings.SMTP_PORT}")
+        print(f"   From: {settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>")
         print(f"   To: {email}")
-        print(f"   Username: {settings.MAIL_USERNAME}")
-        print(f"   Password: {'*' * len(settings.MAIL_PASSWORD) if settings.MAIL_PASSWORD else 'NOT SET'}")
+        print(f"   Username: {settings.SMTP_USER}")
+        print(f"   Password: {'*' * len(settings.SMTP_PASS) if settings.SMTP_PASS else 'NOT SET'}")
         print(f"   Frontend URL: {settings.FRONTEND_URL}")
         
         # Create message
         msg = MIMEMultipart()
-        msg['From'] = settings.MAIL_FROM
+        msg['From'] = f"{settings.SMTP_FROM_NAME} <{settings.SMTP_FROM_EMAIL}>"
         msg['To'] = email
         msg['Subject'] = "Password Reset Request - AgentVoice"
         
@@ -87,20 +87,20 @@ async def send_password_reset_email(email: str, reset_token: str, username: str 
         msg.attach(MIMEText(body, 'html'))
         
         # Create SMTP session
-        print(f"📧 [EMAIL_SERVICE] Connecting to SMTP server {settings.MAIL_SERVER}:{settings.MAIL_PORT}...")
-        server = smtplib.SMTP(settings.MAIL_SERVER, settings.MAIL_PORT)
+        print(f"📧 [EMAIL_SERVICE] Connecting to SMTP server {settings.SMTP_HOST}:{settings.SMTP_PORT}...")
+        server = smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT)
         print("📧 [EMAIL_SERVICE] Starting TLS...")
         server.starttls()
         
         # Login
-        print(f"📧 [EMAIL_SERVICE] Logging in with username: {settings.MAIL_USERNAME}")
-        server.login(settings.MAIL_USERNAME, settings.MAIL_PASSWORD)
+        print(f"📧 [EMAIL_SERVICE] Logging in with username: {settings.SMTP_USER}")
+        server.login(settings.SMTP_USER, settings.SMTP_PASS)
         print("📧 [EMAIL_SERVICE] Login successful!")
         
         # Send email
         print(f"📧 [EMAIL_SERVICE] Sending email to {email}...")
         text = msg.as_string()
-        server.sendmail(settings.MAIL_FROM, email, text)
+        server.sendmail(settings.SMTP_FROM_EMAIL, email, text)
         server.quit()
         print("📧 [EMAIL_SERVICE] Email sent successfully!")
         

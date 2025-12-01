@@ -244,16 +244,16 @@ async def gdpr_consent(current_user: UserResponse = Depends(get_current_active_u
 @router.get("/google/login")
 async def google_login():
     """
-    Get Google OAuth authorization URL with Gmail scopes
-    This will show consent screen requesting Gmail permissions
+    Get Google OAuth authorization URL with BASIC scopes only
+    (no Gmail read/send permissions).
     """
     try:
         # Generate a random state for security
         state = secrets.token_urlsafe(32)
         auth_url = google_auth_service.get_google_auth_url(state=state)
         
-        print(f"🔐 [GOOGLE_OAUTH] Login endpoint called - generating auth URL with Gmail scopes")
-        print(f"🔐 [GOOGLE_OAUTH] Auth URL will request: openid, email, profile, gmail.send, gmail.readonly")
+        print(f"🔐 [GOOGLE_OAUTH] Login endpoint called - generating auth URL with BASIC scopes only")
+        print(f"🔐 [GOOGLE_OAUTH] Auth URL will request: openid, email, profile")
         
         return {
             "auth_url": auth_url,
@@ -276,23 +276,11 @@ async def google_callback(auth_request: GoogleAuthRequest):
     try:
         print(f"🔐 [GOOGLE_OAUTH] Starting OAuth callback with code: {auth_request.code[:10]}...")
         
-        # Exchange code for access token
+        # Exchange code for access token (basic identity only)
         token_data = await google_auth_service.exchange_code_for_token(auth_request.code)
         access_token = token_data.get("access_token")
-        refresh_token = token_data.get("refresh_token")
-        expires_in = token_data.get("expires_in") or 3600
-        scope = token_data.get("scope", "")  # Get scope from token response
         
-        print(f"🔐 [GOOGLE_OAUTH] Token exchange successful")
-        print(f"🔐 [GOOGLE_OAUTH] Received scopes: {scope}")
-        
-        # Verify Gmail scopes are present
-        has_gmail_scope = "gmail" in scope.lower() if scope else False
-        if has_gmail_scope:
-            print(f"✅ [GOOGLE_OAUTH] Gmail scopes confirmed in token!")
-        else:
-            print(f"⚠️ [GOOGLE_OAUTH] WARNING: Gmail scopes NOT found in token response!")
-            print(f"⚠️ [GOOGLE_OAUTH] Token scopes: {scope}")
+        print(f"🔐 [GOOGLE_OAUTH] Token exchange successful (basic scopes)")
         
         if not access_token:
             raise HTTPException(
@@ -303,15 +291,6 @@ async def google_callback(auth_request: GoogleAuthRequest):
         # Get user info from Google
         google_user = await google_auth_service.get_user_info(access_token)
         print(f"🔐 [GOOGLE_OAUTH] User info retrieved: {google_user.email}")
-        
-        # Prepare Gmail token fields (for sending/receiving mail later)
-        gmail_token_data = {}
-        if refresh_token:
-            gmail_token_data = {
-                "gmail_access_token": access_token,
-                "gmail_refresh_token": refresh_token,
-                "gmail_token_expiry": datetime.utcnow() + timedelta(seconds=expires_in),
-            }
         
         # Check if user already exists by email (primary check)
         existing_user = await db.users.find_one({"email": google_user.email})
@@ -328,10 +307,6 @@ async def google_callback(auth_request: GoogleAuthRequest):
                 "is_verified": True,  # Google verified emails are trusted
                 "updated_at": datetime.utcnow()
             }
-            # Only set Gmail tokens if we received a refresh_token (Google may not send it every time)
-            if gmail_token_data:
-                update_fields.update(gmail_token_data)
-            
             await db.users.update_one(
                 {"_id": existing_user["_id"]},
                 {"$set": update_fields}
@@ -385,10 +360,6 @@ async def google_callback(auth_request: GoogleAuthRequest):
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
-        
-        # Add Gmail token fields for new user if available
-        if gmail_token_data:
-            user_doc.update(gmail_token_data)
         
         await db.users.insert_one(user_doc)
         print(f"🔐 [GOOGLE_OAUTH] User created successfully: {user_doc['_id']}")
