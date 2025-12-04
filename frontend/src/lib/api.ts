@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  // const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
-  const url = 'http://localhost:8000'
+  const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
+  // const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
