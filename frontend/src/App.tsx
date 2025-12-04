@@ -97,6 +97,7 @@ function App() {
   return (
     <Routes>
       <Route path="/workflow-builder" element={<WorkflowBuilder />} />
+      <Route path="/workflows" element={<WorkflowBuilder />} />
       <Route path="*" element={
         <Layout>
           <Routes>

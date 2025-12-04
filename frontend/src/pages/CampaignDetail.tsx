@@ -16,10 +16,11 @@ import {
   RefreshCw,
   MessageSquare,
   Mail,
-  Phone
+  Phone,
+  Workflow
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
-import { campaignsAPI, groupsAPI, inboxAPI } from '../lib/api'
+import { campaignsAPI, groupsAPI, inboxAPI, workflowsAPI } from '../lib/api'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
 // interface Contact {
@@ -48,6 +49,7 @@ interface Campaign {
   contacts: string[]
   group_ids: string[]
   call_script: string
+  source?: string  // Source field to find workflow by function
   schedule_time?: string
   created_at: string
   updated_at: string
@@ -95,6 +97,13 @@ export default function CampaignDetail() {
     queryKey: ['inbox-responses', id],
     queryFn: () => inboxAPI.getResponsesByCampaign(id!, { limit: 50, skip: 0 }),
     enabled: !!id
+  })
+
+  // Fetch workflow details if campaign has source (function name)
+  const { data: workflowData } = useQuery({
+    queryKey: ['workflow', campaign?.data?.source],
+    queryFn: () => workflowsAPI.getWorkflow(campaign!.data.source!),
+    enabled: !!campaign?.data?.source
   })
 
   const groups = Array.isArray(groupsResponse?.data?.groups) ? groupsResponse.data.groups : []
@@ -197,6 +206,11 @@ export default function CampaignDetail() {
 
   const campaignData = campaign.data
 
+  // Debug: Log campaign data to see if source exists
+  console.log('🔍 Campaign Data:', campaignData)
+  console.log('🔍 Campaign source:', campaignData.source)
+  console.log('🔍 Workflow Data:', workflowData)
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -214,10 +228,19 @@ export default function CampaignDetail() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{campaignData.name}</h1>
               <p className="text-gray-600 mt-1">{campaignData.description}</p>
-              <div className="mt-2">
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                   Type: {campaignData.type}
                 </span>
+                {campaignData.source && (
+                  <button
+                    onClick={() => navigate(`/workflows?function=${campaignData.source}`)}
+                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 hover:bg-purple-200 transition-colors"
+                  >
+                    <Workflow className="h-3 w-3 mr-1" />
+                    Workflow: {workflowData?.data?.name || campaignData.source}
+                  </button>
+                )}
               </div>
             </div>
             
@@ -255,6 +278,16 @@ export default function CampaignDetail() {
                       <Pause className="h-4 w-4 mr-2" />
                     )}
                     Pause Campaign
+                  </button>
+                )}
+                
+                {campaignData.source && (
+                  <button
+                    onClick={() => navigate(`/workflows?function=${campaignData.source}&campaign_id=${id}`)}
+                    className="inline-flex items-center px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                  >
+                    <Workflow className="h-4 w-4 mr-2" />
+                    Configure Workflow
                   </button>
                 )}
                 
@@ -386,6 +419,76 @@ export default function CampaignDetail() {
             <div className="bg-gray-50 rounded-lg p-4">
               <p className="text-gray-700 whitespace-pre-wrap">{campaignData.call_script}</p>
             </div>
+          </div>
+
+          {/* Workflow */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Workflow</h3>
+              {campaignData.source && (
+                <button
+                  onClick={() => navigate(`/workflows?function=${campaignData.source}`)}
+                  className="text-sm text-purple-600 hover:text-purple-700 font-medium"
+                >
+                  View Workflow →
+                </button>
+              )}
+            </div>
+            
+            {campaignData.source ? (
+              <div className="space-y-3">
+                <div className="flex items-center p-3 bg-purple-50 rounded-lg border border-purple-100">
+                  <div className="p-2 bg-purple-100 rounded-lg mr-3">
+                    <Workflow className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium text-gray-900">
+                      {workflowData?.data?.name || campaignData.source}
+                    </div>
+                    {workflowData?.data?.description && (
+                      <div className="text-sm text-gray-500 mt-1">{workflowData.data.description}</div>
+                    )}
+                    <div className="text-xs text-gray-400 mt-1">
+                      Function: {campaignData.source}
+                    </div>
+                  </div>
+                </div>
+                {workflowData?.data && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Nodes:</span>
+                      <span className="font-medium text-gray-900">{workflowData.data.nodes?.length || 0}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm mt-2">
+                      <span className="text-gray-600">Connections:</span>
+                      <span className="font-medium text-gray-900">{workflowData.data.connections?.length || 0}</span>
+                    </div>
+                  </div>
+                )}
+                <button
+                  onClick={() => navigate(`/workflows?function=${campaignData.source}&campaign_id=${id}`)}
+                  className="w-full mt-3 inline-flex items-center justify-center px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors"
+                >
+                  <Workflow className="h-4 w-4 mr-2" />
+                  Configure Script for Campaign
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Workflow className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 mb-4">This campaign does not have a workflow assigned</p>
+                <p className="text-sm text-gray-400 mb-4">
+                  To add a workflow, please edit the campaign and select a source (function) from the list
+                </p>
+                <button
+                  onClick={() => setShowEditModal(true)}
+                  className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Campaign
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Groups */}

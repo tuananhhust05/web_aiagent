@@ -18,9 +18,10 @@ router = APIRouter()
 @router.get("", response_model=Optional[WorkflowResponse])
 async def get_workflow(
     function: str = Query(..., description="Function name (e.g., convention-activities)"),
+    campaign_id: Optional[str] = Query(None, description="Optional campaign ID to load campaign-specific scripts"),
     current_user: UserResponse = Depends(get_current_active_user)
 ):
-    """Get workflow by function for current user"""
+    """Get workflow by function for current user. If campaign_id is provided, also load campaign-specific node scripts."""
     db = get_database()
     collection = db["workflows"]
     
@@ -35,6 +36,38 @@ async def get_workflow(
     # Convert ObjectId to string
     workflow["id"] = str(workflow["_id"])
     del workflow["_id"]
+    
+    # If campaign_id is provided, load campaign-specific scripts and merge with nodes
+    if campaign_id:
+        # Verify campaign belongs to user
+        campaign = await db.campaigns.find_one({
+            "_id": campaign_id,
+            "user_id": current_user.id
+        })
+        
+        if campaign:
+            # Get all scripts for this campaign and workflow
+            scripts = await db.campaign_workflow_scripts.find({
+                "campaign_id": campaign_id,
+                "workflow_function": function,
+                "user_id": current_user.id
+            }).to_list(length=None)
+            
+            # Create a dictionary of scripts by node_id
+            scripts_by_node = {script["node_id"]: script for script in scripts}
+            
+            # Merge scripts into workflow nodes
+            if "nodes" in workflow and workflow["nodes"]:
+                for node in workflow["nodes"]:
+                    node_id = node.get("id")
+                    if node_id and node_id in scripts_by_node:
+                        script_data = scripts_by_node[node_id]
+                        # Add campaign script to node data
+                        if "data" not in node:
+                            node["data"] = {}
+                        node["data"]["campaign_script"] = script_data.get("script", "")
+                        node["data"]["campaign_script_id"] = str(script_data["_id"])
+                        node["data"]["campaign_config"] = script_data.get("config", {})
     
     return WorkflowResponse(**workflow)
 

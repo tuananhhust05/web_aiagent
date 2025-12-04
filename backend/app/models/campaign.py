@@ -36,6 +36,7 @@ class CampaignBase(BaseModel):
     type: CampaignType = CampaignType.MANUAL
     source: Optional[str] = Field(None, max_length=100)  # Source of campaign (e.g., "convention-activities")
     campaign_goal_id: Optional[str] = Field(None, max_length=100)  # Associated campaign goal ID
+    workflow_id: Optional[str] = Field(None, max_length=100)  # Associated workflow function name
     contacts: List[str] = Field(default_factory=list)
     group_ids: List[str] = Field(default_factory=list)  # Groups to include in campaign
     call_script: str = Field(default="", min_length=0)
@@ -54,6 +55,7 @@ class CampaignUpdate(BaseModel):
     type: Optional[CampaignType] = None
     source: Optional[str] = Field(None, max_length=100)  # Source of campaign
     campaign_goal_id: Optional[str] = Field(None, max_length=100)  # Associated campaign goal ID
+    workflow_id: Optional[str] = Field(None, max_length=100)  # Associated workflow function name
     contacts: Optional[List[str]] = None
     group_ids: Optional[List[str]] = None  # Groups to include in campaign
     call_script: Optional[str] = Field(None, min_length=1)

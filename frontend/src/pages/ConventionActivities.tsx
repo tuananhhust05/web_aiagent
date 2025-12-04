@@ -828,147 +828,167 @@ const ConventionActivities: React.FC = () => {
 
       {/* Campaign List Modal */}
       {showCampaignModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-6xl w-full mx-4 h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">Convention Campaigns</h2>
-              <div className="flex items-center space-x-2">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-8 pt-8 pb-6 border-b border-gray-100">
+              <div>
+                <h2 className="text-3xl font-semibold text-gray-900 tracking-tight">Campaigns</h2>
+                <p className="text-sm text-gray-500 mt-1">{campaigns.length} {campaigns.length === 1 ? 'campaign' : 'campaigns'}</p>
+              </div>
+              <div className="flex items-center gap-3">
                 <button
                   onClick={() => setShowCreateCampaign(true)}
-                  className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-95"
                 >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Campaign
+                  <Plus className="h-4 w-4" />
+                  New Campaign
                 </button>
                 <button
                   onClick={() => setShowCampaignModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors duration-200"
                 >
-                  <X className="h-6 w-6" />
+                  <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto">
-              <div className="space-y-4">
-                {campaigns.map((campaign) => (
-                  <div
-                    key={campaign.id}
-                    className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all w-[80%] mx-auto"
+            {/* Campaign List */}
+            <div className="flex-1 overflow-y-auto px-8 py-6">
+              {campaigns.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                    <Target className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No campaigns yet</h3>
+                  <p className="text-sm text-gray-500 mb-6">Create your first campaign to get started</p>
+                  <button
+                    onClick={() => setShowCreateCampaign(true)}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
                   >
-                  <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{campaign.name}</h3>
-                    <div className="flex items-center space-x-2">
-                      {campaign.status === 'draft' && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCampaignAction(campaign.id, 'active', campaign.type);
-                          }}
-                          disabled={startingCampaignId === campaign.id}
-                          className="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          {startingCampaignId === campaign.id ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              Starting...
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-3 w-3 mr-1" />
-                              Start
-                            </>
-                          )}
-                        </button>
-                      )}
-                      {campaign.status === 'active' && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCampaignAction(campaign.id, 'paused');
-                          }}
-                          className="inline-flex items-center px-2 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700 transition-colors"
-                        >
-                          <Pause className="h-3 w-3 mr-1" />
-                          Pause
-                        </button>
-                      )}
-                      {campaign.status === 'paused' && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCampaignAction(campaign.id, 'active', campaign.type);
-                          }}
-                          disabled={startingCampaignId === campaign.id}
-                          className="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          {startingCampaignId === campaign.id ? (
-                            <>
-                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              Starting...
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-3 w-3 mr-1" />
-                              Resume
-                            </>
-                          )}
-                        </button>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteCampaign(campaign.id, campaign.name);
-                        }}
-                        className="inline-flex items-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <p className="text-gray-600 mb-3">{campaign.description}</p>
-                  
-                  <div className="flex items-center justify-between mb-3">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      campaign.status === 'active' ? 'bg-green-100 text-green-800' :
-                      campaign.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                      campaign.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {campaign.status}
-                    </span>
-                    <span className="text-sm text-gray-500">
-                      {new Date(campaign.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <Link
-                      to={`/campaigns/${campaign.id}`}
-                      className="inline-flex items-center px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Eye className="h-3 w-3 mr-1" />
-                      View Details
-                    </Link>
-                    {campaign.source && (
-                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                        Source: {campaign.source}
-                      </span>
-                    )}
-                  </div>
+                    <Plus className="h-4 w-4" />
+                    Create Campaign
+                  </button>
                 </div>
-              ))}
-              </div>
+              ) : (
+                <div className="space-y-3">
+                  {campaigns.map((campaign) => (
+                    <div
+                      key={campaign.id}
+                      className="group bg-white border border-gray-200 rounded-2xl p-6 hover:border-gray-300 hover:shadow-lg transition-all duration-200"
+                    >
+                      {/* Header Row */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-xl font-semibold text-gray-900 mb-1.5 truncate">{campaign.name}</h3>
+                          {campaign.description && (
+                            <p className="text-sm text-gray-600 line-clamp-2">{campaign.description}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 ml-4">
+                          {campaign.status === 'draft' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCampaignAction(campaign.id, 'active', campaign.type);
+                              }}
+                              disabled={startingCampaignId === campaign.id}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                            >
+                              {startingCampaignId === campaign.id ? (
+                                <>
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  <span>Starting...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="h-3.5 w-3.5" />
+                                  <span>Start</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                          {campaign.status === 'active' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCampaignAction(campaign.id, 'paused');
+                              }}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-95"
+                            >
+                              <Pause className="h-3.5 w-3.5" />
+                              <span>Pause</span>
+                            </button>
+                          )}
+                          {campaign.status === 'paused' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCampaignAction(campaign.id, 'active', campaign.type);
+                              }}
+                              disabled={startingCampaignId === campaign.id}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+                            >
+                              {startingCampaignId === campaign.id ? (
+                                <>
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  <span>Starting...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="h-3.5 w-3.5" />
+                                  <span>Resume</span>
+                                </>
+                              )}
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteCampaign(campaign.id, campaign.name);
+                            }}
+                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 active:scale-95"
+                            title="Delete campaign"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Footer Row */}
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                        <div className="flex items-center gap-4">
+                          <span className={`inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-full ${
+                            campaign.status === 'active' ? 'bg-green-100 text-green-700' :
+                            campaign.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                            campaign.status === 'paused' ? 'bg-amber-100 text-amber-700' :
+                            'bg-gray-100 text-gray-700'
+                          }`}>
+                            {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            Created {new Date(campaign.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                          {campaign.source && (
+                            <span className="text-xs text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg">
+                              {campaign.source}
+                            </span>
+                          )}
+                        </div>
+                        <Link
+                          to={`/campaigns/${campaign.id}`}
+                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-all duration-200 active:scale-95"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span>View Details</span>
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            
-            {campaigns.length === 0 && (
-              <div className="text-center py-8">
-                <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">No convention campaigns found</p>
-              </div>
-            )}
           </div>
         </div>
       )}

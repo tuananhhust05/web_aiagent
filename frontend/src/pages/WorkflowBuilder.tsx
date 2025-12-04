@@ -182,6 +182,8 @@ interface HistoryState {
 export default function WorkflowBuilder() {
   const [searchParams] = useSearchParams()
   const functionName = searchParams.get('function') || null
+  const campaignId = searchParams.get('campaign_id') || null
+  const isCampaignMode = !!campaignId // Chỉ cho phép edit script, không edit structure
   
   const [nodes, setNodes] = useState<Node[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
@@ -196,7 +198,9 @@ export default function WorkflowBuilder() {
   const [connectionStrokeType, setConnectionStrokeType] = useState<'solid' | 'dashed'>('solid') // Loại đường mặc định
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isSavingScript, setIsSavingScript] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const [nodeScripts, setNodeScripts] = useState<Record<string, string>>({})
   
   // Drag states - đơn giản và rõ ràng
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
@@ -283,11 +287,26 @@ export default function WorkflowBuilder() {
       
       if (response.data) {
         const workflow = response.data
-        setNodes(workflow.nodes || [])
+        const loadedNodes = workflow.nodes || []
+        setNodes(loadedNodes)
         setConnections(workflow.connections || [])
         
+        // Load campaign scripts from node.data.scripts if in campaign mode
+        if (campaignId && functionName) {
+          const scripts: Record<string, string> = {}
+          loadedNodes.forEach((node: Node) => {
+            // Get script for this campaign from node.data.scripts array
+            const scriptsArray = node.data?.scripts || []
+            const campaignScript = scriptsArray.find((s: any) => s.campaign_id === campaignId)
+            if (campaignScript) {
+              scripts[node.id] = campaignScript.script || ''
+            }
+          })
+          setNodeScripts(scripts)
+        }
+        
         // Initialize history with loaded workflow
-        setHistory([{ nodes: workflow.nodes || [], connections: workflow.connections || [] }])
+        setHistory([{ nodes: loadedNodes, connections: workflow.connections || [] }])
         setHistoryIndex(0)
       }
     } catch (error: any) {
@@ -302,7 +321,7 @@ export default function WorkflowBuilder() {
 
   // Save workflow to database (with debounce)
   const saveWorkflowToDB = useCallback(async (nodesToSave: Node[], connectionsToSave: Connection[]) => {
-    if (!functionName) return
+    if (!functionName || isCampaignMode) return // Don't save structure in campaign mode
     
     // Clear existing timeout
     if (saveTimeoutRef.current) {
@@ -323,10 +342,62 @@ export default function WorkflowBuilder() {
         setIsSaving(false)
       }
     }, 1000)
-  }, [functionName])
+  }, [functionName, isCampaignMode])
+
+  // Save node script for campaign - save directly to node.data.scripts array
+  const saveNodeScript = useCallback(async (nodeId: string, script: string) => {
+    if (!campaignId || !functionName) return
+    
+    try {
+      setIsSavingScript(true)
+      
+      // Update node with script in data.scripts array
+      setNodes(prev => prev.map(node => {
+        if (node.id !== nodeId) return node
+        
+        const scripts = node.data?.scripts || []
+        // Find if script for this campaign already exists
+        const scriptIndex = scripts.findIndex((s: any) => s.campaign_id === campaignId)
+        
+        let newScripts: Array<{script: string, campaign_id: string}>
+        if (scriptIndex >= 0) {
+          // Update existing script
+          newScripts = [...scripts]
+          newScripts[scriptIndex] = { script, campaign_id: campaignId }
+        } else {
+          // Add new script
+          newScripts = [...scripts, { script, campaign_id: campaignId }]
+        }
+        
+        // Save to database
+        const updatedNode = {
+          ...node,
+          data: {
+            ...node.data,
+            scripts: newScripts
+          }
+        }
+        
+        // Update workflow in database
+        workflowsAPI.updateWorkflow(functionName, {
+          nodes: prev.map(n => n.id === nodeId ? updatedNode : n),
+          connections: connections
+        }).catch(err => console.error('Error saving script to workflow:', err))
+        
+        return updatedNode
+      }))
+      
+      setNodeScripts(prev => ({ ...prev, [nodeId]: script }))
+    } catch (error) {
+      console.error('Error saving node script:', error)
+    } finally {
+      setIsSavingScript(false)
+    }
+  }, [campaignId, functionName, connections])
 
   // Delete node
   const deleteNode = useCallback((nodeId: string) => {
+    if (isCampaignMode) return // Don't allow deleting nodes in campaign mode
     setNodes(prev => {
       const newNodes = prev.filter(node => node.id !== nodeId)
       setConnections(prevConn => {
@@ -339,10 +410,11 @@ export default function WorkflowBuilder() {
     }
       return newNodes
     })
-  }, [selectedNode, saveToHistory])
+  }, [selectedNode, saveToHistory, isCampaignMode])
 
   // Add node
   const addNode = useCallback((type: string, position: { x: number; y: number }) => {
+    if (isCampaignMode) return // Don't allow adding nodes in campaign mode
     const newNode: Node = {
       id: `${Date.now()}`,
       type,
@@ -668,8 +740,12 @@ export default function WorkflowBuilder() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Space để pan
+      // Space để pan - but not when typing in input/textarea
       if (e.key === ' ') {
+        const target = e.target as HTMLElement
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+          return // Allow space in input fields
+        }
         e.preventDefault()
         setSpacePressed(true)
         return
@@ -787,6 +863,11 @@ export default function WorkflowBuilder() {
           <div className="flex items-center space-x-2">
             <Workflow className="h-6 w-6 text-blue-400" />
             <h1 className="text-xl font-bold">Workflow</h1>
+            {isCampaignMode && (
+              <span className="text-sm text-purple-600 bg-purple-100 px-2 py-1 rounded">
+                Campaign Mode - Chỉnh sửa Script
+              </span>
+            )}
           </div>
           <div className="flex items-center space-x-4 text-xs text-gray-600">
             <span>Nodes: {nodes.length}</span>
@@ -1305,38 +1386,40 @@ export default function WorkflowBuilder() {
                     </div>
                   </div>
                   
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Name</label>
-                    <input
-                      type="text"
-                      value={node.title}
-                      onChange={(e) => {
-                        setNodes(prev => prev.map(n => 
-                          n.id === selectedNode ? { ...n, title: e.target.value } : n
-                        ))
-                      }}
-                      className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Description</label>
-                    <textarea
-                      value={node.description || ''}
-                      onChange={(e) => {
-                        setNodes(prev => prev.map(n => 
-                          n.id === selectedNode ? { ...n, description: e.target.value } : n
-                        ))
-                      }}
-                      rows={3}
-                      className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Maximum Customer No-Response Time (seconds)
-                    </label>
+                  {!isCampaignMode && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Name</label>
+                        <input
+                          type="text"
+                          value={node.title}
+                          onChange={(e) => {
+                            setNodes(prev => prev.map(n => 
+                              n.id === selectedNode ? { ...n, title: e.target.value } : n
+                            ))
+                          }}
+                          className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Description</label>
+                        <textarea
+                          value={node.description || ''}
+                          onChange={(e) => {
+                            setNodes(prev => prev.map(n => 
+                              n.id === selectedNode ? { ...n, description: e.target.value } : n
+                            ))
+                          }}
+                          rows={3}
+                          className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium mb-2">
+                          Maximum Customer No-Response Time (seconds)
+                        </label>
                     <div className="flex items-center gap-2">
                       <input
                         type="number"
@@ -1355,30 +1438,70 @@ export default function WorkflowBuilder() {
                             } : n
                           ))
                         }}
-                        placeholder="Example: 300 (5 minutes)"
-                        className="flex-1 p-2 bg-white border border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
-                      />
-                      <div className="text-xs text-gray-500 whitespace-nowrap">
-                        {node.data?.max_no_response_time 
-                          ? `≈ ${Math.floor((node.data.max_no_response_time || 0) / 60)} min ${(node.data.max_no_response_time || 0) % 60} sec`
-                          : 'Not configured'
-                        }
+                          placeholder="Example: 300 (5 minutes)"
+                          className="flex-1 p-2 bg-white border border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none"
+                        />
+                        <div className="text-xs text-gray-500 whitespace-nowrap">
+                          {node.data?.max_no_response_time 
+                            ? `≈ ${Math.floor((node.data.max_no_response_time || 0) / 60)} min ${(node.data.max_no_response_time || 0) % 60} sec`
+                            : 'Not configured'
+                          }
+                        </div>
                       </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Maximum time to wait for customer response before moving to next node
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Maximum time to wait for customer response before moving to next node
-                    </p>
-                      </div>
+                    </>
+                  )}
                   
-                  <div className="pt-4 border-t border-gray-200">
-                    <button
-                      onClick={() => deleteNode(selectedNode)}
-                      className="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Node
-                    </button>
-                  </div>
+                  {/* Campaign Script Editor */}
+                  {isCampaignMode && campaignId && functionName && (
+                    <div className="pt-4 border-t border-gray-200">
+                      <label className="block text-sm font-medium mb-2">Script for Campaign</label>
+                      <textarea
+                        value={nodeScripts[selectedNode] || ''}
+                        onChange={(e) => {
+                          const newScript = e.target.value
+                          setNodeScripts(prev => ({ ...prev, [selectedNode]: newScript }))
+                        }}
+                        onBlur={() => {
+                          if (selectedNode) {
+                            saveNodeScript(selectedNode, nodeScripts[selectedNode] || '')
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          // Stop propagation to prevent canvas handlers from interfering
+                          e.stopPropagation()
+                        }}
+                        onKeyUp={(e) => {
+                          // Stop propagation to prevent canvas handlers from interfering
+                          e.stopPropagation()
+                        }}
+                        rows={8}
+                        placeholder="Enter script for this node..."
+                        className="w-full p-2 bg-white border border-gray-300 rounded-lg focus:border-blue-400 focus:outline-none font-mono text-sm"
+                      />
+                      {isSavingScript && (
+                        <p className="text-xs text-gray-500 mt-1">Saving...</p>
+                      )}
+                      <p className="text-xs text-gray-500 mt-1">
+                        This script will be used for this campaign instead of the default workflow script
+                      </p>
+                    </div>
+                  )}
+                  
+                  {!isCampaignMode && (
+                    <div className="pt-4 border-t border-gray-200">
+                      <button
+                        onClick={() => deleteNode(selectedNode)}
+                        className="w-full flex items-center justify-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Node
+                      </button>
+                    </div>
+                  )}
                 </div>
               )
             })()}

@@ -6,12 +6,18 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://4skale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
-  if (window.location.protocol === 'https:' && url.startsWith('http://')) {
-    return url.replace('http://', 'https://')
-  }
+  // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
+  //   return url.replace('http://', 'https://')
+  // }
+  
+  // Force return HTTP (no HTTPS conversion)
+  console.log('🔧 [getApiUrl] Raw URL:', url)
+  console.log('🔧 [getApiUrl] Window protocol:', window.location.protocol)
+  console.log('🔧 [getApiUrl] Returning URL:', url)
+  
   return url
 }
 
@@ -21,8 +27,12 @@ const FINAL_API_URL = getApiUrl()
 console.log('🔧 API Configuration:', {
   originalUrl: (import.meta as any).env?.VITE_API_URL || 'https://4skale.com',
   finalUrl: FINAL_API_URL,
-  protocol: window.location.protocol
+  protocol: window.location.protocol,
+  baseURL: FINAL_API_URL
 })
+
+// Verify axios baseURL
+console.log('🔧 Axios baseURL will be:', FINAL_API_URL)
 
 export const api = axios.create({
   baseURL: FINAL_API_URL,
@@ -35,6 +45,18 @@ export const api = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
+    // Force HTTP if baseURL is localhost (prevent browser HTTPS upgrade)
+    if (config.baseURL && config.baseURL.startsWith('http://localhost')) {
+      // Ensure baseURL stays as HTTP
+      config.baseURL = config.baseURL.replace('https://', 'http://')
+    }
+    
+    // Debug: Log the actual URL being called
+    const fullUrl = config.baseURL ? `${config.baseURL}${config.url}` : config.url
+    console.log('🌐 [API Request] Full URL:', fullUrl)
+    console.log('🌐 [API Request]  BaseURL:', config.baseURL)
+    console.log('🌐 [API Request] URL path:', config.url)
+    
     const token = localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
@@ -474,7 +496,8 @@ export const gmailAPI = {
 
 export const workflowsAPI = {
   // Get workflow by function
-  getWorkflow: (functionName: string) => api.get('/api/workflows', { params: { function: functionName } }),
+  getWorkflow: (functionName: string, campaignId?: string) => 
+    api.get('/api/workflows', { params: { function: functionName, ...(campaignId ? { campaign_id: campaignId } : {}) } }),
   
   // Create workflow
   createWorkflow: (data: {
@@ -495,4 +518,37 @@ export const workflowsAPI = {
   
   // Delete workflow
   deleteWorkflow: (functionName: string) => api.delete('/api/workflows', { params: { function: functionName } }),
+}
+
+// Campaign Workflow Scripts API
+export const campaignWorkflowScriptsAPI = {
+  // Get all node scripts for a campaign workflow
+  getCampaignWorkflowScripts: (campaignId: string, workflowFunction: string) =>
+    api.get('/api/campaign-workflow-scripts', { params: { campaign_id: campaignId, workflow_function: workflowFunction } }),
+  
+  // Get script for a specific node
+  getNodeScript: (campaignId: string, workflowFunction: string, nodeId: string) =>
+    api.get('/api/campaign-workflow-scripts/by-node', { params: { campaign_id: campaignId, workflow_function: workflowFunction, node_id: nodeId } }),
+  
+  // Get all node scripts as dictionary
+  getAllNodeScripts: (campaignId: string, workflowFunction: string) =>
+    api.get('/api/campaign-workflow-scripts/all-nodes', { params: { campaign_id: campaignId, workflow_function: workflowFunction } }),
+  
+  // Create or update script for a node
+  saveNodeScript: (data: {
+    campaign_id: string;
+    workflow_function: string;
+    node_id: string;
+    script: string;
+    config?: any;
+  }) => api.post('/api/campaign-workflow-scripts', data),
+  
+  // Update script
+  updateNodeScript: (scriptId: string, data: {
+    script?: string;
+    config?: any;
+  }) => api.put(`/api/campaign-workflow-scripts/${scriptId}`, data),
+  
+  // Delete script
+  deleteNodeScript: (scriptId: string) => api.delete(`/api/campaign-workflow-scripts/${scriptId}`),
 }

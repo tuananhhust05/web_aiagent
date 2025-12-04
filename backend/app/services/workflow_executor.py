@@ -588,9 +588,46 @@ class WorkflowExecutor:
             
             logger.info(f"🔄 [WORKFLOW] Executing node {node_id} ({node_type}) for {name}")
             
+            # Get script for this campaign from node.data.scripts array
+            # Priority: 1. Node script for this campaign, 2. Campaign call_script (default)
+            node_script = call_script  # Default to campaign call_script
+            node_data = current_node.get("data", {})
+            scripts_array = node_data.get("scripts", [])
+            
+            logger.info(f"📝 [WORKFLOW] Script selection for node {node_id}:")
+            logger.info(f"   - Campaign ID: {campaign_id}")
+            logger.info(f"   - Default call_script length: {len(call_script) if call_script else 0} chars")
+            logger.info(f"   - Node has scripts array: {bool(scripts_array)}")
+            logger.info(f"   - Scripts array length: {len(scripts_array) if scripts_array else 0}")
+            
+            if scripts_array and campaign_id:
+                # Find script for this campaign
+                campaign_script_obj = next((s for s in scripts_array if s.get("campaign_id") == campaign_id), None)
+                if campaign_script_obj and campaign_script_obj.get("script"):
+                    node_script = campaign_script_obj["script"]
+                    logger.info(f"✅ [WORKFLOW] Using campaign-specific script for node {node_id} (length: {len(node_script)} chars)")
+                    logger.info(f"   - Script preview: {node_script[:100]}...")
+                else:
+                    logger.info(f"📝 [WORKFLOW] No campaign-specific script found for node {node_id}, using default campaign call_script")
+                    logger.info(f"   - Available campaign_ids in scripts: {[s.get('campaign_id') for s in scripts_array]}")
+            else:
+                if not scripts_array:
+                    logger.info(f"📝 [WORKFLOW] Node {node_id} has no scripts array, using default campaign call_script")
+                if not campaign_id:
+                    logger.info(f"📝 [WORKFLOW] No campaign_id provided, using default campaign call_script")
+            
+            # Ensure node_script is not empty - fallback to call_script if empty
+            if not node_script or not node_script.strip():
+                logger.warning(f"⚠️ [WORKFLOW] Node {node_id} script is empty, falling back to campaign call_script")
+                node_script = call_script
+            
+            logger.info(f"📝 [WORKFLOW] Final script to use for node {node_id}: {len(node_script)} chars")
+            if len(node_script) > 0:
+                logger.info(f"   - Script preview: {node_script[:150]}...")
+            
             # Execute current node
             node_executed_at = datetime.utcnow()
-            success = await self._execute_node(current_node, contact, campaign, call_script)
+            success = await self._execute_node(current_node, contact, campaign, node_script)
             
             if not success:
                 logger.warning(f"⚠️ [WORKFLOW] Node {node_id} execution failed for {name}, continuing...")

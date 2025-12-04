@@ -5,7 +5,7 @@ import os
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail
+from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.services.scheduler import start_scheduler, stop_scheduler
@@ -89,6 +89,7 @@ app.include_router(renewals.router, prefix="/api/renewals", tags=["Renewals"])
 app.include_router(csm.router, prefix="/api/csm", tags=["Customer Success Management"])
 app.include_router(upsell.router, prefix="/api/upsell", tags=["Up/Cross Sell"])
 app.include_router(workflows.router, prefix="/api/workflows", tags=["Workflows"])
+app.include_router(campaign_workflow_scripts.router, prefix="/api/campaign-workflow-scripts", tags=["Campaign Workflow Scripts"])
 app.include_router(gmail.router, prefix="/api/gmail", tags=["Gmail"])
 
 @app.get("/")
