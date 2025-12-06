@@ -45,6 +45,12 @@ export default function RAG() {
   const [showUploadForm, setShowUploadForm] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  // Helper function to truncate name to 10 characters + "..."
+  const truncateName = (name: string): string => {
+    if (name.length <= 10) return name
+    return name.substring(0, 10) + '...'
+  }
+
   // Fetch knowledge base list
   const fetchKnowledgeBases = async () => {
     try {
@@ -237,7 +243,7 @@ export default function RAG() {
                   <div className="flex items-center">
                     <FileText className="h-5 w-5 text-primary-600 mr-2" />
                     <div>
-                      <h3 className="text-lg font-medium text-gray-900 truncate">{doc.name}</h3>
+                      <h3 className="text-lg font-medium text-gray-900">{truncateName(doc.name)}</h3>
                       <p className="text-xs text-gray-500">ID: {doc.id}</p>
                     </div>
                   </div>
@@ -293,7 +299,7 @@ export default function RAG() {
                     <div className="flex flex-wrap gap-1">
                       {doc.dependent_agents.map((agent) => (
                         <span key={agent.id} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          {agent.name}
+                          {truncateName(agent.name)}
                         </span>
                       ))}
                     </div>
