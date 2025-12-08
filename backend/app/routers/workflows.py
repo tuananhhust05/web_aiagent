@@ -184,3 +184,156 @@ async def delete_workflow(
     
     return None
 
+
+@router.get("/company-workflows", response_model=List[dict])
+async def get_company_workflows(
+    function: str = Query(..., description="Function name (e.g., convention-activities)"),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Get all workflows for a function from colleagues in the same company.
+    Returns list of workflows with owner info.
+    """
+    db = get_database()
+    
+    # User must belong to a company
+    if not current_user.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You must belong to a company to view company workflows"
+        )
+    
+    # Get all users in the same company (excluding current user)
+    company_users = await db.users.find({
+        "company_id": current_user.company_id,
+        "_id": {"$ne": current_user.id}
+    }).to_list(length=None)
+    
+    company_user_ids = [user["_id"] for user in company_users]
+    user_map = {user["_id"]: user for user in company_users}
+    
+    # Get workflows from company users for this function
+    workflows = await db.workflows.find({
+        "user_id": {"$in": company_user_ids},
+        "function": function
+    }).to_list(length=None)
+    
+    # Add owner info to each workflow
+    result = []
+    for workflow in workflows:
+        owner = user_map.get(workflow["user_id"], {})
+        result.append({
+            "id": str(workflow["_id"]),
+            "function": workflow.get("function"),
+            "name": workflow.get("name"),
+            "description": workflow.get("description"),
+            "nodes": workflow.get("nodes", []),
+            "connections": workflow.get("connections", []),
+            "created_at": workflow.get("created_at"),
+            "updated_at": workflow.get("updated_at"),
+            "owner": {
+                "id": workflow["user_id"],
+                "first_name": owner.get("first_name", "Unknown"),
+                "last_name": owner.get("last_name", "User"),
+                "email": owner.get("email", ""),
+                "avatar_url": owner.get("avatar_url")
+            }
+        })
+    
+    return result
+
+
+@router.get("/colleagues-with-workflow", response_model=List[dict])
+async def get_colleagues_with_workflow(
+    function: str = Query(..., description="Function name (e.g., convention-activities)"),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Get list of colleagues who have a workflow for this function.
+    """
+    db = get_database()
+    
+    # User must belong to a company
+    if not current_user.company_id:
+        return []
+    
+    # Get all users in the same company (excluding current user)
+    company_users = await db.users.find({
+        "company_id": current_user.company_id,
+        "_id": {"$ne": current_user.id}
+    }).to_list(length=None)
+    
+    company_user_ids = [user["_id"] for user in company_users]
+    user_map = {user["_id"]: user for user in company_users}
+    
+    # Get workflows from company users for this function
+    workflows = await db.workflows.find({
+        "user_id": {"$in": company_user_ids},
+        "function": function
+    }).to_list(length=None)
+    
+    # Return list of colleagues who have workflows
+    colleagues = []
+    seen_ids = set()
+    for workflow in workflows:
+        user_id = workflow["user_id"]
+        if user_id not in seen_ids:
+            seen_ids.add(user_id)
+            owner = user_map.get(user_id, {})
+            colleagues.append({
+                "id": user_id,
+                "first_name": owner.get("first_name", "Unknown"),
+                "last_name": owner.get("last_name", "User"),
+                "email": owner.get("email", ""),
+                "avatar_url": owner.get("avatar_url")
+            })
+    
+    return colleagues
+
+
+@router.get("/colleague/{colleague_id}", response_model=Optional[WorkflowResponse])
+async def get_colleague_workflow(
+    colleague_id: str,
+    function: str = Query(..., description="Function name (e.g., convention-activities)"),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Get a specific colleague's workflow for a function.
+    User must be in the same company as the colleague.
+    """
+    db = get_database()
+    
+    # User must belong to a company
+    if not current_user.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You must belong to a company to view colleague workflows"
+        )
+    
+    # Verify colleague is in the same company
+    colleague = await db.users.find_one({
+        "_id": colleague_id,
+        "company_id": current_user.company_id
+    })
+    
+    if not colleague:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Colleague not found or not in your company"
+        )
+    
+    # Get colleague's workflow
+    workflow = await db.workflows.find_one({
+        "user_id": colleague_id,
+        "function": function
+    })
+    
+    if not workflow:
+        return None
+    
+    # Convert ObjectId to string
+    workflow["id"] = str(workflow["_id"])
+    del workflow["_id"]
+    
+    return WorkflowResponse(**workflow)
+

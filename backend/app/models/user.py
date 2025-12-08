@@ -4,8 +4,11 @@ from datetime import datetime
 from enum import Enum
 
 class UserRole(str, Enum):
-    ADMIN = "admin"
-    USER = "user"
+    SUPER_ADMIN = "super_admin"  # ForSkale platform admin
+    COMPANY_ADMIN = "company_admin"  # Company admin
+    EMPLOYEE = "employee"  # Regular employee
+    COLLEAGUE = "colleague"  # Linked colleague account
+    USER = "user"  # Legacy/individual user
 
 class Industry(str, Enum):
     REAL_ESTATE = "real_estate"
@@ -29,7 +32,8 @@ class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     first_name: str = Field(..., min_length=1, max_length=50)
     last_name: str = Field(..., min_length=1, max_length=50)
-    company_name: Optional[str] = None
+    company_name: Optional[str] = None  # Legacy field, use company_id instead
+    company_id: Optional[str] = None  # Reference to company document
     industry: Optional[Industry] = None
     tone: Optional[Tone] = None
     language: Optional[str] = None
@@ -41,7 +45,8 @@ class UserCreate(UserBase):
 class UserUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    company_name: Optional[str] = None
+    company_name: Optional[str] = None  # Legacy field
+    company_id: Optional[str] = None
     industry: Optional[Industry] = None
     tone: Optional[str] = None
     language: Optional[str] = None
@@ -53,7 +58,8 @@ class UserResponse(BaseModel):
     username: str
     first_name: str
     last_name: str
-    company_name: Optional[str] = None
+    company_name: Optional[str] = None  # Legacy field
+    company_id: Optional[str] = None  # Reference to company
     industry: Optional[Industry] = None
     tone: str = "professional"
     language: str = "en"
@@ -69,6 +75,9 @@ class UserResponse(BaseModel):
     google_id: Optional[str] = None
     avatar_url: Optional[str] = None
     auth_provider: str = "email"  # "email" or "google"
+    # Invite/linking fields
+    invite_token: Optional[str] = None
+    invite_token_expires: Optional[datetime] = None
 
     class Config:
         from_attributes = True

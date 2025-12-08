@@ -518,9 +518,37 @@ export const workflowsAPI = {
   
   // Delete workflow
   deleteWorkflow: (functionName: string) => api.delete('/api/workflows', { params: { function: functionName } }),
+  
+  // Get company workflows (from colleagues in the same company)
+  getCompanyWorkflows: (functionName: string) => 
+    api.get('/api/workflows/company-workflows', { params: { function: functionName } }),
+  
+  // Get colleagues who have a workflow for this function
+  getColleaguesWithWorkflow: (functionName: string) => 
+    api.get('/api/workflows/colleagues-with-workflow', { params: { function: functionName } }),
+  
+  // Get a specific colleague's workflow
+  getColleagueWorkflow: (colleagueId: string, functionName: string) => 
+    api.get(`/api/workflows/colleague/${colleagueId}`, { params: { function: functionName } }),
 }
 
 // Campaign Workflow Scripts API
+// Companies API
+export const companiesAPI = {
+  registerCompany: (data: any) => api.post('/api/companies/register', data),
+  getMyCompany: () => api.get('/api/companies/me'),
+  getPublicCompanies: () => api.get('/api/companies/public/list'),
+  inviteEmployee: (companyId: string, data: any) => 
+    api.post(`/api/companies/${companyId}/invite-employee`, data),
+  acceptInvite: (inviteToken: string, password: string) =>
+    api.post(`/api/companies/accept-invite/${inviteToken}`, { password }),
+  linkColleague: (data: any) => api.post('/api/companies/link-colleague', data),
+  acceptColleagueLink: (linkToken: string) =>
+    api.post(`/api/companies/accept-colleague-link/${linkToken}`),
+  linkAdmin: (data: any) => api.post('/api/companies/link-admin', data),
+  getEmployees: (companyId: string) => api.get(`/api/companies/${companyId}/employees`),
+}
+
 export const campaignWorkflowScriptsAPI = {
   // Get all node scripts for a campaign workflow
   getCampaignWorkflowScripts: (campaignId: string, workflowFunction: string) =>

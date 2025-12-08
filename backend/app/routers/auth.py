@@ -21,6 +21,9 @@ router = APIRouter()
 async def register(user_data: UserCreate):
     db = get_database()
     
+    # Debug log
+    print(f"📝 [Register] Received data: company_id={user_data.company_id}, type={type(user_data.company_id)}")
+    
     # Check if user already exists
     existing_user = await db.users.find_one({"$or": [{"email": user_data.email}, {"username": user_data.username}]})
     if existing_user:
@@ -29,6 +32,20 @@ async def register(user_data: UserCreate):
             detail="Email or username already registered"
         )
     
+    # If company_id is provided, verify company exists and get company name
+    company_name = user_data.company_name
+    user_role = "user"
+    
+    if user_data.company_id:
+        company = await db.companies.find_one({"_id": user_data.company_id, "is_active": True})
+        if not company:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Company not found or inactive"
+            )
+        company_name = company["name"]
+        user_role = "employee"  # Set role to employee if joining a company
+    
     # Create user document
     user_doc = {
         "_id": str(ObjectId()),
@@ -36,13 +53,14 @@ async def register(user_data: UserCreate):
         "username": user_data.username,
         "first_name": user_data.first_name,
         "last_name": user_data.last_name,
-        "company_name": user_data.company_name,
+        "company_name": company_name,
+        "company_id": user_data.company_id,
         "industry": user_data.industry,
         "tone": user_data.tone or "professional",
         "language": user_data.language or "en",
         "phone": user_data.phone,
         "hashed_password": get_password_hash(user_data.password),
-        "role": "user",
+        "role": user_role,
         "is_active": True,
         "is_verified": False,
         "gdpr_consent": False,
@@ -52,6 +70,13 @@ async def register(user_data: UserCreate):
     }
     
     await db.users.insert_one(user_doc)
+    
+    # If user joined a company, update employee count
+    if user_data.company_id:
+        await db.companies.update_one(
+            {"_id": user_data.company_id},
+            {"$inc": {"employee_count": 1}}
+        )
     
     # Create access token
     access_token = create_access_token(data={"sub": user_doc["_id"]})

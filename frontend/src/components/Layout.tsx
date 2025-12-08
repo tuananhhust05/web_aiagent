@@ -64,8 +64,8 @@ const mainNavigation: NavigationItem[] = [
   { name: 'Leads / Contacts', href: '/contacts', icon: Users },
   { name: 'Conversion Activities', href: '/convention-activities', icon: TrendingUp },
   { name: 'Deals', href: '/deals', icon: Briefcase },
-  { name: 'Renewals', href: '/renewals', icon: UserCheck },
   { name: 'CSM', href: '/csm', icon: FolderOpen },
+  { name: 'Renewals', href: '/renewals', icon: UserCheck },
   { name: 'Up / Cross Sell', href: '/upsell', icon: ArrowUpRight },
   { name: 'Marketing Data', href: '/marketing-data', icon: Database },
 ]

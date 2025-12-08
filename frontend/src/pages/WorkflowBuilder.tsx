@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { workflowsAPI } from '../lib/api'
+import { useAuth } from '../hooks/useAuth'
 import { 
   Trash2,
   Undo,
@@ -18,7 +19,22 @@ import {
   Send,
   PhoneCall,
   Users,
+  ChevronDown,
+  Building2,
+  User,
+  Eye,
 } from 'lucide-react'
+
+// Workflow source types
+type WorkflowSource = 'my' | 'company' | 'colleague'
+
+interface Colleague {
+  id: string
+  first_name: string
+  last_name: string
+  email: string
+  avatar_url?: string
+}
 
 interface Node {
   id: string
@@ -184,6 +200,7 @@ export default function WorkflowBuilder() {
   const functionName = searchParams.get('function') || null
   const campaignId = searchParams.get('campaign_id') || null
   const isCampaignMode = !!campaignId // Chỉ cho phép edit script, không edit structure
+  const { user } = useAuth()
   
   const [nodes, setNodes] = useState<Node[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
@@ -201,6 +218,16 @@ export default function WorkflowBuilder() {
   const [isSavingScript, setIsSavingScript] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [nodeScripts, setNodeScripts] = useState<Record<string, string>>({})
+  
+  // Workflow source switcher states
+  const [workflowSource, setWorkflowSource] = useState<WorkflowSource>('my')
+  const [colleagues, setColleagues] = useState<Colleague[]>([])
+  const [selectedColleague, setSelectedColleague] = useState<Colleague | null>(null)
+  const [showSourceDropdown, setShowSourceDropdown] = useState(false)
+  const [workflowOwner, setWorkflowOwner] = useState<Colleague | null>(null)
+  
+  // Determine if user can edit (only edit own workflows, not company/colleague)
+  const isViewOnly = workflowSource !== 'my' || isCampaignMode
   
   // Drag states - đơn giản và rõ ràng
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
@@ -277,22 +304,54 @@ export default function WorkflowBuilder() {
     })
   }, [])
 
-  // Load workflow from database
+  // Load colleagues who have workflows for this function
+  const loadColleagues = useCallback(async () => {
+    if (!functionName) return
+    
+    try {
+      console.log('🔄 Loading colleagues for function:', functionName)
+      const response = await workflowsAPI.getColleaguesWithWorkflow(functionName)
+      console.log('👥 Colleagues loaded:', response.data)
+      setColleagues(response.data || [])
+    } catch (error: any) {
+      // 400 means user doesn't belong to a company - that's OK
+      if (error.response?.status !== 400) {
+        console.error('Error loading colleagues:', error)
+      }
+      setColleagues([])
+    }
+  }, [functionName])
+
+  // Load workflow from database based on source
   const loadWorkflowFromDB = useCallback(async () => {
     if (!functionName) return
     
     try {
       setIsLoading(true)
-      const response = await workflowsAPI.getWorkflow(functionName)
+      setWorkflowOwner(null)
       
-      if (response.data) {
+      let response
+      
+      if (workflowSource === 'my') {
+        response = await workflowsAPI.getWorkflow(functionName)
+      } else if (workflowSource === 'colleague' && selectedColleague) {
+        response = await workflowsAPI.getColleagueWorkflow(selectedColleague.id, functionName)
+        setWorkflowOwner(selectedColleague)
+      } else {
+        // For company view, we'll show a list instead
+        setNodes([])
+        setConnections([])
+        return
+      }
+      
+      if (response?.data) {
         const workflow = response.data
         const loadedNodes = workflow.nodes || []
         setNodes(loadedNodes)
         setConnections(workflow.connections || [])
         
         // Load campaign scripts from node.data.scripts if in campaign mode
-        if (campaignId && functionName) {
+        if (campaignId && functionName && workflowSource === 'my') {
           const scripts: Record<string, string> = {}
           loadedNodes.forEach((node: Node) => {
             // Get script for this campaign from node.data.scripts array
@@ -308,20 +367,25 @@ export default function WorkflowBuilder() {
         // Initialize history with loaded workflow
         setHistory([{ nodes: loadedNodes, connections: workflow.connections || [] }])
         setHistoryIndex(0)
+      } else {
+        setNodes([])
+        setConnections([])
       }
     } catch (error: any) {
       // If workflow doesn't exist, start with empty state
       if (error.response?.status !== 404) {
         console.error('Error loading workflow:', error)
       }
+      setNodes([])
+      setConnections([])
     } finally {
       setIsLoading(false)
     }
-  }, [functionName])
+  }, [functionName, workflowSource, selectedColleague, campaignId])
 
   // Save workflow to database (with debounce)
   const saveWorkflowToDB = useCallback(async (nodesToSave: Node[], connectionsToSave: Connection[]) => {
-    if (!functionName || isCampaignMode) return // Don't save structure in campaign mode
+    if (!functionName || isViewOnly) return // Don't save in view-only mode
     
     // Clear existing timeout
     if (saveTimeoutRef.current) {
@@ -342,7 +406,7 @@ export default function WorkflowBuilder() {
         setIsSaving(false)
       }
     }, 1000)
-  }, [functionName, isCampaignMode])
+  }, [functionName, isViewOnly])
 
   // Save node script for campaign - save directly to node.data.scripts array
   const saveNodeScript = useCallback(async (nodeId: string, script: string) => {
@@ -397,7 +461,7 @@ export default function WorkflowBuilder() {
 
   // Delete node
   const deleteNode = useCallback((nodeId: string) => {
-    if (isCampaignMode) return // Don't allow deleting nodes in campaign mode
+    if (isViewOnly) return // Don't allow deleting nodes in view-only mode
     setNodes(prev => {
       const newNodes = prev.filter(node => node.id !== nodeId)
       setConnections(prevConn => {
@@ -410,11 +474,11 @@ export default function WorkflowBuilder() {
     }
       return newNodes
     })
-  }, [selectedNode, saveToHistory, isCampaignMode])
+  }, [selectedNode, saveToHistory, isViewOnly])
 
   // Add node
   const addNode = useCallback((type: string, position: { x: number; y: number }) => {
-    if (isCampaignMode) return // Don't allow adding nodes in campaign mode
+    if (isViewOnly) return // Don't allow adding nodes in view-only mode
     const newNode: Node = {
       id: `${Date.now()}`,
       type,
@@ -427,7 +491,7 @@ export default function WorkflowBuilder() {
       saveToHistory(newNodes, connections)
       return newNodes
     })
-  }, [connections, saveToHistory])
+  }, [connections, saveToHistory, isViewOnly])
 
   // Load workflow
   const loadWorkflow = (workflowId: string) => {
@@ -704,12 +768,19 @@ export default function WorkflowBuilder() {
     }
   }
 
-  // Load workflow from database on mount or when functionName changes
+  // Load colleagues on mount or when functionName changes
+  useEffect(() => {
+    if (functionName) {
+      loadColleagues()
+    }
+  }, [functionName, loadColleagues])
+
+  // Load workflow from database on mount or when source/colleague changes
   useEffect(() => {
     if (functionName) {
       loadWorkflowFromDB()
     }
-  }, [functionName, loadWorkflowFromDB])
+  }, [functionName, workflowSource, selectedColleague, loadWorkflowFromDB])
 
   // Auto-save workflow when nodes or connections change (skip on initial load)
   const isInitialLoadRef = useRef(true)
@@ -807,6 +878,19 @@ export default function WorkflowBuilder() {
     return () => document.removeEventListener('mouseup', handleGlobalMouseUp)
   }, [])
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (showSourceDropdown && !target.closest('[data-source-dropdown]')) {
+        setShowSourceDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showSourceDropdown])
+
   // Calculate smart bezier curve path for connections
   const getBezierPath = (
     sourceX: number,
@@ -868,7 +952,111 @@ export default function WorkflowBuilder() {
                 Campaign Mode - Chỉnh sửa Script
               </span>
             )}
+            {isViewOnly && !isCampaignMode && (
+              <span className="text-sm text-amber-600 bg-amber-100 px-2 py-1 rounded flex items-center gap-1">
+                <Eye className="h-3 w-3" />
+                View Only
+              </span>
+            )}
           </div>
+          
+          {/* Workflow Source Switcher - Always show if not in campaign mode */}
+          {!isCampaignMode && (
+            <div className="relative" data-source-dropdown>
+              <button
+                onClick={() => setShowSourceDropdown(!showSourceDropdown)}
+                className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm"
+              >
+                {workflowSource === 'my' && (
+                  <>
+                    <User className="h-4 w-4 text-blue-500" />
+                    <span>My Workflow</span>
+                  </>
+                )}
+                {workflowSource === 'company' && (
+                  <>
+                    <Building2 className="h-4 w-4 text-green-500" />
+                    <span>Company Workflows</span>
+                  </>
+                )}
+                {workflowSource === 'colleague' && selectedColleague && (
+                  <>
+                    <Users className="h-4 w-4 text-purple-500" />
+                    <span>{selectedColleague.first_name} {selectedColleague.last_name}</span>
+                  </>
+                )}
+                <ChevronDown className={`h-4 w-4 transition-transform ${showSourceDropdown ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {showSourceDropdown && (
+                <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                  {/* My Workflow */}
+                  <button
+                    onClick={() => {
+                      setWorkflowSource('my')
+                      setSelectedColleague(null)
+                      setShowSourceDropdown(false)
+                    }}
+                    className={`w-full flex items-center gap-2 px-4 py-3 hover:bg-gray-50 text-left ${
+                      workflowSource === 'my' ? 'bg-blue-50 text-blue-700' : ''
+                    }`}
+                  >
+                    <User className="h-4 w-4 text-blue-500" />
+                    <div>
+                      <div className="font-medium">My Workflow</div>
+                      <div className="text-xs text-gray-500">Edit your own workflow</div>
+                    </div>
+                  </button>
+                  
+                  {/* Divider */}
+                  {colleagues.length > 0 && (
+                    <div className="border-t border-gray-100 my-1">
+                      <div className="px-4 py-2 text-xs text-gray-500 font-medium">Colleagues' Workflows</div>
+                    </div>
+                  )}
+                  
+                  {/* Colleagues */}
+                  {colleagues.map((colleague) => (
+                    <button
+                      key={colleague.id}
+                      onClick={() => {
+                        setWorkflowSource('colleague')
+                        setSelectedColleague(colleague)
+                        setShowSourceDropdown(false)
+                      }}
+                      className={`w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-50 text-left ${
+                        workflowSource === 'colleague' && selectedColleague?.id === colleague.id 
+                          ? 'bg-purple-50 text-purple-700' 
+                          : ''
+                      }`}
+                    >
+                      {colleague.avatar_url ? (
+                        <img src={colleague.avatar_url} alt="" className="h-6 w-6 rounded-full" />
+                      ) : (
+                        <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-xs font-medium">
+                          {colleague.first_name?.[0]}{colleague.last_name?.[0]}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{colleague.first_name} {colleague.last_name}</div>
+                        <div className="text-xs text-gray-500 truncate">{colleague.email}</div>
+                      </div>
+                      <Eye className="h-3 w-3 text-gray-400" />
+                    </button>
+                  ))}
+                  
+                  {colleagues.length === 0 && (
+                    <div className="px-4 py-3 text-sm text-gray-500 text-center">
+                      {user?.company_id 
+                        ? 'No colleagues have workflows for this function'
+                        : 'Join a company to see colleague workflows'}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          
           <div className="flex items-center space-x-4 text-xs text-gray-600">
             <span>Nodes: {nodes.length}</span>
             <span>Connections: {connections.length}</span>
@@ -882,77 +1070,81 @@ export default function WorkflowBuilder() {
         </div>
         
           <div className="flex items-center space-x-2">
-          <button 
-            onClick={undo}
-            disabled={historyIndex <= 0}
-            className={`flex items-center px-3 py-2 rounded-lg transition-colors ${
-              historyIndex <= 0 
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-              <Undo className="h-4 w-4 mr-2" />
-              Undo
-            </button>
-          <button 
-            onClick={redo}
-            disabled={historyIndex >= history.length - 1}
-            className={`flex items-center px-3 py-2 rounded-lg transition-colors ${
-              historyIndex >= history.length - 1 
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
-                : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-              <Redo className="h-4 w-4 mr-2" />
-              Redo
-            </button>
-            <div className="w-px h-6 bg-gray-300 mx-2" />
-            <button 
-            onClick={() => {
-              setConnections([])
-              saveToHistory(nodes, [])
-            }}
-              className="flex items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-            >
-              <Trash2 className="h-4 w-4 mr-2" />
-              Clear Connections
-            </button>
-            <button 
-              onClick={handleDrawModeToggle}
-              className={`flex items-center px-3 py-2 rounded-lg transition-colors ${
-                isDrawMode 
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                  : 'bg-gray-100 hover:bg-gray-200'
-              }`}
-            >
-              <Link className="h-4 w-4 mr-2" />
-              {isDrawMode ? 'Cancel Draw' : 'Draw Connection'}
-            </button>
-            <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg">
-              <span className="text-sm text-gray-700 mr-1">Line:</span>
-              <button
-                onClick={() => setConnectionStrokeType('solid')}
-                className={`px-2 py-1 rounded text-xs transition-colors ${
-                  connectionStrokeType === 'solid'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-200'
+          {!isViewOnly && (
+            <>
+              <button 
+                onClick={undo}
+                disabled={historyIndex <= 0}
+                className={`flex items-center px-3 py-2 rounded-lg transition-colors ${
+                  historyIndex <= 0 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                    : 'bg-gray-100 hover:bg-gray-200'
                 }`}
-                title="Solid line"
               >
-                ─
+                <Undo className="h-4 w-4 mr-2" />
+                Undo
               </button>
-              <button
-                onClick={() => setConnectionStrokeType('dashed')}
-                className={`px-2 py-1 rounded text-xs transition-colors ${
-                  connectionStrokeType === 'dashed'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white text-gray-700 hover:bg-gray-200'
+              <button 
+                onClick={redo}
+                disabled={historyIndex >= history.length - 1}
+                className={`flex items-center px-3 py-2 rounded-lg transition-colors ${
+                  historyIndex >= history.length - 1 
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                    : 'bg-gray-100 hover:bg-gray-200'
                 }`}
-                title="Dashed line"
               >
-                ╌
+                <Redo className="h-4 w-4 mr-2" />
+                Redo
               </button>
-            </div>
+              <div className="w-px h-6 bg-gray-300 mx-2" />
+              <button 
+                onClick={() => {
+                  setConnections([])
+                  saveToHistory(nodes, [])
+                }}
+                className="flex items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Clear Connections
+              </button>
+              <button 
+                onClick={handleDrawModeToggle}
+                className={`flex items-center px-3 py-2 rounded-lg transition-colors ${
+                  isDrawMode 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                    : 'bg-gray-100 hover:bg-gray-200'
+                }`}
+              >
+                <Link className="h-4 w-4 mr-2" />
+                {isDrawMode ? 'Cancel Draw' : 'Draw Connection'}
+              </button>
+              <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg">
+                <span className="text-sm text-gray-700 mr-1">Line:</span>
+                <button
+                  onClick={() => setConnectionStrokeType('solid')}
+                  className={`px-2 py-1 rounded text-xs transition-colors ${
+                    connectionStrokeType === 'solid'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-200'
+                  }`}
+                  title="Solid line"
+                >
+                  ─
+                </button>
+                <button
+                  onClick={() => setConnectionStrokeType('dashed')}
+                  className={`px-2 py-1 rounded text-xs transition-colors ${
+                    connectionStrokeType === 'dashed'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white text-gray-700 hover:bg-gray-200'
+                  }`}
+                  title="Dashed line"
+                >
+                  ╌
+                </button>
+              </div>
+            </>
+          )}
             {functionName && (
               <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg">
                 {isLoading && (
@@ -975,7 +1167,7 @@ export default function WorkflowBuilder() {
                 )}
               </div>
             )}
-            {selectedNode && (
+            {selectedNode && !isViewOnly && (
               <button 
                 onClick={() => deleteNode(selectedNode)}
               className="flex items-center px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
@@ -1386,7 +1578,28 @@ export default function WorkflowBuilder() {
                     </div>
                   </div>
                   
-                  {!isCampaignMode && (
+                  {/* Owner badge for colleague workflows */}
+                  {workflowOwner && workflowSource === 'colleague' && (
+                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        {workflowOwner.avatar_url ? (
+                          <img src={workflowOwner.avatar_url} alt="" className="h-8 w-8 rounded-full" />
+                        ) : (
+                          <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-sm font-medium">
+                            {workflowOwner.first_name?.[0]}{workflowOwner.last_name?.[0]}
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-sm font-medium text-purple-900">
+                            {workflowOwner.first_name} {workflowOwner.last_name}
+                          </div>
+                          <div className="text-xs text-purple-600">Workflow Owner</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {!isViewOnly && (
                     <>
                       <div>
                         <label className="block text-sm font-medium mb-2">Name</label>
@@ -1455,8 +1668,18 @@ export default function WorkflowBuilder() {
                     </>
                   )}
                   
+                  {/* View-only info message */}
+                  {isViewOnly && !isCampaignMode && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <div className="flex items-center gap-2 text-amber-800">
+                        <Eye className="h-4 w-4" />
+                        <span className="text-sm">View only - Cannot edit colleague's workflow</span>
+                      </div>
+                    </div>
+                  )}
+                  
                   {/* Campaign Script Editor */}
-                  {isCampaignMode && campaignId && functionName && (
+                  {isCampaignMode && campaignId && functionName && workflowSource === 'my' && (
                     <div className="pt-4 border-t border-gray-200">
                       <label className="block text-sm font-medium mb-2">Script for Campaign</label>
                       <textarea
@@ -1491,7 +1714,7 @@ export default function WorkflowBuilder() {
                     </div>
                   )}
                   
-                  {!isCampaignMode && (
+                  {!isViewOnly && (
                     <div className="pt-4 border-t border-gray-200">
                       <button
                         onClick={() => deleteNode(selectedNode)}

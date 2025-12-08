@@ -3,6 +3,9 @@ import { useAuth } from './hooks/useAuth'
 import Layout from './components/Layout'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
+import RegisterCompany from './pages/auth/RegisterCompany'
+import AcceptInvite from './pages/auth/AcceptInvite'
+import AcceptColleagueLink from './pages/auth/AcceptColleagueLink'
 import Onboarding from './pages/auth/Onboarding'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
@@ -77,6 +80,9 @@ function App() {
         <Route path="/home" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/register-company" element={<RegisterCompany />} />
+        <Route path="/accept-invite/:inviteToken" element={<AcceptInvite />} />
+        <Route path="/accept-colleague-link/:linkToken" element={<AcceptColleagueLink />} />
         <Route path="/onboarding" element={<Onboarding />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

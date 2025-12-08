@@ -9,6 +9,7 @@ interface User {
   first_name: string
   last_name: string
   company_name?: string
+  company_id?: string  // Company ID for company features
   industry?: string
   tone?: string
   language: string

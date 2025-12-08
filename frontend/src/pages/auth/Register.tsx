@@ -1,13 +1,29 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff, Mail, Lock, User, Building2, ArrowRight, Zap, CheckCircle } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, User, Building2, ArrowRight, Zap, CheckCircle, Users, Briefcase, ArrowLeft, ChevronDown, Search } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
+import { companiesAPI } from '../../lib/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 import GoogleAuthButton from '../../components/GoogleAuthButton'
+
+type AccountType = 'company' | 'employee' | null
+
+interface Company {
+  id?: string
+  _id?: string  // MongoDB returns _id
+  name: string
+  industry?: string
+}
+
+// Helper to get company ID (handles both id and _id)
+const getCompanyId = (company: Company | null): string | null => {
+  if (!company) return null
+  return company.id || company._id || null
+}
 
 const registerSchema = z.object({
   first_name: z.string().min(2, 'First name must be at least 2 characters'),
@@ -16,7 +32,7 @@ const registerSchema = z.object({
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   confirm_password: z.string(),
-  company_name: z.string().optional(),
+  company_id: z.string().optional(),
 }).refine((data) => data.password === data.confirm_password, {
   message: "Passwords don't match",
   path: ["confirm_password"],
@@ -25,11 +41,41 @@ const registerSchema = z.object({
 type RegisterForm = z.infer<typeof registerSchema>
 
 export default function Register() {
+  const [accountType, setAccountType] = useState<AccountType>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [loadingCompanies, setLoadingCompanies] = useState(false)
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false)
+  const [companySearch, setCompanySearch] = useState('')
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null)
   const { signUp } = useAuth()
   const navigate = useNavigate()
+
+  // Load companies when employee registration form is shown
+  useEffect(() => {
+    if (accountType === 'employee') {
+      loadCompanies()
+    }
+  }, [accountType])
+
+  const loadCompanies = async () => {
+    setLoadingCompanies(true)
+    try {
+      const response = await companiesAPI.getPublicCompanies()
+      console.log('📋 Companies loaded from API:', response.data)
+      setCompanies(response.data)
+    } catch (error) {
+      console.error('Failed to load companies:', error)
+    } finally {
+      setLoadingCompanies(false)
+    }
+  }
+
+  const filteredCompanies = companies.filter(company =>
+    company.name.toLowerCase().includes(companySearch.toLowerCase())
+  )
 
   const {
     register,
@@ -42,13 +88,16 @@ export default function Register() {
   const onSubmit = async (data: RegisterForm) => {
     setIsLoading(true)
     try {
+      const companyId = getCompanyId(selectedCompany)
+      console.log('📝 Registering with company_id:', companyId, 'selectedCompany:', selectedCompany)
+      
       await signUp({
         first_name: data.first_name,
         last_name: data.last_name,
         email: data.email,
         username: data.username,
         password: data.password,
-        company_name: data.company_name || '',
+        company_id: companyId,
       })
       toast.success('Account created successfully!')
       navigate('/')
@@ -92,21 +141,143 @@ export default function Register() {
     }
   ]
 
+  // If company is selected, redirect to company registration
+  const handleAccountTypeSelect = (type: AccountType) => {
+    if (type === 'company') {
+      navigate('/register-company')
+    } else {
+      setAccountType(type)
+    }
+  }
+
+  // Account Type Selection UI
+  if (accountType === null) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-emerald-50/20 flex items-center justify-center px-4 py-8">
+        <div className="w-full max-w-3xl">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-emerald-500 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-blue-600/20">
+              <Zap className="h-8 w-8 text-white" />
+            </div>
+            <h1 className="text-4xl font-semibold text-gray-900 tracking-tight mb-3">
+              Choose your account type
+            </h1>
+            <p className="text-gray-600 leading-relaxed font-light text-lg">
+              Select how you want to use For Skale
+            </p>
+          </div>
+
+          {/* Account Type Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {/* Company Card */}
+            <button
+              onClick={() => handleAccountTypeSelect('company')}
+              className="group bg-white rounded-3xl shadow-lg border-2 border-gray-100 p-8 text-left transition-all duration-300 hover:border-blue-500 hover:shadow-xl hover:shadow-blue-500/10 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl flex items-center justify-center mb-6 group-hover:from-blue-600 group-hover:to-blue-500 transition-all duration-300">
+                <Building2 className="h-7 w-7 text-blue-600 group-hover:text-white transition-colors duration-300" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Register as Company
+              </h3>
+              <p className="text-gray-600 font-light mb-4">
+                Create a company account to manage your team, workflows, and campaigns. Ideal for businesses and organizations.
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-emerald-500 mr-2" />
+                  Manage team members
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-emerald-500 mr-2" />
+                  Role-based permissions
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-emerald-500 mr-2" />
+                  Create custom workflows
+                </li>
+              </ul>
+              <div className="mt-6 flex items-center text-blue-600 font-medium group-hover:translate-x-2 transition-transform duration-300">
+                Get started <ArrowRight className="h-5 w-5 ml-2" />
+              </div>
+            </button>
+
+            {/* Employee Card */}
+            <button
+              onClick={() => handleAccountTypeSelect('employee')}
+              className="group bg-white rounded-3xl shadow-lg border-2 border-gray-100 p-8 text-left transition-all duration-300 hover:border-emerald-500 hover:shadow-xl hover:shadow-emerald-500/10 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+            >
+              <div className="w-14 h-14 bg-gradient-to-br from-emerald-100 to-emerald-50 rounded-2xl flex items-center justify-center mb-6 group-hover:from-emerald-600 group-hover:to-emerald-500 transition-all duration-300">
+                <Users className="h-7 w-7 text-emerald-600 group-hover:text-white transition-colors duration-300" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                Register as Employee
+              </h3>
+              <p className="text-gray-600 font-light mb-4">
+                Join as an individual user or employee. You can join existing company teams or work independently.
+              </p>
+              <ul className="space-y-2">
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-emerald-500 mr-2" />
+                  Personal dashboard
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-emerald-500 mr-2" />
+                  Join company teams
+                </li>
+                <li className="flex items-center text-sm text-gray-600">
+                  <CheckCircle className="h-4 w-4 text-emerald-500 mr-2" />
+                  Execute campaigns
+                </li>
+              </ul>
+              <div className="mt-6 flex items-center text-emerald-600 font-medium group-hover:translate-x-2 transition-transform duration-300">
+                Get started <ArrowRight className="h-5 w-5 ml-2" />
+              </div>
+            </button>
+          </div>
+
+          {/* Sign In Link */}
+          <div className="text-center">
+            <p className="text-gray-600 font-light">
+              Already have an account?{' '}
+              <Link
+                to="/login"
+                className="text-blue-600 hover:text-blue-700 font-semibold transition-colors"
+              >
+                Sign in here
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50/30 via-white to-emerald-50/20 flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         {/* Left Side - Registration Form */}
         <div>
+          {/* Back Button */}
+          <button
+            onClick={() => setAccountType(null)}
+            className="flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors font-medium"
+          >
+            <ArrowLeft className="h-5 w-5 mr-2" />
+            Back to account type
+          </button>
+
           {/* Header */}
           <div className="text-center lg:text-left mb-8">
             <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-emerald-500 rounded-3xl flex items-center justify-center mx-auto lg:mx-0 mb-6 shadow-xl shadow-blue-600/20">
-              <Zap className="h-8 w-8 text-white" />
+              <Users className="h-8 w-8 text-white" />
             </div>
             <h1 className="text-4xl font-semibold text-gray-900 tracking-tight mb-3">
-              Create your account
+              Create employee account
             </h1>
             <p className="text-gray-600 leading-relaxed font-light">
-              Join thousands of marketers using For Skale to reach customers across all channels
+              Join as an individual user or employee to start using For Skale
             </p>
           </div>
 
@@ -186,19 +357,102 @@ export default function Register() {
                 )}
               </div>
 
-              {/* Company Field */}
+              {/* Company Selection Field */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Company Name (Optional)
+                  Select Company (Optional)
                 </label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Choose the company you belong to. Leave empty to register as an independent user.
+                </p>
                 <div className="relative">
-                  <Building2 className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                  <input
-                    type="text"
-                    {...register('company_name')}
-                    className="w-full pl-12 pr-4 py-3.5 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-light"
-                  />
+                  <Building2 className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 z-10" />
+                  <button
+                    type="button"
+                    onClick={() => setShowCompanyDropdown(!showCompanyDropdown)}
+                    className="w-full pl-12 pr-12 py-3.5 border-2 border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 font-light text-left bg-white"
+                  >
+                    {selectedCompany ? (
+                      <span className="text-gray-900">{selectedCompany.name}</span>
+                    ) : (
+                      <span className="text-gray-400">Select a company...</span>
+                    )}
+                  </button>
+                  <ChevronDown className={`absolute right-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 transition-transform duration-200 ${showCompanyDropdown ? 'rotate-180' : ''}`} />
+                  
+                  {/* Dropdown */}
+                  {showCompanyDropdown && (
+                    <div className="absolute z-50 w-full mt-2 bg-white border-2 border-gray-200 rounded-2xl shadow-xl max-h-64 overflow-hidden">
+                      {/* Search */}
+                      <div className="p-3 border-b border-gray-100">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Search companies..."
+                            value={companySearch}
+                            onChange={(e) => setCompanySearch(e.target.value)}
+                            className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                      
+                      {/* Options */}
+                      <div className="max-h-48 overflow-y-auto">
+                        {loadingCompanies ? (
+                          <div className="p-4 text-center text-gray-500">
+                            <LoadingSpinner size="sm" />
+                            <span className="ml-2">Loading companies...</span>
+                          </div>
+                        ) : filteredCompanies.length === 0 ? (
+                          <div className="p-4 text-center text-gray-500 text-sm">
+                            {companySearch ? 'No companies found' : 'No companies available'}
+                          </div>
+                        ) : (
+                          <>
+                            {/* Option to clear selection */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedCompany(null)
+                                setShowCompanyDropdown(false)
+                                setCompanySearch('')
+                              }}
+                              className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors text-gray-500 text-sm border-b border-gray-100"
+                            >
+                              -- No company (Independent user) --
+                            </button>
+                            {filteredCompanies.map((company) => (
+                              <button
+                                key={company.id}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCompany(company)
+                                  setShowCompanyDropdown(false)
+                                  setCompanySearch('')
+                                }}
+                                className={`w-full px-4 py-3 text-left hover:bg-blue-50 transition-colors ${
+                                  getCompanyId(selectedCompany) === getCompanyId(company) ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                                }`}
+                              >
+                                <div className="font-medium">{company.name}</div>
+                                {company.industry && (
+                                  <div className="text-xs text-gray-500 capitalize">{company.industry.replace('_', ' ')}</div>
+                                )}
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
+                {selectedCompany && (
+                  <p className="mt-2 text-sm text-emerald-600 flex items-center">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    You will be registered as an employee of {selectedCompany.name}
+                  </p>
+                )}
               </div>
 
               {/* Password Fields */}
