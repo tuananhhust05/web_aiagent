@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Building2, CheckCircle, Users } from 'lucide-react'
+import { CheckCircle, Users } from 'lucide-react'
 import { companiesAPI } from '../../lib/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -9,9 +9,8 @@ import { useAuth } from '../../hooks/useAuth'
 export default function AcceptColleagueLink() {
   const { linkToken } = useParams<{ linkToken: string }>()
   const [isLoading, setIsLoading] = useState(false)
-  const [companyInfo, setCompanyInfo] = useState<any>(null)
   const navigate = useNavigate()
-  const { user, setUser } = useAuth()
+  const { user, updateUser } = useAuth()
 
   useEffect(() => {
     if (!linkToken) {
@@ -31,8 +30,7 @@ export default function AcceptColleagueLink() {
       // Update user info if available
       if (user) {
         const updatedUser = { ...user, company_id: company.id, company_name: company.name }
-        localStorage.setItem('user', JSON.stringify(updatedUser))
-        setUser(updatedUser)
+        updateUser(updatedUser)
       }
 
       toast.success(`Successfully joined ${company.name}!`)
@@ -77,17 +75,6 @@ export default function AcceptColleagueLink() {
               </div>
             </div>
 
-            {companyInfo && (
-              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200">
-                <div className="flex items-center gap-3">
-                  <Building2 className="h-5 w-5 text-gray-600" />
-                  <div>
-                    <p className="font-semibold text-gray-900">{companyInfo.name}</p>
-                    <p className="text-sm text-gray-600">{companyInfo.business_model}</p>
-                  </div>
-                </div>
-              </div>
-            )}
 
             <div className="space-y-3">
               <button

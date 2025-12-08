@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Eye, EyeOff, Lock, Mail, User, Building2, CheckCircle } from 'lucide-react'
+import { Eye, EyeOff, Lock, Mail, CheckCircle } from 'lucide-react'
 import { companiesAPI } from '../../lib/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
@@ -24,9 +24,8 @@ export default function AcceptInvite() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [inviteInfo, setInviteInfo] = useState<any>(null)
   const navigate = useNavigate()
-  const { setUser } = useAuth()
+  const { login } = useAuth()
 
   const {
     register,
@@ -53,10 +52,8 @@ export default function AcceptInvite() {
       const response = await companiesAPI.acceptInvite(inviteToken, data.password)
       const { access_token, user } = response.data
 
-      // Store auth data
-      localStorage.setItem('token', access_token)
-      localStorage.setItem('user', JSON.stringify(user))
-      setUser(user)
+      // Store auth data using login method from useAuth
+      login(user, access_token)
 
       toast.success('Welcome to the team! Your account has been created.')
       navigate('/dashboard')
