@@ -16,13 +16,19 @@ import {
   X,
   Play,
   Pause,
-  Loader2
+  Loader2,
+  LayoutList,
+  Kanban
 } from 'lucide-react'
 import { dealsAPI, campaignsAPI, campaignGoalsAPI, groupsAPI, contactsAPI } from '../lib/api'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import DealCreateModal from '../components/DealCreateModal'
 import DealDetailModal from '../components/DealDetailModal'
 import DealEditModal from '../components/DealEditModal'
+import SalesPipeline from '../components/SalesPipeline'
+import PipelineSettings from '../components/PipelineSettings'
+
+type ViewMode = 'list' | 'pipeline'
 
 interface Deal {
   id: string
@@ -112,6 +118,7 @@ interface DealListResponse {
 
 const Deals: React.FC = () => {
   const navigate = useNavigate()
+  const [viewMode, setViewMode] = useState<ViewMode>('pipeline') // Default to pipeline view
   const [deals, setDeals] = useState<Deal[]>([])
   const [stats, setStats] = useState<DealStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -124,6 +131,8 @@ const Deals: React.FC = () => {
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null)
+  const [pipelineKey, setPipelineKey] = useState(0) // For refreshing pipeline
+  const [showPipelineSettings, setShowPipelineSettings] = useState(false)
   
   // Campaign Goals state
   const [showCreateGoalModal, setShowCreateGoalModal] = useState(false)
@@ -171,8 +180,11 @@ const Deals: React.FC = () => {
   }
 
   useEffect(() => {
-    fetchDeals()
-  }, [currentPage, statusFilter])
+    // Only fetch deals when in list view
+    if (viewMode === 'list') {
+      fetchDeals()
+    }
+  }, [currentPage, statusFilter, viewMode])
 
   useEffect(() => {
     fetchCampaignGoals()
@@ -401,7 +413,9 @@ const Deals: React.FC = () => {
     }
   }
 
-  if (loading && deals.length === 0) {
+  // Only show loading spinner for list view when deals are being fetched
+  // Pipeline view has its own loading state
+  if (viewMode === 'list' && loading && deals.length === 0) {
     return (
       <div className="flex items-center justify-center h-64">
         <LoadingSpinner />
@@ -417,17 +431,69 @@ const Deals: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900">Deals Management</h1>
           <p className="text-gray-600">Manage your business deals and track revenue</p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-        >
-          <Plus className="h-4 w-4" />
-          Create Deal
-        </button>
+        <div className="flex items-center gap-3">
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('pipeline')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'pipeline'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Kanban className="h-4 w-4" />
+              Pipeline
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <LayoutList className="h-4 w-4" />
+              List
+            </button>
+          </div>
+          
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            Create Deal
+          </button>
+        </div>
       </div>
 
-      {/* Statistics Cards */}
-      {stats && (
+      {/* Pipeline View */}
+      {viewMode === 'pipeline' && (
+        <div className="bg-white p-6 rounded-lg shadow-sm border">
+          <SalesPipeline
+            key={pipelineKey}
+            onViewDeal={(deal) => {
+              setSelectedDeal(deal as Deal)
+              setShowDetailModal(true)
+            }}
+            onEditDeal={(deal) => {
+              setSelectedDeal(deal as Deal)
+              setShowEditModal(true)
+            }}
+            onDeleteDeal={async (dealId) => {
+              await handleDeleteDeal(dealId)
+              setPipelineKey(prev => prev + 1) // Refresh pipeline
+            }}
+          />
+        </div>
+      )}
+
+      {/* List View Content */}
+      {viewMode === 'list' && (
+        <>
+          {/* Statistics Cards */}
+          {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="bg-white p-6 rounded-lg shadow-sm border">
             <div className="flex items-center justify-between">
@@ -952,6 +1018,8 @@ const Deals: React.FC = () => {
           </div>
         </div>
       )}
+        </>
+      )}
 
       {/* Create Deal Modal */}
       <DealCreateModal
@@ -1021,6 +1089,13 @@ const Deals: React.FC = () => {
           loading={loading}
         />
       )}
+
+      {/* Pipeline Settings Modal */}
+      <PipelineSettings
+        isOpen={showPipelineSettings}
+        onClose={() => setShowPipelineSettings(false)}
+        onSaved={() => setPipelineKey(prev => prev + 1)}
+      />
     </div>
   )
 }

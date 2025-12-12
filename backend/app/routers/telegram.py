@@ -4,6 +4,9 @@ from datetime import datetime
 from pathlib import Path
 from bson import ObjectId
 import httpx
+import logging
+import os
+import glob
 from pydantic import BaseModel
 from telethon import TelegramClient
 from telethon.errors import (
@@ -11,6 +14,7 @@ from telethon.errors import (
     PhoneCodeInvalidError,
     PhoneNumberInvalidError,
     SessionPasswordNeededError,
+    AuthKeyDuplicatedError,
 )
 from app.core.auth import get_current_user
 from app.models.user import UserResponse
@@ -26,6 +30,8 @@ from app.services.telegram_listener import telegram_listener
 router = APIRouter(prefix="/api/telegram", tags=["telegram"])
 TELEGRAM_LOGIN_API_BASE = "http://3.106.56.62:8000"
 TELEGRAM_SESSION_DIR = Path("session_telegram")
+
+logger = logging.getLogger(__name__)
 
 
 class TelegramLoginRequest(BaseModel):
@@ -78,8 +84,54 @@ def _resolve_user_id(request: Optional[TelegramLoginRequest], current_user: User
 
 
 def _get_session_path(user_id: str) -> str:
-    TELEGRAM_SESSION_DIR.mkdir(parents=True, exist_ok=True)
-    return str(TELEGRAM_SESSION_DIR / f"{user_id}")
+    """Get the full path to the Telegram session file."""
+    try:
+        # Ensure directory exists and is writable
+        TELEGRAM_SESSION_DIR.mkdir(parents=True, exist_ok=True)
+        
+        # Check if directory is writable
+        if not os.access(TELEGRAM_SESSION_DIR, os.W_OK):
+            raise PermissionError(f"Directory {TELEGRAM_SESSION_DIR} is not writable")
+        
+        # TelegramClient expects a file path with .session extension, not just directory
+        session_file = TELEGRAM_SESSION_DIR / f"{user_id}.session"
+        session_path_str = str(session_file)
+        
+        # Ensure parent directory exists (should already exist, but double-check)
+        session_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        return session_path_str
+    except Exception as e:
+        logger.error(f"Error creating session path for user_id={user_id}: {str(e)}", exc_info=True)
+        raise
+
+
+def _delete_session_files(session_path: str) -> None:
+    """Delete all session files for a given session path.
+    
+    Args:
+        session_path: Full path to the .session file (e.g., session_telegram/user_id.session)
+    """
+    try:
+        # session_path is now a full file path ending with .session
+        # Delete the main session file and all related files (.session-journal, etc.)
+        # Pattern will match: user_id.session, user_id.session-journal, etc.
+        pattern = f"{session_path}*"
+        deleted_files = []
+        for file_path in glob.glob(pattern):
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    deleted_files.append(file_path)
+                    logger.debug(f"Deleted session file: {file_path}")
+            except Exception as e:
+                logger.warning(f"Failed to delete session file {file_path}: {str(e)}")
+        if deleted_files:
+            logger.info(f"Deleted {len(deleted_files)} session file(s): {deleted_files}")
+        else:
+            logger.debug(f"No session files found to delete for pattern: {pattern}")
+    except Exception as e:
+        logger.error(f"Error deleting session files for {session_path}: {str(e)}", exc_info=True)
 
 
 async def _get_app_config(db, user_id: str) -> Optional[dict]:
@@ -777,62 +829,234 @@ async def request_telegram_otp(
     db = Depends(get_database)
 ):
     """Send an OTP code to the configured Telegram phone number."""
-    config = await _get_app_config(db, current_user.id)
-    if not config or not config.get("api_id") or not config.get("api_hash"):
-        raise HTTPException(status_code=400, detail="Please save api_id and api_hash before requesting OTP.")
-
-    phone_number = (request.phone_number or config.get("phone_number") or "").strip()
-    if not phone_number:
-        raise HTTPException(status_code=400, detail="phone_number is required to request OTP.")
-
-    api_id_int = _parse_api_id(config.get("api_id"))
-    session_path = _get_session_path(str(current_user.id))
-    client = TelegramClient(session_path, api_id_int, config.get("api_hash"))
-
+    logger.info(f"[OTP Request] Starting OTP request for user_id={current_user.id}, phone_number={request.phone_number}")
+    client = None
+    phone_code_hash = None
+    
     try:
-        await client.connect()
-        sent = await client.send_code_request(phone_number)
-        phone_code_hash = sent.phone_code_hash
-    except PhoneNumberInvalidError:
-        raise HTTPException(status_code=400, detail="Invalid Telegram phone number.")
+        # Step 1: Get app config from database
+        try:
+            config = await _get_app_config(db, current_user.id)
+            logger.debug(f"[OTP Request] Config retrieved for user_id={current_user.id}, has_config={config is not None}")
+        except Exception as e:
+            logger.error(f"[OTP Request] Failed to get app config from database for user_id={current_user.id}, error={str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Database error: Failed to retrieve Telegram app configuration. Error: {str(e)}"
+            )
+        
+        if not config or not config.get("api_id") or not config.get("api_hash"):
+            logger.warning(f"[OTP Request] Missing api_id or api_hash for user_id={current_user.id}, config={config is not None}")
+            raise HTTPException(
+                status_code=400, 
+                detail="Please save api_id and api_hash before requesting OTP. Go to Telegram settings and configure your app credentials first."
+            )
+
+        # Step 2: Resolve phone number
+        try:
+            phone_number = (request.phone_number or config.get("phone_number") or "").strip()
+            logger.debug(f"[OTP Request] Phone number resolved: {phone_number[:3]}*** (from request: {request.phone_number}, from config: {config.get('phone_number')})")
+        except Exception as e:
+            logger.error(f"[OTP Request] Error resolving phone number for user_id={current_user.id}, error={str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error processing phone number: {str(e)}"
+            )
+        
+        if not phone_number:
+            logger.warning(f"[OTP Request] Phone number is required but not provided for user_id={current_user.id}")
+            raise HTTPException(
+                status_code=400, 
+                detail="phone_number is required to request OTP. Please provide a phone number in the request or save it in your Telegram app configuration."
+            )
+
+        # Step 3: Parse API ID and create session path
+        try:
+            api_id_int = _parse_api_id(config.get("api_id"))
+            logger.debug(f"[OTP Request] API ID parsed successfully: {api_id_int}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"[OTP Request] Error parsing API ID for user_id={current_user.id}, api_id={config.get('api_id')}, error={str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid API ID format. Expected numeric value, got: {config.get('api_id')}. Error: {str(e)}"
+            )
+        
+        try:
+            session_path = _get_session_path(str(current_user.id))
+            logger.debug(f"[OTP Request] Session path created: {session_path}")
+        except Exception as e:
+            logger.error(f"[OTP Request] Error creating session path for user_id={current_user.id}, error={str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to create session directory. Error: {str(e)}"
+            )
+        
+        # Step 4: Create Telegram client
+        try:
+            logger.debug(f"[OTP Request] Creating TelegramClient with api_id={api_id_int}, session_path={session_path}")
+            client = TelegramClient(session_path, api_id_int, config.get("api_hash"))
+        except Exception as e:
+            logger.error(f"[OTP Request] Error creating TelegramClient for user_id={current_user.id}, error={str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to initialize Telegram client. Please check your api_id and api_hash. Error: {str(e)}"
+            )
+
+        # Step 5: Connect and send OTP
+        # Try to connect, if AuthKeyDuplicatedError occurs, delete session and retry once
+        max_retries = 2
+        retry_count = 0
+        connected = False
+        
+        while retry_count < max_retries and not connected:
+            try:
+                if retry_count > 0:
+                    logger.info(f"[OTP Request] Retrying connection (attempt {retry_count + 1}/{max_retries}) for user_id={current_user.id}")
+                    # Disconnect previous client if exists
+                    try:
+                        if client:
+                            await client.disconnect()
+                    except:
+                        pass
+                    # Create new client with fresh session
+                    client = TelegramClient(session_path, api_id_int, config.get("api_hash"))
+                
+                logger.info(f"[OTP Request] Connecting to Telegram for user_id={current_user.id} (attempt {retry_count + 1}/{max_retries})")
+                await client.connect()
+                logger.info(f"[OTP Request] Connected successfully, sending code request to {phone_number[:3]}***")
+                connected = True
+                
+            except AuthKeyDuplicatedError as e:
+                retry_count += 1
+                logger.error(f"[OTP Request] AuthKeyDuplicatedError for user_id={current_user.id}, session_path={session_path}, attempt={retry_count}, error={str(e)}")
+                
+                # Session file is invalid, delete it
+                try:
+                    _delete_session_files(session_path)
+                    logger.info(f"[OTP Request] Deleted invalid session files for user_id={current_user.id}")
+                except Exception as del_err:
+                    logger.error(f"[OTP Request] Failed to delete session files: {str(del_err)}", exc_info=True)
+                
+                # If this was the last retry, raise error
+                if retry_count >= max_retries:
+                    logger.error(f"[OTP Request] AuthKeyDuplicatedError persists after {max_retries} attempts for user_id={current_user.id}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="The Telegram session file is invalid or was used from a different location. The session has been reset. Please wait a few seconds and try requesting OTP again. If the problem persists, there may be another process using this Telegram account."
+                    )
+                
+                # Otherwise, continue loop to retry
+                logger.info(f"[OTP Request] Will retry connection after deleting session files for user_id={current_user.id}")
+                continue
+                
+            except Exception as e:
+                logger.error(f"[OTP Request] Error connecting to Telegram for user_id={current_user.id}, error={str(e)}", exc_info=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to connect to Telegram servers. Please check your internet connection and try again. Error: {str(e)}"
+                )
+        
+        try:
+            sent = await client.send_code_request(phone_number)
+            phone_code_hash = sent.phone_code_hash
+            logger.info(f"[OTP Request] OTP code sent successfully, phone_code_hash={phone_code_hash[:10]}***")
+        except PhoneNumberInvalidError as e:
+            logger.error(f"[OTP Request] Invalid phone number for user_id={current_user.id}, phone={phone_number[:3]}***, error={str(e)}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid Telegram phone number: {phone_number}. Please check the phone number format (e.g., +1234567890). Error: {str(e)}"
+            )
+        except Exception as e:
+            logger.error(f"[OTP Request] Error sending OTP code request for user_id={current_user.id}, phone={phone_number[:3]}***, error={str(e)}", exc_info=True)
+            error_msg = str(e)
+            if "flood" in error_msg.lower() or "rate limit" in error_msg.lower():
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Too many requests. Please wait a few minutes before requesting another OTP code. Error: {error_msg}"
+                )
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to send OTP code request to Telegram. Error: {error_msg}"
+            )
+        finally:
+            try:
+                if client:
+                    logger.debug(f"[OTP Request] Disconnecting Telegram client for user_id={current_user.id}")
+                    await client.disconnect()
+            except Exception as e:
+                logger.warning(f"[OTP Request] Error disconnecting client for user_id={current_user.id}, error={str(e)}")
+
+        # Step 6: Update database
+        if not phone_code_hash:
+            logger.error(f"[OTP Request] phone_code_hash is None after sending OTP for user_id={current_user.id}")
+            raise HTTPException(
+                status_code=500,
+                detail="OTP was sent but phone_code_hash is missing. Please try again."
+            )
+        
+        now = datetime.utcnow()
+        update_doc = {
+            "phone_number": phone_number,
+            "phone_code_hash": phone_code_hash,
+            "is_verified": False,
+            "session_file": session_path,
+            "updated_at": now,
+        }
+        logger.debug(f"[OTP Request] Preparing to update database for user_id={current_user.id}")
+        
+        try:
+            if config:
+                logger.debug(f"[OTP Request] Updating existing config for user_id={current_user.id}")
+                result = await db.telegram_app_configs.update_one(
+                    {"user_id": current_user.id},
+                    {"$set": update_doc},
+                    upsert=True
+                )
+                logger.debug(f"[OTP Request] Update result: matched={result.matched_count}, modified={result.modified_count}")
+            else:
+                logger.debug(f"[OTP Request] Inserting new config for user_id={current_user.id}")
+                await db.telegram_app_configs.insert_one(
+                    {
+                        "user_id": current_user.id,
+                        "api_id": str(api_id_int),
+                        "api_hash": config.get("api_hash"),
+                        **update_doc,
+                        "created_at": now,
+                    }
+                )
+            logger.info(f"[OTP Request] Database updated successfully for user_id={current_user.id}")
+        except Exception as e:
+            logger.error(f"[OTP Request] Error updating database for user_id={current_user.id}, error={str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"OTP was sent successfully, but failed to save configuration to database. Please try verifying the OTP code. Database error: {str(e)}"
+            )
+
+        # Step 7: Stop existing session
+        try:
+            logger.debug(f"[OTP Request] Stopping user session for user_id={current_user.id}")
+            await telegram_listener.stop_user_session(str(current_user.id))
+        except Exception as e:
+            logger.warning(f"[OTP Request] Error stopping user session for user_id={current_user.id}, error={str(e)}", exc_info=True)
+            # Don't fail the request if stopping session fails, just log it
+
+        logger.info(f"[OTP Request] OTP request completed successfully for user_id={current_user.id}")
+        return {
+            "message": "OTP sent successfully. Please check your Telegram app.",
+            "phone_code_hash": phone_code_hash,
+        }
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        print(f"❌ Error requesting Telegram OTP: {e}")
-        raise HTTPException(status_code=500, detail="Failed to request Telegram OTP. Please try again.")
-    finally:
-        await client.disconnect()
-
-    now = datetime.utcnow()
-    update_doc = {
-        "phone_number": phone_number,
-        "phone_code_hash": phone_code_hash,
-        "is_verified": False,
-        "session_file": session_path,
-        "updated_at": now,
-    }
-    if config:
-        await db.telegram_app_configs.update_one(
-            {"user_id": current_user.id},
-            {"$set": update_doc},
-            upsert=True
+        logger.error(f"[OTP Request] Unexpected error in OTP request for user_id={current_user.id}, error={str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"An unexpected error occurred while requesting OTP: {str(e)}. Please check the logs for more details."
         )
-    else:
-        # In theory we already checked, but keep fallback.
-        await db.telegram_app_configs.insert_one(
-            {
-                "user_id": current_user.id,
-                "api_id": str(api_id_int),
-                "api_hash": config.get("api_hash"),
-                **update_doc,
-                "created_at": now,
-            }
-        )
-
-    await telegram_listener.stop_user_session(str(current_user.id))
-
-    return {
-        "message": "OTP sent successfully. Please check your Telegram app.",
-        "phone_code_hash": phone_code_hash,
-    }
 
 
 @router.post("/otp/verify")

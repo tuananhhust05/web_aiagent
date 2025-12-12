@@ -6,6 +6,16 @@ import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies
+
+# Import pipelines separately with error handling
+try:
+    from app.routers import pipelines
+    print(f"✅ [DEBUG] pipelines router loaded successfully: {pipelines.router}")
+except Exception as e:
+    print(f"❌ [ERROR] Failed to import pipelines router: {e}")
+    import traceback
+    traceback.print_exc()
+    pipelines = None
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.services.scheduler import start_scheduler, stop_scheduler
@@ -17,8 +27,14 @@ async def lifespan(app: FastAPI):
     print("🔧 [DEBUG] FastAPI lifespan startup")
     await init_db()
     print("🔧 [DEBUG] Database initialized")
-    await telegram_listener.start()
-    print("🔧 [DEBUG] Telegram listener started")
+    
+    # Start Telegram listener with error handling
+    try:
+        await telegram_listener.start()
+        print("🔧 [DEBUG] Telegram listener started")
+    except Exception as e:
+        print(f"⚠️ [WARNING] Telegram listener failed to start: {e}")
+        print("⚠️ [WARNING] App will continue without Telegram listener")
     
     # Start campaign scheduler
     # TEMPORARILY DISABLED - Uncomment to enable scheduler
@@ -38,7 +54,10 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     print("🔧 [DEBUG] FastAPI lifespan shutdown")
-    await telegram_listener.stop()
+    try:
+        await telegram_listener.stop()
+    except Exception as e:
+        print(f"⚠️ [WARNING] Error stopping Telegram listener: {e}")
     # await stop_scheduler()
     # scheduler_task.cancel()
     # try:
@@ -93,10 +112,35 @@ app.include_router(campaign_workflow_scripts.router, prefix="/api/campaign-workf
 app.include_router(gmail.router, prefix="/api/gmail", tags=["Gmail"])
 app.include_router(companies.router, prefix="/api", tags=["Companies"])
 
+# Add pipelines router if import succeeded
+# if pipelines:
+app.include_router(pipelines.router, prefix="/api/pipelines", tags=["Sales Pipelines"])
+print("✅ [DEBUG] Pipelines router registered at /api/pipelines")
+# else:
+#     print("⚠️ [WARNING] Pipelines router not loaded - /api/pipelines will be unavailable")
+
 @app.get("/")
 async def root():
     return {"message": "AgentVoice API is running!"}
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"} 
+    return {"status": "healthy"}
+
+# DEBUG: Direct test endpoint for pipelines
+@app.get("/api/pipelines-test-direct")
+async def pipelines_test_direct():
+    print("🔥 [MAIN.PY] /api/pipelines-test-direct called!")
+    return {"status": "ok", "message": "Direct endpoint from main.py works!", "pipelines_loaded": pipelines is not None}
+
+@app.get("/debug/routes")
+async def debug_routes():
+    """List all registered routes"""
+    routes = []
+    for route in app.routes:
+        if hasattr(route, 'path'):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods) if hasattr(route, 'methods') else None
+            })
+    return {"total_routes": len(routes), "routes": routes} 

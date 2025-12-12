@@ -1,231 +1,142 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { 
-  Search, 
-  Filter, 
-  Users, 
-  UserCheck, 
-  UserX, 
-  Target, 
-  Calendar,
-  Phone,
-  Mail,
-  MessageCircle,
-  Send,
-  ExternalLink,
-  Eye,
-  ChevronDown,
-  ChevronUp,
-  Workflow,
+import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import {
+  ArrowRight,
+  ChevronRight,
+  Loader2,
   Plus,
-  X,
-  Play,
-  Pause,
-  Trash2,
-  Loader2
-} from 'lucide-react';
-import { conventionActivitiesAPI, groupsAPI, campaignsAPI, campaignGoalsAPI } from '../lib/api';
+  Search,
+  Users,
+  X
+} from 'lucide-react'
+import { campaignsAPI, campaignGoalsAPI, conventionActivitiesAPI, groupsAPI } from '../lib/api'
 
 interface Contact {
-  id: string;
-  first_name: string;
-  last_name: string;
-  email?: string;
-  phone?: string;
-  whatsapp_number?: string;
-  telegram_username?: string;
-  linkedin_profile?: string;
-  status: 'active' | 'inactive' | 'lead' | 'customer' | 'prospect';
-  campaigns: Array<{
-    id: string;
-    name: string;
-    status: string;
-    type: string;
-    created_at: string;
-  }>;
-  created_at: string;
-  updated_at: string;
+  id: string
+  first_name: string
+  last_name: string
+  email?: string
+  phone?: string
+  whatsapp_number?: string
+  telegram_username?: string
+  linkedin_profile?: string
 }
-
-interface ConventionActivityResponse {
-  contacts: Contact[];
-  total_contacts: number;
-  total_customers: number;
-  total_leads: number;
-  total_in_campaigns: number;
-  total_not_in_campaigns: number;
-  total_convention_campaigns: number;
-  total_campaign_goals: number;
-}
-
-// interface Stats {
-//   total_contacts: number;
-//   total_customers: number;
-//   total_leads: number;
-//   total_in_campaigns: number;
-//   total_not_in_campaigns: number;
-//   total_convention_campaigns: number;
-//   total_campaign_goals: number;
-// } // Temporarily unused
 
 interface CampaignGoal {
-  id: string;
-  name: string;
-  description?: string;
-  color_gradient: string;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Campaign {
-  id: string;
-  name: string;
-  status: string;
-  type: string;
-  created_at: string;
-  description?: string;
-  source?: string;
+  id: string
+  name: string
+  description?: string
+  color_gradient: string
+  is_active: boolean
+  created_at: string
+  updated_at: string
 }
 
 interface Group {
-  id: string;
-  name: string;
-  description?: string;
-  member_count: number;
-  color?: string;
+  id: string
+  name: string
+  description?: string
+  member_count: number
+  color?: string
 }
 
+const templateCards = [
+  { label: 'ForSkale Template', type: 'forskale', gradient: 'from-blue-600 to-indigo-600' },
+  { label: 'Company Template', type: 'company', gradient: 'from-emerald-500 to-teal-500' },
+  { label: 'Your Template', type: 'user', gradient: 'from-amber-500 to-orange-500' },
+]
+
 const ConventionActivities: React.FC = () => {
-  const navigate = useNavigate();
-  const [contacts, setContacts] = useState<Contact[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filters, setFilters] = useState({
-    isCustomer: null as boolean | null,
-    hasCampaigns: null as boolean | null,
-  });
-  const [stats, setStats] = useState({
-    total_contacts: 0,
-    total_customers: 0,
-    total_leads: 0,
-    total_in_campaigns: 0,
-    total_not_in_campaigns: 0,
-    total_convention_campaigns: 0,
-    total_campaign_goals: 0,
-  });
-  const [showFilters, setShowFilters] = useState(false);
-  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null);
-  const [showCampaignModal, setShowCampaignModal] = useState(false);
-  const [showCreateCampaign, setShowCreateCampaign] = useState(false);
-  const [showContactSelector, setShowContactSelector] = useState(false);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [groups, setGroups] = useState<Group[]>([]);
-  const [allContacts, setAllContacts] = useState<Contact[]>([]);
-  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
-  const [contactSearchTerm, setContactSearchTerm] = useState('');
-  
-  // Campaign Goals state
-  const [showCreateGoalModal, setShowCreateGoalModal] = useState(false);
-  const [campaignGoals, setCampaignGoals] = useState<CampaignGoal[]>([]);
+  const navigate = useNavigate()
+  const location = useLocation()
+  const [campaignGoals, setCampaignGoals] = useState<CampaignGoal[]>([])
+  const [selectedGoalId, setSelectedGoalId] = useState<string | null>(null)
+  const [loadingGoals, setLoadingGoals] = useState(false)
+  const [showCreateGoalModal, setShowCreateGoalModal] = useState(false)
+  const [showCreateCampaign, setShowCreateCampaign] = useState(false)
+  const [showContactSelector, setShowContactSelector] = useState(false)
+  const [groups, setGroups] = useState<Group[]>([])
+  const [allContacts, setAllContacts] = useState<Contact[]>([])
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([])
+  const [contactSearchTerm, setContactSearchTerm] = useState('')
+  const [loadingContacts, setLoadingContacts] = useState(false)
 
-  const fetchContacts = async () => {
+  const selectedGoal = useMemo(
+    () => campaignGoals.find(goal => goal.id === selectedGoalId) || null,
+    [campaignGoals, selectedGoalId]
+  )
+
+  useEffect(() => {
+    fetchCampaignGoals()
+    fetchGroups()
+    fetchAllContacts()
+  }, [])
+
+  // Handle query params to auto-select goal and open campaign modal
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const goalId = params.get('goalId')
+    const createCampaign = params.get('createCampaign') === 'true'
+    if (goalId) {
+      setSelectedGoalId(goalId)
+    }
+    if (createCampaign) {
+      setShowCreateCampaign(true)
+    }
+  }, [location.search])
+
+  const fetchCampaignGoals = async () => {
     try {
-      setLoading(true);
-      
-      // Fetch contacts and stats in parallel
-      const [contactsResponse, statsResponse] = await Promise.all([
-        conventionActivitiesAPI.getActivities({
-          search: searchTerm || undefined,
-          is_customer: filters.isCustomer || undefined,
-          has_campaigns: filters.hasCampaigns || undefined,
-          limit: 50,
-          offset: 0
-        }),
-        conventionActivitiesAPI.getStats()
-      ]);
-      
-      const contactsData: ConventionActivityResponse = contactsResponse.data;
-      const statsData = statsResponse.data;
-      
-      setContacts(contactsData.contacts);
-      setStats({
-        total_contacts: statsData.total_contacts,
-        total_customers: statsData.total_customers,
-        total_leads: statsData.total_leads,
-        total_in_campaigns: statsData.total_in_campaigns,
-        total_not_in_campaigns: statsData.total_not_in_campaigns,
-        total_convention_campaigns: statsData.total_convention_campaigns || 0,
-        total_campaign_goals: statsData.total_campaign_goals || 0,
-      });
+      setLoadingGoals(true)
+      const response = await campaignGoalsAPI.getGoals('convention-activities')
+      const goals = response.data || []
+      setCampaignGoals(goals)
+      if (!selectedGoalId && goals.length > 0) {
+        setSelectedGoalId(goals[0].id)
+      }
     } catch (error) {
-      console.error('Error fetching contacts:', error);
+      console.error('Error fetching campaign goals:', error)
     } finally {
-      setLoading(false);
+      setLoadingGoals(false)
     }
-  };
+  }
 
-  useEffect(() => {
-    fetchContacts();
-    fetchGroups();
-    fetchAllContacts();
-    fetchCampaignGoals(); // Fetch campaign goals on component mount
-  }, [searchTerm, filters]);
-
-  // Separate useEffect to ensure allContacts is loaded when needed
-  useEffect(() => {
-    if (showContactSelector && allContacts.length === 0) {
-      console.log('Contact selector opened but no contacts loaded, fetching...');
-      fetchAllContacts();
-    }
-  }, [showContactSelector]);
-
-  useEffect(() => {
-    if (showCampaignModal) {
-      fetchConventionCampaigns();
-    }
-  }, [showCampaignModal]);
-
-
-  const updateContactStatus = async (contactId: string, newStatus: 'customer' | 'lead') => {
+  const fetchGroups = async () => {
     try {
-      setUpdatingStatus(contactId);
-      await conventionActivitiesAPI.updateContactStatus({
-        contact_id: contactId,
-        status: newStatus
-      });
-      
-      // Update local state
-      setContacts(prev => prev.map(contact => 
-        contact.id === contactId 
-          ? { ...contact, status: newStatus }
-          : contact
-      ));
-      
-      // Update stats
-      setStats(prev => ({
-        ...prev,
-        total_customers: newStatus === 'customer' ? prev.total_customers + 1 : prev.total_customers - 1,
-        total_leads: newStatus === 'lead' ? prev.total_leads + 1 : prev.total_leads - 1,
-      }));
+      const response = await groupsAPI.getGroups()
+      setGroups(response.data?.groups || [])
     } catch (error) {
-      console.error('Error updating contact status:', error);
+      console.error('Error fetching groups:', error)
+    }
+  }
+
+  const fetchAllContacts = async () => {
+    try {
+      setLoadingContacts(true)
+      const response = await conventionActivitiesAPI.getActivities({
+        limit: 100,
+        offset: 0,
+      })
+      setAllContacts(response.data?.contacts || [])
+    } catch (error) {
+      console.error('Error fetching contacts:', error)
     } finally {
-      setUpdatingStatus(null);
+      setLoadingContacts(false)
     }
-  };
+  }
 
-  const fetchConventionCampaigns = async () => {
-    try {
-      // Use regular campaigns API with source filter
-      const response = await campaignsAPI.getCampaigns();
-      const allCampaigns = response.data || [];
-      const conventionCampaigns = allCampaigns.filter((campaign: any) => campaign.source === 'convention-activities');
-      setCampaigns(conventionCampaigns);
-    } catch (error) {
-      console.error('Error fetching convention campaigns:', error);
-    }
-  };
+  const createCampaignGoal = (goalData: { name: string; description?: string }) => {
+    const payload = { ...goalData, source: 'convention-activities' }
+    campaignGoalsAPI.createGoal(payload)
+      .then(() => {
+        setShowCreateGoalModal(false)
+        fetchCampaignGoals()
+      })
+      .catch((error) => {
+        console.error('Campaign goal creation error:', error)
+        alert('Failed to create campaign goal')
+      })
+  }
 
   const createCampaign = (campaignData: any) => {
     const newCampaign = {
@@ -233,770 +144,155 @@ const ConventionActivities: React.FC = () => {
       description: campaignData.description || '',
       status: 'draft',
       type: campaignData.type || 'manual',
-      source: 'convention-activities', // Add source field
-      campaign_goal_id: campaignData.campaign_goal_id || null, // Add campaign goal ID field
-      contacts: selectedContacts.filter(id => id !== null && id !== undefined), // Filter out null/undefined contacts
-      group_ids: campaignData.group_ids || [], // Selected groups
+      source: 'convention-activities',
+      campaign_goal_id: campaignData.campaign_goal_id || selectedGoalId || null,
+      contacts: selectedContacts.filter(Boolean),
+      group_ids: campaignData.group_ids || [],
       call_script: campaignData.call_script || '',
       schedule_time: campaignData.type === 'scheduled' && campaignData.schedule_time ? campaignData.schedule_time : null,
       schedule_settings: campaignData.type === 'scheduled' ? campaignData.schedule_settings : null,
-      settings: {}
+      settings: {},
     }
-    
-    console.log('Creating campaign with data:', newCampaign); // Debug log
-    
-    // Use the same API call as main campaigns page
+
     campaignsAPI.createCampaign(newCampaign)
       .then(() => {
         setShowCreateCampaign(false)
         setSelectedContacts([])
-        alert('Campaign created successfully!')
-        fetchConventionCampaigns()
-        fetchContacts() // Refresh to update stats
       })
       .catch((error) => {
-        console.error('Campaign creation error:', error);
+        console.error('Campaign creation error:', error)
         alert('Failed to create campaign')
       })
-  };
-
-  const fetchGroups = async () => {
-    try {
-      const response = await groupsAPI.getGroups();
-      setGroups(response.data?.groups || []);
-    } catch (error) {
-      console.error('Error fetching groups:', error);
-    }
-  };
-
-  const fetchAllContacts = async () => {
-    try {
-      console.log('Starting to fetch contacts...');
-      // Use convention activities API to get contacts with consistent structure
-      const response = await conventionActivitiesAPI.getActivities({
-        limit: 1000, // Get more contacts for selection
-        offset: 0
-      });
-      console.log('Convention activities API response:', response);
-      let contacts = response.data?.contacts || [];
-      
-      console.log('Fetched contacts for campaign creation:', contacts);
-      console.log('Number of contacts:', contacts.length);
-      if (contacts.length > 0) {
-        console.log('First contact structure:', contacts[0]);
-        console.log('First contact ID:', contacts[0].id);
-        console.log('First contact ID type:', typeof contacts[0].id);
-      }
-      setAllContacts(contacts);
-    } catch (error) {
-      console.error('Error fetching contacts:', error);
-      // Fallback to current contacts state
-      console.log('Using fallback contacts from current state');
-      setAllContacts(contacts);
-    }
-  };
+  }
 
   const handleContactToggle = (contactId: string) => {
-    console.log('=== handleContactToggle called ===');
-    console.log('contactId received:', contactId);
-    console.log('contactId type:', typeof contactId);
-    console.log('contactId is null/undefined:', contactId === null || contactId === undefined);
-    
-    if (!contactId) {
-      console.log('Contact ID is null/undefined, skipping toggle');
-      return; // Skip if contactId is null/undefined
-    }
-    
-    console.log('Current selectedContacts before toggle:', selectedContacts);
-    console.log('Toggling contact:', contactId);
-    
-    setSelectedContacts(prev => {
-      console.log('Previous selectedContacts:', prev);
-      const isSelected = prev.includes(contactId);
-      console.log('Is contact already selected:', isSelected);
-      
-      const newSelection = isSelected 
-        ? prev.filter(id => id !== contactId)
-        : [...prev, contactId];
-      
-      console.log('New selected contacts:', newSelection);
-      return newSelection;
-    });
-  };
+    if (!contactId) return
+    setSelectedContacts(prev => prev.includes(contactId) ? prev.filter(id => id !== contactId) : [...prev, contactId])
+  }
 
-  const [startingCampaignId, setStartingCampaignId] = useState<string | null>(null);
-
-  const handleCampaignAction = (campaignId: string, action: string, campaignType?: string) => {
-    if (action === 'active') {
-      setStartingCampaignId(campaignId);
-      campaignsAPI.startCampaign(campaignId)
-        .then((response) => {
-          // Always show success message regardless of response
-          if (campaignType === 'manual') {
-            alert(response.data?.message || 'Campaign executed successfully');
-          } else {
-            alert('Campaign started successfully');
-            fetchConventionCampaigns();
-          }
-        })
-        .catch((error) => {
-          // Always show success message even on error/timeout/crash
-          console.error('Campaign start error:', error);
-          alert('Campaign started successfully');
-          if (campaignType !== 'manual') {
-            fetchConventionCampaigns();
-          }
-        })
-        .finally(() => {
-          setStartingCampaignId(null);
-        });
-    } else if (action === 'paused') {
-      campaignsAPI.pauseCampaign(campaignId)
-        .then(() => {
-          alert('Campaign paused successfully')
-          fetchConventionCampaigns()
-        })
-        .catch(() => alert('Failed to pause campaign'))
-    }
-  };
-
-  const handleDeleteCampaign = (campaignId: string, campaignName: string) => {
-    if (window.confirm(`Are you sure you want to delete campaign "${campaignName}"? This action cannot be undone.`)) {
-      campaignsAPI.deleteCampaign(campaignId)
-        .then(() => {
-          alert('Campaign deleted successfully')
-          fetchConventionCampaigns()
-          fetchContacts() // Refresh stats
-        })
-        .catch(() => alert('Failed to delete campaign'))
-    }
-  };
-
-  // Campaign Goals functions
-  const fetchCampaignGoals = async () => {
-    try {
-      const response = await campaignGoalsAPI.getGoals('convention-activities');
-      setCampaignGoals(response.data || []);
-    } catch (error) {
-      console.error('Error fetching campaign goals:', error);
-    }
-  };
-
-  const createCampaignGoal = (goalData: { name: string; description?: string }) => {
-    const goalDataWithSource = {
-      ...goalData,
-      source: 'convention-activities'
-    };
-    
-    campaignGoalsAPI.createGoal(goalDataWithSource)
-      .then(() => {
-        fetchCampaignGoals();
-        fetchContacts(); // Refresh stats
-        setShowCreateGoalModal(false);
-      })
-      .catch((error) => {
-        console.error('Campaign goal creation error:', error);
-        alert('Failed to create campaign goal');
-      });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'customer': return 'bg-green-100 text-green-800';
-      case 'lead': return 'bg-blue-100 text-blue-800';
-      case 'prospect': return 'bg-yellow-100 text-yellow-800';
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'inactive': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'customer': return 'Customer';
-      case 'lead': return 'Lead';
-      case 'prospect': return 'Prospect';
-      case 'active': return 'Active';
-      case 'inactive': return 'Inactive';
-      default: return status;
-    }
-  };
-
-  const getCampaignStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'completed': return 'bg-blue-100 text-blue-800';
-      case 'paused': return 'bg-yellow-100 text-yellow-800';
-      case 'draft': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
+  const handleOpenTemplate = (templateType: string) => {
+    if (!selectedGoalId) return
+    navigate(`/workflow-builder?function=convention-activities&goalId=${selectedGoalId}&template=${templateType}`)
+  }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Conversion Activities</h1>
-            <p className="text-gray-600">Manage and track customer activities</p>
-          </div>
-          <Link
-            to="/workflow-builder?function=convention-activities"
-            className="flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            <Workflow className="h-5 w-5 mr-2" />
-            Workflow Builder
-          </Link>
+    <div className="p-6 max-w-7xl mx-auto space-y-8">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Conversion Activities</h1>
+          <p className="text-gray-600">Convert your leads into clients</p>
         </div>
+        <button
+          onClick={() => setShowCreateGoalModal(true)}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus className="h-4 w-4" />
+          Add Goal
+        </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="space-y-6 mb-8">
-        {/* First Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Users className="h-6 w-6 text-blue-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Contacts</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_contacts}</p>
-              </div>
+      <div className="bg-white border rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Goals</h2>
+          {loadingGoals && (
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading...
             </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <UserCheck className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Customers</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_customers}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <UserX className="h-6 w-6 text-yellow-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Leads</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_leads}</p>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Second Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Target className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">In Campaigns</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_in_campaigns}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center">
-              <div className="p-2 bg-gray-100 rounded-lg">
-                <Calendar className="h-6 w-6 text-gray-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Not in Campaigns</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_not_in_campaigns}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-sm border cursor-pointer hover:shadow-md transition-shadow" onClick={() => setShowCampaignModal(true)}>
-            <div className="flex items-center">
-              <div className="p-2 bg-indigo-100 rounded-lg">
-                <Target className="h-6 w-6 text-indigo-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Convention Campaigns</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_convention_campaigns}</p>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Campaign Goals Section */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Campaign Goals</h2>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           {campaignGoals.map((goal) => (
-            <div
+            <button
               key={goal.id}
               onClick={() => navigate(`/campaign-goals/${goal.id}`)}
-              className="relative rounded-lg p-4 text-white font-medium text-center cursor-pointer hover:shadow-lg transition-shadow min-h-[120px] flex flex-col justify-center"
-              style={{ background: goal.color_gradient }}
+              className={`flex items-center justify-between w-full rounded-lg border px-4 py-3 text-left transition-all ${
+                selectedGoalId === goal.id ? 'border-blue-500 bg-blue-50 shadow-sm' : 'hover:border-gray-300'
+              }`}
             >
-              <div className="text-lg font-semibold mb-2">{goal.name}</div>
-              {!goal.is_active && (
-                <div className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
-                  Inactive
+              <div className="flex items-center gap-3">
+                <div
+                  className="h-8 w-8 rounded-full border shadow-sm"
+                  style={{ background: (goal as any).color_gradient || '#3B82F6' }}
+                />
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">{goal.name}</div>
+                  {goal.description && <div className="text-xs text-gray-500 line-clamp-2 mt-1">{goal.description}</div>}
                 </div>
-              )}
-            </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-gray-400" />
+            </button>
           ))}
-          
-          {/* Add New Goal Button */}
-          <div
-            onClick={() => setShowCreateGoalModal(true)}
-            className="relative rounded-lg p-4 text-white font-medium text-center cursor-pointer hover:shadow-lg transition-shadow min-h-[120px] flex flex-col justify-center items-center"
-            style={{ background: 'linear-gradient(to right, #8B5CF6, #EC4899)' }}
-          >
-            <Plus className="h-8 w-8 mb-2" />
-            <div className="text-sm font-semibold">Add New Goal</div>
-          </div>
-        </div>
-        
-        {campaignGoals.length === 0 && (
-          <div className="text-center py-8">
-            <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No campaign goals found</p>
-            <p className="text-sm text-gray-500 mt-2">Create your first campaign goal to get started</p>
-          </div>
-        )}
-      </div>
 
-      {/* Search and Filters */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
-          <div className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-              <input
-                type="text"
-                placeholder="Search by name, email, phone number..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          {/* Filter Toggle */}
           <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            onClick={() => setShowCreateGoalModal(true)}
+            className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-300 px-4 py-6 text-center text-sm font-semibold text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors"
           >
-            <Filter className="h-5 w-5 mr-2" />
-            Filters
-            {showFilters ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+            <Plus className="h-5 w-5 mb-2" />
+            Add Goal
           </button>
         </div>
 
-        {/* Filters */}
-        {showFilters && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Customer Status Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Customer Status
-                </label>
-                <select
-                  value={filters.isCustomer === null ? '' : filters.isCustomer.toString()}
-                  onChange={(e) => setFilters(prev => ({
-                    ...prev,
-                    isCustomer: e.target.value === '' ? null : e.target.value === 'true'
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">All</option>
-                  <option value="true">Is Customer</option>
-                  <option value="false">Not Customer</option>
-                </select>
-              </div>
-
-              {/* Campaign Participation Filter */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Campaign Participation
-                </label>
-                <select
-                  value={filters.hasCampaigns === null ? '' : filters.hasCampaigns.toString()}
-                  onChange={(e) => setFilters(prev => ({
-                    ...prev,
-                    hasCampaigns: e.target.value === '' ? null : e.target.value === 'true'
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">All</option>
-                  <option value="true">Has Campaigns</option>
-                  <option value="false">No Campaigns</option>
-                </select>
-              </div>
-            </div>
+        {campaignGoals.length === 0 && !loadingGoals && (
+          <div className="text-center py-10">
+            <p className="text-gray-600">No goals yet. Add your first goal to get started.</p>
           </div>
         )}
       </div>
 
-      {/* Contacts Table */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-2 text-gray-600">Loading data...</p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact Information
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Campaigns
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {contacts.map((contact) => (
-                  <tr key={contact.id} className="hover:bg-gray-50">
-                    {/* Contact Info */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                            <span className="text-sm font-medium text-blue-600">
-                              {contact.first_name.charAt(0)}{contact.last_name.charAt(0)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {contact.first_name} {contact.last_name}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            ID: {contact.id.slice(-8)}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
+      {selectedGoal ? (
+        <div className="space-y-6">
 
-                    {/* Contact Details */}
-                    <td className="px-6 py-4">
-                      <div className="space-y-1">
-                        {contact.email && (
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Mail className="h-4 w-4 mr-2" />
-                            {contact.email}
-                          </div>
-                        )}
-                        {contact.phone && (
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Phone className="h-4 w-4 mr-2" />
-                            {contact.phone}
-                          </div>
-                        )}
-                        {contact.whatsapp_number && (
-                          <div className="flex items-center text-sm text-gray-600">
-                            <MessageCircle className="h-4 w-4 mr-2" />
-                            WhatsApp: {contact.whatsapp_number}
-                          </div>
-                        )}
-                        {contact.telegram_username && (
-                          <div className="flex items-center text-sm text-gray-600">
-                            <Send className="h-4 w-4 mr-2" />
-                            Telegram: @{contact.telegram_username}
-                          </div>
-                        )}
-                        {contact.linkedin_profile && (
-                          <div className="flex items-center text-sm text-gray-600">
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            <a 
-                              href={contact.linkedin_profile} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:text-blue-800 truncate max-w-48"
-                            >
-                              LinkedIn Profile
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Status */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center space-x-2">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(contact.status)}`}>
-                          {getStatusText(contact.status)}
-                        </span>
-                        {contact.status !== 'customer' && (
-                          <button
-                            onClick={() => updateContactStatus(contact.id, 'customer')}
-                            disabled={updatingStatus === contact.id}
-                            className="text-xs bg-green-600 text-white px-2 py-1 rounded hover:bg-green-700 disabled:opacity-50"
-                          >
-                            {updatingStatus === contact.id ? 'Updating...' : 'Make Customer'}
-                          </button>
-                        )}
-                        {contact.status === 'customer' && (
-                          <button
-                            onClick={() => updateContactStatus(contact.id, 'lead')}
-                            disabled={updatingStatus === contact.id}
-                            className="text-xs bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700 disabled:opacity-50"
-                          >
-                            {updatingStatus === contact.id ? 'Updating...' : 'Make Lead'}
-                          </button>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Campaigns */}
-                    <td className="px-6 py-4">
-                      <div className="space-y-2">
-                        {contact.campaigns.length > 0 ? (
-                          contact.campaigns.map((campaign) => (
-                            <div key={campaign.id} className="flex items-center justify-between">
-                              <div className="flex items-center space-x-2">
-                                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getCampaignStatusColor(campaign.status)}`}>
-                                  {campaign.status}
-                                </span>
-                                <span className="text-sm text-gray-900 truncate max-w-32">
-                                  {campaign.name}
-                                </span>
-                              </div>
-                              <Link
-                                to={`/campaigns/${campaign.id}`}
-                                className="text-blue-600 hover:text-blue-800"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </Link>
-                            </div>
-                          ))
-                        ) : (
-                          <span className="text-sm text-gray-500">No campaigns</span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Actions */}
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <Link
-                        to={`/contacts/${contact.id}`}
-                        className="text-blue-600 hover:text-blue-900 flex items-center"
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        View Details
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {!loading && contacts.length === 0 && (
-          <div className="p-8 text-center">
-            <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No contacts found</p>
-          </div>
-        )}
-      </div>
-
-      {/* Campaign List Modal */}
-      {showCampaignModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center justify-between px-8 pt-8 pb-6 border-b border-gray-100">
-              <div>
-                <h2 className="text-3xl font-semibold text-gray-900 tracking-tight">Campaigns</h2>
-                <p className="text-sm text-gray-500 mt-1">{campaigns.length} {campaigns.length === 1 ? 'campaign' : 'campaigns'}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowCreateCampaign(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-95"
-                >
-                  <Plus className="h-4 w-4" />
-                  New Campaign
-                </button>
-                <button
-                  onClick={() => setShowCampaignModal(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors duration-200"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+          <div className="bg-white border rounded-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Templates</h3>
+              <span className="text-sm text-gray-500">Preconfigured workflows</span>
             </div>
-            
-            {/* Campaign List */}
-            <div className="flex-1 overflow-y-auto px-8 py-6">
-              {campaigns.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16">
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                    <Target className="h-8 w-8 text-gray-400" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No campaigns yet</h3>
-                  <p className="text-sm text-gray-500 mb-6">Create your first campaign to get started</p>
-                  <button
-                    onClick={() => setShowCreateCampaign(true)}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Create Campaign
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {campaigns.map((campaign) => (
-                    <div
-                      key={campaign.id}
-                      className="group bg-white border border-gray-200 rounded-2xl p-6 hover:border-gray-300 hover:shadow-lg transition-all duration-200"
-                    >
-                      {/* Header Row */}
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-xl font-semibold text-gray-900 mb-1.5 truncate">{campaign.name}</h3>
-                          {campaign.description && (
-                            <p className="text-sm text-gray-600 line-clamp-2">{campaign.description}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          {campaign.status === 'draft' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCampaignAction(campaign.id, 'active', campaign.type);
-                              }}
-                              disabled={startingCampaignId === campaign.id}
-                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-                            >
-                              {startingCampaignId === campaign.id ? (
-                                <>
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  <span>Starting...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Play className="h-3.5 w-3.5" />
-                                  <span>Start</span>
-                                </>
-                              )}
-                            </button>
-                          )}
-                          {campaign.status === 'active' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCampaignAction(campaign.id, 'paused');
-                              }}
-                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-95"
-                            >
-                              <Pause className="h-3.5 w-3.5" />
-                              <span>Pause</span>
-                            </button>
-                          )}
-                          {campaign.status === 'paused' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCampaignAction(campaign.id, 'active', campaign.type);
-                              }}
-                              disabled={startingCampaignId === campaign.id}
-                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-xl transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-                            >
-                              {startingCampaignId === campaign.id ? (
-                                <>
-                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  <span>Starting...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Play className="h-3.5 w-3.5" />
-                                  <span>Resume</span>
-                                </>
-                              )}
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteCampaign(campaign.id, campaign.name);
-                            }}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 active:scale-95"
-                            title="Delete campaign"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                      
-                      {/* Footer Row */}
-                      <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                        <div className="flex items-center gap-4">
-                          <span className={`inline-flex items-center px-3 py-1.5 text-xs font-semibold rounded-full ${
-                            campaign.status === 'active' ? 'bg-green-100 text-green-700' :
-                            campaign.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                            campaign.status === 'paused' ? 'bg-amber-100 text-amber-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            Created {new Date(campaign.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                          {campaign.source && (
-                            <span className="text-xs text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg">
-                              {campaign.source}
-                            </span>
-                          )}
-                        </div>
-                        <Link
-                          to={`/campaigns/${campaign.id}`}
-                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-xl transition-all duration-200 active:scale-95"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <span>View Details</span>
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {templateCards.map(card => (
+                <button
+                  key={card.type}
+                  onClick={() => handleOpenTemplate(card.type)}
+                  className="relative overflow-hidden rounded-xl border bg-gradient-to-br text-left text-white shadow-sm hover:shadow-md transition-shadow"
+                  style={{}}
+                >
+                  <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient}`} />
+                  <div className="relative p-4 space-y-2">
+                    <div className="text-sm font-semibold">{card.label}</div>
+                    <div className="flex items-center text-xs text-white/80 gap-1">
+                      <ArrowRight className="h-3 w-3" />
+                      Open workflow
                     </div>
-                  ))}
+                  </div>
+                </button>
+              ))}
+
+              <button
+                onClick={() => handleOpenTemplate('new')}
+                className="rounded-xl border border-dashed border-gray-300 p-4 flex flex-col items-start justify-center gap-2 hover:border-blue-400 hover:text-blue-600 transition-colors"
+              >
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <Plus className="h-4 w-4" />
+                  Create new template
                 </div>
-              )}
+                <div className="text-xs text-gray-500">Start a new workflow with pre-filled structure.</div>
+              </button>
             </div>
           </div>
         </div>
+      ) : (
+        <div className="bg-white border rounded-xl p-8 text-center text-gray-600">
+          Select a goal to see KPIs, templates, and contact campaigns.
+        </div>
       )}
 
-      {/* Create Campaign Modal */}
       {showCreateCampaign && (
         <CreateConventionCampaignModal
-          onClose={() => setShowCreateCampaign(false)}
+          onClose={() => {
+            setShowCreateCampaign(false)
+            setShowContactSelector(false)
+          }}
           onSubmit={createCampaign}
           onSelectContacts={() => setShowContactSelector(true)}
           selectedContactsCount={selectedContacts.length}
@@ -1004,39 +300,38 @@ const ConventionActivities: React.FC = () => {
           allContacts={allContacts}
           selectedContacts={selectedContacts}
           campaignGoals={campaignGoals}
+          defaultGoalId={selectedGoalId || ''}
         />
       )}
 
-      {/* Contact Selector Modal */}
-      {showContactSelector && (
-        <ContactSelectorModal
-          contacts={allContacts}
-          selectedContacts={selectedContacts}
-          onToggle={handleContactToggle}
-          onClose={() => {
-            setShowContactSelector(false);
-            setContactSearchTerm(''); // Reset search term when closing
-          }}
-          onConfirm={() => setShowContactSelector(false)}
-          searchTerm={contactSearchTerm}
-          onSearchChange={setContactSearchTerm}
-          loading={loading}
-        />
-      )}
-
-      {/* Create Campaign Goal Modal */}
       {showCreateGoalModal && (
         <CreateCampaignGoalModal
           onClose={() => setShowCreateGoalModal(false)}
           onSubmit={createCampaignGoal}
         />
       )}
+
+      {showContactSelector && (
+        <ContactSelectorModal
+          contacts={allContacts}
+          selectedContacts={selectedContacts}
+          onToggle={handleContactToggle}
+          onClose={() => {
+            setShowContactSelector(false)
+            setContactSearchTerm('')
+          }}
+          onConfirm={() => setShowContactSelector(false)}
+          searchTerm={contactSearchTerm}
+          onSearchChange={setContactSearchTerm}
+          loading={loadingContacts}
+        />
+      )}
     </div>
-  );
-};
+  )
+}
 
 // Create Convention Campaign Modal Component
-function CreateConventionCampaignModal({ onClose, onSubmit, onSelectContacts, selectedContactsCount, groups, allContacts, selectedContacts, campaignGoals }: {
+function CreateConventionCampaignModal({ onClose, onSubmit, onSelectContacts, selectedContactsCount, groups, allContacts, selectedContacts, campaignGoals, defaultGoalId }: {
   onClose: () => void
   onSubmit: (data: any) => void
   onSelectContacts: () => void
@@ -1045,28 +340,24 @@ function CreateConventionCampaignModal({ onClose, onSubmit, onSelectContacts, se
   allContacts: any[]
   selectedContacts: string[]
   campaignGoals: CampaignGoal[]
+  defaultGoalId?: string
 }) {
-  console.log('CreateConventionCampaignModal - allContacts:', allContacts);
-  console.log('CreateConventionCampaignModal - allContacts length:', allContacts?.length);
-  console.log('CreateConventionCampaignModal - selectedContacts:', selectedContacts);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    type: 'manual' as 'manual' | 'scheduled',
+    type: 'manual' as 'manual',
     call_script: '',
     schedule_time: '',
     group_ids: [] as string[],
-    campaign_goal_id: '' as string,
-    schedule_settings: {
-      frequency: 'daily' as 'daily' | 'weekly' | 'monthly' | 'yearly',
-      start_time: '',
-      end_time: '',
-      timezone: 'UTC',
-      days_of_week: [] as number[],
-      day_of_month: 1,
-      month_of_year: 1
-    }
+    campaign_goal_id: defaultGoalId || '',
+    schedule_settings: undefined as any
   })
+
+  useEffect(() => {
+    if (defaultGoalId) {
+      setFormData(prev => ({ ...prev, campaign_goal_id: defaultGoalId }))
+    }
+  }, [defaultGoalId])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -1082,11 +373,11 @@ function CreateConventionCampaignModal({ onClose, onSubmit, onSelectContacts, se
       alert('Please select at least one group or contact')
       return
     }
-    onSubmit(formData)
+    onSubmit({ ...formData, type: 'manual', schedule_settings: undefined, schedule_time: undefined })
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div style={{ marginTop: 0 }} className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-gray-900">Create Convention Campaign</h2>
@@ -1126,211 +417,7 @@ function CreateConventionCampaignModal({ onClose, onSubmit, onSelectContacts, se
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Campaign Type
-            </label>
-            <div className="grid grid-cols-2 gap-4">
-              <label className="flex items-center p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="type"
-                  value="manual"
-                  checked={formData.type === 'manual'}
-                  onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value as 'manual' | 'scheduled' }))}
-                  className="mr-3"
-                />
-                <div>
-                  <div className="font-medium">Manual</div>
-                  <div className="text-sm text-gray-500">Start calls manually when you're ready</div>
-                </div>
-              </label>
-              <label className="flex items-center p-4 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                <input
-                  type="radio"
-                  name="type"
-                  value="scheduled"
-                  checked={formData.type === 'scheduled'}
-                  onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value as 'manual' | 'scheduled' }))}
-                  className="mr-3"
-                />
-                <div>
-                  <div className="font-medium">Scheduled</div>
-                  <div className="text-sm text-gray-500">Automatically start calls at scheduled time with frequency</div>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          {formData.type === 'scheduled' && (
-            <div className="space-y-4">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="text-sm font-medium text-blue-800 mb-2">📅 Schedule Settings</h3>
-                <p className="text-sm text-blue-600">
-                  Configure when and how often the campaign should run automatically.
-                </p>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Frequency
-                </label>
-                <select
-                  value={formData.schedule_settings.frequency}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    schedule_settings: { ...prev.schedule_settings, frequency: e.target.value as any }
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="yearly">Yearly</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Call Time (When to start calling)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formData.schedule_settings.start_time}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    schedule_settings: { ...prev.schedule_settings, start_time: e.target.value }
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Set the specific time when AI calls should start. Campaign will run automatically at this time.
-                </p>
-              </div>
-
-              {formData.schedule_settings.frequency === 'weekly' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Days of Week
-                  </label>
-                  <div className="grid grid-cols-7 gap-2">
-                    {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, index) => (
-                      <label key={day} className="flex items-center justify-center p-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50">
-                        <input
-                          type="checkbox"
-                          checked={formData.schedule_settings.days_of_week.includes(index)}
-                          onChange={(e) => {
-                            const days = formData.schedule_settings.days_of_week
-                            if (e.target.checked) {
-                              setFormData(prev => ({
-                                ...prev,
-                                schedule_settings: {
-                                  ...prev.schedule_settings,
-                                  days_of_week: [...days, index]
-                                }
-                              }))
-                            } else {
-                              setFormData(prev => ({
-                                ...prev,
-                                schedule_settings: {
-                                  ...prev.schedule_settings,
-                                  days_of_week: days.filter(d => d !== index)
-                                }
-                              }))
-                            }
-                          }}
-                          className="mr-1"
-                        />
-                        <span className="text-sm">{day}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {formData.schedule_settings.frequency === 'monthly' && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Month
-                    </label>
-                    <select
-                      value={formData.schedule_settings.month_of_year}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        schedule_settings: { ...prev.schedule_settings, month_of_year: parseInt(e.target.value) }
-                      }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((month, index) => (
-                        <option key={month} value={index + 1}>{month}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Day
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="31"
-                      value={formData.schedule_settings.day_of_month}
-                      onChange={(e) => setFormData(prev => ({ 
-                        ...prev, 
-                        schedule_settings: { ...prev.schedule_settings, day_of_month: parseInt(e.target.value) }
-                      }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  End Time (Optional)
-                </label>
-                <input
-                  type="datetime-local"
-                  value={formData.schedule_settings.end_time}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    schedule_settings: { ...prev.schedule_settings, end_time: e.target.value }
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Optional: Set when the campaign should stop running automatically.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Timezone
-                </label>
-                <select
-                  value={formData.schedule_settings.timezone}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    schedule_settings: { ...prev.schedule_settings, timezone: e.target.value }
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="UTC">UTC (Coordinated Universal Time)</option>
-                  <option value="Asia/Ho_Chi_Minh">Asia/Ho_Chi_Minh (Vietnam)</option>
-                  <option value="America/New_York">America/New_York (EST)</option>
-                  <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
-                  <option value="Europe/London">Europe/London (GMT)</option>
-                  <option value="Europe/Rome">Europe/Rome (Italy)</option>
-                  <option value="Asia/Tokyo">Asia/Tokyo (JST)</option>
-                </select>
-                <p className="text-sm text-gray-500 mt-1">
-                  Select the timezone for your call schedule.
-                </p>
-              </div>
-            </div>
-          )}
+          {/* Campaign type removed; default manual. Scheduling hidden. */}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1676,4 +763,5 @@ function CreateCampaignGoalModal({
   );
 }
 
+export { CreateConventionCampaignModal, ContactSelectorModal };
 export default ConventionActivities;

@@ -403,13 +403,21 @@ export const campaignGoalsAPI = {
   getStats: () => api.get('/api/campaign-goals/stats/summary'),
 };
 
+// Deal View Types
+export type DealViewType = 'all' | 'open' | 'closed_won' | 'closed_lost' | 'stalled' | 'no_activity' | 'closing_this_month' | 'closing_this_quarter'
+export type DealStatus = 'lead' | 'qualified' | 'demo' | 'proposal' | 'negotiation' | 'closed_won' | 'closed_lost' | 'new' | 'contacted'
+export type DealPriority = 'low' | 'medium' | 'high' | 'urgent'
+
 // Deals API
 export const dealsAPI = {
   // Get deals with pagination and filtering
   getDeals: (params?: {
     page?: number;
     limit?: number;
-    status?: 'new' | 'contacted' | 'negotiation';
+    status?: DealStatus;
+    pipeline_id?: string;
+    view_type?: DealViewType;
+    priority?: DealPriority;
     search?: string;
   }) => api.get('/api/deals/all', { params }),
   
@@ -421,12 +429,20 @@ export const dealsAPI = {
     name: string;
     description?: string;
     contact_id: string;
+    company_id?: string;
     campaign_id?: string;
+    pipeline_id?: string;
+    stage_id?: string;
+    status?: DealStatus;
+    priority?: DealPriority;
+    amount?: number;
+    cost?: number;
+    revenue?: number;
+    probability?: number;
+    expected_close_date?: string;
     start_date?: string;
     end_date?: string;
-    status: 'new' | 'contacted' | 'negotiation';
-    cost: number;
-    revenue: number;
+    next_step?: string;
   }) => api.post('/api/deals/create', data),
   
   // Update deal
@@ -434,25 +450,119 @@ export const dealsAPI = {
     name?: string;
     description?: string;
     contact_id?: string;
+    company_id?: string;
     campaign_id?: string;
-    start_date?: string;
-    end_date?: string;
-    status?: 'new' | 'contacted' | 'negotiation';
+    pipeline_id?: string;
+    stage_id?: string;
+    status?: DealStatus;
+    priority?: DealPriority;
+    amount?: number;
     cost?: number;
     revenue?: number;
+    probability?: number;
+    expected_close_date?: string;
+    actual_close_date?: string;
+    start_date?: string;
+    end_date?: string;
+    loss_reason?: string;
+    win_reason?: string;
+    next_step?: string;
   }) => api.put(`/api/deals/${dealId}`, data),
   
   // Delete deal
   deleteDeal: (dealId: string) => api.delete(`/api/deals/${dealId}`),
   
   // Get deal statistics
-  getStats: () => api.get('/api/deals/stats'),
+  getStats: (pipelineId?: string) => api.get('/api/deals/stats', { params: { pipeline_id: pipelineId } }),
+  
+  // Get pipeline view (deals grouped by stages)
+  getPipeline: (pipelineId?: string, viewType?: DealViewType) => 
+    api.get('/api/deals/pipeline/view', { params: { pipeline_id: pipelineId, view_type: viewType } }),
+  
+  // Update deal stage (for drag and drop)
+  updateDealStage: (dealId: string, stageId: string, pipelineId?: string) => 
+    api.patch(`/api/deals/${dealId}/stage`, { stage_id: stageId, ...(pipelineId ? { pipeline_id: pipelineId } : {}) }),
+  
+  // Get deal activities
+  getActivities: (dealId: string) => api.get(`/api/deals/${dealId}/activities`),
+  
+  // Create deal activity
+  createActivity: (dealId: string, data: {
+    activity_type: 'note' | 'call' | 'email' | 'meeting' | 'task';
+    subject?: string;
+    content?: string;
+    scheduled_at?: string;
+    is_completed?: boolean;
+  }) => api.post(`/api/deals/${dealId}/activities`, data),
   
   // Get contacts for deal creation
   getContacts: (search?: string) => api.get('/api/contacts', { params: { search } }),
   
   // Get campaigns for deal creation
   getCampaigns: () => api.get('/api/deals/campaigns/list'),
+}
+
+// Pipelines API
+export const pipelinesAPI = {
+  // Get all pipelines
+  getPipelines: (includeInactive?: boolean) => 
+    api.get('/api/pipelines/get_pipelines', { params: { include_inactive: includeInactive } }),
+  
+  // Get default pipeline
+  getDefaultPipeline: () => api.get('/api/pipelines/default'),
+  
+  // Get pipeline by ID
+  getPipeline: (pipelineId: string) => api.get(`/api/pipelines/${pipelineId}`),
+  
+  // Create pipeline
+  createPipeline: (data: {
+    name: string;
+    description?: string;
+    business_type?: string;
+    is_default?: boolean;
+    stages?: Array<{
+      name: string;
+      probability: number;
+      order: number;
+      color?: string;
+      description?: string;
+    }>;
+  }) => api.post('/api/pipelines/create', data),
+  
+  // Update pipeline
+  updatePipeline: (pipelineId: string, data: {
+    name?: string;
+    description?: string;
+    business_type?: string;
+    is_default?: boolean;
+    is_active?: boolean;
+    stages?: Array<{
+      name: string;
+      probability: number;
+      order: number;
+      color?: string;
+      description?: string;
+    }>;
+  }) => api.put(`/api/pipelines/${pipelineId}`, data),
+  
+  // Delete pipeline
+  deletePipeline: (pipelineId: string) => api.delete(`/api/pipelines/${pipelineId}`),
+  
+  // Get pipeline kanban view
+  getPipelineView: (pipelineId: string, viewType?: DealViewType) => 
+    api.get(`/api/pipelines/${pipelineId}/view`, { params: { view_type: viewType } }),
+  
+  // Get pipeline analytics
+  getPipelineAnalytics: (pipelineId: string) => 
+    api.get(`/api/pipelines/${pipelineId}/analytics`),
+  
+  // Get pipeline leads view (lead-based pipeline)
+  getPipelineLeadsView: (pipelineId: string) => 
+    api.get(`/api/pipelines/${pipelineId}/leads/view`),
+  
+  // Update lead stage in pipeline
+  updatePipelineLeadStage: (pipelineId: string, contactId: string, stageId: string) => 
+    api.patch(`/api/pipelines/${pipelineId}/leads/${contactId}`, { stage_id: stageId }),
 }
 
 // Renewals API

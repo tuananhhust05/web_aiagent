@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Calendar, User, Target, Play, Pause, Trash, Loader2 } from 'lucide-react';
-import { campaignGoalsAPI, campaignsAPI } from '../lib/api';
+import { ArrowLeft, Edit, Trash2, Calendar, User, Target, Play, Pause, Trash, Loader2, Plus, ArrowRight } from 'lucide-react';
+import { campaignGoalsAPI, campaignsAPI, conventionActivitiesAPI, groupsAPI } from '../lib/api';
+import { CreateConventionCampaignModal, ContactSelectorModal } from './ConventionActivities';
 
 interface CampaignGoal {
   id: string;
@@ -33,6 +34,25 @@ interface Campaign {
   updated_at: string;
 }
 
+interface Group {
+  id: string;
+  name: string;
+  description?: string;
+  member_count: number;
+  color?: string;
+}
+
+interface Contact {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+  whatsapp_number?: string;
+  telegram_username?: string;
+  linkedin_profile?: string;
+}
+
 const CampaignGoalDetail: React.FC = () => {
   const { goalId } = useParams<{ goalId: string }>();
   const navigate = useNavigate();
@@ -41,6 +61,13 @@ const CampaignGoalDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateCampaign, setShowCreateCampaign] = useState(false);
+  const [showContactSelector, setShowContactSelector] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [allContacts, setAllContacts] = useState<Contact[]>([]);
+  const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
+  const [contactSearchTerm, setContactSearchTerm] = useState('');
+  const [loadingContacts, setLoadingContacts] = useState(false);
 
   useEffect(() => {
     if (goalId) {
@@ -48,6 +75,11 @@ const CampaignGoalDetail: React.FC = () => {
       fetchRelatedCampaigns();
     }
   }, [goalId]);
+
+  useEffect(() => {
+    fetchGroups();
+    fetchAllContacts();
+  }, []);
 
   const fetchGoalDetail = async () => {
     try {
@@ -73,6 +105,30 @@ const CampaignGoalDetail: React.FC = () => {
       console.error('Error fetching related campaigns:', err);
     } finally {
       setCampaignsLoading(false);
+    }
+  };
+
+  const fetchGroups = async () => {
+    try {
+      const response = await groupsAPI.getGroups();
+      setGroups(response.data?.groups || []);
+    } catch (err) {
+      console.error('Error fetching groups:', err);
+    }
+  };
+
+  const fetchAllContacts = async () => {
+    try {
+      setLoadingContacts(true);
+      const response = await conventionActivitiesAPI.getActivities({
+        limit: 100,
+        offset: 0
+      });
+      setAllContacts(response.data?.contacts || []);
+    } catch (err) {
+      console.error('Error fetching contacts:', err);
+    } finally {
+      setLoadingContacts(false);
     }
   };
 
@@ -125,6 +181,42 @@ const CampaignGoalDetail: React.FC = () => {
       } else {
         alert(`Failed to ${action} campaign`);
       }
+    }
+  };
+
+  const handleCreateCampaign = () => {
+    setShowCreateCampaign(true);
+  };
+
+  const handleContactToggle = (contactId: string) => {
+    if (!contactId) return;
+    setSelectedContacts(prev => prev.includes(contactId) ? prev.filter(id => id !== contactId) : [...prev, contactId]);
+  };
+
+  const createCampaign = async (campaignData: any) => {
+    const newCampaign = {
+      name: campaignData.name || '',
+      description: campaignData.description || '',
+      status: 'draft',
+      type: campaignData.type || 'manual',
+      source: goal?.source || 'convention-activities',
+      campaign_goal_id: campaignData.campaign_goal_id || goalId || null,
+      contacts: selectedContacts.filter(Boolean),
+      group_ids: campaignData.group_ids || [],
+      call_script: campaignData.call_script || '',
+      schedule_time: campaignData.type === 'scheduled' && campaignData.schedule_time ? campaignData.schedule_time : null,
+      schedule_settings: campaignData.type === 'scheduled' ? campaignData.schedule_settings : null,
+      settings: {},
+    };
+
+    try {
+      await campaignsAPI.createCampaign(newCampaign);
+      setShowCreateCampaign(false);
+      setSelectedContacts([]);
+      fetchRelatedCampaigns();
+    } catch (err) {
+      console.error('Campaign creation error:', err);
+      alert('Failed to create campaign');
     }
   };
 
@@ -390,7 +482,136 @@ const CampaignGoalDetail: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* KPIs placeholder */}
+        <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">KPIs for this goal</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                KPI selection will be defined later. Use this area to pin the KPIs picked when creating this goal.
+              </p>
+            </div>
+            <div className="text-xs text-gray-500 px-3 py-1 rounded-full bg-gray-100">Coming soon</div>
+          </div>
+        </div>
+
+        {/* Contact campaigns */}
+        <div className="bg-white rounded-lg shadow-sm border p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Contact campaigns</h3>
+              <p className="text-sm text-gray-600">Active and inactive campaigns for this goal</p>
+            </div>
+            <button
+              onClick={handleCreateCampaign}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              New contact campaign
+            </button>
+          </div>
+
+          {campaignsLoading ? (
+            <div className="flex items-center gap-2 text-gray-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading campaigns...
+            </div>
+          ) : relatedCampaigns.length === 0 ? (
+            <div className="border border-dashed border-gray-200 rounded-lg p-6 text-center text-sm text-gray-600">
+              No campaigns for this goal yet.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {relatedCampaigns.map(campaign => (
+                <div key={campaign.id} className="border rounded-lg p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-gray-900">{campaign.name}</div>
+                      {campaign.description && <div className="text-sm text-gray-600 line-clamp-2">{campaign.description}</div>}
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full ${
+                      campaign.status === 'active' ? 'bg-green-100 text-green-700' :
+                      campaign.status === 'paused' ? 'bg-amber-100 text-amber-700' :
+                      campaign.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {campaign.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>Created {new Date(campaign.created_at).toLocaleDateString()}</span>
+                    <div className="flex items-center gap-2">
+                      {campaign.status === 'draft' && (
+                        <button
+                          onClick={() => handleCampaignAction(campaign.id, 'start')}
+                          disabled={startingCampaignId === campaign.id}
+                          className="inline-flex items-center gap-1 text-green-700 hover:text-green-800"
+                        >
+                          {startingCampaignId === campaign.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                          Start
+                        </button>
+                      )}
+                      {campaign.status === 'active' && (
+                        <button
+                          onClick={() => handleCampaignAction(campaign.id, 'pause')}
+                          className="inline-flex items-center gap-1 text-amber-700 hover:text-amber-800"
+                        >
+                          <Pause className="h-4 w-4" />
+                          Pause
+                        </button>
+                      )}
+                      <Link to={`/campaigns/${campaign.id}`} className="text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
+                        View
+                        <ArrowRight className="h-3 w-3" />
+                      </Link>
+                      <button
+                        onClick={() => handleCampaignAction(campaign.id, 'delete')}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+      
+      {showCreateCampaign && (
+        <CreateConventionCampaignModal
+          onClose={() => {
+            setShowCreateCampaign(false);
+            setShowContactSelector(false);
+          }}
+          onSubmit={createCampaign}
+          onSelectContacts={() => setShowContactSelector(true)}
+          selectedContactsCount={selectedContacts.length}
+          groups={groups}
+          allContacts={allContacts}
+          selectedContacts={selectedContacts}
+          campaignGoals={goal ? [goal] : []}
+          defaultGoalId={goal.id}
+        />
+      )}
+
+      {showContactSelector && (
+        <ContactSelectorModal
+          contacts={allContacts}
+          selectedContacts={selectedContacts}
+          onToggle={handleContactToggle}
+          onClose={() => {
+            setShowContactSelector(false);
+            setContactSearchTerm('');
+          }}
+          onConfirm={() => setShowContactSelector(false)}
+          searchTerm={contactSearchTerm}
+          onSearchChange={setContactSearchTerm}
+          loading={loadingContacts}
+        />
+      )}
     </div>
   );
 };
