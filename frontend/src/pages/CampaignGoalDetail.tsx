@@ -1,8 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Calendar, User, Target, Play, Pause, Trash, Loader2, Plus, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Calendar, Target, Play, Pause, Loader2, Plus, ArrowRight } from 'lucide-react';
 import { campaignGoalsAPI, campaignsAPI, conventionActivitiesAPI, groupsAPI } from '../lib/api';
 import { CreateConventionCampaignModal, ContactSelectorModal } from './ConventionActivities';
+
+const templateCards = [
+  { label: 'ForSkale Template', type: 'forskale', gradient: 'from-blue-600 to-indigo-600' },
+  { label: 'Company Template', type: 'company', gradient: 'from-emerald-500 to-teal-500' },
+  { label: 'Colleagues Template', type: 'colleague', gradient: 'from-purple-500 to-pink-500' },
+  { label: 'Personal Template', type: 'user', gradient: 'from-amber-500 to-orange-500' },
+];
 
 interface CampaignGoal {
   id: string;
@@ -220,6 +227,12 @@ const CampaignGoalDetail: React.FC = () => {
     }
   };
 
+  const handleOpenTemplate = (templateType: string) => {
+    if (!goalId || !goal) return;
+    const workflowFunction = goal.source || 'convention-activities';
+    navigate(`/workflow-builder?function=${workflowFunction}&goalId=${goalId}&template=${templateType}`);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -252,7 +265,7 @@ const CampaignGoalDetail: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="w-full px-6 py-8">
         {/* Header */}
         <div className="mb-8">
           <Link
@@ -381,106 +394,32 @@ const CampaignGoalDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Related Campaigns Section */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 mt-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Related Campaigns</h3>
-          
-          {campaignsLoading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="text-gray-600 mt-2">Loading campaigns...</p>
+        {/* Template Workflow Section */}
+        <div className="bg-white rounded-lg shadow-sm border p-6 mt-8 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Templates</h3>
+              <p className="text-sm text-gray-600 mt-1">Create and manage workflow templates for this goal</p>
             </div>
-          ) : relatedCampaigns.length === 0 ? (
-            <div className="text-center py-8">
-              <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600">No campaigns associated with this goal yet.</p>
-              <p className="text-sm text-gray-500 mt-2">Campaigns using this goal will appear here.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {relatedCampaigns.map((campaign) => (
-                <div key={campaign.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3">
-                        <Link 
-                          to={`/campaigns/${campaign.id}`}
-                          className="text-lg font-medium text-blue-600 hover:text-blue-800 hover:underline"
-                        >
-                          {campaign.name}
-                        </Link>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          campaign.status === 'active' ? 'bg-green-100 text-green-800' :
-                          campaign.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
-                          campaign.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {campaign.status}
-                        </span>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          campaign.type === 'manual' ? 'bg-purple-100 text-purple-800' :
-                          'bg-orange-100 text-orange-800'
-                        }`}>
-                          {campaign.type}
-                        </span>
-                      </div>
-                      {campaign.description && (
-                        <p className="text-gray-600 text-sm mt-1">{campaign.description}</p>
-                      )}
-                      <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                        <span className="flex items-center">
-                          <User className="h-4 w-4 mr-1" />
-                          {campaign.contacts.length} contacts
-                        </span>
-                        <span className="flex items-center">
-                          <Calendar className="h-4 w-4 mr-1" />
-                          {new Date(campaign.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      {campaign.status === 'draft' && (
-                        <button
-                          onClick={() => handleCampaignAction(campaign.id, 'start')}
-                          disabled={startingCampaignId === campaign.id}
-                          className="flex items-center px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded-md transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                          {startingCampaignId === campaign.id ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                              Starting...
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-4 w-4 mr-1" />
-                              Start
-                            </>
-                          )}
-                        </button>
-                      )}
-                      {campaign.status === 'active' && (
-                        <button
-                          onClick={() => handleCampaignAction(campaign.id, 'pause')}
-                          className="flex items-center px-3 py-1 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded-md transition-colors"
-                        >
-                          <Pause className="h-4 w-4 mr-1" />
-                          Pause
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleCampaignAction(campaign.id, 'delete')}
-                        className="flex items-center px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded-md transition-colors"
-                      >
-                        <Trash className="h-4 w-4 mr-1" />
-                        Delete
-                      </button>
-                    </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {templateCards.map(card => (
+              <button
+                key={card.type}
+                onClick={() => handleOpenTemplate(card.type)}
+                className="relative overflow-hidden rounded-xl border bg-gradient-to-br text-left text-white shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient}`} />
+                <div className="relative p-4 space-y-2">
+                  <div className="text-sm font-semibold">{card.label}</div>
+                  <div className="flex items-center text-xs text-white/80 gap-1">
+                    <ArrowRight className="h-3 w-3" />
+                    Open workflow
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* KPIs placeholder */}
@@ -496,11 +435,11 @@ const CampaignGoalDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Contact campaigns */}
+        {/* Campaigns */}
         <div className="bg-white rounded-lg shadow-sm border p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Contact campaigns</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Campaigns</h3>
               <p className="text-sm text-gray-600">Active and inactive campaigns for this goal</p>
             </div>
             <button

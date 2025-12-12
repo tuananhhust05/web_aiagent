@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { ArrowRight, ChevronRight, Loader2, Plus, X } from 'lucide-react'
+import { ChevronRight, Loader2, Plus, X } from 'lucide-react'
 import { campaignsAPI, campaignGoalsAPI, contactsAPI, groupsAPI } from '../lib/api'
 import { CreateConventionCampaignModal, ContactSelectorModal } from './ConventionActivities'
 
@@ -40,13 +40,8 @@ interface GoalWorkflowPageProps {
   workflowFunction: string
 }
 
-const templateCards = [
-  { label: 'ForSkale Template', type: 'forskale', gradient: 'from-blue-600 to-indigo-600' },
-  { label: 'Company Template', type: 'company', gradient: 'from-emerald-500 to-teal-500' },
-  { label: 'Your Template', type: 'user', gradient: 'from-amber-500 to-orange-500' },
-]
 
-const GoalWorkflowPage: React.FC<GoalWorkflowPageProps> = ({ title, subtitle, sourceKey, workflowFunction }) => {
+const GoalWorkflowPage: React.FC<GoalWorkflowPageProps> = ({ title, subtitle, sourceKey }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const [campaignGoals, setCampaignGoals] = useState<CampaignGoal[]>([])
@@ -170,11 +165,6 @@ const GoalWorkflowPage: React.FC<GoalWorkflowPageProps> = ({ title, subtitle, so
     setSelectedContacts(prev => prev.includes(contactId) ? prev.filter(id => id !== contactId) : [...prev, contactId])
   }
 
-  const handleOpenTemplate = (templateType: string) => {
-    if (!selectedGoalId) return
-    navigate(`/workflow-builder?function=${workflowFunction}&goalId=${selectedGoalId}&template=${templateType}`)
-  }
-
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       <div className="flex items-start justify-between gap-4">
@@ -243,46 +233,13 @@ const GoalWorkflowPage: React.FC<GoalWorkflowPageProps> = ({ title, subtitle, so
 
       {selectedGoal ? (
         <div className="space-y-6">
-
-          <div className="bg-white border rounded-xl p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Templates</h3>
-              <span className="text-sm text-gray-500">Preconfigured workflows</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {templateCards.map(card => (
-                <button
-                  key={card.type}
-                  onClick={() => handleOpenTemplate(card.type)}
-                  className="relative overflow-hidden rounded-xl border bg-gradient-to-br text-left text-white shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient}`} />
-                  <div className="relative p-4 space-y-2">
-                    <div className="text-sm font-semibold">{card.label}</div>
-                    <div className="flex items-center text-xs text-white/80 gap-1">
-                      <ArrowRight className="h-3 w-3" />
-                      Open workflow
-                    </div>
-                  </div>
-                </button>
-              ))}
-
-              <button
-                onClick={() => handleOpenTemplate('new')}
-                className="rounded-xl border border-dashed border-gray-300 p-4 flex flex-col items-start justify-center gap-2 hover:border-blue-400 hover:text-blue-600 transition-colors"
-              >
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <Plus className="h-4 w-4" />
-                  Create new template
-                </div>
-                <div className="text-xs text-gray-500">Start a new workflow with pre-filled structure.</div>
-              </button>
-            </div>
+          <div className="bg-white border rounded-xl p-8 text-center text-gray-600">
+            Select a goal to see KPIs and contact campaigns. Template workflows are now available in the goal detail page.
           </div>
         </div>
       ) : (
         <div className="bg-white border rounded-xl p-8 text-center text-gray-600">
-          Select a goal to see KPIs, templates, and contact campaigns.
+          Select a goal to see KPIs and contact campaigns.
         </div>
       )}
 
