@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Save, User, Calendar, DollarSign, Target, TrendingUp, Flag, AlertCircle, FileText, CheckCircle, XCircle } from 'lucide-react'
+import { X, Save, User, DollarSign, Target, TrendingUp, AlertCircle, FileText, CheckCircle, XCircle } from 'lucide-react'
 import { dealsAPI, pipelinesAPI, DealStatus, DealPriority } from '../lib/api'
 import LoadingSpinner from './ui/LoadingSpinner'
 
@@ -243,8 +243,6 @@ const DealEditModal: React.FC<DealEditModalProps> = ({
   const weightedValue = (formData.amount || formData.revenue) * (formData.probability / 100)
   const isClosed = formData.stage_id === 'closed_won' || formData.stage_id === 'closed_lost'
   const isWon = formData.stage_id === 'closed_won'
-  const isLost = formData.stage_id === 'closed_lost'
-
   if (!isOpen || !deal) return null
 
   return (

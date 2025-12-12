@@ -1,4 +1,3 @@
-import React from 'react'
 import GoalWorkflowPage from './GoalWorkflowPage'
 
 export default function CSM() {

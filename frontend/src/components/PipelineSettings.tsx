@@ -19,15 +19,6 @@ interface PipelineStage {
   description?: string
 }
 
-interface Pipeline {
-  id: string
-  name: string
-  description?: string
-  business_type?: string
-  is_default: boolean
-  stages: PipelineStage[]
-}
-
 interface PipelineSettingsProps {
   isOpen: boolean
   onClose: () => void

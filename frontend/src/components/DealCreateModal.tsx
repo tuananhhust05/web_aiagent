@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { X, Save, User, Calendar, DollarSign, Target, TrendingUp, Flag, AlertCircle, FileText } from 'lucide-react'
+import { X, Save, User, DollarSign, Target, TrendingUp, AlertCircle, FileText } from 'lucide-react'
 import { dealsAPI, pipelinesAPI, DealStatus, DealPriority } from '../lib/api'
 import LoadingSpinner from './ui/LoadingSpinner'
 
@@ -32,16 +32,6 @@ interface DealCreateModalProps {
   onClose: () => void
   onSuccess: () => void
 }
-
-const statusOptions: { value: DealStatus; label: string; color: string }[] = [
-  { value: 'lead', label: 'Lead', color: 'bg-blue-100 text-blue-800' },
-  { value: 'qualified', label: 'Qualified', color: 'bg-purple-100 text-purple-800' },
-  { value: 'demo', label: 'Demo/Meeting', color: 'bg-amber-100 text-amber-800' },
-  { value: 'proposal', label: 'Proposal Sent', color: 'bg-orange-100 text-orange-800' },
-  { value: 'negotiation', label: 'Negotiation', color: 'bg-red-100 text-red-800' },
-  { value: 'closed_won', label: 'Closed Won', color: 'bg-green-100 text-green-800' },
-  { value: 'closed_lost', label: 'Closed Lost', color: 'bg-gray-100 text-gray-800' },
-]
 
 const priorityOptions: { value: DealPriority; label: string; color: string }[] = [
   { value: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700' },
