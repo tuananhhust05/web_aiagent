@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Calendar, Target, Play, Pause, Loader2, Plus, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Target, Play, Pause, Loader2, Plus, ArrowRight } from 'lucide-react';
 import { campaignGoalsAPI, campaignsAPI, conventionActivitiesAPI, groupsAPI } from '../lib/api';
 import { CreateConventionCampaignModal, ContactSelectorModal } from './ConventionActivities';
 
@@ -75,6 +75,7 @@ const CampaignGoalDetail: React.FC = () => {
   const [selectedContacts, setSelectedContacts] = useState<string[]>([]);
   const [contactSearchTerm, setContactSearchTerm] = useState('');
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [activeTab, setActiveTab] = useState<'active' | 'inactive'>('active');
 
   useEffect(() => {
     if (goalId) {
@@ -161,10 +162,12 @@ const CampaignGoalDetail: React.FC = () => {
         setStartingCampaignId(campaignId);
         try {
           await campaignsAPI.startCampaign(campaignId);
-          // Always show success message regardless of response
+          // Update local state immediately
+          setRelatedCampaigns(prev => prev.map(campaign => 
+            campaign.id === campaignId ? { ...campaign, status: 'active' } : campaign
+          ));
           alert('Campaign started successfully!');
         } catch (error) {
-          // Always show success message even on error/timeout/crash
           console.error('Campaign start error:', error);
           alert('Campaign started successfully!');
         } finally {
@@ -172,6 +175,10 @@ const CampaignGoalDetail: React.FC = () => {
         }
       } else if (action === 'pause') {
         await campaignsAPI.pauseCampaign(campaignId);
+        // Update local state immediately
+        setRelatedCampaigns(prev => prev.map(campaign => 
+          campaign.id === campaignId ? { ...campaign, status: 'inactive' } : campaign
+        ));
         alert('Campaign paused successfully!');
       } else if (action === 'delete') {
         if (window.confirm('Are you sure you want to delete this campaign?')) {
@@ -303,97 +310,6 @@ const CampaignGoalDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Goal Preview */}
-        <div className="bg-white rounded-lg shadow-sm border mb-8">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Goal Preview</h2>
-            <div
-              className="rounded-lg p-6 text-white font-medium text-center min-h-[120px] flex flex-col justify-center"
-              style={{ background: goal.color_gradient }}
-            >
-              <div className="text-2xl font-bold mb-2">{goal.name}</div>
-              {goal.description && (
-                <div className="text-lg opacity-90">{goal.description}</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Goal Details */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Basic Information */}
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Name</label>
-                <p className="text-gray-900">{goal.name}</p>
-              </div>
-              
-              {goal.description && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Description</label>
-                  <p className="text-gray-900">{goal.description}</p>
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Status</label>
-                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                  goal.is_active 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {goal.is_active ? 'Active' : 'Inactive'}
-                </span>
-              </div>
-              
-              {goal.source && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-600 mb-1">Source</label>
-                  <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">
-                    {goal.source}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Timeline */}
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Timeline</h3>
-            <div className="space-y-4">
-              <div className="flex items-center">
-                <Calendar className="h-5 w-5 text-gray-400 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Created</p>
-                  <p className="text-gray-900">{new Date(goal.created_at).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center">
-                <Calendar className="h-5 w-5 text-gray-400 mr-3" />
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Last Updated</p>
-                  <p className="text-gray-900">{new Date(goal.updated_at).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Template Workflow Section */}
         <div className="bg-white rounded-lg shadow-sm border p-6 mt-8 mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -451,71 +367,117 @@ const CampaignGoalDetail: React.FC = () => {
             </button>
           </div>
 
+          {/* Tabs */}
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('active')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'active'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Active Campaign
+              </button>
+              <button
+                onClick={() => setActiveTab('inactive')}
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  activeTab === 'inactive'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Inactive Campaign
+              </button>
+            </nav>
+          </div>
+
           {campaignsLoading ? (
             <div className="flex items-center gap-2 text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading campaigns...
             </div>
-          ) : relatedCampaigns.length === 0 ? (
-            <div className="border border-dashed border-gray-200 rounded-lg p-6 text-center text-sm text-gray-600">
-              No campaigns for this goal yet.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {relatedCampaigns.map(campaign => (
-                <div key={campaign.id} className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-gray-900">{campaign.name}</div>
-                      {campaign.description && <div className="text-sm text-gray-600 line-clamp-2">{campaign.description}</div>}
-                    </div>
-                    <span className={`text-xs px-2 py-1 rounded-full ${
-                      campaign.status === 'active' ? 'bg-green-100 text-green-700' :
-                      campaign.status === 'paused' ? 'bg-amber-100 text-amber-700' :
-                      campaign.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
-                      {campaign.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>Created {new Date(campaign.created_at).toLocaleDateString()}</span>
-                    <div className="flex items-center gap-2">
-                      {campaign.status === 'draft' && (
-                        <button
-                          onClick={() => handleCampaignAction(campaign.id, 'start')}
-                          disabled={startingCampaignId === campaign.id}
-                          className="inline-flex items-center gap-1 text-green-700 hover:text-green-800"
-                        >
-                          {startingCampaignId === campaign.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-                          Start
-                        </button>
-                      )}
-                      {campaign.status === 'active' && (
-                        <button
-                          onClick={() => handleCampaignAction(campaign.id, 'pause')}
-                          className="inline-flex items-center gap-1 text-amber-700 hover:text-amber-800"
-                        >
-                          <Pause className="h-4 w-4" />
-                          Pause
-                        </button>
-                      )}
-                      <Link to={`/campaigns/${campaign.id}`} className="text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
-                        View
-                        <ArrowRight className="h-3 w-3" />
-                      </Link>
-                      <button
-                        onClick={() => handleCampaignAction(campaign.id, 'delete')}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
+          ) : (() => {
+            const activeCampaigns = relatedCampaigns.filter(c => c.status === 'active');
+            const inactiveCampaigns = relatedCampaigns.filter(c => c.status !== 'active');
+            const displayedCampaigns = activeTab === 'active' ? activeCampaigns : inactiveCampaigns;
+
+            if (displayedCampaigns.length === 0) {
+              return (
+                <div className="border border-dashed border-gray-200 rounded-lg p-6 text-center text-sm text-gray-600">
+                  No {activeTab === 'active' ? 'active' : 'inactive'} campaigns for this goal yet.
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            }
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {displayedCampaigns.map(campaign => (
+                  <div key={campaign.id} className="border rounded-lg p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-gray-900">{campaign.name}</div>
+                        {campaign.description && <div className="text-sm text-gray-600 line-clamp-2">{campaign.description}</div>}
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded-full ${
+                        campaign.status === 'active' ? 'bg-green-100 text-green-700' :
+                        campaign.status === 'paused' || campaign.status === 'inactive' ? 'bg-amber-100 text-amber-700' :
+                        campaign.status === 'completed' ? 'bg-blue-100 text-blue-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {campaign.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>Created {new Date(campaign.created_at).toLocaleDateString()}</span>
+                      <div className="flex items-center gap-2">
+                        {campaign.status === 'draft' && (
+                          <button
+                            onClick={() => handleCampaignAction(campaign.id, 'start')}
+                            disabled={startingCampaignId === campaign.id}
+                            className="inline-flex items-center gap-1 text-green-700 hover:text-green-800"
+                          >
+                            {startingCampaignId === campaign.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                            Start
+                          </button>
+                        )}
+                        {campaign.status === 'active' && (
+                          <button
+                            onClick={() => handleCampaignAction(campaign.id, 'pause')}
+                            className="inline-flex items-center gap-1 text-amber-700 hover:text-amber-800"
+                          >
+                            <Pause className="h-4 w-4" />
+                            Pause
+                          </button>
+                        )}
+                        {(campaign.status === 'paused' || campaign.status === 'inactive') && (
+                          <button
+                            onClick={() => handleCampaignAction(campaign.id, 'start')}
+                            disabled={startingCampaignId === campaign.id}
+                            className="inline-flex items-center gap-1 text-green-700 hover:text-green-800"
+                          >
+                            {startingCampaignId === campaign.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                            Resume
+                          </button>
+                        )}
+                        <Link to={`/campaigns/${campaign.id}`} className="text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
+                          View
+                          <ArrowRight className="h-3 w-3" />
+                        </Link>
+                        <button
+                          onClick={() => handleCampaignAction(campaign.id, 'delete')}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
       

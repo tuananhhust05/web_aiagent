@@ -7,6 +7,7 @@ class CampaignStatus(str, Enum):
     DRAFT = "draft"
     ACTIVE = "active"
     PAUSED = "paused"
+    INACTIVE = "inactive"
     COMPLETED = "completed"
     SCHEDULED = "scheduled"
 

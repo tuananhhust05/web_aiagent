@@ -320,11 +320,21 @@ async def start_campaign(
                 detail="Campaign not found"
             )
     
-    if campaign["status"] not in [CampaignStatus.DRAFT, CampaignStatus.PAUSED]:
+    if campaign["status"] not in [CampaignStatus.DRAFT, CampaignStatus.PAUSED, CampaignStatus.INACTIVE]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Campaign can only be started from draft or paused status"
+            detail="Campaign can only be started from draft, paused, or inactive status"
         )
+    
+    # Update campaign status to ACTIVE FIRST (before executing workflow)
+    await db.campaigns.update_one(
+        {"_id": campaign_object_id},
+        {"$set": {
+            "status": CampaignStatus.ACTIVE,
+            "updated_at": datetime.utcnow()
+        }}
+    )
+    print(f"✅ Campaign status updated to ACTIVE before workflow execution")
     
     # Get all contacts for this campaign
     all_contact_ids = list(campaign.get("contacts", []))
@@ -635,8 +645,6 @@ async def start_campaign(
             linkedin_sent_count = 0
             email_sent_count = 0
         
-        print(f"🔄 Campaign status remains: {campaign['status']}")
-        
         # Build summary
         summary_message = f"📊 Campaign Summary: "
         summary_parts = []
@@ -673,14 +681,7 @@ async def start_campaign(
             }
         }
     else:
-        # For scheduled campaigns, only update status to ACTIVE (scheduler will handle calls)
-        await db.campaigns.update_one(
-            {"_id": campaign_object_id},
-            {"$set": {
-                "status": CampaignStatus.ACTIVE,
-                "updated_at": datetime.utcnow()
-            }}
-        )
+        # For scheduled campaigns, status already updated to ACTIVE above
         print(f"✅ Scheduled Campaign {campaign['name']} activated! Scheduler will handle calls at scheduled time.")
         return {"message": "Scheduled campaign activated. Calls will be made at scheduled time."}
 
@@ -761,11 +762,11 @@ async def pause_campaign(
             detail="Only active campaigns can be paused"
         )
     
-    # Update campaign status
+    # Update campaign status to inactive
     await db.campaigns.update_one(
         {"_id": ObjectId(campaign_id)},
         {"$set": {
-            "status": CampaignStatus.PAUSED,
+            "status": CampaignStatus.INACTIVE,
             "updated_at": datetime.utcnow()
         }}
     )
