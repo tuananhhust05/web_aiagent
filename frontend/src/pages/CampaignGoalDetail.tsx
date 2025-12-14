@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Edit, Trash2, Target, Play, Pause, Loader2, Plus, ArrowRight } from 'lucide-react';
-import { campaignGoalsAPI, campaignsAPI, conventionActivitiesAPI, groupsAPI } from '../lib/api';
+import { campaignGoalsAPI, campaignsAPI, conventionActivitiesAPI, groupsAPI, workflowsAPI } from '../lib/api';
 import { CreateConventionCampaignModal, ContactSelectorModal } from './ConventionActivities';
 
 const templateCards = [
   { label: 'ForSkale Template', type: 'forskale', gradient: 'from-blue-600 to-indigo-600' },
-  { label: 'Company Template', type: 'company', gradient: 'from-emerald-500 to-teal-500' },
-  { label: 'Colleagues Template', type: 'colleague', gradient: 'from-purple-500 to-pink-500' },
   { label: 'Personal Template', type: 'user', gradient: 'from-amber-500 to-orange-500' },
 ];
 
@@ -76,11 +74,13 @@ const CampaignGoalDetail: React.FC = () => {
   const [contactSearchTerm, setContactSearchTerm] = useState('');
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [activeTab, setActiveTab] = useState<'active' | 'inactive'>('active');
+  const [workflows, setWorkflows] = useState<any[]>([]);
 
   useEffect(() => {
     if (goalId) {
       fetchGoalDetail();
       fetchRelatedCampaigns();
+      fetchWorkflows();
     }
   }, [goalId]);
 
@@ -137,6 +137,16 @@ const CampaignGoalDetail: React.FC = () => {
       console.error('Error fetching contacts:', err);
     } finally {
       setLoadingContacts(false);
+    }
+  };
+
+  const fetchWorkflows = async () => {
+    if (!goalId) return;
+    try {
+      const response = await workflowsAPI.getWorkflowsByGoal(goalId);
+      setWorkflows(response.data || []);
+    } catch (err) {
+      console.error('Error fetching workflows:', err);
     }
   };
 
@@ -215,6 +225,7 @@ const CampaignGoalDetail: React.FC = () => {
       type: campaignData.type || 'manual',
       source: goal?.source || 'convention-activities',
       campaign_goal_id: campaignData.campaign_goal_id || goalId || null,
+      workflow_id: campaignData.workflow_id || null,
       contacts: selectedContacts.filter(Boolean),
       group_ids: campaignData.group_ids || [],
       call_script: campaignData.call_script || '',
@@ -236,8 +247,18 @@ const CampaignGoalDetail: React.FC = () => {
 
   const handleOpenTemplate = (templateType: string) => {
     if (!goalId || !goal) return;
-    const workflowFunction = goal.source || 'convention-activities';
-    navigate(`/workflow-builder?function=${workflowFunction}&goalId=${goalId}&template=${templateType}`);
+    
+    // Find workflow by template type
+    const workflow = workflows.find(w => w.template_type === templateType);
+    
+    if (workflow) {
+      // Navigate with workflow_id
+      navigate(`/workflow-builder?workflowId=${workflow.id}&goalId=${goalId}&template=${templateType}`);
+    } else {
+      // Fallback to function-based if workflow not found
+      const workflowFunction = goal.source || 'convention-activities';
+      navigate(`/workflow-builder?function=${workflowFunction}&goalId=${goalId}&template=${templateType}`);
+    }
   };
 
   if (loading) {
@@ -495,6 +516,7 @@ const CampaignGoalDetail: React.FC = () => {
           selectedContacts={selectedContacts}
           campaignGoals={goal ? [goal] : []}
           defaultGoalId={goal.id}
+          workflows={workflows}
         />
       )}
 

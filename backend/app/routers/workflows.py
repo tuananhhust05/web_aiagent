@@ -15,6 +15,119 @@ from app.models.workflow import (
 
 router = APIRouter()
 
+@router.get("/by-goal/{goal_id}", response_model=List[dict])
+async def get_workflows_by_goal(
+    goal_id: str,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Get all workflows for a specific goal"""
+    db = get_database()
+    
+    try:
+        goal_object_id = ObjectId(goal_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid goal ID format"
+        )
+    
+    # Verify goal belongs to user
+    goal = await db.campaign_goals.find_one({
+        "_id": goal_object_id,
+        "user_id": current_user.id
+    })
+    
+    if not goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign goal not found"
+        )
+    
+    # Get workflows for this goal
+    workflows = await db.workflows.find({
+        "user_id": current_user.id,
+        "campaign_goal_id": goal_id
+    }).to_list(length=None)
+    
+    result = []
+    for workflow in workflows:
+        workflow_dict = dict(workflow)
+        workflow_dict["id"] = str(workflow_dict["_id"])
+        del workflow_dict["_id"]
+        result.append(workflow_dict)
+    
+    return result
+
+@router.get("/{workflow_id}", response_model=Optional[WorkflowResponse])
+async def get_workflow_by_id(
+    workflow_id: str,
+    campaign_id: Optional[str] = Query(None, description="Optional campaign ID to load campaign-specific scripts"),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Get workflow by ID"""
+    db = get_database()
+    collection = db["workflows"]
+    
+    try:
+        workflow_object_id = ObjectId(workflow_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid workflow ID format"
+        )
+    
+    workflow = await collection.find_one({
+        "_id": workflow_object_id,
+        "user_id": current_user.id
+    })
+    
+    if not workflow:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workflow not found"
+        )
+    
+    # Convert ObjectId to string
+    workflow["id"] = str(workflow["_id"])
+    del workflow["_id"]
+    
+    # If campaign_id is provided, load campaign-specific scripts and merge with nodes
+    if campaign_id:
+        # Verify campaign belongs to user
+        campaign = await db.campaigns.find_one({
+            "_id": campaign_id,
+            "user_id": current_user.id
+        })
+        
+        if campaign:
+            # Get workflow function for script lookup
+            workflow_function = workflow.get("function", "")
+            
+            # Get all scripts for this campaign and workflow
+            scripts = await db.campaign_workflow_scripts.find({
+                "campaign_id": campaign_id,
+                "workflow_function": workflow_function,
+                "user_id": current_user.id
+            }).to_list(length=None)
+            
+            # Create a dictionary of scripts by node_id
+            scripts_by_node = {script["node_id"]: script for script in scripts}
+            
+            # Merge scripts into workflow nodes
+            if "nodes" in workflow and workflow["nodes"]:
+                for node in workflow["nodes"]:
+                    node_id = node.get("id")
+                    if node_id and node_id in scripts_by_node:
+                        script_data = scripts_by_node[node_id]
+                        # Add campaign script to node data
+                        if "data" not in node:
+                            node["data"] = {}
+                        node["data"]["campaign_script"] = script_data.get("script", "")
+                        node["data"]["campaign_script_id"] = str(script_data["_id"])
+                        node["data"]["campaign_config"] = script_data.get("config", {})
+    
+    return WorkflowResponse(**workflow)
+
 @router.get("", response_model=Optional[WorkflowResponse])
 async def get_workflow(
     function: str = Query(..., description="Function name (e.g., convention-activities)"),
@@ -105,6 +218,52 @@ async def create_workflow(
     del created_workflow["_id"]
     
     return WorkflowResponse(**created_workflow)
+
+@router.put("/{workflow_id}", response_model=WorkflowResponse)
+async def update_workflow_by_id(
+    workflow_id: str,
+    workflow: WorkflowUpdate,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Update existing workflow by ID or create if not exists"""
+    db = get_database()
+    collection = db["workflows"]
+    
+    try:
+        workflow_object_id = ObjectId(workflow_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid workflow ID format"
+        )
+    
+    # Check if workflow exists
+    existing = await collection.find_one({
+        "_id": workflow_object_id,
+        "user_id": current_user.id
+    })
+    
+    update_data = workflow.model_dump(exclude_unset=True)
+    update_data["updated_at"] = datetime.utcnow()
+    
+    if existing:
+        # Update existing workflow
+        await collection.update_one(
+            {"_id": workflow_object_id},
+            {"$set": update_data}
+        )
+        
+        # Fetch updated workflow
+        updated_workflow = await collection.find_one({"_id": workflow_object_id})
+        updated_workflow["id"] = str(updated_workflow["_id"])
+        del updated_workflow["_id"]
+        
+        return WorkflowResponse(**updated_workflow)
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workflow not found"
+        )
 
 @router.put("", response_model=WorkflowResponse)
 async def update_workflow(

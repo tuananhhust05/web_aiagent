@@ -198,6 +198,7 @@ interface HistoryState {
 export default function WorkflowBuilder() {
   const [searchParams] = useSearchParams()
   const functionName = searchParams.get('function') || null
+  const workflowId = searchParams.get('workflowId') || null
   const campaignId = searchParams.get('campaign_id') || null
   const isCampaignMode = !!campaignId // Chỉ cho phép edit script, không edit structure
   const { user } = useAuth()
@@ -324,7 +325,8 @@ export default function WorkflowBuilder() {
 
   // Load workflow from database based on source
   const loadWorkflowFromDB = useCallback(async () => {
-    if (!functionName) return
+    // Priority: workflowId > functionName
+    if (!workflowId && !functionName) return
     
     try {
       setIsLoading(true)
@@ -332,10 +334,15 @@ export default function WorkflowBuilder() {
       
       let response
       
-      if (workflowSource === 'my') {
-        response = await workflowsAPI.getWorkflow(functionName)
+      // Load by workflow ID if provided (highest priority)
+      if (workflowId) {
+        console.log('Loading workflow by ID:', workflowId)
+        response = await workflowsAPI.getWorkflowById(workflowId, campaignId || undefined)
+        console.log('Workflow response:', response?.data)
+      } else if (workflowSource === 'my') {
+        response = await workflowsAPI.getWorkflow(functionName!)
       } else if (workflowSource === 'colleague' && selectedColleague) {
-        response = await workflowsAPI.getColleagueWorkflow(selectedColleague.id, functionName)
+        response = await workflowsAPI.getColleagueWorkflow(selectedColleague.id, functionName!)
         setWorkflowOwner(selectedColleague)
       } else {
         // For company view, we'll show a list instead
@@ -347,11 +354,14 @@ export default function WorkflowBuilder() {
       if (response?.data) {
         const workflow = response.data
         const loadedNodes = workflow.nodes || []
+        console.log('Loaded nodes:', loadedNodes)
+        console.log('Loaded connections:', workflow.connections || [])
+        
         setNodes(loadedNodes)
         setConnections(workflow.connections || [])
         
         // Load campaign scripts from node.data.scripts if in campaign mode
-        if (campaignId && functionName && workflowSource === 'my') {
+        if (campaignId && (functionName || workflowId) && workflowSource === 'my') {
           const scripts: Record<string, string> = {}
           loadedNodes.forEach((node: Node) => {
             // Get script for this campaign from node.data.scripts array
@@ -368,24 +378,26 @@ export default function WorkflowBuilder() {
         setHistory([{ nodes: loadedNodes, connections: workflow.connections || [] }])
         setHistoryIndex(0)
       } else {
+        console.warn('No workflow data in response')
         setNodes([])
         setConnections([])
       }
     } catch (error: any) {
       // If workflow doesn't exist, start with empty state
+      console.error('Error loading workflow:', error)
       if (error.response?.status !== 404) {
-        console.error('Error loading workflow:', error)
+        console.error('Error details:', error.response?.data || error.message)
       }
       setNodes([])
       setConnections([])
     } finally {
       setIsLoading(false)
     }
-  }, [functionName, workflowSource, selectedColleague, campaignId])
+  }, [workflowId, functionName, workflowSource, selectedColleague, campaignId])
 
   // Save workflow to database (with debounce)
   const saveWorkflowToDB = useCallback(async (nodesToSave: Node[], connectionsToSave: Connection[]) => {
-    if (!functionName || isViewOnly) return // Don't save in view-only mode
+    if ((!workflowId && !functionName) || isViewOnly) return // Don't save in view-only mode
     
     // Clear existing timeout
     if (saveTimeoutRef.current) {
@@ -396,17 +408,26 @@ export default function WorkflowBuilder() {
     saveTimeoutRef.current = setTimeout(async () => {
       try {
         setIsSaving(true)
-        await workflowsAPI.updateWorkflow(functionName, {
-          nodes: nodesToSave,
-          connections: connectionsToSave
-        })
+        if (workflowId) {
+          // Save by workflow ID
+          await workflowsAPI.updateWorkflowById(workflowId, {
+            nodes: nodesToSave,
+            connections: connectionsToSave
+          })
+        } else if (functionName) {
+          // Fallback to function-based save
+          await workflowsAPI.updateWorkflow(functionName, {
+            nodes: nodesToSave,
+            connections: connectionsToSave
+          })
+        }
       } catch (error) {
         console.error('Error saving workflow:', error)
       } finally {
         setIsSaving(false)
       }
     }, 1000)
-  }, [functionName, isViewOnly])
+  }, [workflowId, functionName, isViewOnly])
 
   // Save node script for campaign - save directly to node.data.scripts array
   const saveNodeScript = useCallback(async (nodeId: string, script: string) => {
@@ -443,10 +464,17 @@ export default function WorkflowBuilder() {
         }
         
         // Update workflow in database
-        workflowsAPI.updateWorkflow(functionName, {
-          nodes: prev.map(n => n.id === nodeId ? updatedNode : n),
-          connections: connections
-        }).catch(err => console.error('Error saving script to workflow:', err))
+        if (workflowId) {
+          workflowsAPI.updateWorkflowById(workflowId, {
+            nodes: prev.map(n => n.id === nodeId ? updatedNode : n),
+            connections: connections
+          }).catch(err => console.error('Error saving script to workflow:', err))
+        } else if (functionName) {
+          workflowsAPI.updateWorkflow(functionName, {
+            nodes: prev.map(n => n.id === nodeId ? updatedNode : n),
+            connections: connections
+          }).catch(err => console.error('Error saving script to workflow:', err))
+        }
         
         return updatedNode
       }))
@@ -777,10 +805,10 @@ export default function WorkflowBuilder() {
 
   // Load workflow from database on mount or when source/colleague changes
   useEffect(() => {
-    if (functionName) {
+    if (workflowId || functionName) {
       loadWorkflowFromDB()
     }
-  }, [functionName, workflowSource, selectedColleague, loadWorkflowFromDB])
+  }, [workflowId, functionName, workflowSource, selectedColleague, loadWorkflowFromDB])
 
   // Auto-save workflow when nodes or connections change (skip on initial load)
   const isInitialLoadRef = useRef(true)
@@ -803,10 +831,10 @@ export default function WorkflowBuilder() {
     }
   }, [nodes, connections, functionName, isLoading, saveWorkflowToDB])
   
-  // Reset initial load flag when functionName changes
+  // Reset initial load flag when functionName or workflowId changes
   useEffect(() => {
     isInitialLoadRef.current = true
-  }, [functionName])
+  }, [functionName, workflowId])
 
   // Keyboard shortcuts
   useEffect(() => {

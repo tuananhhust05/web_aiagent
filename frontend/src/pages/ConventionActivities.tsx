@@ -286,7 +286,7 @@ const ConventionActivities: React.FC = () => {
 }
 
 // Create Convention Campaign Modal Component
-function CreateConventionCampaignModal({ onClose, onSubmit, onSelectContacts, selectedContactsCount, groups, allContacts, selectedContacts, campaignGoals, defaultGoalId }: {
+function CreateConventionCampaignModal({ onClose, onSubmit, onSelectContacts, selectedContactsCount, groups, allContacts, selectedContacts, campaignGoals, defaultGoalId, workflows = [] }: {
   onClose: () => void
   onSubmit: (data: any) => void
   onSelectContacts: () => void
@@ -296,6 +296,7 @@ function CreateConventionCampaignModal({ onClose, onSubmit, onSelectContacts, se
   selectedContacts: string[]
   campaignGoals: CampaignGoal[]
   defaultGoalId?: string
+  workflows?: any[]
 }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -305,6 +306,7 @@ function CreateConventionCampaignModal({ onClose, onSubmit, onSelectContacts, se
     schedule_time: '',
     group_ids: [] as string[],
     campaign_goal_id: defaultGoalId || '',
+    workflow_id: '',
     schedule_settings: undefined as any
   })
 
@@ -449,6 +451,29 @@ function CreateConventionCampaignModal({ onClose, onSubmit, onSelectContacts, se
               Choose a campaign goal to associate with this campaign.
             </p>
           </div>
+
+          {workflows.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Workflow Template
+              </label>
+              <select
+                value={formData.workflow_id}
+                onChange={(e) => setFormData(prev => ({ ...prev, workflow_id: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select a workflow template</option>
+                {workflows.map((workflow) => (
+                  <option key={workflow.id} value={workflow.id}>
+                    {workflow.name || (workflow.template_type === 'forskale' ? 'ForSkale Template' : 'Personal Template')}
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-gray-500 mt-1">
+                Choose a workflow template to use for this campaign.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">

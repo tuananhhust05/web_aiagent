@@ -157,6 +157,17 @@ async def create_campaign(
         else:
             raise HTTPException(status_code=400, detail="Schedule settings are required for scheduled campaigns")
     
+    # Get workflow function from workflow_id if provided
+    workflow_function = campaign_data.source  # Default to source
+    if hasattr(campaign_data, 'workflow_id') and campaign_data.workflow_id:
+        # Get workflow to find its function
+        workflow = await db.workflows.find_one({
+            "_id": ObjectId(campaign_data.workflow_id),
+            "user_id": current_user.id
+        })
+        if workflow:
+            workflow_function = workflow.get("function", campaign_data.source)
+    
     # Create campaign document
     campaign_doc = {
         "name": campaign_data.name,
@@ -165,6 +176,7 @@ async def create_campaign(
         "type": campaign_data.type,
         "source": campaign_data.source,  # Add source field
         "campaign_goal_id": campaign_data.campaign_goal_id,  # Add campaign goal ID field
+        "workflow_id": getattr(campaign_data, 'workflow_id', None),  # Add workflow_id if provided
         "contacts": all_contacts,  # All contacts including from groups
         "group_ids": campaign_data.group_ids,  # Store group IDs for reference
         "call_script": campaign_data.call_script,
@@ -362,10 +374,26 @@ async def start_campaign(
         # For manual campaigns, execute calls immediately and keep original status
         print(f"📋 Manual Campaign: Executing calls for {len(all_contact_ids)} contacts")
         
-        # Try to load workflow from source (e.g., "convention-activities")
+        # Try to load workflow from workflow_id first, then fallback to source
         workflow = None
+        workflow_id = campaign.get("workflow_id")
         campaign_source = campaign.get("source")
-        if campaign_source:
+        
+        if workflow_id:
+            try:
+                workflow = await db.workflows.find_one({
+                    "_id": ObjectId(workflow_id),
+                    "user_id": current_user.id
+                })
+                if workflow:
+                    print(f"✅ Found workflow by ID '{workflow_id}' with {len(workflow.get('nodes', []))} nodes")
+                else:
+                    print(f"⚠️ No workflow found with ID '{workflow_id}', trying source...")
+            except Exception as e:
+                print(f"⚠️ Error loading workflow by ID: {str(e)}, trying source...")
+        
+        # Fallback to source if workflow_id not found
+        if not workflow and campaign_source:
             print(f"🔍 Looking for workflow with source: {campaign_source}")
             workflow = await db.workflows.find_one({
                 "user_id": current_user.id,
