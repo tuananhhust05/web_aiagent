@@ -79,6 +79,24 @@ async def get_dashboard_stats(
             campaign["id"] = str(campaign["_id"])
             del campaign["_id"]
         
+        # Get new leads (contacts created in last 30 days)
+        thirty_days_ago = now - timedelta(days=30)
+        new_leads = await db.contacts.count_documents({
+            "user_id": current_user.id,
+            "created_at": {"$gte": thirty_days_ago}
+        })
+        
+        # Get open deals (deals that are not closed_won or closed_lost)
+        open_deals = await db.deals.count_documents({
+            "user_id": current_user.id,
+            "status": {"$nin": ["closed_won", "closed_lost"]}
+        })
+        
+        # Get active clients (from CSM records with status active)
+        active_clients = await db.csm_records.count_documents({
+            "status": "active"
+        })
+        
         return {
             "total_contacts": total_contacts,
             "calls_this_month": calls_this_month,
@@ -87,7 +105,10 @@ async def get_dashboard_stats(
             "calls_by_status": calls_status_dict,
             "recent_calls": recent_calls,
             "recent_campaigns": recent_campaigns,
-            "month": now.strftime("%B %Y")
+            "month": now.strftime("%B %Y"),
+            "new_leads": new_leads,
+            "open_deals": open_deals,
+            "active_clients": active_clients
         }
         
     except Exception as e:

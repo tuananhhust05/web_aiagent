@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Edit, Trash2, Target, Play, Pause, Loader2, Plus, ArrowRight } from 'lucide-react';
+import { ArrowLeft, Edit, Trash2, Target, Play, Pause, Loader2, Plus, ArrowRight, BarChart3, PieChart, Mail, MessageCircle, Linkedin, PhoneCall, TrendingUp } from 'lucide-react';
 import { campaignGoalsAPI, campaignsAPI, conventionActivitiesAPI, groupsAPI, workflowsAPI } from '../lib/api';
 import { CreateConventionCampaignModal, ContactSelectorModal } from './ConventionActivities';
 
@@ -58,6 +58,26 @@ interface Contact {
   linkedin_profile?: string;
 }
 
+interface GoalKPI {
+  outreach: { attempts: number };
+  delivery: { success: number; rate: number };
+  engagement: {
+    rate: number;
+    view_open: number;
+    interaction: number;
+    details: Record<string, any>;
+  };
+  response: { rate: number; count: number };
+  goal_conversions: { count: number; rate: number };
+  channels: {
+    email?: { sent?: number; delivered?: number; opened?: number; clicked?: number; replied?: number; conversions?: number };
+    whatsapp?: { sent?: number; delivered?: number; read?: number; clicked?: number; replied?: number; conversions?: number };
+    telegram?: { sent?: number; delivered?: number; read?: number; clicked?: number; replied?: number; conversions?: number };
+    linkedin?: { sent?: number; delivered?: number; viewed?: number; clicked?: number; replied?: number; conversions?: number };
+    ai_voice?: { attempted?: number; answered?: number; duration_10s?: number; duration_30s?: number; completed?: number; positive?: number; conversions?: number };
+  };
+}
+
 const CampaignGoalDetail: React.FC = () => {
   const { goalId } = useParams<{ goalId: string }>();
   const navigate = useNavigate();
@@ -75,12 +95,15 @@ const CampaignGoalDetail: React.FC = () => {
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [activeTab, setActiveTab] = useState<'active' | 'inactive'>('active');
   const [workflows, setWorkflows] = useState<any[]>([]);
+  const [kpiData, setKpiData] = useState<GoalKPI | null>(null);
+  const [kpiLoading, setKpiLoading] = useState(false);
 
   useEffect(() => {
     if (goalId) {
       fetchGoalDetail();
       fetchRelatedCampaigns();
       fetchWorkflows();
+      fetchGoalKPI();
     }
   }, [goalId]);
 
@@ -147,6 +170,19 @@ const CampaignGoalDetail: React.FC = () => {
       setWorkflows(response.data || []);
     } catch (err) {
       console.error('Error fetching workflows:', err);
+    }
+  };
+
+  const fetchGoalKPI = async () => {
+    if (!goalId) return;
+    try {
+      setKpiLoading(true);
+      const response = await campaignGoalsAPI.getGoalKPI(goalId);
+      setKpiData(response.data);
+    } catch (err) {
+      console.error('Error fetching goal KPI:', err);
+    } finally {
+      setKpiLoading(false);
     }
   };
 
@@ -261,6 +297,31 @@ const CampaignGoalDetail: React.FC = () => {
     }
   };
 
+  const formatNumber = (value?: number) => (typeof value === 'number' ? value : 0).toLocaleString('en-US');
+
+  const outreachAttempts = kpiData?.outreach?.attempts || 0;
+  const deliverySuccess = kpiData?.delivery?.success || 0;
+  const deliveryRate = kpiData?.delivery?.rate || 0;
+  const engagementRate = kpiData?.engagement?.rate || 0;
+  const engagementCount = kpiData?.engagement?.interaction || 0;
+
+  const channelMetrics = {
+    email: kpiData?.channels?.email?.sent || 0,
+    whatsapp: kpiData?.channels?.whatsapp?.sent || 0,
+    linkedin: kpiData?.channels?.linkedin?.sent || 0,
+    aiVoice: kpiData?.channels?.ai_voice?.attempted || 0,
+  };
+
+  const totalContactsReached = useMemo(() => {
+    const unique = new Set<string>();
+    relatedCampaigns.forEach(campaign => {
+      (campaign.contacts || []).forEach(contactId => {
+        if (contactId) unique.add(contactId);
+      });
+    });
+    return unique.size;
+  }, [relatedCampaigns]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -331,6 +392,104 @@ const CampaignGoalDetail: React.FC = () => {
           </div>
         </div>
 
+        {/* KPI Section */}
+        <div className="bg-white rounded-lg shadow-sm border p-6 mb-8 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Goal KPIs</h3>
+              <p className="text-sm text-gray-600">Performance snapshot for this goal</p>
+            </div>
+            {kpiLoading && (
+              <div className="flex items-center gap-2 text-gray-500 text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Updating...
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 shadow-sm">
+              <div className="h-12 w-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                <BarChart3 className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Total Contacts Reached</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatNumber(totalContactsReached)} contacts</p>
+                <p className="text-xs text-gray-500">Unique individuals touched by all campaigns</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 shadow-sm">
+              <div className="h-12 w-12 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                <PieChart className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Outreach Attempts</p>
+                <p className="text-2xl font-semibold text-gray-900">{formatNumber(outreachAttempts)} attempts</p>
+                <p className="text-xs text-gray-500">Total messages/calls sent across channels</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200" />
+
+          <div className="space-y-3">
+            <p className="text-sm font-semibold text-gray-900">Channel Breakdown</p>
+            <div className="flex flex-wrap items-center gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-blue-600" />
+                <span className="text-gray-700">Email:</span>
+                <span className="font-semibold text-gray-900">{formatNumber(channelMetrics.email)} sent</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-green-600" />
+                <span className="text-gray-700">WhatsApp:</span>
+                <span className="font-semibold text-gray-900">{formatNumber(channelMetrics.whatsapp)} sent</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Linkedin className="h-5 w-5 text-sky-600" />
+                <span className="text-gray-700">LinkedIn:</span>
+                <span className="font-semibold text-gray-900">{formatNumber(channelMetrics.linkedin)} sent</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <PhoneCall className="h-5 w-5 text-purple-600" />
+                <span className="text-gray-700">AI Voice:</span>
+                <span className="font-semibold text-gray-900">{formatNumber(channelMetrics.aiVoice)} calls</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200" />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 shadow-sm">
+              <div className="h-12 w-12 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <TrendingUp className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Delivery Success</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {deliveryRate}% <span className="text-sm font-medium text-gray-600">({formatNumber(deliverySuccess)}/{formatNumber(outreachAttempts)})</span>
+                </p>
+                <p className="text-xs text-gray-500">View breakdown by channel</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 shadow-sm">
+              <div className="h-12 w-12 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                <TrendingUp className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Engagement Rate</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {engagementRate}% <span className="text-sm font-medium text-gray-600">({formatNumber(engagementCount)}/{formatNumber(deliverySuccess)})</span>
+                </p>
+                <p className="text-xs text-gray-500">View breakdown by channel</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Template Workflow Section */}
         <div className="bg-white rounded-lg shadow-sm border p-6 mt-8 mb-8">
           <div className="flex items-center justify-between mb-4">
@@ -356,19 +515,6 @@ const CampaignGoalDetail: React.FC = () => {
                 </div>
               </button>
             ))}
-          </div>
-        </div>
-
-        {/* KPIs placeholder */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-8">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">KPIs for this goal</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                KPI selection will be defined later. Use this area to pin the KPIs picked when creating this goal.
-              </p>
-            </div>
-            <div className="text-xs text-gray-500 px-3 py-1 rounded-full bg-gray-100">Coming soon</div>
           </div>
         </div>
 

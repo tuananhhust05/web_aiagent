@@ -1,4 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { 
   Users, 
@@ -7,18 +8,40 @@ import {
   ArrowUpRight,
   Plus,
   Target,
-  Upload
+  Upload,
+  TrendingUp,
+  FileText,
+  DollarSign,
+  Trophy,
+  Briefcase,
+  Activity,
+  Smile,
+  Calendar,
+  ChevronDown
 } from 'lucide-react'
-import { statsAPI } from '../lib/api'
+import { statsAPI, dealsAPI, csmAPI } from '../lib/api'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
 export default function Dashboard() {
-  const navigate = useNavigate()
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({})
+  const [timeRange, setTimeRange] = useState('30')
   
   // Fetch dashboard stats from API
   const { data: statsResponse, isLoading, error } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: () => statsAPI.getDashboardStats(),
+  })
+
+  // Fetch deals stats
+  const { data: dealsStatsResponse } = useQuery({
+    queryKey: ['deals-stats'],
+    queryFn: () => dealsAPI.getStats(),
+  })
+
+  // Fetch CSM stats
+  const { data: csmStatsResponse } = useQuery({
+    queryKey: ['csm-stats'],
+    queryFn: () => csmAPI.getStats(),
   })
 
   const stats = statsResponse?.data || {
@@ -29,7 +52,31 @@ export default function Dashboard() {
     calls_by_status: {},
     recent_calls: [],
     recent_campaigns: [],
-    month: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    month: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    new_leads: 0,
+    open_deals: 0,
+    active_clients: 0
+  }
+
+  const dealsStats = dealsStatsResponse?.data || {
+    open_deals: 0,
+    total_value: 0,
+    win_rate: 0,
+    avg_deal_value: 0
+  }
+
+  const csmStats = csmStatsResponse?.data || {
+    active_customers: 0,
+    churn_rate: 0,
+    average_health_score: 0,
+    total_account_value: 0
+  }
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }))
   }
 
   const recentActivity = [
@@ -106,78 +153,190 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-8">
-      {/* Header Section */}
-      <div className="mb-12">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-          <div className="mb-8 lg:mb-0">
-            <h1 className="text-4xl font-bold text-gray-900 tracking-tight mb-3">
-              Dashboard
-            </h1>
-            <p className="text-lg text-gray-600 leading-relaxed max-w-2xl">
-              Welcome back! Here's an overview of your voice agent campaigns and performance
-            </p>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="text-right">
-              <p className="text-sm text-gray-600">Last updated</p>
-              <p className="text-sm font-medium text-gray-900">Just now</p>
-            </div>
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        <div 
-          className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate('/contacts')}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-              <Users className="h-6 w-6 text-blue-600" />
-            </div>
-            <ArrowUpRight className="h-5 w-5 text-green-500" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600">Total Contacts</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.total_contacts.toLocaleString()}</p>
-            <p className="text-sm text-green-600 mt-1">All time contacts</p>
-          </div>
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* Three Phase Dashboard */}
+      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">GENERAL DASHBOARD</h1>
+          <select 
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="30">Last 30 Days</option>
+            <option value="90">Last 90 Days</option>
+            <option value="365">Last Year</option>
+          </select>
         </div>
 
-        <div 
-          className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate('/calls')}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center">
-              <Phone className="h-6 w-6 text-orange-600" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Phase 1 */}
+          <div className="border border-gray-200 rounded-lg bg-white shadow-sm">
+            <div className="bg-blue-100 text-center text-[11px] font-semibold text-blue-900 tracking-tight py-2 border-b border-blue-200">
+              PHASE 1: LEADS & ACQUISITION
             </div>
-            <ArrowUpRight className="h-5 w-5 text-green-500" />
+            <div className="p-4 space-y-4">
+              <div className="text-center">
+                <p className="text-blue-700 text-sm font-semibold mb-1">New Leads:</p>
+                <div className="text-4xl font-bold text-blue-700">{stats.new_leads?.toLocaleString() || 0}</div>
+              </div>
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-blue-600" />
+                    <span>Cost per Lead:</span>
+                  </div>
+                  <span className="font-semibold text-gray-900">€8.50</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-blue-600" />
+                    <span>Top Channel:</span>
+                  </div>
+                  <div className="flex items-center gap-2 font-semibold text-gray-900">
+                    <span>LinkedIn</span>
+                    <span className="text-sm text-green-600 font-semibold">↑ +15%</span>
+                  </div>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-gray-200">
+                <button
+                  onClick={() => toggleSection('conversion')}
+                  className="w-full flex items-center justify-between text-sm text-gray-700 hover:text-gray-900"
+                >
+                  <span className="font-semibold">conversion details</span>
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                {expandedSections.conversion && (
+                  <div className="mt-3 flex items-end gap-1">
+                    {['100%', '80%', '70%', '55%', '45%', '35%', '25%'].map((width, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-blue-200 rounded-sm"
+                        style={{ width, height: `${6 + idx}px` }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600">Calls This Month</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.calls_this_month.toLocaleString()}</p>
-            <p className="text-sm text-green-600 mt-1">{stats.month}</p>
-          </div>
-        </div>
 
-        <div 
-          className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
-          onClick={() => navigate('/campaigns')}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
-              <Target className="h-6 w-6 text-purple-600" />
+          {/* Phase 2 */}
+          <div className="border border-gray-200 rounded-lg bg-white shadow-sm">
+            <div className="bg-orange-100 text-center text-[11px] font-semibold text-orange-900 tracking-tight py-2 border-b border-orange-200">
+              PHASE 2: NEGOTIATIONS (Sales)
             </div>
-            <ArrowUpRight className="h-5 w-5 text-green-500" />
+            <div className="p-4 space-y-4">
+              <div className="text-center">
+                <p className="text-orange-700 text-sm font-semibold mb-1">Open Deals:</p>
+                <div className="text-4xl font-bold text-orange-600">{dealsStats.open_deals || stats.open_deals || 0}</div>
+              </div>
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-orange-600" />
+                    <span>Pipeline Value:</span>
+                  </div>
+                  <span className="font-semibold text-gray-900">€{((dealsStats.total_value || 0) / 1000).toFixed(0)}k</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-orange-600" />
+                    <span>Win Rate:</span>
+                  </div>
+                  <span className="font-semibold text-gray-900">{dealsStats.win_rate?.toFixed(0) || 0}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-orange-600" />
+                    <span>Avg. Deal Size:</span>
+                  </div>
+                  <span className="font-semibold text-gray-900">€{((dealsStats.avg_deal_value || 0) / 1000).toFixed(1)}k</span>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-gray-200">
+                <button
+                  onClick={() => toggleSection('sales')}
+                  className="w-full flex items-center justify-between text-sm text-gray-700 hover:text-gray-900"
+                >
+                  <span className="font-semibold">sales details</span>
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                {expandedSections.sales && (
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    <div className="h-10 w-12 rounded-sm bg-orange-200 border border-orange-300"></div>
+                    <ArrowUpRight className="h-4 w-4 text-gray-400" />
+                    <div className="h-8 w-10 rounded-sm bg-orange-300 border border-orange-400"></div>
+                    <ArrowUpRight className="h-4 w-4 text-gray-400" />
+                    <div className="h-6 w-8 rounded-sm bg-orange-400 border border-orange-500"></div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-sm font-medium text-gray-600">Active Campaigns</p>
-            <p className="text-3xl font-bold text-gray-900">{stats.active_campaigns}</p>
-            <p className="text-sm text-green-600 mt-1">{stats.total_campaigns} total campaigns</p>
+
+          {/* Phase 3 */}
+          <div className="border border-gray-200 rounded-lg bg-white shadow-sm">
+            <div className="bg-green-100 text-center text-[11px] font-semibold text-green-900 tracking-tight py-2 border-b border-green-200">
+              PHASE 3: CUSTOMER SUCCESS (CSM) & RENEWALS
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="text-center">
+                <p className="text-green-700 text-sm font-semibold mb-1">Active Clients:</p>
+                <div className="text-4xl font-bold text-green-600">{csmStats.active_customers || stats.active_clients || 0}</div>
+              </div>
+              <div className="space-y-2 text-sm text-gray-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-green-600" />
+                    <span>Churn Rate:</span>
+                  </div>
+                  <span className="font-semibold text-gray-900">{csmStats.churn_rate?.toFixed(1) || 0}%</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Smile className="h-4 w-4 text-green-600" />
+                    <span>NPS Score:</span>
+                  </div>
+                  <span className="font-semibold text-gray-900">{csmStats.average_health_score?.toFixed(0) || 0}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-green-600" />
+                    <span>Forecasted Renewals:</span>
+                  </div>
+                  <span className="font-semibold text-gray-900">€{((csmStats.total_account_value || 0) / 1000).toFixed(0)}k</span>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-gray-200">
+                <button
+                  onClick={() => toggleSection('retention')}
+                  className="w-full flex items-center justify-between text-sm text-gray-700 hover:text-gray-900"
+                >
+                  <span className="font-semibold">retention details</span>
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                {expandedSections.retention && (
+                  <div className="mt-3 space-y-2">
+                    <div className="text-xs font-semibold text-gray-700 text-center">customer health score</div>
+                    <div className="relative h-4 bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-green-500 rounded-full"
+                        style={{ width: `${Math.min((csmStats.average_health_score || 0), 100)}%` }}
+                      ></div>
+                      <div 
+                        className="absolute top-0 left-0 h-full w-1 bg-gray-900"
+                        style={{ left: `${Math.min((csmStats.average_health_score || 0), 100)}%` }}
+                      ></div>
+                    </div>
+                    <div className="text-xs text-gray-500 text-center">
+                      Score: {csmStats.average_health_score?.toFixed(0) || 0}/100
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

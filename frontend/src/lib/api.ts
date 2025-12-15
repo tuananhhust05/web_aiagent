@@ -401,6 +401,15 @@ export const campaignGoalsAPI = {
   
   // Get campaign goal statistics
   getStats: () => api.get('/api/campaign-goals/stats/summary'),
+  
+  // Get KPI data for a goal
+  getGoalKPI: (goalId: string, startDate?: string, endDate?: string) => 
+    api.get(`/api/campaign-goals/${goalId}/kpi`, { 
+      params: { 
+        ...(startDate ? { start_date: startDate } : {}),
+        ...(endDate ? { end_date: endDate } : {})
+      } 
+    }),
 };
 
 // Deal View Types
