@@ -482,6 +482,17 @@ async def start_campaign(
                                     if whatsapp_result.get("success"):
                                         print(f"✅ WhatsApp message sent to {name}: {whatsapp_result}")
                                         whatsapp_sent_count += 1
+                                        # Log for KPI stats
+                                        try:
+                                            await db.campaign_messages.insert_one({
+                                                "campaign_id": campaign_id,
+                                                "contact_id": str(contact["_id"]),
+                                                "user_id": current_user.id,
+                                                "channel": "whatsapp",
+                                                "created_at": datetime.utcnow(),
+                                            })
+                                        except Exception as e:
+                                            print(f"❌ Failed to log WhatsApp send for KPI: {str(e)}")
                                     else:
                                         print(f"❌ WhatsApp message failed for {name}: {whatsapp_result}")
                                         if "error" in whatsapp_result:
@@ -515,6 +526,17 @@ async def start_campaign(
                                     if success:
                                         print(f"✅ Telegram message sent successfully to {name} ({telegram_username})")
                                         telegram_sent_count += 1
+                                        # Log for KPI stats
+                                        try:
+                                            await db.campaign_messages.insert_one({
+                                                "campaign_id": campaign_id,
+                                                "contact_id": str(contact["_id"]),
+                                                "user_id": current_user.id,
+                                                "channel": "telegram",
+                                                "created_at": datetime.utcnow(),
+                                            })
+                                        except Exception as e:
+                                            print(f"❌ Failed to log Telegram send for KPI: {str(e)}")
                                     else:
                                         print(f"❌ Telegram message failed for {name} ({telegram_username})")
                                         
@@ -539,6 +561,17 @@ async def start_campaign(
                                     if linkedin_result.get("success"):
                                         print(f"✅ LinkedIn message sent to {name}: {linkedin_result}")
                                         linkedin_sent_count += 1
+                                        # Log for KPI stats
+                                        try:
+                                            await db.campaign_messages.insert_one({
+                                                "campaign_id": campaign_id,
+                                                "contact_id": str(contact["_id"]),
+                                                "user_id": current_user.id,
+                                                "channel": "linkedin",
+                                                "created_at": datetime.utcnow(),
+                                            })
+                                        except Exception as e:
+                                            print(f"❌ Failed to log LinkedIn send for KPI: {str(e)}")
                                     else:
                                         print(f"❌ LinkedIn message failed for {name}: {linkedin_result}")
                                         if "error" in linkedin_result:
@@ -652,6 +685,17 @@ async def start_campaign(
                                     if email_result.get("success"):
                                         print(f"✅ Email sent to {name}: {email_result}")
                                         email_sent_count += 1
+                                        # Log for KPI stats
+                                        try:
+                                            await db.campaign_messages.insert_one({
+                                                "campaign_id": campaign_id,
+                                                "contact_id": str(contact["_id"]),
+                                                "user_id": current_user.id,
+                                                "channel": "email",
+                                                "created_at": datetime.utcnow(),
+                                            })
+                                        except Exception as e:
+                                            print(f"❌ Failed to log Email send for KPI: {str(e)}")
                                     else:
                                         print(f"❌ Email failed for {name}: {email_result}")
                                         if "error" in email_result:

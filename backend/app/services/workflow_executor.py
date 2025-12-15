@@ -29,6 +29,33 @@ class WorkflowExecutor:
         if self.db is None:
             self.db = get_database()
         return self.db
+
+    async def _log_campaign_message(
+        self,
+        campaign: Dict,
+        contact: Dict,
+        channel: str,
+    ) -> None:
+        """
+        Log a sent campaign message so that KPI stats can use real send counts.
+        """
+        try:
+            db = self._get_db()
+            campaign_id = str(campaign.get("_id", "")) if campaign.get("_id") else campaign.get("id")
+            contact_id = str(contact.get("_id", "")) if contact.get("_id") else contact.get("id")
+            if not campaign_id or not contact_id:
+                return
+
+            doc = {
+                "campaign_id": campaign_id,
+                "contact_id": contact_id,
+                "user_id": campaign.get("user_id"),
+                "channel": channel,
+                "created_at": datetime.utcnow(),
+            }
+            await db.campaign_messages.insert_one(doc)
+        except Exception as e:
+            logger.error(f"❌ [WORKFLOW] Failed to log campaign message for channel {channel}: {str(e)}")
     
     def _get_node_type_to_channel(self, node_type: str) -> str:
         """Map workflow node type to channel name."""
@@ -402,7 +429,11 @@ class WorkflowExecutor:
         campaign: Dict,
         call_script: str
     ) -> bool:
-        """Execute a single workflow node. Returns True if executed successfully."""
+        """Execute a single workflow node. Returns True if executed successfully.
+
+        On success, this will also log a campaign_messages entry for message-based
+        channels so that goal KPIs can use actual sent counts instead of estimates.
+        """
         node_type = node.get("type", "")
         channel = self._get_node_type_to_channel(node_type)
         contact_id = str(contact.get("_id", ""))
@@ -419,7 +450,10 @@ class WorkflowExecutor:
                         call_script,
                         user_id=campaign.get("user_id")
                     )
-                    return result.get("success", False)
+                    success = result.get("success", False)
+                    if success:
+                        await self._log_campaign_message(campaign, contact, "whatsapp")
+                    return success
                 else:
                     logger.warning(f"⚠️ [WORKFLOW] Contact {name} has no WhatsApp number")
                     return False
@@ -447,6 +481,8 @@ class WorkflowExecutor:
                     else:
                         logger.error(f"❌ [WORKFLOW] Failed to send Telegram message to {name} ({telegram_username})")
                     
+                    if success:
+                        await self._log_campaign_message(campaign, contact, "telegram")
                     return success
                 else:
                     logger.warning(f"⚠️ [WORKFLOW] Contact {name} has no Telegram username")
@@ -459,7 +495,10 @@ class WorkflowExecutor:
                         linkedin_profile,
                         call_script
                     )
-                    return result.get("success", False)
+                    success = result.get("success", False)
+                    if success:
+                        await self._log_campaign_message(campaign, contact, "linkedin")
+                    return success
                 else:
                     logger.warning(f"⚠️ [WORKFLOW] Contact {name} has no LinkedIn profile")
                     return False
@@ -484,7 +523,10 @@ class WorkflowExecutor:
                                 "contact_id": contact_id
                             }]
                         )
-                        return email_result.get("success", False)
+                        success = email_result.get("success", False)
+                        if success:
+                            await self._log_campaign_message(campaign, contact, "email")
+                        return success
                     else:
                         logger.warning(f"⚠️ [WORKFLOW] Email credentials not found for user")
                         return False
@@ -521,6 +563,8 @@ class WorkflowExecutor:
                                     "notes": f"Workflow campaign call for {name}"
                                 }
                                 await self._get_db().calls.insert_one(call_doc)
+                                # For AI voice we track attempts via calls collection,
+                                # no need to log into campaign_messages for now.
                                 return True
                             else:
                                 return False

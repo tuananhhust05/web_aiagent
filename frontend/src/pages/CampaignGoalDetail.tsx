@@ -308,6 +308,7 @@ const CampaignGoalDetail: React.FC = () => {
   const channelMetrics = {
     email: kpiData?.channels?.email?.sent || 0,
     whatsapp: kpiData?.channels?.whatsapp?.sent || 0,
+    telegram: kpiData?.channels?.telegram?.sent || 0,
     linkedin: kpiData?.channels?.linkedin?.sent || 0,
     aiVoice: kpiData?.channels?.ai_voice?.attempted || 0,
   };
@@ -445,6 +446,11 @@ const CampaignGoalDetail: React.FC = () => {
                 <MessageCircle className="h-5 w-5 text-green-600" />
                 <span className="text-gray-700">WhatsApp:</span>
                 <span className="font-semibold text-gray-900">{formatNumber(channelMetrics.whatsapp)} sent</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-sky-500" />
+                <span className="text-gray-700">Telegram:</span>
+                <span className="font-semibold text-gray-900">{formatNumber(channelMetrics.telegram)} sent</span>
               </div>
               <div className="flex items-center gap-2">
                 <Linkedin className="h-5 w-5 text-sky-600" />

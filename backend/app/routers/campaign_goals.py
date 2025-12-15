@@ -643,6 +643,29 @@ async def get_goal_kpi(
         "linkedin": {"sent": 0, "delivered": 0, "viewed": 0, "clicked": 0, "replied": 0, "conversions": 0},
         "ai_voice": {"attempted": 0, "answered": 0, "duration_10s": 0, "duration_30s": 0, "completed": 0, "positive": 0, "conversions": 0}
     }
+
+    # Aggregate real sent counts from campaign_messages (logged when flows execute)
+    send_query = {
+        "campaign_id": {"$in": campaign_ids},
+        "user_id": current_user.id
+    }
+    if start_datetime:
+        send_query["created_at"] = {"$gte": start_datetime}
+    if end_datetime:
+        if "created_at" in send_query:
+            send_query["created_at"]["$lte"] = end_datetime
+        else:
+            send_query["created_at"] = {"$lte": end_datetime}
+
+    campaign_messages = await db.campaign_messages.find(send_query).to_list(length=None)
+
+    for msg in campaign_messages:
+        channel = msg.get("channel")
+        if channel in metrics and "sent" in metrics[channel]:
+            metrics[channel]["sent"] += 1
+            # For now, consider sent == delivered so delivery stats work
+            if "delivered" in metrics[channel]:
+                metrics[channel]["delivered"] += 1
     
     # Aggregate data from calls
     # campaign_id is stored as string in calls collection
@@ -702,31 +725,33 @@ async def get_goal_kpi(
         elif platform == "linkedin":
             metrics["linkedin"]["replied"] += 1
     
-    # Calculate sent/delivered from campaigns
-    # For active campaigns, estimate based on contacts and workflow execution
-    # Note: This is a simplified calculation - in production, should track each actual message send
-    total_contacts = set()
-    active_campaigns = [c for c in campaigns if c.get("status") == "active"]
-    
-    for campaign in active_campaigns:
-        total_contacts.update(campaign.get("contacts", []))
-        contacts_count = len(campaign.get("contacts", []))
-        flow = campaign.get("flow", ['telegram', 'ai_voice', 'whatsapp', 'linkedin'])
+    # If we don't have any logged sends yet (older campaigns), fall back to estimation
+    if not campaign_messages:
+        # Calculate sent/delivered from campaigns
+        # For active campaigns, estimate based on contacts and workflow execution
+        # Note: This is a simplified calculation - in production, should track each actual message send
+        total_contacts = set()
+        active_campaigns = [c for c in campaigns if c.get("status") == "active"]
         
-        # Estimate sent based on flow channels (each channel sends to all contacts)
-        for channel in flow:
-            if channel == 'email':
-                metrics["email"]["sent"] += contacts_count
-                metrics["email"]["delivered"] += int(contacts_count * 0.95)  # Estimate 95% delivery rate
-            elif channel == 'whatsapp':
-                metrics["whatsapp"]["sent"] += contacts_count
-                metrics["whatsapp"]["delivered"] += int(contacts_count * 0.98)  # Estimate 98% delivery rate
-            elif channel == 'telegram':
-                metrics["telegram"]["sent"] += contacts_count
-                metrics["telegram"]["delivered"] += int(contacts_count * 0.97)  # Estimate 97% delivery rate
-            elif channel == 'linkedin':
-                metrics["linkedin"]["sent"] += contacts_count
-                metrics["linkedin"]["delivered"] += int(contacts_count * 0.90)  # Estimate 90% delivery rate
+        for campaign in active_campaigns:
+            total_contacts.update(campaign.get("contacts", []))
+            contacts_count = len(campaign.get("contacts", []))
+            flow = campaign.get("flow", ['telegram', 'ai_voice', 'whatsapp', 'linkedin'])
+            
+            # Estimate sent based on flow channels (each channel sends to all contacts)
+            for channel in flow:
+                if channel == 'email':
+                    metrics["email"]["sent"] += contacts_count
+                    metrics["email"]["delivered"] += int(contacts_count * 0.95)  # Estimate 95% delivery rate
+                elif channel == 'whatsapp':
+                    metrics["whatsapp"]["sent"] += contacts_count
+                    metrics["whatsapp"]["delivered"] += int(contacts_count * 0.98)  # Estimate 98% delivery rate
+                elif channel == 'telegram':
+                    metrics["telegram"]["sent"] += contacts_count
+                    metrics["telegram"]["delivered"] += int(contacts_count * 0.97)  # Estimate 97% delivery rate
+                elif channel == 'linkedin':
+                    metrics["linkedin"]["sent"] += contacts_count
+                    metrics["linkedin"]["delivered"] += int(contacts_count * 0.90)  # Estimate 90% delivery rate
     
     # For AI Voice, use actual data from calls collection (already calculated above)
     # metrics["ai_voice"] is already populated from calls query
