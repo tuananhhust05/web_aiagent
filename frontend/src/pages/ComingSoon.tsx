@@ -75,8 +75,8 @@ const ComingSoon: React.FC = () => {
           <div className="border-t border-gray-200 pt-6">
             <p className="text-sm text-gray-500">
               Have questions? Contact us at{' '}
-              <a href="mailto:support@4skale.com" className="text-blue-600 hover:text-blue-800">
-                support@4skale.com
+              <a href="mailto:support@forskale.com" className="text-blue-600 hover:text-blue-800">
+                support@forskale.com
               </a>
             </p>
           </div>

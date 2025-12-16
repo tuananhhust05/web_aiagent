@@ -75,7 +75,7 @@ export default function CRMIntegration() {
       total_contacts: 1250,
       settings: {
         api_key: 'hub_****_****_****',
-        webhook_url: 'https://4skale.com/webhook/hubspot',
+        webhook_url: 'https://forskale.com/webhook/hubspot',
         sync_frequency: 'realtime',
         auto_sync: true
       }

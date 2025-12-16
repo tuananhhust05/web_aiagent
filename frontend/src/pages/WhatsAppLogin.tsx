@@ -9,7 +9,7 @@ type RequestStatus = 'idle' | 'loading' | 'success' | 'error'
 const WhatsAppLogin = () => {
   const { user } = useAuth()
   const userId = useMemo(() => user?.id || (user as any)?._id || '', [user])
-  const loginImageUrl = userId ? `https://4skale.com/image_profile_login/whatsapp_login_${userId}.png` : ''
+  const loginImageUrl = userId ? `https://forskale.com/image_profile_login/whatsapp_login_${userId}.png` : ''
 
   const [profileStatus, setProfileStatus] = useState<RequestStatus>('idle')
   const [loginStatus, setLoginStatus] = useState<RequestStatus>('idle')

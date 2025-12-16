@@ -32,7 +32,7 @@ const GoogleSuccess: React.FC = () => {
         localStorage.setItem('token', token)
 
         // Get user data from backend
-        const response = await fetch(`https://4skale.com:8000/api/users/me`, {
+        const response = await fetch(`https://forskale.com:8000/api/users/me`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

@@ -40,5 +40,5 @@ else:
 
 print("\n📋 Google Cloud Console should have:")
 print(f"   Authorized redirect URIs: {settings.GOOGLE_REDIRECT_URI}")
-print(f"   Authorized JavaScript origins: https://4skale.com")
+print(f"   Authorized JavaScript origins: https://forskale.com")
 

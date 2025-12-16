@@ -65,9 +65,9 @@ docker-compose up -d
 ```
 
 3. Access the application:
-- Frontend: https://4skale.com (Production)
-- Backend API: https://4skale.com:8000
-- API Documentation: https://4skale.com:8000/docs
+- Frontend: https://forskale.com (Production)
+- Backend API: https://forskale.com:8000
+- API Documentation: https://forskale.com:8000/docs
 
 #### Development Mode
 1. Start development services:
@@ -81,9 +81,9 @@ docker-compose -f docker-compose.dev.yml up -d
 ```
 
 2. Access the application:
-- Frontend: https://4skale.com (Development with hot reload)
-- Backend API: https://4skale.com:8000
-- API Documentation: https://4skale.com:8000/docs
+- Frontend: https://forskale.com (Development with hot reload)
+- Backend API: https://forskale.com:8000
+- API Documentation: https://forskale.com:8000/docs
 
 ### Local Development
 
@@ -236,12 +236,12 @@ The production build includes:
 ```env
 MONGODB_URL=mongodb://admin:password123@localhost:27017/agentvoice?authSource=admin
 JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
-CORS_ORIGINS=https://4skale.com,https://4skale.com:3000
+CORS_ORIGINS=https://forskale.com,https://forskale.com:3000
 ```
 
 ### Frontend (.env)
 ```env
-VITE_API_URL=https://4skale.com:8000
+VITE_API_URL=https://forskale.com:8000
 ```
 
 ## Development

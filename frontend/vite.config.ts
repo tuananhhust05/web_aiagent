@@ -9,12 +9,12 @@ export default defineConfig({
     watch: {
       usePolling: true
     },
-    allowedHosts: ['4skale.com'] 
+    allowedHosts: ['forskale.com'] 
   },
   preview: {
     host: '0.0.0.0',              
     port: 5173,                   
-    allowedHosts: ['4skale.com']  
+    allowedHosts: ['forskale.com']  
   },
   build: {
     outDir: 'dist',
