@@ -1,11 +1,12 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies
+from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies, uploads
 
 # Import pipelines separately with error handling
 try:
@@ -74,6 +75,13 @@ app = FastAPI(
     redirect_slashes=False  # Disable automatic redirect from /path to /path/
 )
 
+# File upload static directory (for URLs starting with `/upload`)
+UPLOAD_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "uploads"))
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# Mount static files so `/upload/<filename>` is publicly accessible
+app.mount("/upload", StaticFiles(directory=UPLOAD_DIR), name="upload")
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -111,6 +119,7 @@ app.include_router(workflows.router, prefix="/api/workflows", tags=["Workflows"]
 app.include_router(campaign_workflow_scripts.router, prefix="/api/campaign-workflow-scripts", tags=["Campaign Workflow Scripts"])
 app.include_router(gmail.router, prefix="/api/gmail", tags=["Gmail"])
 app.include_router(companies.router, prefix="/api", tags=["Companies"])
+app.include_router(uploads.router, tags=["File Upload"])
 
 # Add pipelines router if import succeeded
 # if pipelines:
