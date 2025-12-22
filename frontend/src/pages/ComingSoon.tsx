@@ -85,7 +85,7 @@ const ComingSoon: React.FC = () => {
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-500">
-            © 2024 4Skale. All rights reserved.
+            © 2024 ForSkale. All rights reserved.
           </p>
         </div>
       </div>
