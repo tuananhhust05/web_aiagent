@@ -85,6 +85,13 @@ export default function Header() {
                     Privacy Policy
                   </Link>
                   <Link
+                    to="/terms"
+                    className="block px-4 py-2 text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors font-light"
+                    onClick={() => setIsCompanyOpen(false)}
+                  >
+                    Terms of Service
+                  </Link>
+                  <Link
                     to="/help"
                     className="block px-4 py-2 text-gray-700 hover:bg-gray-50 hover:text-blue-600 transition-colors font-light"
                     onClick={() => setIsCompanyOpen(false)}
@@ -179,6 +186,13 @@ export default function Header() {
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Privacy Policy
+                  </Link>
+                  <Link
+                    to="/terms"
+                    className="block text-gray-700 hover:text-blue-600 font-light"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Terms of Service
                   </Link>
                   <Link
                     to="/help"

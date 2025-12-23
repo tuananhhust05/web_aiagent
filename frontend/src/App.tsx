@@ -34,6 +34,7 @@ import About from './pages/About'
 import Privacy from './pages/Privacy'
 import Pricing from './pages/Pricing'
 import Help from './pages/Help'
+import Terms from './pages/Terms'
 import AIAgent from './pages/products/AIAgent'
 import RAGClient from './pages/products/RAGClient'
 import CRMIntegration from './pages/products/CRMIntegration'
@@ -90,6 +91,7 @@ function App() {
         <Route path="/auth/google/success" element={<GoogleSuccess />} />
         <Route path="/about" element={<About />} />
         <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/help" element={<Help />} />
         <Route path="/products/ai-agent" element={<AIAgent />} />
@@ -104,6 +106,8 @@ function App() {
     <Routes>
       <Route path="/workflow-builder" element={<WorkflowBuilder />} />
       <Route path="/workflows" element={<WorkflowBuilder />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
       <Route path="*" element={
         <Layout>
           <Routes>
