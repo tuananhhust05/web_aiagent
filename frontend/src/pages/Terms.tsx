@@ -5,47 +5,47 @@ import { Link } from 'react-router-dom'
 export default function Terms() {
   const serviceItems = [
     {
-      title: 'Dịch vụ cung cấp',
+      title: 'Services provided',
       points: [
-        'Tự động trả lời email: dùng dữ liệu email người dùng cấp phép để tạo/gửi trả lời.',
-        'Gửi email marketing/CSKH: đại diện người dùng gửi chiến dịch cho danh sách khách hàng họ cung cấp.',
-        'Không sử dụng dữ liệu Gmail cho quảng cáo hay bán lại.',
+        'Automatic email replies: use authorized Gmail data to generate and send replies on your behalf.',
+        'Email marketing and customer communication: send campaigns to contact lists that you provide.',
+        'We do not use Gmail data for advertising or resale.',
       ],
       icon: <MailCheck className="h-6 w-6" />,
     },
     {
-      title: 'Trách nhiệm người dùng',
+      title: 'User responsibilities',
       points: [
-        'Bảo đảm nội dung gửi tuân thủ luật chống spam và có sự đồng ý của người nhận.',
-        'Không được lạm dụng cho spam, phishing, phần mềm độc hại hoặc quấy rối.',
-        'Tự chịu trách nhiệm về dữ liệu khách hàng và danh sách gửi do mình tải lên/cấu hình.',
+        'Ensure that all emails you send comply with applicable anti-spam laws and that recipients have given appropriate consent.',
+        'Do not use the service for spam, phishing, malware distribution, harassment, or any illegal activity.',
+        'You are responsible for the accuracy and lawfulness of customer data and mailing lists you upload or configure.',
       ],
       icon: <AlertTriangle className="h-6 w-6" />,
     },
     {
-      title: 'Dữ liệu & quyền riêng tư',
+      title: 'Data & privacy',
       points: [
-        'Xử lý dữ liệu theo Chính sách Quyền riêng tư; không bán/cho thuê dữ liệu Gmail.',
-        'Người dùng có thể thu hồi OAuth tại Google Security và yêu cầu xóa dữ liệu bất cứ lúc nào.',
-        'Chỉ lưu metadata log gửi (người nhận, tiêu đề, thời gian, trạng thái) tối đa 90 ngày hoặc ngắn hơn theo yêu cầu.',
+        'We process data in line with our Privacy Policy and do not sell or rent Gmail data.',
+        'You can revoke OAuth access at Google Security and request data deletion at any time.',
+        'We retain sending metadata (recipient, subject, time, status) for up to 90 days, or less on request.',
       ],
       icon: <Lock className="h-6 w-6" />,
     },
     {
-      title: 'Sẵn sàng dịch vụ & giới hạn trách nhiệm',
+      title: 'Service availability & liability',
       points: [
-        'Dịch vụ có thể gián đoạn do bảo trì hoặc giới hạn từ Google API.',
-        'Cung cấp “như hiện trạng”; không bảo đảm không lỗi hay không gián đoạn.',
-        'Giới hạn trách nhiệm tối đa bằng tổng phí đã trả trong 3 tháng gần nhất (nếu có).',
+        'Service may be interrupted due to maintenance or limitations of Google APIs.',
+        'The service is provided “as is” without guarantees of being error-free or uninterrupted.',
+        'Our liability is limited to the total fees you paid for the service in the last 3 months (if any).',
       ],
       icon: <Clock className="h-6 w-6" />,
     },
     {
-      title: 'Tuân thủ & thực thi',
+      title: 'Compliance & enforcement',
       points: [
-        'Có thể tạm dừng/khóa tài khoản khi phát hiện lạm dụng, rủi ro bảo mật hoặc vi phạm pháp luật.',
-        'Hợp tác với cơ quan chức năng khi có yêu cầu hợp pháp.',
-        'Yêu cầu bổ sung bằng chứng về sự đồng ý của người nhận khi gửi marketing số lượng lớn.',
+        'We may suspend or terminate accounts when we detect abuse, security risk, or legal violations.',
+        'We cooperate with authorities when legally required.',
+        'We may request additional proof of consent for large marketing sends.',
       ],
       icon: <ShieldCheck className="h-6 w-6" />,
     },
@@ -62,13 +62,13 @@ export default function Terms() {
             <FileText className="h-10 w-10 text-white" />
           </div>
           <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-4">
-            Điều khoản Dịch vụ
+            Terms of Service
           </h1>
           <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-            Điều chỉnh việc sử dụng tính năng đọc/gửi Gmail để tự động trả lời và gửi email marketing thay người dùng.
+            Governs how Gmail read/send access is used to provide automatic replies and email marketing on your behalf.
           </p>
           <p className="text-sm text-gray-500 mt-4">
-            Cập nhật lần cuối: {new Date().toLocaleDateString('vi-VN', { year: 'numeric', month: 'long', day: 'numeric' })}
+            Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
       </section>
@@ -79,24 +79,24 @@ export default function Terms() {
           <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-4">
               <ShieldCheck className="h-6 w-6 text-blue-600" />
-              <h3 className="text-xl font-semibold text-gray-900">Quyền Gmail được yêu cầu</h3>
+              <h3 className="text-xl font-semibold text-gray-900">Gmail scopes requested</h3>
             </div>
             <ul className="space-y-2 text-gray-700 leading-relaxed">
-              <li>• `gmail.readonly` (hoặc metadata/modify nếu đủ) để đọc email phục vụ tự động trả lời.</li>
-              <li>• `gmail.send` để gửi trả lời/chiến dịch thay người dùng.</li>
-              <li>• Chỉ truy cập khi người dùng kích hoạt tính năng; không quét nền hàng loạt.</li>
+              <li>• `gmail.readonly` (or a narrower metadata/modify scope where sufficient) to read emails for auto-replies.</li>
+              <li>• `gmail.send` to send replies and campaigns on your behalf.</li>
+              <li>• Access is feature-driven only; we do not crawl your mailbox in the background without purpose.</li>
             </ul>
           </div>
 
           <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-4">
               <HeartHandshake className="h-6 w-6 text-emerald-600" />
-              <h3 className="text-xl font-semibold text-gray-900">Quyền kiểm soát của người dùng</h3>
+              <h3 className="text-xl font-semibold text-gray-900">User control</h3>
             </div>
             <ul className="space-y-2 text-gray-700 leading-relaxed">
-              <li>• Thu hồi OAuth tại Google Security; chúng tôi dừng truy cập và xóa token/cache.</li>
-              <li>• Yêu cầu xóa dữ liệu qua `privacy@forskale.com` hoặc qua mục cài đặt.</li>
-              <li>• Cấu hình thời gian lưu log gửi; mặc định 90 ngày, có thể ngắn hơn hoặc xóa ngay.</li>
+              <li>• Revoke OAuth access at Google Security at any time; we then stop access and delete tokens/caches.</li>
+              <li>• Request data deletion via `privacy@forskale.com` or through in-product settings.</li>
+              <li>• Configure retention for sending logs; default is 90 days but can be shortened or set to delete immediately.</li>
             </ul>
           </div>
         </div>
@@ -126,19 +126,19 @@ export default function Terms() {
       {/* Legal footer */}
       <section className="pb-20">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-gray-700 space-y-4">
-          <h2 className="text-2xl font-semibold text-gray-900">Luật áp dụng & giải quyết tranh chấp</h2>
+          <h2 className="text-2xl font-semibold text-gray-900">Governing law & dispute resolution</h2>
           <p>
-            Bạn có thể tùy chỉnh điều khoản này theo pháp luật nơi doanh nghiệp đăng ký. Khuyến nghị nêu rõ tòa án hoặc trọng tài có thẩm quyền, cùng ngôn ngữ áp dụng cho hợp đồng.
+            You may adapt this section to the jurisdiction where your company is registered. We recommend specifying the governing law, competent courts or arbitration body, and the language of the contract.
           </p>
           <p>
-            Nếu có thắc mắc, liên hệ <a href="mailto:legal@forskale.com" className="text-blue-600 underline">legal@forskale.com</a>.
+            For any legal questions, contact <a href="mailto:legal@forskale.com" className="text-blue-600 underline">legal@forskale.com</a>.
           </p>
           <div className="pt-2">
             <Link
               to="/privacy"
               className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
             >
-              Xem Chính sách Quyền riêng tư
+              View Privacy Policy
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
