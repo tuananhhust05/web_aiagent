@@ -1,5 +1,5 @@
 import Header from '../components/Header'
-import { FileText, ShieldCheck, MailCheck, AlertTriangle, Clock, HandHeart, Lock, ArrowRight } from 'lucide-react'
+import { FileText, ShieldCheck, MailCheck, AlertTriangle, Clock, HeartHandshake, Lock, ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 export default function Terms() {
@@ -90,7 +90,7 @@ export default function Terms() {
 
           <div className="bg-white border border-gray-100 shadow-sm rounded-2xl p-6">
             <div className="flex items-center gap-3 mb-4">
-              <HandHeart className="h-6 w-6 text-emerald-600" />
+              <HeartHandshake className="h-6 w-6 text-emerald-600" />
               <h3 className="text-xl font-semibold text-gray-900">Quyền kiểm soát của người dùng</h3>
             </div>
             <ul className="space-y-2 text-gray-700 leading-relaxed">
