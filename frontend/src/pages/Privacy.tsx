@@ -1,5 +1,5 @@
 import Header from '../components/Header'
-import { Shield, Lock, Eye, Database, Globe, Mail, Trash2, Clock, FileText, Users, Building2, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react'
+import { Shield, Lock, Eye, Database, Globe, Mail, Clock, FileText, Users, Building2, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react'
 
 export default function Privacy() {
   return (
