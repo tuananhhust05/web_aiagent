@@ -158,7 +158,7 @@ async def create_campaign_goal(
                 "target": node2_id,
                 "sourceHandle": None,
                 "targetHandle": None,
-                "strokeType": "solid"
+                "label": "yes"
             },
             {
                 "id": str(uuid.uuid4()),
@@ -166,7 +166,7 @@ async def create_campaign_goal(
                 "target": node3_id,
                 "sourceHandle": None,
                 "targetHandle": None,
-                "strokeType": "solid"
+                "label": "yes"
             },
             {
                 "id": str(uuid.uuid4()),
@@ -174,7 +174,7 @@ async def create_campaign_goal(
                 "target": node4_id,
                 "sourceHandle": None,
                 "targetHandle": None,
-                "strokeType": "solid"
+                "label": "yes"
             }
         ]
         
@@ -473,7 +473,7 @@ async def recreate_workflows_for_goal(
                 "target": node2_id,
                 "sourceHandle": None,
                 "targetHandle": None,
-                "strokeType": "solid"
+                "label": "yes"
             },
             {
                 "id": str(uuid.uuid4()),
@@ -481,7 +481,7 @@ async def recreate_workflows_for_goal(
                 "target": node3_id,
                 "sourceHandle": None,
                 "targetHandle": None,
-                "strokeType": "solid"
+                "label": "yes"
             },
             {
                 "id": str(uuid.uuid4()),
@@ -489,7 +489,7 @@ async def recreate_workflows_for_goal(
                 "target": node4_id,
                 "sourceHandle": None,
                 "targetHandle": None,
-                "strokeType": "solid"
+                "label": "yes"
             }
         ]
         

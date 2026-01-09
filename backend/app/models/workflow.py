@@ -3,9 +3,9 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from enum import Enum
 
-class StrokeType(str, Enum):
-    SOLID = "solid"
-    DASHED = "dashed"
+class ConnectionLabel(str, Enum):
+    YES = "yes"
+    NO = "no"
 
 class NodePosition(BaseModel):
     x: float
@@ -24,7 +24,7 @@ class WorkflowConnection(BaseModel):
     target: str  # Node ID
     sourceHandle: Optional[str] = None
     targetHandle: Optional[str] = None
-    strokeType: Optional[StrokeType] = StrokeType.SOLID  # solid or dashed
+    label: Optional[ConnectionLabel] = ConnectionLabel.YES  # yes or no
 
 class WorkflowBase(BaseModel):
     function: str  # convention-activities, csm, deals, etc.

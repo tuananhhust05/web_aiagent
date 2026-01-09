@@ -99,18 +99,18 @@ class WorkflowExecutor:
     def _find_next_nodes(self, current_node_id: str, connections: List[Dict], has_response: bool) -> List[Dict]:
         """
         Find next nodes based on current node and response status.
-        - If has_response: return nodes connected by solid lines
-        - If not has_response: return nodes connected by dashed lines
+        - If has_response: return nodes connected by "yes" label
+        - If not has_response: return nodes connected by "no" label
         """
         next_nodes = []
         for conn in connections:
             if conn.get("source") == current_node_id:
-                stroke_type = conn.get("strokeType", "solid")
-                # If we have response, use solid connections
-                # If no response, use dashed connections
-                if has_response and stroke_type == "solid":
+                label = conn.get("label", "yes")  # Default to "yes" if not specified
+                # If we have response, use "yes" connections
+                # If no response, use "no" connections
+                if has_response and label == "yes":
                     next_nodes.append(conn)
-                elif not has_response and stroke_type == "dashed":
+                elif not has_response and label == "no":
                     next_nodes.append(conn)
         return next_nodes
     
