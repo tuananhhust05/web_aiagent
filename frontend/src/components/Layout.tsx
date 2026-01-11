@@ -27,6 +27,7 @@ import {
   Search,
   MoreHorizontal,
   LogIn,
+  Brain,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -68,6 +69,7 @@ const mainNavigation: NavigationItem[] = [
   { name: 'Renewals', href: '/renewals', icon: UserCheck },
   { name: 'Up / Cross Sell', href: '/upsell', icon: ArrowUpRight },
   { name: 'Marketing Data', href: '/marketing-data', icon: Database },
+  { name: 'AI Sales Copilot', href: '/ai-sales-copilot', icon: Brain },
 ]
 
 // Main dropdown navigation (simplified)

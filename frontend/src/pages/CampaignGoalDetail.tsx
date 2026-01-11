@@ -274,6 +274,8 @@ const CampaignGoalDetail: React.FC = () => {
       await campaignsAPI.createCampaign(newCampaign);
       setShowCreateCampaign(false);
       setSelectedContacts([]);
+      // Auto-switch to inactive tab after creating campaign (since new campaigns are 'draft' status)
+      setActiveTab('inactive');
       fetchRelatedCampaigns();
     } catch (err) {
       console.error('Campaign creation error:', err);
@@ -325,10 +327,10 @@ const CampaignGoalDetail: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading campaign goal...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-[15px]">Loading campaign goal...</p>
         </div>
       </div>
     );
@@ -336,14 +338,16 @@ const CampaignGoalDetail: React.FC = () => {
 
   if (error || !goal) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Campaign Goal Not Found</h2>
-          <p className="text-gray-600 mb-4">{error || 'The campaign goal you are looking for does not exist.'}</p>
+      <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <Target className="h-10 w-10 text-gray-400" />
+          </div>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-3">Campaign Goal Not Found</h2>
+          <p className="text-gray-600 mb-8 text-[15px] leading-relaxed">{error || 'The campaign goal you are looking for does not exist.'}</p>
           <Link
             to="/convention-activities"
-            className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            className="inline-flex items-center px-6 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md font-medium"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Convention Activities
@@ -354,37 +358,37 @@ const CampaignGoalDetail: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="w-full px-6 py-8">
-        {/* Header */}
-        <div className="mb-8">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Header - Apple Style */}
+        <div className="mb-12">
           <Link
             to="/convention-activities"
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
+            className="inline-flex items-center text-gray-500 hover:text-gray-900 mb-6 transition-colors duration-200 group"
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Convention Activities
+            <ArrowLeft className="h-4 w-4 mr-2 group-hover:-translate-x-1 transition-transform duration-200" />
+            <span className="text-sm font-medium">Back</span>
           </Link>
           
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">{goal.name}</h1>
+          <div className="flex flex-col gap-6">
+            <div className="flex-1">
+              <h1 className="text-5xl font-semibold text-gray-900 mb-3 tracking-tight">{goal.name}</h1>
               {goal.description && (
-                <p className="text-gray-600 text-lg">{goal.description}</p>
+                <p className="text-lg text-gray-600 mb-4 leading-relaxed max-w-2xl">{goal.description}</p>
               )}
             </div>
             
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => navigate(`/campaign-goals/${goal.id}/edit`)}
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center px-5 py-2.5 bg-white text-gray-700 rounded-xl hover:bg-gray-50 transition-all duration-200 border border-gray-200 shadow-sm hover:shadow-md font-medium text-sm"
               >
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </button>
               <button
                 onClick={handleDelete}
-                className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                className="inline-flex items-center px-5 py-2.5 bg-white text-red-600 rounded-xl hover:bg-red-50 transition-all duration-200 border border-red-200 shadow-sm hover:shadow-md font-medium text-sm"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete
@@ -393,12 +397,12 @@ const CampaignGoalDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* KPI Section */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-8 space-y-6">
-          <div className="flex items-center justify-between">
+        {/* KPI Section - Apple Style */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200/50 p-8 mb-10 hover:shadow-md transition-all duration-300">
+          <div className="flex items-center justify-between mb-8">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Goal KPIs</h3>
-              <p className="text-sm text-gray-600">Performance snapshot for this goal</p>
+              <h3 className="text-2xl font-semibold text-gray-900 mb-2">Goal KPIs</h3>
+              <p className="text-gray-600 text-[15px]">Performance snapshot for this goal</p>
             </div>
             {kpiLoading && (
               <div className="flex items-center gap-2 text-gray-500 text-sm">
@@ -408,114 +412,120 @@ const CampaignGoalDetail: React.FC = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 shadow-sm">
-              <div className="h-12 w-12 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-                <BarChart3 className="h-6 w-6" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-50/50 rounded-2xl p-6 border border-blue-100/50 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+              <div className="flex items-start justify-between mb-4">
+                <div className="p-3 bg-blue-100 rounded-xl">
+                  <BarChart3 className="h-6 w-6 text-blue-600" />
+                </div>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Total Contacts Reached</p>
-                <p className="text-2xl font-semibold text-gray-900">{formatNumber(totalContactsReached)} contacts</p>
-                <p className="text-xs text-gray-500">Unique individuals touched by all campaigns</p>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Contacts Reached</p>
+                <p className="text-3xl font-semibold text-gray-900 mb-1">{formatNumber(totalContactsReached)}</p>
+                <p className="text-xs text-gray-500">Unique individuals touched</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 shadow-sm">
-              <div className="h-12 w-12 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <PieChart className="h-6 w-6" />
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-50/50 rounded-2xl p-6 border border-indigo-100/50 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+              <div className="flex items-start justify-between mb-4">
+                <div className="p-3 bg-indigo-100 rounded-xl">
+                  <PieChart className="h-6 w-6 text-indigo-600" />
+                </div>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Outreach Attempts</p>
-                <p className="text-2xl font-semibold text-gray-900">{formatNumber(outreachAttempts)} attempts</p>
-                <p className="text-xs text-gray-500">Total messages/calls sent across channels</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="border-t border-gray-200" />
-
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-gray-900">Channel Breakdown</p>
-            <div className="flex flex-wrap items-center gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <Mail className="h-5 w-5 text-blue-600" />
-                <span className="text-gray-700">Email:</span>
-                <span className="font-semibold text-gray-900">{formatNumber(channelMetrics.email)} sent</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5 text-green-600" />
-                <span className="text-gray-700">WhatsApp:</span>
-                <span className="font-semibold text-gray-900">{formatNumber(channelMetrics.whatsapp)} sent</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5 text-sky-500" />
-                <span className="text-gray-700">Telegram:</span>
-                <span className="font-semibold text-gray-900">{formatNumber(channelMetrics.telegram)} sent</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Linkedin className="h-5 w-5 text-sky-600" />
-                <span className="text-gray-700">LinkedIn:</span>
-                <span className="font-semibold text-gray-900">{formatNumber(channelMetrics.linkedin)} sent</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <PhoneCall className="h-5 w-5 text-purple-600" />
-                <span className="text-gray-700">AI Voice:</span>
-                <span className="font-semibold text-gray-900">{formatNumber(channelMetrics.aiVoice)} calls</span>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Outreach Attempts</p>
+                <p className="text-3xl font-semibold text-gray-900 mb-1">{formatNumber(outreachAttempts)}</p>
+                <p className="text-xs text-gray-500">Messages/calls sent</p>
               </div>
             </div>
           </div>
 
-          <div className="border-t border-gray-200" />
+          <div className="border-t border-gray-200/50 my-8" />
+
+          <div className="space-y-4 mb-8">
+            <p className="text-sm font-semibold text-gray-900 uppercase tracking-wider">Channel Breakdown</p>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/50 text-center">
+                <Mail className="h-5 w-5 text-blue-600 mx-auto mb-2" />
+                <div className="text-xs text-gray-500 mb-1">Email</div>
+                <div className="text-lg font-semibold text-gray-900">{formatNumber(channelMetrics.email)}</div>
+              </div>
+              <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/50 text-center">
+                <MessageCircle className="h-5 w-5 text-green-600 mx-auto mb-2" />
+                <div className="text-xs text-gray-500 mb-1">WhatsApp</div>
+                <div className="text-lg font-semibold text-gray-900">{formatNumber(channelMetrics.whatsapp)}</div>
+              </div>
+              <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/50 text-center">
+                <MessageCircle className="h-5 w-5 text-sky-500 mx-auto mb-2" />
+                <div className="text-xs text-gray-500 mb-1">Telegram</div>
+                <div className="text-lg font-semibold text-gray-900">{formatNumber(channelMetrics.telegram)}</div>
+              </div>
+              <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/50 text-center">
+                <Linkedin className="h-5 w-5 text-sky-600 mx-auto mb-2" />
+                <div className="text-xs text-gray-500 mb-1">LinkedIn</div>
+                <div className="text-lg font-semibold text-gray-900">{formatNumber(channelMetrics.linkedin)}</div>
+              </div>
+              <div className="bg-gray-50/50 rounded-xl p-4 border border-gray-100/50 text-center">
+                <PhoneCall className="h-5 w-5 text-purple-600 mx-auto mb-2" />
+                <div className="text-xs text-gray-500 mb-1">AI Voice</div>
+                <div className="text-lg font-semibold text-gray-900">{formatNumber(channelMetrics.aiVoice)}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200/50 my-8" />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 shadow-sm">
-              <div className="h-12 w-12 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6" />
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-50/50 rounded-2xl p-6 border border-emerald-100/50 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+              <div className="flex items-start justify-between mb-4">
+                <div className="p-3 bg-emerald-100 rounded-xl">
+                  <TrendingUp className="h-6 w-6 text-emerald-600" />
+                </div>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Delivery Success</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {deliveryRate}% <span className="text-sm font-medium text-gray-600">({formatNumber(deliverySuccess)}/{formatNumber(outreachAttempts)})</span>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Delivery Success</p>
+                <p className="text-3xl font-semibold text-gray-900 mb-1">
+                  {deliveryRate}%
                 </p>
-                <p className="text-xs text-gray-500">View breakdown by channel</p>
+                <p className="text-xs text-gray-500">{formatNumber(deliverySuccess)} / {formatNumber(outreachAttempts)}</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3 rounded-lg border border-gray-200 p-4 shadow-sm">
-              <div className="h-12 w-12 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6" />
+            <div className="bg-gradient-to-br from-amber-50 to-amber-50/50 rounded-2xl p-6 border border-amber-100/50 hover:shadow-md transition-all duration-300 hover:-translate-y-0.5">
+              <div className="flex items-start justify-between mb-4">
+                <div className="p-3 bg-amber-100 rounded-xl">
+                  <TrendingUp className="h-6 w-6 text-amber-600" />
+                </div>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Engagement Rate</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {engagementRate}% <span className="text-sm font-medium text-gray-600">({formatNumber(engagementCount)}/{formatNumber(deliverySuccess)})</span>
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Engagement Rate</p>
+                <p className="text-3xl font-semibold text-gray-900 mb-1">
+                  {engagementRate}%
                 </p>
-                <p className="text-xs text-gray-500">View breakdown by channel</p>
+                <p className="text-xs text-gray-500">{formatNumber(engagementCount)} / {formatNumber(deliverySuccess)}</p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Template Workflow Section */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 mt-8 mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Templates</h3>
-              <p className="text-sm text-gray-600 mt-1">Create and manage workflow templates for this goal</p>
-            </div>
+        {/* Template Workflow Section - Apple Style */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200/50 p-8 mb-10 hover:shadow-md transition-all duration-300">
+          <div className="mb-6">
+            <h3 className="text-2xl font-semibold text-gray-900 mb-2">Templates</h3>
+            <p className="text-gray-600 text-[15px]">Create and manage workflow templates for this goal</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {templateCards.map(card => (
               <button
                 key={card.type}
                 onClick={() => handleOpenTemplate(card.type)}
-                className="relative overflow-hidden rounded-xl border bg-gradient-to-br text-left text-white shadow-sm hover:shadow-md transition-shadow"
+                className="relative overflow-hidden rounded-2xl border-0 text-left text-white shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 group"
               >
-                <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient}`} />
-                <div className="relative p-4 space-y-2">
-                  <div className="text-sm font-semibold">{card.label}</div>
-                  <div className="flex items-center text-xs text-white/80 gap-1">
-                    <ArrowRight className="h-3 w-3" />
+                <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-90 group-hover:opacity-100 transition-opacity duration-300`} />
+                <div className="relative p-6 space-y-3">
+                  <div className="text-base font-semibold">{card.label}</div>
+                  <div className="flex items-center text-xs text-white/90 gap-1.5 group-hover:text-white transition-colors">
+                    <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-1 transition-transform duration-200" />
                     Open workflow
                   </div>
                 </div>
@@ -524,52 +534,50 @@ const CampaignGoalDetail: React.FC = () => {
           </div>
         </div>
 
-        {/* Campaigns */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 space-y-4">
+        {/* Campaigns - Apple Style */}
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200/50 p-8 space-y-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Campaigns</h3>
-              <p className="text-sm text-gray-600">Active and inactive campaigns for this goal</p>
+              <h3 className="text-2xl font-semibold text-gray-900 mb-2">Campaigns</h3>
+              <p className="text-gray-600 text-[15px]">Active and inactive campaigns for this goal</p>
             </div>
             <button
               onClick={handleCreateCampaign}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-all duration-200 shadow-sm hover:shadow-md font-medium text-sm"
             >
               <Plus className="h-4 w-4" />
-              New contact campaign
+              New Campaign
             </button>
           </div>
 
-          {/* Tabs */}
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveTab('active')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'active'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Active Campaign
-              </button>
-              <button
-                onClick={() => setActiveTab('inactive')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'inactive'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Inactive Campaign
-              </button>
-            </nav>
+          {/* Tabs - Apple Style */}
+          <div className="flex space-x-1 bg-white/60 backdrop-blur-xl rounded-2xl p-1.5 border border-gray-200/50 shadow-sm w-full">
+            <button
+              onClick={() => setActiveTab('active')}
+              className={`flex-1 px-6 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
+                activeTab === 'active'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
+              }`}
+            >
+              Active Campaign
+            </button>
+            <button
+              onClick={() => setActiveTab('inactive')}
+              className={`flex-1 px-6 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 ${
+                activeTab === 'inactive'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
+              }`}
+            >
+              Inactive Campaign
+            </button>
           </div>
 
           {campaignsLoading ? (
-            <div className="flex items-center gap-2 text-gray-500">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading campaigns...
+            <div className="flex items-center justify-center gap-2 text-gray-500 py-12">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-[15px]">Loading campaigns...</span>
             </div>
           ) : (() => {
             const activeCampaigns = relatedCampaigns.filter(c => c.status === 'active');
@@ -578,8 +586,12 @@ const CampaignGoalDetail: React.FC = () => {
 
             if (displayedCampaigns.length === 0) {
               return (
-                <div className="border border-dashed border-gray-200 rounded-lg p-6 text-center text-sm text-gray-600">
-                  No {activeTab === 'active' ? 'active' : 'inactive'} campaigns for this goal yet.
+                <div className="border border-dashed border-gray-200/50 rounded-2xl p-12 text-center">
+                  <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Target className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No {activeTab === 'active' ? 'active' : 'inactive'} campaigns</h3>
+                  <p className="text-gray-600 text-[15px]">Create your first campaign to get started</p>
                 </div>
               );
             }
@@ -587,40 +599,44 @@ const CampaignGoalDetail: React.FC = () => {
             return (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {displayedCampaigns.map(campaign => (
-                  <div key={campaign.id} className="border rounded-lg p-4 space-y-3">
+                  <div key={campaign.id} className="bg-white/60 backdrop-blur-xl rounded-2xl p-6 border border-gray-200/50 hover:shadow-md hover:border-gray-300/50 transition-all duration-300 hover:-translate-y-0.5 space-y-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-semibold text-gray-900">{campaign.name}</div>
-                        {campaign.description && <div className="text-sm text-gray-600 line-clamp-2">{campaign.description}</div>}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-gray-900 text-[15px] mb-1">{campaign.name}</div>
+                        {campaign.description && (
+                          <div className="text-sm text-gray-600 line-clamp-2 leading-relaxed">{campaign.description}</div>
+                        )}
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        campaign.status === 'active' ? 'bg-green-100 text-green-700' :
-                        campaign.status === 'paused' || campaign.status === 'inactive' ? 'bg-amber-100 text-amber-700' :
-                        campaign.status === 'completed' ? 'bg-blue-100 text-blue-700' :
-                        'bg-gray-100 text-gray-700'
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${
+                        campaign.status === 'active' ? 'bg-green-50 text-green-700 border border-green-200' :
+                        campaign.status === 'paused' || campaign.status === 'inactive' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                        campaign.status === 'completed' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                        'bg-gray-50 text-gray-700 border border-gray-200'
                       }`}>
                         {campaign.status}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>Created {new Date(campaign.created_at).toLocaleDateString()}</span>
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                      <span className="text-xs text-gray-500">
+                        {new Date(campaign.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
                       <div className="flex items-center gap-2">
                         {campaign.status === 'draft' && (
                           <button
                             onClick={() => handleCampaignAction(campaign.id, 'start')}
                             disabled={startingCampaignId === campaign.id}
-                            className="inline-flex items-center gap-1 text-green-700 hover:text-green-800"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all duration-200 disabled:opacity-50"
                           >
-                            {startingCampaignId === campaign.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                            {startingCampaignId === campaign.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                             Start
                           </button>
                         )}
                         {campaign.status === 'active' && (
                           <button
                             onClick={() => handleCampaignAction(campaign.id, 'pause')}
-                            className="inline-flex items-center gap-1 text-amber-700 hover:text-amber-800"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-amber-700 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-all duration-200"
                           >
-                            <Pause className="h-4 w-4" />
+                            <Pause className="h-3.5 w-3.5" />
                             Pause
                           </button>
                         )}
@@ -628,19 +644,22 @@ const CampaignGoalDetail: React.FC = () => {
                           <button
                             onClick={() => handleCampaignAction(campaign.id, 'start')}
                             disabled={startingCampaignId === campaign.id}
-                            className="inline-flex items-center gap-1 text-green-700 hover:text-green-800"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 hover:text-green-800 hover:bg-green-50 rounded-lg transition-all duration-200 disabled:opacity-50"
                           >
-                            {startingCampaignId === campaign.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                            {startingCampaignId === campaign.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
                             Resume
                           </button>
                         )}
-                        <Link to={`/campaigns/${campaign.id}`} className="text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
+                        <Link 
+                          to={`/campaigns/${campaign.id}`} 
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-all duration-200"
+                        >
                           View
-                          <ArrowRight className="h-3 w-3" />
+                          <ArrowRight className="h-3.5 w-3.5" />
                         </Link>
                         <button
                           onClick={() => handleCampaignAction(campaign.id, 'delete')}
-                          className="text-red-600 hover:text-red-700"
+                          className="inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all duration-200"
                         >
                           Delete
                         </button>

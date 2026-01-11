@@ -11,6 +11,7 @@ from app.core.auth import get_current_active_user
 from app.core.config import settings
 from app.models.user import UserResponse
 from app.models.inbox import InboxResponseCreate, InboxResponse
+from app.services.ai_sales_copilot import analyze_conversation_with_ai, suggest_sales_script, analyze_with_followup, analyze_campaign_with_ai, analyze_campaign_with_followup
 
 
 router = APIRouter()
@@ -597,16 +598,677 @@ async def get_responses_by_campaign(
     """Return inbox responses for a specific campaign."""
     db = get_database()
 
-    cursor = db.inbox_responses.find({
+    query_filter = {
         "campaign_id": campaign_id,
         "user_id": current_user.id,
-    }).skip(skip).limit(limit).sort("created_at", -1)
+    }
+    
+    # Debug logging
+    print(f"\n🔍 [INBOX QUERY] Getting responses for campaign:")
+    print(f"   - Campaign ID: {campaign_id}")
+    print(f"   - User ID: {current_user.id}")
+    print(f"   - Query Filter: {query_filter}")
+    
+    # Check total count before filtering
+    total_count = await db.inbox_responses.count_documents({})
+    matching_count = await db.inbox_responses.count_documents(query_filter)
+    print(f"   - Total inbox responses in DB: {total_count}")
+    print(f"   - Matching responses: {matching_count}")
+    
+    # Also check without user_id filter to see if campaign_id matches
+    campaign_only_count = await db.inbox_responses.count_documents({"campaign_id": campaign_id})
+    print(f"   - Responses with this campaign_id (any user): {campaign_only_count}")
+    
+    cursor = db.inbox_responses.find(query_filter).skip(skip).limit(limit).sort("created_at", -1)
 
     items = await cursor.to_list(length=limit)
+    print(f"   - Returning {len(items)} items")
+    
     responses: List[InboxResponse] = []
     for item in items:
         item["id"] = item["_id"]
-        responses.append(InboxResponse(**item))
+        # Only return incoming messages (filter out outgoing)
+        if item.get("type", "incoming") == "incoming":
+            responses.append(InboxResponse(**item))
     return responses
 
+
+@router.get("/conversation/{campaign_id}/{telegram_username:path}", response_model=List[InboxResponse])
+async def get_conversation_history(
+    campaign_id: str,
+    telegram_username: str,
+    limit: int = Query(50, ge=1, le=200),
+    skip: int = Query(0, ge=0),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Get conversation history (both incoming and outgoing messages) for a contact by telegram_username in a campaign."""
+    db = get_database()
+    
+    # Normalize telegram_username (remove @ if present for query, but keep original for response)
+    query_username = telegram_username.lstrip('@')
+    
+    # Query by contact field (telegram_username) - match with or without @
+    query_filter = {
+        "campaign_id": campaign_id,
+        "contact": {"$in": [telegram_username, query_username, f"@{query_username}"]},  # Match with or without @
+        "user_id": current_user.id,
+    }
+    
+    # Debug logging
+    print(f"\n🔍 [CONVERSATION QUERY] Getting conversation history:")
+    print(f"   - Campaign ID: {campaign_id}")
+    print(f"   - Telegram Username: {telegram_username}")
+    print(f"   - Query Username: {query_username}")
+    print(f"   - User ID: {current_user.id}")
+    print(f"   - Query Filter: {query_filter}")
+    
+    # Get messages sorted by created_at descending (newest first) with pagination
+    cursor = db.inbox_responses.find(query_filter).sort("created_at", -1).skip(skip).limit(limit)
+    
+    items = await cursor.to_list(length=limit)
+    print(f"   - Found {len(items)} messages")
+    
+    responses: List[InboxResponse] = []
+    for item in items:
+        item["id"] = item["_id"]
+        # Set default type to "incoming" if not specified (for backward compatibility)
+        if "type" not in item:
+            item["type"] = "incoming"
+        responses.append(InboxResponse(**item))
+    
+    # Reverse to show oldest first (for chat UI)
+    responses.reverse()
+    
+    return responses
+
+
+@router.post("/send-message", response_model=InboxResponse)
+async def send_message(
+    data: dict,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """Send a message to a contact via Telegram and save it to inbox_responses."""
+    from app.services.telegram_service import send_message_to_user
+    
+    db = get_database()
+    campaign_id = data.get("campaign_id")
+    contact_username = data.get("contact")  # Telegram username
+    message_content = data.get("content")
+    
+    if not campaign_id or not contact_username or not message_content:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing required fields: campaign_id, contact, content"
+        )
+    
+    # Get campaign to verify it belongs to the user
+    campaign = await db.campaigns.find_one({
+        "_id": ObjectId(campaign_id),
+        "user_id": current_user.id
+    })
+    
+    if not campaign:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign not found"
+        )
+    
+    # Find contact_id from campaign's contacts array by matching telegram_username
+    contact_id = None
+    query_username = contact_username.lstrip('@')
+    
+    # Get all contacts from campaign
+    campaign_contact_ids = campaign.get("contacts", [])
+    if campaign_contact_ids:
+        # Find contact by telegram_username
+        contact = await db.contacts.find_one({
+            "_id": {"$in": [ObjectId(cid) for cid in campaign_contact_ids if cid]},
+            "telegram_username": {"$in": [contact_username, query_username, f"@{query_username}"]},
+            "user_id": current_user.id
+        })
+        
+        if contact:
+            contact_id = str(contact["_id"])
+            print(f"✅ [SEND MESSAGE] Found contact_id: {contact_id} for username: {contact_username}")
+        else:
+            print(f"⚠️ [SEND MESSAGE] Contact not found in campaign for username: {contact_username}")
+    
+    # Send message via Telegram
+    telegram_username = contact_username
+    if not telegram_username.startswith('@'):
+        telegram_username = f"@{telegram_username}"
+    
+    success = await send_message_to_user(
+        recipient=telegram_username,
+        message=message_content,
+        user_id=current_user.id
+    )
+    
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to send Telegram message"
+        )
+    
+    # Save message to inbox_responses with type "outgoing" (flag to mark as user-initiated message)
+    inbox_doc = {
+        "_id": str(datetime.utcnow().timestamp()).replace(".", "") + "_outgoing",
+        "user_id": current_user.id,
+        "platform": "telegram",
+        "contact": contact_username,
+        "content": message_content,
+        "campaign_id": campaign_id,
+        "contact_id": contact_id,  # Optional, can be None if contact not found in campaign
+        "type": "outgoing",  # Flag to mark this as user-initiated message
+        "created_at": datetime.utcnow(),
+    }
+    
+    await db.inbox_responses.insert_one(inbox_doc)
+    inbox_doc["id"] = inbox_doc["_id"]
+    
+    print(f"✅ [SEND MESSAGE] Message saved to inbox: campaign={campaign_id}, contact={contact_username}, type=outgoing")
+    
+    return InboxResponse(**inbox_doc)
+
+
+@router.get("/analyze/{campaign_id}/{telegram_username:path}")
+async def analyze_conversation(
+    campaign_id: str,
+    telegram_username: str,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Analyze conversation history using AI Sales Copilot.
+    Returns insights about customer needs, buying intent, pain points, and recommendations.
+    """
+    db = get_database()
+    
+    # Verify campaign belongs to user
+    campaign = await db.campaigns.find_one({
+        "_id": ObjectId(campaign_id),
+        "user_id": current_user.id
+    })
+    
+    if not campaign:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign not found"
+        )
+    
+    # Get conversation history
+    query_username = telegram_username.lstrip('@')
+    query_filter = {
+        "campaign_id": campaign_id,
+        "contact": {"$in": [telegram_username, query_username, f"@{query_username}"]},
+        "user_id": current_user.id,
+    }
+    
+    cursor = db.inbox_responses.find(query_filter).sort("created_at", 1)  # Oldest first
+    messages = await cursor.to_list(length=100)
+    
+    if not messages:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No conversation history found"
+        )
+    
+    # Convert to list of dicts
+    conversation_history = []
+    for msg in messages:
+        conversation_history.append({
+            "id": str(msg.get("_id", "")),
+            "type": msg.get("type", "incoming"),
+            "content": msg.get("content", ""),
+            "created_at": msg.get("created_at", datetime.utcnow()).isoformat() if isinstance(msg.get("created_at"), datetime) else str(msg.get("created_at", "")),
+            "platform": msg.get("platform", "telegram")
+        })
+    
+    # Get customer profile
+    contact_id = messages[0].get("contact_id")
+    customer_profile = None
+    if contact_id:
+        contact = await db.contacts.find_one({
+            "_id": ObjectId(contact_id),
+            "user_id": current_user.id
+        })
+        if contact:
+            customer_profile = {
+                "first_name": contact.get("first_name", ""),
+                "last_name": contact.get("last_name", ""),
+                "company": contact.get("company", ""),
+                "job_title": contact.get("job_title", ""),
+                "email": contact.get("email", ""),
+                "phone": contact.get("phone", ""),
+            }
+    
+    # Prepare campaign context
+    campaign_context = {
+        "name": campaign.get("name", ""),
+        "type": campaign.get("type", ""),
+        "call_script": campaign.get("call_script", ""),
+    }
+    
+    # Analyze conversation with AI
+    insights = await analyze_conversation_with_ai(
+        conversation_history=conversation_history,
+        customer_profile=customer_profile,
+        campaign_context=campaign_context
+    )
+    
+    if not insights:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to analyze conversation"
+        )
+    
+    return insights
+
+
+@router.post("/suggest-response")
+async def suggest_response(
+    data: dict,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Suggest a sales response for a specific situation.
+    """
+    campaign_id = data.get("campaign_id")
+    telegram_username = data.get("telegram_username")
+    situation = data.get("situation", "Continue the conversation naturally")
+    
+    if not campaign_id or not telegram_username:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing required fields: campaign_id, telegram_username"
+        )
+    
+    db = get_database()
+    
+    # Verify campaign
+    campaign = await db.campaigns.find_one({
+        "_id": ObjectId(campaign_id),
+        "user_id": current_user.id
+    })
+    
+    if not campaign:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign not found"
+        )
+    
+    # Get recent conversation history
+    query_username = telegram_username.lstrip('@')
+    query_filter = {
+        "campaign_id": campaign_id,
+        "contact": {"$in": [telegram_username, query_username, f"@{query_username}"]},
+        "user_id": current_user.id,
+    }
+    
+    cursor = db.inbox_responses.find(query_filter).sort("created_at", -1).limit(10)
+    messages = await cursor.to_list(length=10)
+    
+    conversation_history = []
+    for msg in messages:
+        conversation_history.append({
+            "type": msg.get("type", "incoming"),
+            "content": msg.get("content", ""),
+        })
+    
+    conversation_history.reverse()  # Oldest first
+    
+    # Get customer profile
+    customer_profile = None
+    if messages:
+        contact_id = messages[0].get("contact_id")
+        if contact_id:
+            contact = await db.contacts.find_one({
+                "_id": ObjectId(contact_id),
+                "user_id": current_user.id
+            })
+            if contact:
+                customer_profile = {
+                    "first_name": contact.get("first_name", ""),
+                    "last_name": contact.get("last_name", ""),
+                    "company": contact.get("company", ""),
+                    "job_title": contact.get("job_title", ""),
+                }
+    
+    # Get suggestion
+    suggested_response = await suggest_sales_script(
+        conversation_history=conversation_history,
+        situation=situation,
+        customer_profile=customer_profile
+    )
+    
+    if not suggested_response:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate suggestion"
+        )
+    
+    return {
+        "suggested_response": suggested_response,
+        "situation": situation
+    }
+
+
+@router.post("/analyze-followup/{campaign_id}/{telegram_username:path}")
+async def analyze_followup(
+    campaign_id: str,
+    telegram_username: str,
+    data: dict,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Analyze conversation with a follow-up question from user.
+    Combines conversation history, previous analysis, and user question.
+    """
+    db = get_database()
+    
+    # Verify campaign belongs to user
+    campaign = await db.campaigns.find_one({
+        "_id": ObjectId(campaign_id),
+        "user_id": current_user.id
+    })
+    
+    if not campaign:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign not found"
+        )
+    
+    user_question = data.get("question", "")
+    previous_analysis = data.get("previous_analysis")  # Optional previous analysis JSON
+    
+    if not user_question:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question is required"
+        )
+    
+    # Get conversation history
+    query_username = telegram_username.lstrip('@')
+    query_filter = {
+        "campaign_id": campaign_id,
+        "contact": {"$in": [telegram_username, query_username, f"@{query_username}"]},
+        "user_id": current_user.id,
+    }
+    
+    cursor = db.inbox_responses.find(query_filter).sort("created_at", 1)  # Oldest first
+    messages = await cursor.to_list(length=100)
+    
+    if not messages:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No conversation history found"
+        )
+    
+    # Convert to list of dicts
+    conversation_history = []
+    for msg in messages:
+        conversation_history.append({
+            "id": str(msg.get("_id", "")),
+            "type": msg.get("type", "incoming"),
+            "content": msg.get("content", ""),
+            "created_at": msg.get("created_at", datetime.utcnow()).isoformat() if isinstance(msg.get("created_at"), datetime) else str(msg.get("created_at", "")),
+            "platform": msg.get("platform", "telegram")
+        })
+    
+    # Get customer profile
+    contact_id = messages[0].get("contact_id")
+    customer_profile = None
+    if contact_id:
+        contact = await db.contacts.find_one({
+            "_id": ObjectId(contact_id),
+            "user_id": current_user.id
+        })
+        if contact:
+            customer_profile = {
+                "first_name": contact.get("first_name", ""),
+                "last_name": contact.get("last_name", ""),
+                "company": contact.get("company", ""),
+                "job_title": contact.get("job_title", ""),
+                "email": contact.get("email", ""),
+                "phone": contact.get("phone", ""),
+            }
+    
+    # Prepare campaign context
+    campaign_context = {
+        "name": campaign.get("name", ""),
+        "type": campaign.get("type", ""),
+        "call_script": campaign.get("call_script", ""),
+    }
+    
+    # Analyze with follow-up question
+    insights = await analyze_with_followup(
+        conversation_history=conversation_history,
+        previous_analysis=previous_analysis,
+        user_question=user_question,
+        customer_profile=customer_profile,
+        campaign_context=campaign_context
+    )
+    
+    if not insights:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to analyze conversation with follow-up question"
+        )
+    
+    return insights
+
+
+@router.get("/analyze-campaign/{campaign_id}")
+async def analyze_campaign(
+    campaign_id: str,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Analyze entire campaign at macro level using AI Sales Copilot.
+    Aggregates all conversations, customer profiles, and campaign context.
+    """
+    db = get_database()
+    
+    # Verify campaign belongs to user
+    campaign = await db.campaigns.find_one({
+        "_id": ObjectId(campaign_id),
+        "user_id": current_user.id
+    })
+    
+    if not campaign:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign not found"
+        )
+    
+    # Get all conversations for this campaign
+    query_filter = {
+        "campaign_id": campaign_id,
+        "user_id": current_user.id,
+    }
+    
+    cursor = db.inbox_responses.find(query_filter).sort("created_at", 1)
+    all_messages = await cursor.to_list(length=1000)  # Get up to 1000 messages
+    
+    if not all_messages:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No conversations found for this campaign"
+        )
+    
+    # Group messages by contact
+    conversations_by_contact = {}
+    for msg in all_messages:
+        contact = msg.get("contact", "Unknown")
+        if contact not in conversations_by_contact:
+            conversations_by_contact[contact] = []
+        conversations_by_contact[contact].append({
+            "id": str(msg.get("_id", "")),
+            "type": msg.get("type", "incoming"),
+            "content": msg.get("content", ""),
+            "created_at": msg.get("created_at", datetime.utcnow()).isoformat() if isinstance(msg.get("created_at"), datetime) else str(msg.get("created_at", "")),
+            "platform": msg.get("platform", "telegram")
+        })
+    
+    # Convert to list format
+    all_conversations = []
+    for contact, messages in conversations_by_contact.items():
+        all_conversations.append({
+            "contact": contact,
+            "messages": messages
+        })
+    
+    # Get customer profiles
+    contact_ids = list(set([msg.get("contact_id") for msg in all_messages if msg.get("contact_id")]))
+    customer_profiles = []
+    if contact_ids:
+        contacts_cursor = db.contacts.find({
+            "_id": {"$in": [ObjectId(cid) for cid in contact_ids if cid]},
+            "user_id": current_user.id
+        })
+        contacts = await contacts_cursor.to_list(length=100)
+        for contact in contacts:
+            customer_profiles.append({
+                "first_name": contact.get("first_name", ""),
+                "last_name": contact.get("last_name", ""),
+                "company": contact.get("company", ""),
+                "job_title": contact.get("job_title", ""),
+                "email": contact.get("email", ""),
+                "phone": contact.get("phone", ""),
+            })
+    
+    # Prepare campaign context
+    campaign_context = {
+        "name": campaign.get("name", ""),
+        "type": campaign.get("type", ""),
+        "call_script": campaign.get("call_script", ""),
+    }
+    
+    # Analyze campaign with AI
+    insights = await analyze_campaign_with_ai(
+        all_conversations=all_conversations,
+        campaign_context=campaign_context,
+        customer_profiles=customer_profiles
+    )
+    
+    if not insights:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to analyze campaign"
+        )
+    
+    return insights
+
+
+@router.post("/analyze-campaign-followup/{campaign_id}")
+async def analyze_campaign_followup(
+    campaign_id: str,
+    data: dict,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Analyze campaign with a follow-up question from user.
+    Combines all conversations, previous analysis, and user question.
+    """
+    db = get_database()
+    
+    # Verify campaign belongs to user
+    campaign = await db.campaigns.find_one({
+        "_id": ObjectId(campaign_id),
+        "user_id": current_user.id
+    })
+    
+    if not campaign:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign not found"
+        )
+    
+    user_question = data.get("question", "")
+    previous_analysis = data.get("previous_analysis")  # Optional previous analysis JSON
+    
+    if not user_question:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question is required"
+        )
+    
+    # Get all conversations for this campaign
+    query_filter = {
+        "campaign_id": campaign_id,
+        "user_id": current_user.id,
+    }
+    
+    cursor = db.inbox_responses.find(query_filter).sort("created_at", 1)
+    all_messages = await cursor.to_list(length=1000)  # Get up to 1000 messages
+    
+    if not all_messages:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No conversations found for this campaign"
+        )
+    
+    # Group messages by contact
+    conversations_by_contact = {}
+    for msg in all_messages:
+        contact = msg.get("contact", "Unknown")
+        if contact not in conversations_by_contact:
+            conversations_by_contact[contact] = []
+        conversations_by_contact[contact].append({
+            "id": str(msg.get("_id", "")),
+            "type": msg.get("type", "incoming"),
+            "content": msg.get("content", ""),
+            "created_at": msg.get("created_at", datetime.utcnow()).isoformat() if isinstance(msg.get("created_at"), datetime) else str(msg.get("created_at", "")),
+            "platform": msg.get("platform", "telegram")
+        })
+    
+    # Convert to list format
+    all_conversations = []
+    for contact, messages in conversations_by_contact.items():
+        all_conversations.append({
+            "contact": contact,
+            "messages": messages
+        })
+    
+    # Get customer profiles
+    contact_ids = list(set([msg.get("contact_id") for msg in all_messages if msg.get("contact_id")]))
+    customer_profiles = []
+    if contact_ids:
+        contacts_cursor = db.contacts.find({
+            "_id": {"$in": [ObjectId(cid) for cid in contact_ids if cid]},
+            "user_id": current_user.id
+        })
+        contacts = await contacts_cursor.to_list(length=100)
+        for contact in contacts:
+            customer_profiles.append({
+                "first_name": contact.get("first_name", ""),
+                "last_name": contact.get("last_name", ""),
+                "company": contact.get("company", ""),
+                "job_title": contact.get("job_title", ""),
+                "email": contact.get("email", ""),
+                "phone": contact.get("phone", ""),
+            })
+    
+    # Prepare campaign context
+    campaign_context = {
+        "name": campaign.get("name", ""),
+        "type": campaign.get("type", ""),
+        "call_script": campaign.get("call_script", ""),
+    }
+    
+    # Analyze campaign with follow-up question
+    insights = await analyze_campaign_with_followup(
+        all_conversations=all_conversations,
+        previous_analysis=previous_analysis,
+        user_question=user_question,
+        campaign_context=campaign_context,
+        customer_profiles=customer_profiles
+    )
+    
+    if not insights:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to analyze campaign with follow-up question"
+        )
+    
+    return insights
 

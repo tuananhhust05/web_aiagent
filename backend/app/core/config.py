@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str
     
+    # Groq AI Configuration
+    GROQ_API_KEY: str = ""
+    
+    # AI Sales Copilot Configuration
+    AI_COPILOT_MAX_OUTPUT_TOKENS: int = 2000  # Maximum tokens for AI output responses
+    AI_COPILOT_MAX_INPUT_TOKENS: int = 30000  # Maximum tokens for input (conversation + context)
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """Convert CORS_ORIGINS string to list"""

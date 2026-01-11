@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -350,9 +350,49 @@ export const inboxAPI = {
     content: string
   }) => api.post('/api/inbox/receive', data),
   
-  // Get responses by campaign (requires auth)
+  // Get responses by campaign (requires auth) - only incoming messages
   getResponsesByCampaign: (campaignId: string, params?: { limit?: number; skip?: number }) => 
     api.get(`/api/inbox/by-campaign/${campaignId}`, { params }),
+  
+  // Get conversation history (both incoming and outgoing) for a contact in a campaign
+  getConversationHistory: (campaignId: string, telegramUsername: string, params?: { limit?: number; skip?: number }) =>
+    api.get(`/api/inbox/conversation/${campaignId}/${encodeURIComponent(telegramUsername)}`, { params }),
+  
+  // Send a message to a contact via Telegram
+  sendMessage: (data: {
+    campaign_id: string
+    contact: string
+    content: string
+  }) => api.post('/api/inbox/send-message', data),
+
+  // Analyze conversation with AI Sales Copilot
+  analyzeConversation: (campaignId: string, telegramUsername: string) =>
+    api.get(`/api/inbox/analyze/${campaignId}/${encodeURIComponent(telegramUsername)}`),
+
+  // Analyze conversation with follow-up question
+  analyzeFollowup: (campaignId: string, telegramUsername: string, data: {
+    question: string
+    previous_analysis?: any
+  }) =>
+    api.post(`/api/inbox/analyze-followup/${campaignId}/${encodeURIComponent(telegramUsername)}`, data),
+
+  // Analyze entire campaign at macro level
+  analyzeCampaign: (campaignId: string) =>
+    api.get(`/api/inbox/analyze-campaign/${campaignId}`),
+
+  // Analyze campaign with follow-up question
+  analyzeCampaignFollowup: (campaignId: string, data: {
+    question: string
+    previous_analysis?: any
+  }) =>
+    api.post(`/api/inbox/analyze-campaign-followup/${campaignId}`, data),
+
+  // Suggest a sales response
+  suggestResponse: (data: {
+    campaign_id: string
+    telegram_username: string
+    situation?: string
+  }) => api.post('/api/inbox/suggest-response', data),
 }
 
 // Convention Activities API

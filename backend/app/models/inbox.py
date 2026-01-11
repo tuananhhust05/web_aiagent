@@ -8,6 +8,7 @@ class InboxResponseBase(BaseModel):
     contact: str = Field(..., description="Raw contact identifier received from the platform")
     content: str = Field(..., description="Response content/message text")
     campaign_id: Optional[str] = Field(None, description="Resolved campaign id that the contact belongs to")
+    type: Optional[str] = Field("incoming", description="Message type: 'incoming' (from customer) or 'outgoing' (from user)")
 
 
 class InboxResponseCreate(InboxResponseBase):
@@ -19,6 +20,7 @@ class InboxResponse(InboxResponseBase):
     user_id: Optional[str] = None
     contact_id: Optional[str] = None
     created_at: datetime
+    type: Optional[str] = "incoming"  # Default to incoming for backward compatibility
 
     class Config:
         from_attributes = True

@@ -1087,7 +1087,8 @@ export default function WorkflowBuilder() {
   // Auto-save workflow when nodes or connections change (skip on initial load)
   const isInitialLoadRef = useRef(true)
   useEffect(() => {
-    if (functionName && !isLoading) {
+    // Save if we have either workflowId or functionName (for personal workflows)
+    if ((workflowId || functionName) && !isLoading) {
       // Skip save on initial load
       if (isInitialLoadRef.current) {
         isInitialLoadRef.current = false
@@ -1103,7 +1104,7 @@ export default function WorkflowBuilder() {
         clearTimeout(saveTimeoutRef.current)
       }
     }
-  }, [nodes, connections, functionName, isLoading, saveWorkflowToDB])
+  }, [nodes, connections, workflowId, functionName, isLoading, saveWorkflowToDB])
   
   // Reset initial load flag when functionName or workflowId changes
   useEffect(() => {

@@ -60,6 +60,7 @@ import Upsell from './pages/Upsell'
 import MarketingData from './pages/MarketingData'
 import WorkflowBuilder from './pages/WorkflowBuilder'
 import CampaignGoalDetail from './pages/CampaignGoalDetail'
+import AISalesCopilotPage from './pages/AISalesCopilotPage'
 import ComingSoon from './pages/ComingSoon'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 
@@ -150,6 +151,7 @@ function App() {
             <Route path="/csm" element={<CSM />} />
             <Route path="/upsell" element={<Upsell />} />
             <Route path="/marketing-data" element={<MarketingData />} />
+            <Route path="/ai-sales-copilot" element={<AISalesCopilotPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>
