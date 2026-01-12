@@ -210,12 +210,22 @@ class TelegramSessionListener:
             if not all_contacts:
                 logger.debug(f"⚠️ No contacts found with telegram_username: {sender_username}")
             else:
-                processed_campaigns = []  # Track processed campaigns to avoid duplicates
+                # Use set to track processed campaigns globally (campaign_id -> contact_id)
+                # This ensures each campaign is only processed once per message
+                processed_campaigns = {}  # {campaign_id: contact_id} - track which contact was used for each campaign
+                processed_contacts = set()  # Track processed contact IDs to avoid duplicates
                 total_inserted = 0
                 
                 # Process each contact
                 for contact in all_contacts:
                     contact_id = str(contact["_id"])
+                    
+                    # Skip if this contact was already processed (duplicate in query results)
+                    if contact_id in processed_contacts:
+                        logger.debug(f"   ⚠️ Contact {contact_id} already processed, skipping duplicate")
+                        continue
+                    
+                    processed_contacts.add(contact_id)
                     resolved_user_id = contact.get("user_id")
                     
                     logger.debug(f"📋 Processing Contact: {contact_id} (user: {resolved_user_id})")
@@ -261,18 +271,22 @@ class TelegramSessionListener:
                             campaign_id = str(campaign["_id"])
                             campaign_name = campaign.get("name", "Unknown")
                             
-                            # Skip if already processed (same campaign for different contacts)
+                            # Skip if this campaign was already processed for this message
+                            # Use the first contact that found this campaign
                             if campaign_id in processed_campaigns:
-                                logger.debug(f"   ⚠️ Campaign {campaign_id} already processed, skipping duplicate")
+                                logger.debug(f"   ⚠️ Campaign {campaign_id} already processed with contact {processed_campaigns[campaign_id]}, skipping duplicate")
                                 continue
                             
-                            processed_campaigns.append(campaign_id)
+                            # Mark this campaign as processed with this contact
+                            processed_campaigns[campaign_id] = contact_id
                             
-                            logger.debug(f"   📊 Processing Campaign: {campaign_id} ({campaign_name})")
+                            logger.debug(f"   📊 Processing Campaign: {campaign_id} ({campaign_name}) with contact {contact_id}")
                             
                             # Create unique inbox record for each campaign
+                            # Use campaign_id and contact_id in _id to ensure uniqueness
+                            timestamp = str(datetime.utcnow().timestamp()).replace('.', '')
                             inbox_doc = {
-                                "_id": f"{str(datetime.utcnow().timestamp()).replace('.', '')}_{campaign_id}_{contact_id}",
+                                "_id": f"{timestamp}_{campaign_id}_{contact_id}",
                                 "user_id": resolved_user_id,
                                 "platform": "telegram",
                                 "contact": sender_username,
@@ -287,11 +301,11 @@ class TelegramSessionListener:
                                 await db.inbox_responses.insert_one(inbox_doc)
                                 inbox_doc["id"] = inbox_doc["_id"]
                                 total_inserted += 1
-                                logger.debug(f"      ✅ Inserted inbox for campaign {campaign_id}")
+                                logger.debug(f"      ✅ Inserted inbox for campaign {campaign_id} with contact {contact_id}")
                             except Exception as e:
-                                # Skip if duplicate (same message for same campaign)
+                                # Skip if duplicate (same message for same campaign+contact combination)
                                 if "duplicate key" in str(e).lower() or "E11000" in str(e):
-                                    logger.debug(f"      ⚠️ Inbox record already exists for campaign {campaign_id}, skipping")
+                                    logger.debug(f"      ⚠️ Inbox record already exists for campaign {campaign_id} and contact {contact_id}, skipping")
                                 else:
                                     logger.error(f"      ❌ Failed to insert inbox for campaign {campaign_id}: {e}")
                     else:
