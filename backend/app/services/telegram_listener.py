@@ -198,95 +198,131 @@ class TelegramSessionListener:
                 logger.debug(f"⚠️ Skipping inbox insert for message from user without username (user_id: {telegram_user_id})")
                 return
             
-            # Find contact by telegram_username
-            contact = await db.contacts.find_one({
-                "telegram_username": sender_username,
+            # Find ALL contacts with matching telegram_username
+            query_username = sender_username.lstrip('@')
+            contacts_cursor = db.contacts.find({
+                "telegram_username": {"$in": [sender_username, query_username, f"@{query_username}"]},
             })
+            all_contacts = await contacts_cursor.to_list(length=None)
             
-            contact_id: Optional[str] = None
-            campaign_id: Optional[str] = None
-            resolved_user_id: Optional[str] = None
+            logger.debug(f"🔍 Found {len(all_contacts)} contact(s) with telegram_username: {sender_username}")
             
-            if contact:
-                contact_id = str(contact["_id"])
-                resolved_user_id = contact.get("user_id")
-                logger.debug(f"✅ Contact found for @{sender_username}: {contact_id} (user: {resolved_user_id})")
+            if not all_contacts:
+                logger.debug(f"⚠️ No contacts found with telegram_username: {sender_username}")
+            else:
+                processed_campaigns = []  # Track processed campaigns to avoid duplicates
+                total_inserted = 0
                 
-                # Find ALL campaigns containing this contact
-                if resolved_user_id:
-                    campaigns = await db.campaigns.find({
-                        "contacts": {"$in": [contact_id]},
+                # Process each contact
+                for contact in all_contacts:
+                    contact_id = str(contact["_id"])
+                    resolved_user_id = contact.get("user_id")
+                    
+                    logger.debug(f"📋 Processing Contact: {contact_id} (user: {resolved_user_id})")
+                    logger.debug(f"   - Name: {contact.get('first_name', '')} {contact.get('last_name', '')}")
+                    
+                    if not resolved_user_id:
+                        logger.debug(f"   ⚠️ Contact has no user_id, skipping campaign lookup")
+                        # Still insert inbox record without campaign
+                        inbox_doc = {
+                            "_id": f"{str(datetime.utcnow().timestamp()).replace('.', '')}_{contact_id}_no_campaign",
+                            "user_id": None,
+                            "platform": "telegram",
+                            "contact": sender_username,
+                            "content": message_text,
+                            "campaign_id": None,
+                            "contact_id": contact_id,
+                            "type": "incoming",
+                            "created_at": datetime.utcnow(),
+                        }
+                        try:
+                            await db.inbox_responses.insert_one(inbox_doc)
+                            total_inserted += 1
+                            logger.debug(f"   ✅ Inbox record created (no campaign)")
+                        except Exception as e:
+                            if "duplicate key" not in str(e).lower() and "E11000" not in str(e):
+                                logger.error(f"   ❌ Failed to insert inbox: {e}")
+                        continue
+                    
+                    # Find ALL ACTIVE campaigns containing this contact
+                    contact_object_id = contact["_id"]  # Use ObjectId directly
+                    campaigns_cursor = db.campaigns.find({
+                        "contacts": {"$in": [contact_object_id]},
                         "user_id": resolved_user_id,
-                    }).to_list(length=None)
+                        "status": "active",  # Only process active campaigns
+                    })
+                    campaigns = await campaigns_cursor.to_list(length=None)
+                    
+                    logger.debug(f"   🔍 Found {len(campaigns)} active campaign(s) for this contact")
                     
                     if campaigns and len(campaigns) > 0:
-                        logger.debug(f"✅ Found {len(campaigns)} campaign(s) for contact {contact_id}")
-                        
-                        # Insert inbox record for EACH campaign
-                        inserted_count = 0
+                        # Process each campaign
                         for campaign in campaigns:
                             campaign_id = str(campaign["_id"])
-                            campaign_user_id = campaign.get("user_id")
                             campaign_name = campaign.get("name", "Unknown")
                             
-                            logger.debug(f"   - Campaign: {campaign_id} ({campaign_name})")
+                            # Skip if already processed (same campaign for different contacts)
+                            if campaign_id in processed_campaigns:
+                                logger.debug(f"   ⚠️ Campaign {campaign_id} already processed, skipping duplicate")
+                                continue
+                            
+                            processed_campaigns.append(campaign_id)
+                            
+                            logger.debug(f"   📊 Processing Campaign: {campaign_id} ({campaign_name})")
                             
                             # Create unique inbox record for each campaign
                             inbox_doc = {
-                                "_id": f"{str(datetime.utcnow().timestamp()).replace('.', '')}_{campaign_id}",
-                                "user_id": campaign_user_id,
+                                "_id": f"{str(datetime.utcnow().timestamp()).replace('.', '')}_{campaign_id}_{contact_id}",
+                                "user_id": resolved_user_id,
                                 "platform": "telegram",
                                 "contact": sender_username,
                                 "content": message_text,
                                 "campaign_id": campaign_id,
                                 "contact_id": contact_id,
-                                "type": "incoming",  # Mark as incoming message from customer
+                                "type": "incoming",
                                 "created_at": datetime.utcnow(),
                             }
                             
                             try:
                                 await db.inbox_responses.insert_one(inbox_doc)
                                 inbox_doc["id"] = inbox_doc["_id"]
-                                inserted_count += 1
-                                logger.debug(f"   ✅ Inserted inbox for campaign {campaign_id}")
+                                total_inserted += 1
+                                logger.debug(f"      ✅ Inserted inbox for campaign {campaign_id}")
                             except Exception as e:
                                 # Skip if duplicate (same message for same campaign)
                                 if "duplicate key" in str(e).lower() or "E11000" in str(e):
-                                    logger.debug(f"   ⚠️ Inbox record already exists for campaign {campaign_id}, skipping")
+                                    logger.debug(f"      ⚠️ Inbox record already exists for campaign {campaign_id}, skipping")
                                 else:
-                                    logger.error(f"   ❌ Failed to insert inbox for campaign {campaign_id}: {e}")
-                        
-                        logger.info(
-                            "💾 [Inbox] Message inserted into %d campaign(s): contact=%s, campaigns=%s, user=%s",
-                            inserted_count,
-                            sender_username,
-                            ", ".join([str(c["_id"]) for c in campaigns]),
-                            resolved_user_id or "none"
-                        )
+                                    logger.error(f"      ❌ Failed to insert inbox for campaign {campaign_id}: {e}")
                     else:
-                        logger.debug(f"⚠️ No campaigns found for contact {contact_id}")
+                        logger.debug(f"   ⚠️ No active campaigns found for this contact")
                         # Still insert inbox record without campaign_id if contact exists
                         inbox_doc = {
-                            "_id": str(datetime.utcnow().timestamp()).replace(".", ""),
+                            "_id": f"{str(datetime.utcnow().timestamp()).replace('.', '')}_{contact_id}_no_campaign",
                             "user_id": resolved_user_id,
                             "platform": "telegram",
                             "contact": sender_username,
                             "content": message_text,
                             "campaign_id": None,
                             "contact_id": contact_id,
-                            "type": "incoming",  # Mark as incoming message from customer
+                            "type": "incoming",
                             "created_at": datetime.utcnow(),
                         }
-                        await db.inbox_responses.insert_one(inbox_doc)
-                        logger.info(
-                            "💾 [Inbox] Message inserted (no campaign): contact=%s, user=%s",
-                            sender_username,
-                            resolved_user_id or "none"
-                        )
-                else:
-                    logger.debug(f"⚠️ Contact {contact_id} has no user_id, skipping campaign lookup")
-            else:
-                logger.debug(f"⚠️ Contact not found with telegram_username: {sender_username}")
+                        try:
+                            await db.inbox_responses.insert_one(inbox_doc)
+                            total_inserted += 1
+                            logger.debug(f"   ✅ Inbox record created (no active campaign)")
+                        except Exception as e:
+                            if "duplicate key" not in str(e).lower() and "E11000" not in str(e):
+                                logger.error(f"   ❌ Failed to insert inbox: {e}")
+                
+                logger.info(
+                    "💾 [Inbox] Message processed: contact=%s, total_contacts=%d, total_campaigns=%d, total_inserted=%d",
+                    sender_username,
+                    len(all_contacts),
+                    len(processed_campaigns),
+                    total_inserted
+                )
             
         except Exception as exc:
             logger.error(f"❌ Failed to insert message to inbox (user: {telegram_user_id}, sender: {sender_username}): {exc}")
