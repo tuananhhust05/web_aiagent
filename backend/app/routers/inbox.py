@@ -437,152 +437,189 @@ async def receive_response(
     
     db = get_database()
 
-    contact_id: Optional[str] = None
-    campaign_id: Optional[str] = None
-    user_id: Optional[str] = None
-    campaign: Optional[dict] = None
-
-    # Resolve contact and campaign based on platform
-    print(f"\n🔍 [INBOX RECEIVE] Resolving contact and campaign...")
+    # Process all contacts with the same telegram_username and their active campaigns
+    print(f"\n🔍 [INBOX RECEIVE] Resolving contacts and campaigns...")
     print(f"   - Platform: {data.platform.lower()}")
     
+    processed_campaigns = []  # Track processed campaigns to avoid duplicates
+    all_inbox_docs = []  # Store all created inbox records
+    
     if data.platform.lower() == "telegram":
-        print(f"   - Searching for contact with telegram_username: {data.contact}")
-        contact = await db.contacts.find_one({
-            "telegram_username": data.contact,
-        })
+        query_username = data.contact.lstrip('@')
+        print(f"   - Searching for ALL contacts with telegram_username: {data.contact} (or @{query_username})")
         
-        if contact:
-            contact_id = contact["_id"]
-            user_id = contact.get("user_id")
-            print(f"✅ [INBOX RECEIVE] Contact found:")
-            print(f"   - Contact ID: {contact_id}")
-            print(f"   - User ID: {user_id}")
-            print(f"   - Contact Name: {contact.get('first_name', '')} {contact.get('last_name', '')}")
-            
-            print(f"\n🔍 [INBOX RECEIVE] Searching for campaign containing this contact...")
-            campaign_query = {
-                "contacts": {"$in": [contact_id]},
-                **({"user_id": user_id} if user_id else {}),
-            }
-            print(f"   - Campaign Query: {campaign_query}")
-            
-            campaign = await db.campaigns.find_one(campaign_query)
-            
-            if campaign:
-                campaign_id = str(campaign["_id"])
-                print(f"✅ [INBOX RECEIVE] Campaign found:")
-                print(f"   - Campaign ID: {campaign_id}")
-                print(f"   - Campaign Name: {campaign.get('name', 'Unknown')}")
-                print(f"   - Campaign Status: {campaign.get('status', 'Unknown')}")
-            else:
-                print(f"⚠️ [INBOX RECEIVE] No campaign found for this contact")
+        # Find ALL contacts with matching telegram_username
+        contacts_cursor = db.contacts.find({
+            "telegram_username": {"$in": [data.contact, query_username, f"@{query_username}"]},
+        })
+        all_contacts = await contacts_cursor.to_list(length=None)
+        
+        print(f"   - Found {len(all_contacts)} contact(s) with matching telegram_username")
+        
+        if not all_contacts:
+            print(f"⚠️ [INBOX RECEIVE] No contacts found with telegram_username: {data.contact}")
         else:
-            print(f"⚠️ [INBOX RECEIVE] Contact not found with telegram_username: {data.contact}")
+            # Process each contact
+            for contact in all_contacts:
+                contact_id = str(contact["_id"])
+                user_id = contact.get("user_id")
+                
+                print(f"\n   📋 Processing Contact:")
+                print(f"      - Contact ID: {contact_id}")
+                print(f"      - User ID: {user_id}")
+                print(f"      - Contact Name: {contact.get('first_name', '')} {contact.get('last_name', '')}")
+                
+                if not user_id:
+                    print(f"      ⚠️ Contact has no user_id, skipping campaign lookup")
+                    # Still insert inbox record without campaign
+                    inbox_doc = {
+                        "_id": f"{str(datetime.utcnow().timestamp()).replace('.', '')}_{contact_id}_no_campaign",
+                        "user_id": None,
+                        "platform": data.platform,
+                        "contact": data.contact,
+                        "content": data.content,
+                        "campaign_id": None,
+                        "contact_id": contact_id,
+                        "type": "incoming",
+                        "created_at": datetime.utcnow(),
+                    }
+                    try:
+                        await db.inbox_responses.insert_one(inbox_doc)
+                        inbox_doc["id"] = inbox_doc["_id"]
+                        all_inbox_docs.append(inbox_doc)
+                        print(f"      ✅ Inbox record created (no campaign)")
+                    except Exception as e:
+                        if "duplicate key" not in str(e).lower() and "E11000" not in str(e):
+                            print(f"      ❌ Failed to insert inbox: {e}")
+                    continue
+                
+                # Find ALL ACTIVE campaigns containing this contact
+                print(f"      🔍 Searching for ACTIVE campaigns containing this contact...")
+                # Use contact["_id"] directly (ObjectId) instead of string
+                contact_object_id = contact["_id"]
+                campaigns_cursor = db.campaigns.find({
+                    "contacts": {"$in": [contact_object_id]},
+                    "user_id": user_id,
+                    "status": "active",  # Only process active campaigns
+                })
+                campaigns = await campaigns_cursor.to_list(length=None)
+                
+                print(f"      - Found {len(campaigns)} active campaign(s) for this contact")
+                
+                if campaigns and len(campaigns) > 0:
+                    # Process each campaign
+                    for campaign in campaigns:
+                        campaign_id = str(campaign["_id"])
+                        campaign_name = campaign.get("name", "Unknown")
+                        
+                        # Skip if already processed (same campaign for different contacts)
+                        if campaign_id in processed_campaigns:
+                            print(f"      ⚠️ Campaign {campaign_id} already processed, skipping duplicate")
+                            continue
+                        
+                        processed_campaigns.append(campaign_id)
+                        
+                        print(f"\n      📊 Processing Campaign:")
+                        print(f"         - Campaign ID: {campaign_id}")
+                        print(f"         - Campaign Name: {campaign_name}")
+                        print(f"         - Campaign Status: {campaign.get('status', 'Unknown')}")
+                        
+                        # Create unique inbox record for this campaign
+                        inbox_doc = {
+                            "_id": f"{str(datetime.utcnow().timestamp()).replace('.', '')}_{campaign_id}_{contact_id}",
+                            "user_id": user_id,
+                            "platform": data.platform,
+                            "contact": data.contact,
+                            "content": data.content,
+                            "campaign_id": campaign_id,
+                            "contact_id": contact_id,
+                            "type": "incoming",
+                            "created_at": datetime.utcnow(),
+                        }
+                        
+                        try:
+                            await db.inbox_responses.insert_one(inbox_doc)
+                            inbox_doc["id"] = inbox_doc["_id"]
+                            all_inbox_docs.append(inbox_doc)
+                            print(f"         ✅ Inbox record created for campaign {campaign_id}")
+                        except Exception as e:
+                            if "duplicate key" in str(e).lower() or "E11000" in str(e):
+                                print(f"         ⚠️ Inbox record already exists, skipping duplicate")
+                            else:
+                                print(f"         ❌ Failed to insert inbox: {e}")
+                                continue
+                        
+                        # Process customer response with Groq LLM for this campaign
+                        print(f"\n         🤖 Processing message with Groq LLM for campaign {campaign_id}...")
+                        call_script = campaign.get("call_script", settings.AI_CALL_DEFAULT_PROMPT)
+                        customer_response = data.content
+                        
+                        groq_response = await process_customer_response_with_groq(call_script, customer_response)
+                        
+                        if groq_response:
+                            print(f"         ✅ Groq LLM generated call script successfully")
+                            # Update inbox record with Groq response
+                            await db.inbox_responses.update_one(
+                                {"_id": inbox_doc["_id"]},
+                                {"$set": {"groq_response": groq_response}}
+                            )
+                            inbox_doc["groq_response"] = groq_response
+                        else:
+                            print(f"         ⚠️ Groq LLM processing failed or skipped")
+                        
+                        # Trigger AI voice calls for this campaign (asynchronously)
+                        print(f"         🚀 Triggering AI voice calls for campaign {campaign_id}...")
+                        task = asyncio.create_task(trigger_campaign_calls(campaign, user_id, groq_response))
+                        print(f"         ✅ Background task created for campaign calls")
+                else:
+                    print(f"      ⚠️ No active campaigns found for this contact")
+                    # Still insert inbox record without campaign
+                    inbox_doc = {
+                        "_id": f"{str(datetime.utcnow().timestamp()).replace('.', '')}_{contact_id}_no_campaign",
+                        "user_id": user_id,
+                        "platform": data.platform,
+                        "contact": data.contact,
+                        "content": data.content,
+                        "campaign_id": None,
+                        "contact_id": contact_id,
+                        "type": "incoming",
+                        "created_at": datetime.utcnow(),
+                    }
+                    try:
+                        await db.inbox_responses.insert_one(inbox_doc)
+                        inbox_doc["id"] = inbox_doc["_id"]
+                        all_inbox_docs.append(inbox_doc)
+                        print(f"      ✅ Inbox record created (no active campaign)")
+                    except Exception as e:
+                        if "duplicate key" not in str(e).lower() and "E11000" not in str(e):
+                            print(f"      ❌ Failed to insert inbox: {e}")
     else:
         print(f"⚠️ [INBOX RECEIVE] Platform '{data.platform}' not yet supported for contact resolution")
-
-    # Insert inbox record
-    print(f"\n💾 [INBOX RECEIVE] Creating inbox record...")
-    inbox_doc = {
-        "_id": str(datetime.utcnow().timestamp()).replace(".", ""),
-        "user_id": user_id,
-        "platform": data.platform,
-        "contact": data.contact,
-        "content": data.content,
-        "campaign_id": campaign_id,
-        "contact_id": contact_id,
-        "created_at": datetime.utcnow(),
-    }
     
-    print(f"   - Inbox Doc ID: {inbox_doc['_id']}")
-    print(f"   - Inbox Doc: {inbox_doc}")
-
-    await db.inbox_responses.insert_one(inbox_doc)
-    inbox_doc["id"] = inbox_doc["_id"]
-    print(f"✅ [INBOX RECEIVE] Inbox record created successfully")
-    
-    # If campaign is found, process customer response with Groq LLM
-    if campaign_id and campaign:
-        print(f"\n📞 [INBOX RECEIVE] Campaign found - Processing message...")
-        print(f"   - Campaign ID: {campaign_id}")
-        print(f"   - Campaign Name: {campaign.get('name', 'Unknown')}")
-        
-        # Get call_script from campaign (the initial message sent to customer)
-        call_script = campaign.get("call_script", settings.AI_CALL_DEFAULT_PROMPT)
-        customer_response = data.content  # The response from customer
-        
-        print(f"\n📝 [INBOX RECEIVE] Message Details:")
-        print(f"   - Call Script Length: {len(call_script)} characters")
-        print(f"   - Call Script Preview: {call_script[:150]}...")
-        print(f"   - Customer Response Length: {len(customer_response)} characters")
-        print(f"   - Customer Response: {customer_response[:150]}...")
-        
-        # Process customer response with Groq LLM to generate call script
-        print(f"\n🤖 [INBOX RECEIVE] Processing customer response with Groq LLM to generate call script...")
-        print(f"   - Purpose: Generate call prompt based on customer response")
-        groq_response = await process_customer_response_with_groq(call_script, customer_response)
-        
-        if groq_response:
-            print(f"\n✅ [INBOX RECEIVE] Groq LLM generated call script successfully")
-            print(f"   - Response Length: {len(groq_response)} characters")
-            print(f"   - Response Preview: {groq_response[:200]}...")
-            print(f"   - This will be used as prompt for AI voice calls")
-            
-            # Log full AI-generated content with context
-            print("\n" + "=" * 80)
-            print("🎯 [INBOX RECEIVE] AI-GENERATED CALL SCRIPT SUMMARY")
-            print("=" * 80)
-            print("📥 Input Data:")
-            print(f"   - Original Call Script (from campaign):")
-            print(f"     {call_script}")
-            print(f"\n   - Customer Response (from Telegram):")
-            print(f"     {customer_response}")
-            print("\n🤖 AI-Generated Call Script (created by Groq LLM):")
-            print("-" * 80)
-            print(groq_response)
-            print("-" * 80)
-            print(f"📊 Generated Content Details:")
-            print(f"   - Length: {len(groq_response)} characters")
-            print(f"   - Will be used as: AI voice call prompt")
-            print(f"   - Status: Ready to use for campaign calls")
-            print("=" * 80 + "\n")
-            
-            # Update inbox record with Groq response
-            print(f"\n💾 [INBOX RECEIVE] Updating inbox record with Groq response...")
-            update_result = await db.inbox_responses.update_one(
-                {"_id": inbox_doc["_id"]},
-                {"$set": {"groq_response": groq_response}}
-            )
-            print(f"   - Update Result: matched={update_result.matched_count}, modified={update_result.modified_count}")
-            inbox_doc["groq_response"] = groq_response
-            print(f"✅ [INBOX RECEIVE] Inbox record updated with Groq response")
-        else:
-            print(f"\n⚠️ [INBOX RECEIVE] Groq LLM processing failed or skipped")
-            print(f"   - Will use campaign call_script instead for calls")
-        print(f"   - Groq response: {groq_response}")
-        # Trigger AI voice calls for all contacts in campaign
-        # Use Groq response as call prompt if available
-        print(f"\n🚀 [INBOX RECEIVE] Triggering AI voice calls for all contacts in campaign...")
-        if groq_response:
-            print(f"   - Using Groq-generated call script for calls")
-        else:
-            print(f"   - Using campaign call_script for calls (Groq response not available)")
-        print(f"   - This will run asynchronously in background")
-        
-        # Trigger calls asynchronously (don't wait for completion)
-        # Pass groq_response to be used as call prompt
-        task = asyncio.create_task(trigger_campaign_calls(campaign, user_id, groq_response))
-        print(f"   - Background task created: {task}")
+    # Return the first inbox record (or create a default one if none were created)
+    if all_inbox_docs:
+        inbox_doc = all_inbox_docs[0]
+        print(f"\n✅ [INBOX RECEIVE] Processed {len(all_inbox_docs)} inbox record(s) across {len(processed_campaigns)} campaign(s)")
+        print(f"   - Returning first inbox record (ID: {inbox_doc['_id']})")
     else:
-        print(f"\n⚠️ [INBOX RECEIVE] No campaign found - Skipping Groq LLM and campaign calls")
-        if not contact_id:
-            print(f"   - Reason: Contact not found")
-        elif not campaign_id:
-            print(f"   - Reason: Campaign not found for contact")
+        # Fallback: create a basic inbox record if no contacts/campaigns found
+        print(f"\n⚠️ [INBOX RECEIVE] No contacts/campaigns found, creating basic inbox record...")
+        inbox_doc = {
+            "_id": str(datetime.utcnow().timestamp()).replace(".", ""),
+            "user_id": None,
+            "platform": data.platform,
+            "contact": data.contact,
+            "content": data.content,
+            "campaign_id": None,
+            "contact_id": None,
+            "type": "incoming",
+            "created_at": datetime.utcnow(),
+        }
+        await db.inbox_responses.insert_one(inbox_doc)
+        inbox_doc["id"] = inbox_doc["_id"]
+        print(f"   - Basic inbox record created (ID: {inbox_doc['_id']})")
     
     print(f"\n✅ [INBOX RECEIVE] Request processed successfully")
-    print(f"   - Returning InboxResponse")
     print("=" * 80 + "\n")
     
     return InboxResponse(**inbox_doc)
