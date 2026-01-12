@@ -450,6 +450,23 @@ export const campaignGoalsAPI = {
         ...(endDate ? { end_date: endDate } : {})
       } 
     }),
+
+  // Get AI-generated To-Do items for a goal
+  getGoalTodoItems: (goalId: string, forceRefresh?: boolean) =>
+    api.get(`/api/campaign-goals/${goalId}/todo-items`, {
+      params: { force_refresh: forceRefresh || false }
+    }),
+
+  // Clear cached todo items analysis
+  clearGoalTodoCache: (goalId: string) =>
+    api.delete(`/api/campaign-goals/${goalId}/todo-items/cache`),
+
+  // Chat with AI Sales Coach
+  chatWithSalesCoach: (goalId: string, data: {
+    question: string
+    context?: any
+  }) =>
+    api.post(`/api/campaign-goals/${goalId}/sales-coach/chat`, data),
 };
 
 // Deal View Types

@@ -1011,3 +1011,350 @@ IMPORTANT:
         import traceback
         traceback.print_exc()
         return None
+
+
+async def generate_goal_todo_items(
+    goal_name: str,
+    goal_description: Optional[str],
+    prospects: List[Dict[str, Any]],
+    campaign_context: Optional[Dict[str, Any]] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Generate AI-powered To-Do items for a campaign goal.
+    Analyzes goal title/description and prospects to create actionable tasks.
+    Returns structured to-do items with messages ready to send.
+    """
+    try:
+        if not settings.GROQ_API_KEY:
+            print("⚠️ [AI SALES COACH] GROQ_API_KEY not configured")
+            return None
+
+        # Prepare goal context
+        goal_context = f"""
+Campaign Goal:
+- Name: {goal_name}
+- Description: {goal_description or 'No description provided'}
+"""
+
+        # Prepare prospects summary
+        prospects_text = ""
+        if prospects:
+            prospects_summary = []
+            for prospect in prospects[:50]:  # Limit to 50 prospects
+                name = f"{prospect.get('first_name', '')} {prospect.get('last_name', '')}".strip()
+                company = prospect.get('company', 'N/A')
+                email = prospect.get('email', 'N/A')
+                phone = prospect.get('phone', 'N/A')
+                whatsapp = prospect.get('whatsapp_number', 'N/A')
+                telegram = prospect.get('telegram_username', 'N/A')
+                linkedin = prospect.get('linkedin_profile', 'N/A')
+                
+                prospect_info = f"Name: {name}, Company: {company}"
+                if email != 'N/A':
+                    prospect_info += f", Email: {email}"
+                if phone != 'N/A':
+                    prospect_info += f", Phone: {phone}"
+                if whatsapp != 'N/A':
+                    prospect_info += f", WhatsApp: {whatsapp}"
+                if telegram != 'N/A':
+                    prospect_info += f", Telegram: {telegram}"
+                if linkedin != 'N/A':
+                    prospect_info += f", LinkedIn: {linkedin}"
+                
+                prospects_summary.append(prospect_info)
+            
+            prospects_text = f"""
+Prospects ({len(prospects)} total):
+{chr(10).join(prospects_summary)}
+"""
+
+        # Prepare campaign context if available
+        campaign_context_text = ""
+        if campaign_context:
+            campaign_context_text = f"""
+Related Campaigns Context:
+- Total Campaigns: {campaign_context.get('total_campaigns', 0)}
+- Active Campaigns: {campaign_context.get('active_campaigns', 0)}
+- Sample Call Script: {campaign_context.get('sample_call_script', 'N/A')[:200]}
+"""
+
+        # Combine all context
+        full_context = f"""{goal_context}
+
+{prospects_text}
+
+{campaign_context_text}"""
+
+        # Create prompt for to-do generation
+        prompt = f"""You are an AI Sales Coach, an intelligent assistant that helps salespeople manage their sales activities efficiently.
+
+{full_context}
+
+Based on the campaign goal (title and description) and prospects, generate a comprehensive To-Do list with actionable items. For each prospect, create specific tasks that will help achieve the goal.
+
+CRITICAL REQUIREMENTS:
+1. For each prospect, create 3-5 actionable tasks
+2. Each action MUST have:
+   - "what": Clear, specific description of what to do (e.g., "Send follow-up email about product demo", "Schedule discovery call")
+   - "when": Specific timing (e.g., "Today", "Tomorrow", "In 2 days", "Next week", "Within 3 days")
+   - "channel": One of: "email", "whatsapp", "linkedin", "call", "video_call"
+   - "priority": "high", "medium", or "low"
+   - "reason": Brief explanation why this action is recommended for achieving the goal
+
+3. For actions with channel "email", "whatsapp", or "linkedin":
+   - MUST include "message" field with complete, ready-to-send message
+   - Message should be personalized, professional, goal-oriented
+   - Message should be complete and ready to send (not a template with placeholders)
+   - Do NOT include "call_script" for these channels
+
+4. For actions with channel "call" or "video_call":
+   - MUST include "call_script" field with detailed script and topics to cover
+   - MUST include "topics" array with key topics to discuss
+   - Do NOT include "message" for these channels
+
+5. Actions should be prioritized based on:
+   - Goal alignment (how well it helps achieve the goal)
+   - Urgency (time-sensitive actions first)
+   - Prospect's available contact methods (prefer channels they have)
+
+Return your response in JSON format:
+{{
+    "todo_items": [
+        {{
+            "prospect_id": "prospect_id_from_list",
+            "prospect_name": "Full Name from prospect data",
+            "prospect_company": "Company Name from prospect data",
+            "actions": [
+                {{
+                    "id": "unique_action_id_1",
+                    "what": "Clear, specific description of what to do",
+                    "when": "Today|Tomorrow|In 2 days|Next week|Within 3 days",
+                    "channel": "email|whatsapp|linkedin|call|video_call",
+                    "priority": "high|medium|low",
+                    "message": "Complete, ready-to-send message (ONLY for email/whatsapp/linkedin, leave empty for call/video_call)",
+                    "call_script": "Detailed script with topics to cover (ONLY for call/video_call, leave empty for email/whatsapp/linkedin)",
+                    "topics": ["topic1", "topic2", "topic3"] (ONLY for call/video_call, empty array for others),
+                    "reason": "Why this action is recommended for achieving the goal"
+                }}
+            ]
+        }}
+    ],
+    "summary": "Overall strategy summary for achieving this goal (2-3 sentences)"
+}}
+
+IMPORTANT RULES:
+- Return ONLY valid JSON, no additional text before or after
+- Create 3-5 actions per prospect
+- For email/whatsapp/linkedin: MUST have "message", NO "call_script" or "topics"
+- For call/video_call: MUST have "call_script" and "topics", NO "message"
+- Messages must be complete and ready to send (personalized with prospect name/company)
+- Base all recommendations on the goal's title and description
+- Prioritize actions that directly contribute to achieving the goal
+"""
+
+        # Call Groq API
+        groq_url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are an AI Sales Coach. Generate actionable to-do items for salespeople in JSON format. Always return valid JSON only."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.7,  # Slightly higher for creativity in message generation
+            "max_tokens": settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
+            "response_format": {"type": "json_object"}
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                groq_url,
+                json=payload,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=60)
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    choices = result.get("choices", [])
+                    
+                    if choices:
+                        content = choices[0].get("message", {}).get("content", "").strip()
+                        
+                        try:
+                            todo_data = json.loads(content)
+                            print(f"✅ [AI SALES COACH] To-do items generated successfully")
+                            return todo_data
+                        except json.JSONDecodeError as e:
+                            print(f"❌ [AI SALES COACH] Failed to parse JSON response: {e}")
+                            print(f"   - Response content: {content[:500]}")
+                            return None
+                    else:
+                        print(f"⚠️ [AI SALES COACH] No choices in response")
+                        return None
+                else:
+                    error_text = await response.text()
+                    print(f"❌ [AI SALES COACH] API error: {response.status}")
+                    print(f"   - Error: {error_text}")
+                    return None
+
+    except Exception as e:
+        print(f"❌ [AI SALES COACH] Error generating to-do items: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+async def chat_with_sales_coach(
+    goal_name: str,
+    goal_description: Optional[str],
+    user_question: str,
+    context: Optional[Dict[str, Any]] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Chat with AI Sales Coach - allows user to ask questions, request message variations,
+    prepare for calls, simulate prospect responses, etc.
+    """
+    try:
+        if not settings.GROQ_API_KEY:
+            print("⚠️ [AI SALES COACH] GROQ_API_KEY not configured")
+            return None
+
+        # Prepare goal context
+        goal_context = f"""
+Campaign Goal:
+- Name: {goal_name}
+- Description: {goal_description or 'No description provided'}
+"""
+
+        # Prepare additional context if available
+        context_text = ""
+        if context:
+            if context.get('todo_items'):
+                context_text += f"\nCurrent To-Do Items: {len(context.get('todo_items', []))} items\n"
+            if context.get('prospect_info'):
+                prospect = context['prospect_info']
+                context_text += f"\nProspect Info:\n- Name: {prospect.get('name', 'N/A')}\n- Company: {prospect.get('company', 'N/A')}\n"
+            if context.get('message'):
+                context_text += f"\nMessage to review: {context['message']}\n"
+            if context.get('call_script'):
+                context_text += f"\nCall script to review: {context['call_script']}\n"
+
+        # Create prompt for sales coach chat
+        prompt = f"""You are an AI Sales Coach, a personal sales coach that helps salespeople improve their sales performance.
+
+{goal_context}
+
+{context_text}
+
+User's Question/Request:
+{user_question}
+
+Provide a helpful, coaching-style response. You can:
+- Explain why certain follow-ups are suggested
+- Provide different versions of messages
+- Help prepare for calls
+- Simulate prospect responses
+- Give strategic advice
+- Answer questions about sales best practices
+
+Return your response in JSON format:
+{{
+    "answer": "Your coaching response to the user's question",
+    "suggestions": ["suggestion1", "suggestion2"],
+    "message_variations": [
+        {{
+            "version": "professional",
+            "message": "Professional version of the message"
+        }},
+        {{
+            "version": "friendly",
+            "message": "Friendly version of the message"
+        }}
+    ],
+    "call_preparation": {{
+        "key_points": ["point1", "point2"],
+        "potential_objections": ["objection1", "objection2"],
+        "responses": ["response1", "response2"]
+    }},
+    "simulated_response": "How the prospect might respond (if requested)"
+}}
+
+IMPORTANT:
+- Return ONLY valid JSON, no additional text
+- Be conversational and coaching-oriented
+- Provide actionable advice
+- If user asks for message variations, include them in message_variations
+- If user asks to prepare for a call, include call_preparation
+- If user asks to simulate prospect response, include simulated_response
+"""
+
+        # Call Groq API
+        groq_url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are an AI Sales Coach. Provide helpful, coaching-style responses in JSON format. Always return valid JSON only."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.8,  # Higher temperature for more conversational responses
+            "max_tokens": settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
+            "response_format": {"type": "json_object"}
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                groq_url,
+                json=payload,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=60)
+            ) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    choices = result.get("choices", [])
+                    
+                    if choices:
+                        content = choices[0].get("message", {}).get("content", "").strip()
+                        
+                        try:
+                            coach_response = json.loads(content)
+                            print(f"✅ [AI SALES COACH] Chat response generated successfully")
+                            return coach_response
+                        except json.JSONDecodeError as e:
+                            print(f"❌ [AI SALES COACH] Failed to parse JSON response: {e}")
+                            print(f"   - Response content: {content[:500]}")
+                            return None
+                    else:
+                        print(f"⚠️ [AI SALES COACH] No choices in response")
+                        return None
+                else:
+                    error_text = await response.text()
+                    print(f"❌ [AI SALES COACH] API error: {response.status}")
+                    print(f"   - Error: {error_text}")
+                    return None
+
+    except Exception as e:
+        print(f"❌ [AI SALES COACH] Error in sales coach chat: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None

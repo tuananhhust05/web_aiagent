@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException, status, Depends
-from typing import List, Optional
+from fastapi import APIRouter, HTTPException, status, Depends, Query
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from bson import ObjectId
 import random
 import uuid
+import hashlib
+import json
 from app.core.database import get_database
 from app.core.auth import get_current_active_user
 from app.models.user import UserResponse
@@ -13,6 +15,7 @@ from app.models.campaign_goal import (
     CampaignGoalResponse,
     CampaignGoalStats
 )
+from app.services.ai_sales_copilot import generate_goal_todo_items, chat_with_sales_coach
 
 router = APIRouter()
 
@@ -865,3 +868,234 @@ async def get_campaign_goal_stats(
         active_goals=active_goals,
         inactive_goals=inactive_goals
     )
+
+
+@router.get("/{goal_id}/todo-items")
+async def get_goal_todo_items(
+    goal_id: str,
+    force_refresh: bool = Query(False, description="Force refresh analysis even if cached"),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Generate AI-powered To-Do items for a campaign goal.
+    Analyzes goal and prospects to create actionable tasks with ready-to-send messages.
+    Caches analysis in database to avoid regenerating.
+    """
+    db = get_database()
+    
+    # Verify goal belongs to user
+    goal = await db.campaign_goals.find_one({
+        "_id": ObjectId(goal_id),
+        "user_id": current_user.id
+    })
+    
+    if not goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign goal not found"
+        )
+    
+    # Get all campaigns for this goal
+    campaigns_cursor = db.campaigns.find({
+        "campaign_goal_id": goal_id,
+        "user_id": current_user.id
+    })
+    campaigns = await campaigns_cursor.to_list(length=None)
+    
+    # Collect all unique contacts from campaigns
+    all_contact_ids = set()
+    for campaign in campaigns:
+        contact_ids = campaign.get("contacts", [])
+        all_contact_ids.update(contact_ids)
+    
+    # Get contact details
+    prospects = []
+    if all_contact_ids:
+        contacts_cursor = db.contacts.find({
+            "_id": {"$in": [ObjectId(cid) for cid in all_contact_ids if cid]},
+            "user_id": current_user.id
+        })
+        contacts = await contacts_cursor.to_list(length=100)  # Limit to 100 contacts
+        
+        for contact in contacts:
+            prospects.append({
+                "id": str(contact["_id"]),
+                "first_name": contact.get("first_name", ""),
+                "last_name": contact.get("last_name", ""),
+                "company": contact.get("company", ""),
+                "email": contact.get("email", ""),
+                "phone": contact.get("phone", ""),
+                "whatsapp_number": contact.get("whatsapp_number", ""),
+                "telegram_username": contact.get("telegram_username", ""),
+                "linkedin_profile": contact.get("linkedin_profile", ""),
+            })
+    
+    # Prepare campaign context
+    campaign_context = None
+    if campaigns:
+        sample_campaign = campaigns[0]
+        campaign_context = {
+            "total_campaigns": len(campaigns),
+            "active_campaigns": len([c for c in campaigns if c.get("status") == "active"]),
+            "sample_call_script": sample_campaign.get("call_script", "")
+        }
+    
+    # Create hash for cache key (based on goal name, description, and prospect IDs)
+    goal_name = goal.get("name", "")
+    goal_description = goal.get("description", "")
+    prospect_ids = sorted([p["id"] for p in prospects])
+    cache_key_data = {
+        "goal_name": goal_name,
+        "goal_description": goal_description,
+        "prospect_ids": prospect_ids,
+        "prospect_count": len(prospects)
+    }
+    cache_key = hashlib.md5(json.dumps(cache_key_data, sort_keys=True).encode()).hexdigest()
+    
+    # Check if cached analysis exists
+    if not force_refresh:
+        cached_analysis = await db.goal_todo_analyses.find_one({
+            "goal_id": goal_id,
+            "user_id": current_user.id,
+            "cache_key": cache_key
+        })
+        
+        if cached_analysis:
+            # Check if cache is still valid (within 24 hours)
+            cache_age = (datetime.utcnow() - cached_analysis.get("created_at", datetime.utcnow())).total_seconds()
+            if cache_age < 86400:  # 24 hours
+                print(f"✅ [AI SALES COACH] Returning cached analysis for goal {goal_id}")
+                return cached_analysis.get("todo_data")
+    
+    # Generate to-do items using AI
+    todo_data = await generate_goal_todo_items(
+        goal_name=goal_name,
+        goal_description=goal_description,
+        prospects=prospects,
+        campaign_context=campaign_context
+    )
+    
+    if not todo_data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate to-do items"
+        )
+    
+    # Save to database for caching
+    analysis_doc = {
+        "goal_id": goal_id,
+        "user_id": current_user.id,
+        "cache_key": cache_key,
+        "todo_data": todo_data,
+        "prospect_count": len(prospects),
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+    
+    # Upsert: update if exists, insert if not
+    await db.goal_todo_analyses.update_one(
+        {
+            "goal_id": goal_id,
+            "user_id": current_user.id,
+            "cache_key": cache_key
+        },
+        {
+            "$set": analysis_doc
+        },
+        upsert=True
+    )
+    
+    print(f"✅ [AI SALES COACH] Analysis saved to database for goal {goal_id}")
+    
+    return todo_data
+
+
+@router.delete("/{goal_id}/todo-items/cache")
+async def clear_goal_todo_cache(
+    goal_id: str,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Clear cached todo items analysis for a goal.
+    This forces a fresh analysis to be generated on next request.
+    """
+    db = get_database()
+    
+    # Verify goal belongs to user
+    goal = await db.campaign_goals.find_one({
+        "_id": ObjectId(goal_id),
+        "user_id": current_user.id
+    })
+    
+    if not goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign goal not found"
+        )
+    
+    # Delete all cached analyses for this goal
+    result = await db.goal_todo_analyses.delete_many({
+        "goal_id": goal_id,
+        "user_id": current_user.id
+    })
+    
+    print(f"✅ [AI SALES COACH] Cleared {result.deleted_count} cached analysis(es) for goal {goal_id}")
+    
+    return {
+        "message": "Cache cleared successfully",
+        "deleted_count": result.deleted_count
+    }
+
+
+@router.post("/{goal_id}/sales-coach/chat")
+async def chat_with_ai_sales_coach(
+    goal_id: str,
+    data: Dict[str, Any],
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Chat with AI Sales Coach - ask questions, request message variations,
+    prepare for calls, simulate prospect responses, etc.
+    """
+    db = get_database()
+    
+    # Verify goal belongs to user
+    goal = await db.campaign_goals.find_one({
+        "_id": ObjectId(goal_id),
+        "user_id": current_user.id
+    })
+    
+    if not goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Campaign goal not found"
+        )
+    
+    user_question = data.get("question", "")
+    context = data.get("context")  # Optional context (todo_items, prospect_info, message, call_script)
+    
+    if not user_question:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Question is required"
+        )
+    
+    # Get goal info
+    goal_name = goal.get("name", "")
+    goal_description = goal.get("description")
+    
+    # Chat with AI Sales Coach
+    coach_response = await chat_with_sales_coach(
+        goal_name=goal_name,
+        goal_description=goal_description,
+        user_question=user_question,
+        context=context
+    )
+    
+    if not coach_response:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get response from AI Sales Coach"
+        )
+    
+    return coach_response
