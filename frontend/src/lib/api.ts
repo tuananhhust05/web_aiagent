@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -112,6 +112,7 @@ export const userAPI = {
 export const contactsAPI = {
   getContacts: (params?: any) => api.get('/api/contacts', { params }),
   getContact: (id: string) => api.get(`/api/contacts/${id}`),
+  getContactsDetailed: (params?: any) => api.get('/api/contacts/detailed', { params }),
   createContact: (data: any) => api.post('/api/contacts', data),
   updateContact: (id: string, data: any) => api.put(`/api/contacts/${id}`, data),
   deleteContact: (id: string) => api.delete(`/api/contacts/${id}`),
@@ -365,7 +366,7 @@ export const inboxAPI = {
     content: string
   }) => api.post('/api/inbox/send-message', data),
 
-  // Analyze conversation with AI Sales Copilot
+  // Analyze conversation with AI Sales Coach
   analyzeConversation: (campaignId: string, telegramUsername: string) =>
     api.get(`/api/inbox/analyze/${campaignId}/${encodeURIComponent(telegramUsername)}`),
 
@@ -771,4 +772,15 @@ export const campaignWorkflowScriptsAPI = {
   
   // Delete script
   deleteNodeScript: (scriptId: string) => api.delete(`/api/campaign-workflow-scripts/${scriptId}`),
+}
+
+// Prioritized Prospects API
+export const prioritizedProspectsAPI = {
+  generate: (params?: { limit?: number }) => api.post('/api/prioritized-prospects/generate', null, { params }),
+  getPrioritizedProspects: (params?: { page?: number; limit?: number }) => 
+    api.get('/api/prioritized-prospects', { params }),
+  getPrioritizedProspect: (id: string) => api.get(`/api/prioritized-prospects/${id}`),
+  deletePrioritizedProspect: (id: string) => api.delete(`/api/prioritized-prospects/${id}`),
+  shortenContent: (id: string) => api.post(`/api/prioritized-prospects/${id}/shorten`),
+  generateDifferentApproach: (id: string) => api.post(`/api/prioritized-prospects/${id}/different-approach`),
 }

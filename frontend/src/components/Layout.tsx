@@ -69,7 +69,7 @@ const mainNavigation: NavigationItem[] = [
   { name: 'Renewals', href: '/renewals', icon: UserCheck },
   { name: 'Up / Cross Sell', href: '/upsell', icon: ArrowUpRight },
   { name: 'Marketing Data', href: '/marketing-data', icon: Database },
-  { name: 'AI Sales Copilot', href: '/ai-sales-copilot', icon: Brain },
+  { name: 'AI Sales Coach', href: '/ai-sales-copilot', icon: Brain },
 ]
 
 // Main dropdown navigation (simplified)

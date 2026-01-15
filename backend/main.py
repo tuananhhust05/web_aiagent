@@ -6,7 +6,7 @@ import os
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies, uploads
+from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies, uploads, prioritized_prospects
 
 # Import pipelines separately with error handling
 try:
@@ -120,6 +120,7 @@ app.include_router(campaign_workflow_scripts.router, prefix="/api/campaign-workf
 app.include_router(gmail.router, prefix="/api/gmail", tags=["Gmail"])
 app.include_router(companies.router, prefix="/api", tags=["Companies"])
 app.include_router(uploads.router, tags=["File Upload"])
+app.include_router(prioritized_prospects.router, prefix="/api/prioritized-prospects", tags=["Prioritized Prospects"])
 
 # Add pipelines router if import succeeded
 # if pipelines:

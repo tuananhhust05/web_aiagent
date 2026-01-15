@@ -114,22 +114,21 @@ const AISalesCoachChat: React.FC<AISalesCoachChatProps> = ({
   }, [messages])
 
   return (
-    <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-gray-200/50 flex flex-col h-[600px]">
+    <div className="bg-white rounded-lg border border-gray-200 flex flex-col h-full">
       {/* Header */}
-      <div className="p-5 border-b border-gray-200/50 bg-gradient-to-r from-white to-gray-50/50">
+      <div className="p-4 border-b border-gray-200">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl">
             <Brain className="h-5 w-5 text-white" />
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-900">AI Sales Coach</h3>
-            <p className="text-xs text-gray-600">Your personal sales coach</p>
           </div>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -263,7 +262,7 @@ const AISalesCoachChat: React.FC<AISalesCoachChatProps> = ({
       </div>
 
       {/* Input */}
-      <form onSubmit={handleSend} className="p-5 border-t border-gray-200/50 bg-white">
+      <form onSubmit={handleSend} className="p-4 border-t border-gray-200 bg-white">
         <div className="flex items-end gap-2">
           <textarea
             value={input}

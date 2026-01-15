@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
 from datetime import datetime
 from bson import ObjectId
 import pandas as pd
-from typing import List
+from typing import List, Optional, Dict, Any
 from app.core.database import get_database
 from app.core.auth import get_current_active_user
 from app.models.user import UserResponse
@@ -10,8 +10,70 @@ from app.models.contact import (
     ContactCreate, ContactUpdate, ContactResponse, ContactFilter,
     ContactImport, ContactBulkUpdate
 )
+from pydantic import BaseModel
 
 router = APIRouter()
+
+# Response models for detailed contact endpoint
+class CampaignGoalInfo(BaseModel):
+    id: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    color_gradient: Optional[str] = None
+    is_active: Optional[bool] = None
+    source: Optional[str] = None
+
+class WorkflowInfo(BaseModel):
+    id: Optional[str] = None
+    function: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    nodes: Optional[List[Dict[str, Any]]] = None
+    connections: Optional[List[Dict[str, Any]]] = None
+
+class CampaignInfo(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    status: str
+    type: str
+    source: Optional[str] = None
+    campaign_goal: Optional[CampaignGoalInfo] = None
+    workflow: Optional[WorkflowInfo] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+class DealInfo(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    status: Optional[str] = None
+    priority: Optional[str] = None
+    amount: float = 0.0
+    revenue: float = 0.0
+    cost: float = 0.0
+    probability: Optional[float] = None
+    expected_close_date: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+class ContactDetailResponse(BaseModel):
+    id: str
+    first_name: str
+    last_name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    telegram_username: Optional[str] = None
+    whatsapp_number: Optional[str] = None
+    linkedin_profile: Optional[str] = None
+    company: Optional[str] = None
+    job_title: Optional[str] = None
+    status: str
+    source: str
+    created_at: datetime
+    updated_at: datetime
+    campaigns: List[CampaignInfo] = []
+    deals: List[DealInfo] = []
 
 @router.post("", response_model=ContactResponse)
 async def create_contact(
@@ -101,6 +163,290 @@ async def get_contacts(
         contact_responses.append(ContactResponse(**contact_dict))
     
     return contact_responses
+
+# IMPORTANT: Route /detailed must be defined BEFORE /{contact_id}
+# Otherwise FastAPI will treat "detailed" as a contact_id
+@router.get("/detailed", response_model=List[ContactDetailResponse])
+async def get_contacts_detailed(
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    source: Optional[str] = None,
+    limit: int = 100,
+    skip: int = 0,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    print("search ....", search)
+    """
+    Get all contacts with detailed information including:
+    - Campaigns containing the contact (with campaign goals and workflows)
+    - Deals related to the contact
+    """
+    db = get_database()
+    
+    # Build filter query
+    filter_query = {"user_id": current_user.id}
+    
+    if search:
+        filter_query["$or"] = [
+            {"first_name": {"$regex": search, "$options": "i"}},
+            {"last_name": {"$regex": search, "$options": "i"}},
+            {"email": {"$regex": search, "$options": "i"}},
+            {"company": {"$regex": search, "$options": "i"}}
+        ]
+    
+    if status:
+        filter_query["status"] = status
+    if source:
+        filter_query["source"] = source
+    
+    # Get contacts
+    cursor = db.contacts.find(filter_query).skip(skip).limit(limit).sort("created_at", -1)
+    contacts = await cursor.to_list(length=limit)
+    print("contacts ....", contacts)
+    
+    # Get all contact IDs
+    contact_ids = [str(contact["_id"]) for contact in contacts]
+    
+    # Get all campaigns that contain any of these contacts
+    campaigns_cursor = db.campaigns.find({
+        "user_id": current_user.id,
+        "contacts": {"$in": contact_ids}
+    })
+    all_campaigns = await campaigns_cursor.to_list(length=None)
+    
+    # Get all campaign goal IDs and workflow IDs
+    campaign_goal_ids = []
+    workflow_ids = []
+    for campaign in all_campaigns:
+        if campaign.get("campaign_goal_id"):
+            campaign_goal_ids.append(campaign["campaign_goal_id"])
+        if campaign.get("workflow_id"):
+            workflow_ids.append(campaign["workflow_id"])
+    
+    # Get all campaign goals
+    campaign_goals = {}
+    if campaign_goal_ids:
+        # Remove duplicates
+        unique_goal_ids = list(set([gid for gid in campaign_goal_ids if gid]))
+        
+        # Convert goal IDs to ObjectIds, filtering out invalid ones
+        valid_goal_object_ids = []
+        invalid_goal_ids = []
+        goal_id_mapping = {}  # Map ObjectId string back to original ID
+        
+        for gid in unique_goal_ids:
+            try:
+                goal_obj_id = ObjectId(gid)
+                goal_str_id = str(goal_obj_id)
+                valid_goal_object_ids.append(goal_obj_id)
+                # Map both original ID and ObjectId string to the same goal
+                goal_id_mapping[gid] = goal_str_id
+                goal_id_mapping[goal_str_id] = goal_str_id
+            except:
+                # If not valid ObjectId, keep as string for later query
+                invalid_goal_ids.append(gid)
+                goal_id_mapping[gid] = gid
+        
+        # Query goals by ObjectId
+        if valid_goal_object_ids:
+            goals_cursor = db.campaign_goals.find({
+                "user_id": current_user.id,
+                "_id": {"$in": valid_goal_object_ids}
+            })
+            goals_list = await goals_cursor.to_list(length=None)
+            for goal in goals_list:
+                goal_id = str(goal["_id"])
+                goal_data = {
+                    "id": goal_id,
+                    "name": goal.get("name", ""),
+                    "description": goal.get("description"),
+                    "color_gradient": goal.get("color_gradient"),
+                    "is_active": goal.get("is_active", True),
+                    "source": goal.get("source")
+                }
+                # Store with ObjectId string as key
+                campaign_goals[goal_id] = goal_data
+                # Also store with original ID if different
+                for orig_id, mapped_id in goal_id_mapping.items():
+                    if mapped_id == goal_id:
+                        campaign_goals[orig_id] = goal_data
+        
+        # Query goals by string ID (for non-ObjectId format)
+        if invalid_goal_ids:
+            for gid in invalid_goal_ids:
+                goal = await db.campaign_goals.find_one({
+                    "user_id": current_user.id,
+                    "_id": gid
+                })
+                if goal:
+                    goal_id = str(goal["_id"])
+                    goal_data = {
+                        "id": goal_id,
+                        "name": goal.get("name", ""),
+                        "description": goal.get("description"),
+                        "color_gradient": goal.get("color_gradient"),
+                        "is_active": goal.get("is_active", True),
+                        "source": goal.get("source")
+                    }
+                    campaign_goals[gid] = goal_data
+                    campaign_goals[goal_id] = goal_data
+    
+    # Get all workflows
+    workflows = {}
+    if workflow_ids:
+        # Try to find workflows by ID first
+        valid_workflow_object_ids = []
+        for wid in workflow_ids:
+            if wid:
+                try:
+                    valid_workflow_object_ids.append(ObjectId(wid))
+                except:
+                    pass
+        
+        if valid_workflow_object_ids:
+            workflows_cursor = db.workflows.find({
+                "user_id": current_user.id,
+                "_id": {"$in": valid_workflow_object_ids}
+            })
+            workflows_list = await workflows_cursor.to_list(length=None)
+            for workflow in workflows_list:
+                workflow_id = str(workflow["_id"])
+                workflows[workflow_id] = {
+                    "id": workflow_id,
+                    "function": workflow.get("function", ""),
+                    "name": workflow.get("name"),
+                    "description": workflow.get("description"),
+                    "nodes": workflow.get("nodes", []),
+                    "connections": workflow.get("connections", [])
+                }
+        
+        # Also try to find workflows by function name for those that weren't found
+        for wid in workflow_ids:
+            if wid not in workflows:
+                # Try as function name
+                workflow_by_function = await db.workflows.find_one({
+                    "user_id": current_user.id,
+                    "function": wid
+                })
+                if workflow_by_function:
+                    workflows[wid] = {
+                        "id": str(workflow_by_function["_id"]),
+                        "function": workflow_by_function.get("function", wid),
+                        "name": workflow_by_function.get("name"),
+                        "description": workflow_by_function.get("description"),
+                        "nodes": workflow_by_function.get("nodes", []),
+                        "connections": workflow_by_function.get("connections", [])
+                    }
+    
+    # Get all deals for these contacts
+    deals_cursor = db.deals.find({
+        "user_id": current_user.id,
+        "contact_id": {"$in": contact_ids}
+    })
+    all_deals = await deals_cursor.to_list(length=None)
+    
+    # Organize deals by contact_id
+    deals_by_contact = {}
+    for deal in all_deals:
+        contact_id = deal.get("contact_id")
+        if contact_id:
+            if contact_id not in deals_by_contact:
+                deals_by_contact[contact_id] = []
+            deals_by_contact[contact_id].append({
+                "id": str(deal["_id"]),
+                "name": deal.get("name", ""),
+                "description": deal.get("description"),
+                "status": deal.get("status"),
+                "priority": deal.get("priority"),
+                "amount": deal.get("amount", 0.0),
+                "revenue": deal.get("revenue", 0.0),
+                "cost": deal.get("cost", 0.0),
+                "probability": deal.get("probability"),
+                "expected_close_date": deal.get("expected_close_date"),
+                "created_at": deal.get("created_at"),
+                "updated_at": deal.get("updated_at")
+            })
+    
+    # Build response
+    result = []
+    for contact in contacts:
+        contact_id = str(contact["_id"])
+        
+        # Find campaigns containing this contact (only campaigns with workflow)
+        contact_campaigns = []
+        for campaign in all_campaigns:
+            # Only include campaigns that have a workflow_id
+            workflow_id = campaign.get("workflow_id")
+            if contact_id in campaign.get("contacts", []) and workflow_id:
+                campaign_info = {
+                    "id": str(campaign["_id"]),
+                    "name": campaign.get("name", ""),
+                    "description": campaign.get("description"),
+                    "status": campaign.get("status", ""),
+                    "type": campaign.get("type", ""),
+                    "source": campaign.get("source"),
+                    "created_at": campaign.get("created_at"),
+                    "updated_at": campaign.get("updated_at")
+                }
+                
+                # Add campaign goal if exists
+                goal_id = campaign.get("campaign_goal_id")
+                if goal_id and goal_id in campaign_goals:
+                    campaign_info["campaign_goal"] = CampaignGoalInfo(**campaign_goals[goal_id])
+                
+                # Add workflow (required - we already checked workflow_id exists)
+                if workflow_id:
+                    # Try to find workflow by ID or function name
+                    workflow_data = None
+                    # First try to find in already loaded workflows by exact ID match
+                    if workflow_id in workflows:
+                        workflow_data = workflows[workflow_id]
+                    else:
+                        # Try to find by converting to ObjectId and matching
+                        try:
+                            workflow_obj_id = ObjectId(workflow_id)
+                            workflow_str_id = str(workflow_obj_id)
+                            if workflow_str_id in workflows:
+                                workflow_data = workflows[workflow_str_id]
+                        except:
+                            pass
+                        
+                        # If still not found, try to find by function name
+                        if not workflow_data:
+                            workflow_by_function = await db.workflows.find_one({
+                                "user_id": current_user.id,
+                                "function": workflow_id
+                            })
+                            if workflow_by_function:
+                                workflow_data = {
+                                    "id": str(workflow_by_function["_id"]),
+                                    "function": workflow_by_function.get("function", workflow_id),
+                                    "name": workflow_by_function.get("name"),
+                                    "description": workflow_by_function.get("description"),
+                                    "nodes": workflow_by_function.get("nodes", []),
+                                    "connections": workflow_by_function.get("connections", [])
+                                }
+                    
+                    if workflow_data:
+                        campaign_info["workflow"] = WorkflowInfo(**workflow_data)
+                
+                contact_campaigns.append(CampaignInfo(**campaign_info))
+        
+        # Get deals for this contact
+        contact_deals = deals_by_contact.get(contact_id, [])
+        
+        # Build contact response
+        contact_dict = dict(contact)
+        contact_dict['id'] = contact_id
+        del contact_dict['_id']
+        
+        result.append(ContactDetailResponse(
+            **contact_dict,
+            campaigns=contact_campaigns,
+            deals=[DealInfo(**deal) for deal in contact_deals]
+        ))
+    
+    return result
 
 @router.get("/{contact_id}", response_model=ContactResponse)
 async def get_contact(

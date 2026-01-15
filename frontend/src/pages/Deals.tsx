@@ -237,13 +237,13 @@ const Deals: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'new':
-        return 'bg-blue-100 text-blue-800'
+        return 'bg-blue-100 text-blue-700 border-blue-200'
       case 'contacted':
-        return 'bg-yellow-100 text-yellow-800'
+        return 'bg-amber-100 text-amber-700 border-amber-200'
       case 'negotiation':
-        return 'bg-green-100 text-green-800'
+        return 'bg-green-100 text-green-700 border-green-200'
       default:
-        return 'bg-gray-100 text-gray-800'
+        return 'bg-gray-100 text-gray-700 border-gray-200'
     }
   }
 
@@ -424,53 +424,54 @@ const Deals: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Deals Management</h1>
-          <p className="text-gray-600">Manage your business deals and track revenue</p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* View Mode Toggle */}
-          <div className="flex items-center bg-gray-100 rounded-lg p-1">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Modern Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+          <div className="space-y-1">
+            <h1 className="text-4xl font-semibold text-gray-900 tracking-tight">Deals</h1>
+            <p className="text-base text-gray-500 font-light">Manage your business deals and track revenue</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* View Mode Toggle - Apple Style */}
+            <div className="flex items-center bg-white/80 backdrop-blur-xl rounded-2xl p-1.5 shadow-sm border border-gray-200/50">
+              <button
+                onClick={() => setViewMode('pipeline')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'pipeline'
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
+                }`}
+              >
+                <Kanban className="h-4 w-4" />
+                Pipeline
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  viewMode === 'list'
+                    ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
+                }`}
+              >
+                <LayoutList className="h-4 w-4" />
+                List
+              </button>
+            </div>
+            
             <button
-              onClick={() => setViewMode('pipeline')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'pipeline'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
+              onClick={() => setShowCreateModal(true)}
+              className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2.5 rounded-xl hover:from-blue-600 hover:to-blue-700 flex items-center gap-2 shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 transition-all duration-200 font-medium"
             >
-              <Kanban className="h-4 w-4" />
-              Pipeline
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <LayoutList className="h-4 w-4" />
-              List
+              <Plus className="h-4 w-4" />
+              Create Deal
             </button>
           </div>
-          
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Create Deal
-          </button>
         </div>
-      </div>
 
       {/* Pipeline View */}
       {viewMode === 'pipeline' && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border">
+        <div className="bg-white/60 backdrop-blur-xl p-8 rounded-3xl shadow-xl border border-gray-200/50">
           <SalesPipeline
             key={pipelineKey}
             onViewDeal={(deal) => {
@@ -492,100 +493,111 @@ const Deals: React.FC = () => {
       {/* List View Content */}
       {viewMode === 'list' && (
         <>
-          {/* Statistics Cards */}
+          {/* Modern Statistics Cards - Apple Style */}
           {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Deals</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total_deals}</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="group bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-gray-200/50 hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Deals</p>
+                    <p className="text-3xl font-semibold text-gray-900">{stats.total_deals}</p>
+                  </div>
+                  <div className="p-4 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl shadow-lg shadow-blue-500/30">
+                    <Target className="h-6 w-6 text-white" />
+                  </div>
+                </div>
               </div>
-              <div className="p-3 bg-blue-100 rounded-full">
-                <Target className="h-6 w-6 text-blue-600" />
+
+              <div className="group bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-gray-200/50 hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Revenue</p>
+                    <p className="text-3xl font-semibold text-green-600">{formatCurrency(stats.total_revenue)}</p>
+                  </div>
+                  <div className="p-4 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl shadow-lg shadow-green-500/30">
+                    <DollarSign className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="group bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-gray-200/50 hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Cost</p>
+                    <p className="text-3xl font-semibold text-orange-600">{formatCurrency(stats.total_cost)}</p>
+                  </div>
+                  <div className="p-4 bg-gradient-to-br from-orange-500 to-red-500 rounded-2xl shadow-lg shadow-orange-500/30">
+                    <TrendingUp className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="group bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-gray-200/50 hover:shadow-xl hover:scale-[1.02] transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-gray-500 uppercase tracking-wide">Total Profit</p>
+                    <p className={`text-3xl font-semibold ${stats.total_profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatCurrency(stats.total_profit)}
+                    </p>
+                  </div>
+                  <div className={`p-4 rounded-2xl shadow-lg ${
+                    stats.total_profit >= 0 
+                      ? 'bg-gradient-to-br from-green-500 to-emerald-600 shadow-green-500/30' 
+                      : 'bg-gradient-to-br from-red-500 to-rose-600 shadow-red-500/30'
+                  }`}>
+                    <TrendingUp className="h-6 w-6 text-white" />
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Revenue</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(stats.total_revenue)}</p>
-              </div>
-              <div className="p-3 bg-green-100 rounded-full">
-                <DollarSign className="h-6 w-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Cost</p>
-                <p className="text-2xl font-bold text-red-600">{formatCurrency(stats.total_cost)}</p>
-              </div>
-              <div className="p-3 bg-red-100 rounded-full">
-                <TrendingUp className="h-6 w-6 text-red-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Profit</p>
-                <p className={`text-2xl font-bold ${stats.total_profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {formatCurrency(stats.total_profit)}
-                </p>
-              </div>
-              <div className={`p-3 rounded-full ${stats.total_profit >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
-                <TrendingUp className={`h-6 w-6 ${stats.total_profit >= 0 ? 'text-green-600' : 'text-red-600'}`} />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Status Statistics */}
+      {/* Status Statistics - Modern Cards */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow-sm border">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-blue-500" />
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 backdrop-blur-xl p-5 rounded-2xl shadow-md border border-blue-200/50 hover:shadow-lg transition-all duration-300">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-500/20 rounded-xl">
+                <AlertCircle className="h-5 w-5 text-blue-600" />
+              </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">New Deals</p>
-                <p className="text-xl font-bold text-blue-600">{stats.new_deals}</p>
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">New Deals</p>
+                <p className="text-2xl font-semibold text-blue-600 mt-1">{stats.new_deals}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-lg shadow-sm border">
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-yellow-500" />
+          <div className="bg-gradient-to-br from-amber-50 to-yellow-100/50 backdrop-blur-xl p-5 rounded-2xl shadow-md border border-amber-200/50 hover:shadow-lg transition-all duration-300">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-500/20 rounded-xl">
+                <Clock className="h-5 w-5 text-amber-600" />
+              </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">Contacted</p>
-                <p className="text-xl font-bold text-yellow-600">{stats.contacted_deals}</p>
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Contacted</p>
+                <p className="text-2xl font-semibold text-amber-600 mt-1">{stats.contacted_deals}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white p-4 rounded-lg shadow-sm border">
-            <div className="flex items-center gap-3">
-              <CheckCircle className="h-5 w-5 text-green-500" />
+          <div className="bg-gradient-to-br from-green-50 to-emerald-100/50 backdrop-blur-xl p-5 rounded-2xl shadow-md border border-green-200/50 hover:shadow-lg transition-all duration-300">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-green-500/20 rounded-xl">
+                <CheckCircle className="h-5 w-5 text-green-600" />
+              </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">Negotiation</p>
-                <p className="text-xl font-bold text-green-600">{stats.negotiation_deals}</p>
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Negotiation</p>
+                <p className="text-2xl font-semibold text-green-600 mt-1">{stats.negotiation_deals}</p>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Campaign Goals Section */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Campaign Goals</h2>
+      {/* Campaign Goals Section - Modern Design */}
+      <div className="bg-white/60 backdrop-blur-xl p-8 rounded-3xl shadow-xl border border-gray-200/50 mb-6">
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Campaign Goals</h2>
+          <p className="text-sm text-gray-500 mt-1">Track and manage your campaign objectives</p>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -593,53 +605,55 @@ const Deals: React.FC = () => {
             <div
               key={goal.id}
               onClick={() => navigate(`/campaign-goals/${goal.id}`)}
-              className="relative rounded-lg p-4 text-white font-medium text-center cursor-pointer hover:shadow-lg transition-shadow min-h-[120px] flex flex-col justify-center"
+              className="relative rounded-2xl p-6 text-white font-medium text-center cursor-pointer hover:shadow-2xl hover:scale-105 transition-all duration-300 min-h-[140px] flex flex-col justify-center group"
               style={{ background: goal.color_gradient }}
             >
-              <div className="text-lg font-semibold mb-2">{goal.name}</div>
+              <div className="text-lg font-semibold mb-2 group-hover:scale-110 transition-transform duration-300">{goal.name}</div>
               {!goal.is_active && (
-                <div className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
+                <div className="absolute top-3 right-3 bg-red-500/90 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full shadow-lg">
                   Inactive
                 </div>
               )}
             </div>
           ))}
           
-          {/* Add New Goal Button */}
+          {/* Add New Goal Button - Apple Style */}
           <div
             onClick={() => setShowCreateGoalModal(true)}
-            className="relative rounded-lg p-4 text-white font-medium text-center cursor-pointer hover:shadow-lg transition-shadow min-h-[120px] flex flex-col justify-center items-center"
-            style={{ background: 'linear-gradient(to right, #8B5CF6, #EC4899)' }}
+            className="relative rounded-2xl p-6 bg-gradient-to-br from-purple-500 via-pink-500 to-rose-500 text-white font-medium text-center cursor-pointer hover:shadow-2xl hover:scale-105 transition-all duration-300 min-h-[140px] flex flex-col justify-center items-center border-2 border-dashed border-white/30 hover:border-white/50"
           >
-            <Plus className="h-8 w-8 mb-2" />
+            <Plus className="h-8 w-8 mb-2 group-hover:rotate-90 transition-transform duration-300" />
             <div className="text-sm font-semibold">Add New Goal</div>
           </div>
         </div>
         
         {campaignGoals.length === 0 && (
-          <div className="text-center py-8">
-            <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No campaign goals found</p>
+          <div className="text-center py-12">
+            <div className="inline-flex p-4 bg-gray-100 rounded-2xl mb-4">
+              <Target className="h-12 w-12 text-gray-400" />
+            </div>
+            <p className="text-gray-600 font-medium">No campaign goals found</p>
             <p className="text-sm text-gray-500 mt-2">Create your first campaign goal to get started</p>
           </div>
         )}
       </div>
 
-      {/* Deals Campaigns Section */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900">Deals Campaigns</h2>
+      {/* Deals Campaigns Section - Modern Design */}
+      <div className="bg-white/60 backdrop-blur-xl p-8 rounded-3xl shadow-xl border border-gray-200/50 mb-6">
+        <div className="mb-8">
+          <h2 className="text-2xl font-semibold text-gray-900 tracking-tight">Deals Campaigns</h2>
+          <p className="text-sm text-gray-500 mt-1">Manage your marketing and sales campaigns</p>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
           {campaigns.map((campaign) => (
             <div
               key={campaign.id}
-              className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-md transition-all"
+              className="bg-white/80 backdrop-blur-xl border border-gray-200/50 rounded-2xl p-5 hover:border-blue-300 hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group"
             >
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="text-lg font-semibold text-gray-900 truncate">{campaign.name}</h3>
-                <div className="flex items-center space-x-1">
+              <div className="flex items-start justify-between mb-3">
+                <h3 className="text-lg font-semibold text-gray-900 truncate flex-1 pr-2">{campaign.name}</h3>
+                <div className="flex items-center space-x-1.5 flex-shrink-0">
                   {campaign.status === 'draft' && (
                     <button
                       onClick={(e) => {
@@ -647,7 +661,7 @@ const Deals: React.FC = () => {
                         handleCampaignAction(campaign.id, 'active', campaign.type);
                       }}
                       disabled={startingCampaignId === campaign.id}
-                      className="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-medium rounded-xl hover:shadow-lg shadow-green-500/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {startingCampaignId === campaign.id ? (
                         <>
@@ -668,7 +682,7 @@ const Deals: React.FC = () => {
                         e.stopPropagation();
                         handleCampaignAction(campaign.id, 'paused');
                       }}
-                      className="inline-flex items-center px-2 py-1 bg-yellow-600 text-white text-xs rounded hover:bg-yellow-700 transition-colors"
+                      className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-medium rounded-xl hover:shadow-lg shadow-amber-500/30 transition-all"
                     >
                       <Pause className="h-3 w-3 mr-1" />
                       Pause
@@ -681,7 +695,7 @@ const Deals: React.FC = () => {
                         handleCampaignAction(campaign.id, 'active', campaign.type);
                       }}
                       disabled={startingCampaignId === campaign.id}
-                      className="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-medium rounded-xl hover:shadow-lg shadow-green-500/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {startingCampaignId === campaign.id ? (
                         <>
@@ -701,123 +715,127 @@ const Deals: React.FC = () => {
                       e.stopPropagation();
                       handleDeleteCampaign(campaign.id, campaign.name);
                     }}
-                    className="inline-flex items-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
+                    className="inline-flex items-center px-3 py-1.5 bg-gradient-to-r from-red-500 to-rose-600 text-white text-xs font-medium rounded-xl hover:shadow-lg shadow-red-500/30 transition-all"
                   >
                     <Trash2 className="h-3 w-3" />
                   </button>
                 </div>
               </div>
               
-              <p className="text-gray-600 mb-3 text-sm line-clamp-2">{campaign.description}</p>
+              <p className="text-gray-600 mb-4 text-sm line-clamp-2 leading-relaxed">{campaign.description}</p>
               
-              <div className="flex items-center justify-between mb-3">
-                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                  campaign.status === 'active' ? 'bg-green-100 text-green-800' :
-                  campaign.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                  campaign.status === 'paused' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-gray-100 text-gray-800'
+              <div className="flex items-center justify-between mb-4">
+                <span className={`inline-flex px-3 py-1.5 text-xs font-semibold rounded-full ${
+                  campaign.status === 'active' ? 'bg-green-100 text-green-700 border border-green-200' :
+                  campaign.status === 'completed' ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                  campaign.status === 'paused' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                  'bg-gray-100 text-gray-700 border border-gray-200'
                 }`}>
                   {campaign.status}
                 </span>
-                <span className="text-sm text-gray-500">
+                <span className="text-xs text-gray-500 font-medium">
                   {new Date(campaign.created_at).toLocaleDateString()}
                 </span>
               </div>
               
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                 <Link
                   to={`/campaigns/${campaign.id}`}
-                  className="inline-flex items-center px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                  className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs font-medium rounded-xl hover:shadow-lg shadow-blue-500/30 transition-all"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <Eye className="h-3 w-3 mr-1" />
+                  <Eye className="h-3 w-3 mr-1.5" />
                   View Details
                 </Link>
                 {campaign.source && (
-                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                    Source: {campaign.source}
+                  <span className="text-xs text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg border border-gray-200">
+                    {campaign.source}
                   </span>
                 )}
               </div>
             </div>
           ))}
           
-          {/* Add New Campaign Button */}
+          {/* Add New Campaign Button - Apple Style */}
           <div
             onClick={() => setShowCreateCampaign(true)}
-            className="border-2 border-dashed border-gray-300 rounded-lg p-4 hover:border-blue-500 hover:bg-blue-50 transition-colors cursor-pointer flex flex-col items-center justify-center min-h-[200px]"
+            className="border-2 border-dashed border-gray-300 rounded-2xl p-6 hover:border-blue-400 hover:bg-gradient-to-br hover:from-blue-50 hover:to-blue-100/50 transition-all duration-300 cursor-pointer flex flex-col items-center justify-center min-h-[200px] group"
           >
-            <Plus className="h-8 w-8 text-gray-400 mb-2" />
-            <div className="text-gray-600 font-medium">Create Campaign</div>
-            <div className="text-sm text-gray-500 text-center">Start a new campaign for your deals</div>
+            <div className="p-3 bg-gray-100 rounded-xl group-hover:bg-blue-500 group-hover:scale-110 transition-all duration-300 mb-3">
+              <Plus className="h-8 w-8 text-gray-400 group-hover:text-white transition-colors duration-300" />
+            </div>
+            <div className="text-gray-700 font-semibold mb-1 group-hover:text-blue-600 transition-colors">Create Campaign</div>
+            <div className="text-sm text-gray-500 text-center group-hover:text-gray-600 transition-colors">Start a new campaign for your deals</div>
           </div>
         </div>
         
         {campaigns.length === 0 && (
-          <div className="text-center py-8">
-            <Target className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No deals campaigns found</p>
+          <div className="text-center py-12">
+            <div className="inline-flex p-4 bg-gray-100 rounded-2xl mb-4">
+              <Target className="h-12 w-12 text-gray-400" />
+            </div>
+            <p className="text-gray-600 font-medium">No deals campaigns found</p>
             <p className="text-sm text-gray-500 mt-2">Create your first campaign to get started</p>
           </div>
         )}
       </div>
 
-      {/* Filters and Search */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border">
+      {/* Filters and Search - Modern Design */}
+      <div className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-lg border border-gray-200/50">
         <div className="flex flex-col md:flex-row gap-4">
-          {/* Search */}
+          {/* Search - Apple Style */}
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search deals..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 backdrop-blur-sm transition-all duration-200 text-sm"
               />
             </div>
           </div>
 
-          {/* Status Filter */}
-          <div className="flex gap-2">
+          {/* Status Filter - Modern Pills */}
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => handleStatusFilter('all')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
                 statusFilter === 'all'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-white/80 text-gray-700 hover:bg-gray-50 border border-gray-200'
               }`}
             >
               All
             </button>
             <button
               onClick={() => handleStatusFilter('new')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
                 statusFilter === 'new'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-white/80 text-gray-700 hover:bg-gray-50 border border-gray-200'
               }`}
             >
               New
             </button>
             <button
               onClick={() => handleStatusFilter('contacted')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
                 statusFilter === 'contacted'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-white/80 text-gray-700 hover:bg-gray-50 border border-gray-200'
               }`}
             >
               Contacted
             </button>
             <button
               onClick={() => handleStatusFilter('negotiation')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
                 statusFilter === 'negotiation'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/30'
+                  : 'bg-white/80 text-gray-700 hover:bg-gray-50 border border-gray-200'
               }`}
             >
               Negotiation
@@ -826,7 +844,7 @@ const Deals: React.FC = () => {
 
           <button
             onClick={handleSearch}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2.5 rounded-xl hover:from-blue-600 hover:to-blue-700 flex items-center gap-2 shadow-lg shadow-blue-500/30 hover:shadow-xl transition-all duration-200 font-medium"
           >
             <Search className="h-4 w-4" />
             Search
@@ -834,53 +852,56 @@ const Deals: React.FC = () => {
         </div>
       </div>
 
-      {/* Error Message */}
+      {/* Error Message - Modern Design */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-          {error}
+        <div className="bg-gradient-to-r from-red-50 to-rose-50 border border-red-200/50 text-red-700 px-6 py-4 rounded-2xl shadow-md backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 flex-shrink-0" />
+            <span className="font-medium">{error}</span>
+          </div>
         </div>
       )}
 
-      {/* Deals List */}
-      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      {/* Deals List - Modern Table Design */}
+      <div className="bg-white/60 backdrop-blur-xl rounded-3xl shadow-xl border border-gray-200/50 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-gray-200/50">
+            <thead className="bg-gradient-to-r from-gray-50 to-gray-100/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Deal
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Contact
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Revenue
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Cost
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Profit
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Created
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white/50 divide-y divide-gray-200/30">
               {deals.map((deal) => (
-                <tr key={deal.id} className="hover:bg-gray-50">
+                <tr key={deal.id} className="hover:bg-white/80 transition-colors duration-200">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{deal.name}</div>
+                      <div className="text-sm font-semibold text-gray-900">{deal.name}</div>
                       {deal.description && (
-                        <div className="text-sm text-gray-500 truncate max-w-xs">
+                        <div className="text-sm text-gray-500 truncate max-w-xs mt-0.5">
                           {deal.description}
                         </div>
                       )}
@@ -890,28 +911,28 @@ const Deals: React.FC = () => {
                     <div>
                       <div className="text-sm font-medium text-gray-900">{deal.contact_name}</div>
                       {deal.contact_email && (
-                        <div className="text-sm text-gray-500">{deal.contact_email}</div>
+                        <div className="text-sm text-gray-500 mt-0.5">{deal.contact_email}</div>
                       )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(deal.status)}`}>
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${getStatusColor(deal.status)} border`}>
                       {getStatusIcon(deal.status)}
                       {deal.status.charAt(0).toUpperCase() + deal.status.slice(1)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-semibold">
                     {formatCurrency(deal.revenue)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600 font-semibold">
                     {formatCurrency(deal.cost)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold">
                     <span className={deal.revenue - deal.cost >= 0 ? 'text-green-600' : 'text-red-600'}>
                       {formatCurrency(deal.revenue - deal.cost)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-medium">
                     {formatDate(deal.created_at)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -921,7 +942,8 @@ const Deals: React.FC = () => {
                           setSelectedDeal(deal)
                           setShowDetailModal(true)
                         }}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-all duration-200 hover:scale-110"
+                        title="View"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
@@ -930,13 +952,15 @@ const Deals: React.FC = () => {
                           setSelectedDeal(deal)
                           setShowEditModal(true)
                         }}
-                        className="text-yellow-600 hover:text-yellow-900"
+                        className="p-2 text-amber-600 hover:bg-amber-50 rounded-xl transition-all duration-200 hover:scale-110"
+                        title="Edit"
                       >
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
                         onClick={() => handleDeleteDeal(deal.id)}
-                        className="text-red-600 hover:text-red-900"
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 hover:scale-110"
+                        title="Delete"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -948,46 +972,46 @@ const Deals: React.FC = () => {
           </table>
         </div>
 
-        {/* Pagination */}
+        {/* Pagination - Modern Design */}
         {totalPages > 1 && (
-          <div className="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+          <div className="bg-white/50 backdrop-blur-sm px-6 py-4 border-t border-gray-200/50">
             <div className="flex items-center justify-between">
               <div className="flex-1 flex justify-between sm:hidden">
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-xl text-gray-700 bg-white/80 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   Previous
                 </button>
                 <button
                   onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                   disabled={currentPage === totalPages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-xl text-gray-700 bg-white/80 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
                   Next
                 </button>
               </div>
               <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm text-gray-700">
-                    Showing page <span className="font-medium">{currentPage}</span> of{' '}
-                    <span className="font-medium">{totalPages}</span>
+                  <p className="text-sm text-gray-600 font-medium">
+                    Showing page <span className="font-semibold text-gray-900">{currentPage}</span> of{' '}
+                    <span className="font-semibold text-gray-900">{totalPages}</span>
                   </p>
                 </div>
                 <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                  <nav className="relative z-0 inline-flex rounded-xl shadow-sm -space-x-px">
                     <button
                       onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                       disabled={currentPage === 1}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="relative inline-flex items-center px-4 py-2 rounded-l-xl border border-gray-300 bg-white/80 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       Previous
                     </button>
                     <button
                       onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                       disabled={currentPage === totalPages}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="relative inline-flex items-center px-4 py-2 rounded-r-xl border border-gray-300 bg-white/80 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                       Next
                     </button>
@@ -999,20 +1023,22 @@ const Deals: React.FC = () => {
         )}
       </div>
 
-      {/* Empty State */}
+      {/* Empty State - Modern Design */}
       {deals.length === 0 && !loading && (
-        <div className="text-center py-12">
-          <Target className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No deals yet</h3>
-          <p className="mt-1 text-sm text-gray-500">
+        <div className="text-center py-16 bg-white/60 backdrop-blur-xl rounded-3xl shadow-xl border border-gray-200/50">
+          <div className="inline-flex p-5 bg-gray-100 rounded-2xl mb-6">
+            <Target className="h-16 w-16 text-gray-400" />
+          </div>
+          <h3 className="mt-2 text-lg font-semibold text-gray-900">No deals yet</h3>
+          <p className="mt-2 text-sm text-gray-500 max-w-sm mx-auto">
             Start managing your business deals by creating your first deal.
           </p>
-          <div className="mt-6">
+          <div className="mt-8">
             <button
               onClick={() => setShowCreateModal(true)}
-              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              className="inline-flex items-center px-6 py-3 border border-transparent shadow-lg text-sm font-semibold rounded-xl text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 hover:shadow-xl hover:shadow-blue-500/30"
             >
-              <Plus className="h-4 w-4 mr-2" />
+              <Plus className="h-5 w-5 mr-2" />
               Create Your First Deal
             </button>
           </div>
@@ -1020,6 +1046,7 @@ const Deals: React.FC = () => {
       )}
         </>
       )}
+      </div>
 
       {/* Create Deal Modal */}
       <DealCreateModal
