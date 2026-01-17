@@ -7,6 +7,10 @@ class Settings(BaseSettings):
     MONGODB_URL: str = "mongodb://admin:password123@localhost:27017/agentvoice?authSource=admin"
     MONGODB_DATABASE: str = "agentvoice"
     
+    # Weaviate Vector Database
+    WEAVIATE_URL: str = "http://localhost:8080"
+    WEAVIATE_API_KEY: str = ""  # Optional: for authentication if enabled
+    
     # JWT
     JWT_SECRET_KEY: str = "your-super-secret-jwt-key-change-in-production"
     JWT_ALGORITHM: str = "HS256"

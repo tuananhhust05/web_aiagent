@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -246,6 +246,34 @@ export const ragAPI = {
       formData.append('description', description)
     }
     return api.post('/api/rag/voices/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
+  // RAG Sales Coach Document APIs
+  getRAGDocuments: () => api.get('/api/rag/sales-coach/documents'),
+  uploadRAGDocument: (file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post('/api/rag/sales-coach/documents', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 300000, // 5 minutes timeout for large files
+    })
+  },
+  downloadRAGDocument: (documentId: string) => 
+    api.get(`/api/rag/sales-coach/documents/${documentId}/download`, {
+      responseType: 'blob',
+    }),
+  deleteRAGDocument: (documentId: string) => 
+    api.delete(`/api/rag/sales-coach/documents/${documentId}`),
+  searchRAGDocuments: (query: string, limit: number = 10) => {
+    const formData = new FormData()
+    formData.append('query', query)
+    formData.append('limit', limit.toString())
+    return api.post('/api/rag/sales-coach/search', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

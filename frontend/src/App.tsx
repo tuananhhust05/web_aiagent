@@ -62,6 +62,7 @@ import WorkflowBuilder from './pages/WorkflowBuilder'
 import CampaignGoalDetail from './pages/CampaignGoalDetail'
 import AISalesCopilotPage from './pages/AISalesCopilotPage'
 import AISalesCopilotDetailPage from './pages/AISalesCopilotDetailPage'
+import RAGSalesCoach from './pages/RAGSalesCoach'
 import ComingSoon from './pages/ComingSoon'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 
@@ -130,6 +131,7 @@ function App() {
             <Route path="/crm" element={<CRM />} />
             <Route path="/agent" element={<Agent />} />
             <Route path="/ragclient" element={<RAG />} />
+            <Route path="/rag-sales-coach" element={<RAGSalesCoach />} />
             <Route path="/voice-training" element={<VoiceTraining />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/emails" element={<EmailList />} />

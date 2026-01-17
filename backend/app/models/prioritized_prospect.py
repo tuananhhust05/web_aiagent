@@ -15,6 +15,12 @@ class AITip(BaseModel):
     content: str = Field(..., description="Detailed tip content")
     category: Optional[str] = Field(None, description="Tip category (e.g., 'personalization', 'timing', 'engagement')")
 
+class UsedRule(BaseModel):
+    content: str = Field(..., description="Rule content from Weaviate")
+    doc_id: str = Field(..., description="Document ID this rule belongs to")
+    chunk_index: int = Field(..., description="Chunk index in the document")
+    similarity_score: Optional[float] = Field(None, description="Similarity score from search")
+
 class PrioritizedProspectBase(BaseModel):
     prospect_id: str = Field(..., description="Contact ID")
     prospect_name: str = Field(..., description="Contact name")
@@ -29,6 +35,7 @@ class PrioritizedProspectBase(BaseModel):
     contact_data: Optional[Dict[str, Any]] = Field(None, description="Full contact data")
     campaign_data: Optional[List[Dict[str, Any]]] = Field(None, description="Campaigns data")
     deal_data: Optional[List[Dict[str, Any]]] = Field(None, description="Deals data")
+    rules_used: Optional[List[UsedRule]] = Field(None, description="Rules from Weaviate used in analysis")
 
 class PrioritizedProspectCreate(PrioritizedProspectBase):
     pass
@@ -47,6 +54,7 @@ class PrioritizedProspectUpdate(BaseModel):
     contact_data: Optional[Dict[str, Any]] = None
     campaign_data: Optional[List[Dict[str, Any]]] = None
     deal_data: Optional[List[Dict[str, Any]]] = None
+    rules_used: Optional[List[UsedRule]] = None
 
 class PrioritizedProspectResponse(PrioritizedProspectBase):
     id: str

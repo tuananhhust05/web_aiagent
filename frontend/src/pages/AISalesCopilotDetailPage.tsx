@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, User, Check, ChevronRight, ThumbsUp, ThumbsDown, BarChart3 } from 'lucide-react'
+import { ArrowLeft, User, Check, ChevronRight, ThumbsUp, ThumbsDown, BarChart3, FileText, ExternalLink } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { prioritizedProspectsAPI } from '../lib/api'
 import AIActionCard from '../components/AIActionCard'
@@ -11,6 +11,26 @@ interface AITip {
   title: string
   content: string
   category?: string
+}
+
+interface UsedRule {
+  content: string
+  doc_id: string
+  chunk_index: number
+  similarity_score?: number
+  document?: {
+    id: string
+    filename: string
+    original_filename: string
+    file_path?: string
+    file_size?: number
+    user_id?: string
+    status?: string
+    total_chunks?: number
+    error_message?: string | null
+    uploaded_at?: string
+    processed_at?: string | null
+  }
 }
 
 interface PrioritizedProspect {
@@ -28,6 +48,7 @@ interface PrioritizedProspect {
   contact_data?: any
   campaign_data?: any[]
   deal_data?: any[]
+  rules_used?: UsedRule[]
 }
 
 export default function AISalesCopilotDetailPage() {
@@ -230,6 +251,85 @@ export default function AISalesCopilotDetailPage() {
                   </>
                 )}
               </div>
+
+              {/* Rules Used Section */}
+              {selectedProspect?.rules_used && selectedProspect.rules_used.length > 0 && (
+                <>
+                  <div className="mx-4 h-px bg-sky-100" />
+                  <div className="px-4 py-4">
+                    <p className="text-xs font-semibold text-gray-900 mb-3">
+                      Rules Used from Knowledge Base ({selectedProspect.rules_used.length})
+                    </p>
+                    <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                      {selectedProspect.rules_used.map((rule: UsedRule, index: number) => (
+                        <div key={index} className="bg-sky-50 rounded-lg p-3 border border-sky-100">
+                          <p className="text-xs text-slate-700 leading-relaxed mb-2">
+                            {rule.content}
+                          </p>
+                          {rule.document && (
+                            <div className="mt-2 pt-2 border-t border-sky-200 space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                  <FileText className="h-3 w-3 text-sky-500 flex-shrink-0" />
+                                  <span className="text-[10px] font-semibold text-slate-700 truncate" title={rule.document.original_filename || rule.document.filename}>
+                                    {rule.document.original_filename || rule.document.filename}
+                                  </span>
+                                  {rule.similarity_score && (
+                                    <span className="ml-1.5 text-[10px] text-sky-600 font-medium flex-shrink-0">
+                                      ({(rule.similarity_score * 100).toFixed(0)}% match)
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => navigate(`/rag-sales-coach`)}
+                                  className="text-[10px] text-blue-600 hover:text-blue-700 flex items-center gap-1 transition-colors flex-shrink-0"
+                                  title="View document in RAG Sales Coach"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                </button>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
+                                {rule.document.status && (
+                                  <span className={`px-1.5 py-0.5 rounded ${
+                                    rule.document.status === 'processed' ? 'bg-green-100 text-green-700' :
+                                    rule.document.status === 'processing' ? 'bg-yellow-100 text-yellow-700' :
+                                    rule.document.status === 'failed' ? 'bg-red-100 text-red-700' :
+                                    'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {rule.document.status}
+                                  </span>
+                                )}
+                                {rule.document.total_chunks !== undefined && rule.document.total_chunks > 0 && (
+                                  <span>Chunks: {rule.document.total_chunks}</span>
+                                )}
+                                {rule.document.file_size && rule.document.file_size > 0 && (
+                                  <span>• Size: {(rule.document.file_size / 1024).toFixed(1)} KB</span>
+                                )}
+                                {rule.document.uploaded_at && (
+                                  <span>• Uploaded: {new Date(rule.document.uploaded_at).toLocaleDateString()}</span>
+                                )}
+                                {rule.document.processed_at && (
+                                  <span>• Processed: {new Date(rule.document.processed_at).toLocaleDateString()}</span>
+                                )}
+                              </div>
+                              {rule.chunk_index !== undefined && (
+                                <div className="text-[10px] text-slate-400">
+                                  Chunk #{rule.chunk_index + 1} of {rule.document.total_chunks || '?'}
+                                </div>
+                              )}
+                              {rule.document.error_message && (
+                                <div className="text-[10px] text-red-600 bg-red-50 px-2 py-1 rounded">
+                                  Error: {rule.document.error_message}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
               {/* Divider */}
               <div className="mx-4 h-px bg-sky-100" />

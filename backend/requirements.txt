@@ -9,7 +9,7 @@ python-multipart==0.0.6
 pydantic==2.5.0
 pydantic-settings==2.1.0
 python-dotenv==1.0.0
-httpx==0.25.2
+httpx==0.26.0
 pandas==2.1.4
 openpyxl==3.1.2
 xlrd==2.0.1
@@ -19,3 +19,8 @@ twilio
 aiohttp==3.9.1
 pytz==2023.3
 telethon==1.35.0
+weaviate-client==4.4.0
+sentence-transformers==2.2.2
+torch==2.1.2
+transformers==4.35.0
+pypdf==3.17.0

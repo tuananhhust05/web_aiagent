@@ -44,6 +44,7 @@ interface NavigationItem {
 const settingsNavigation: NavigationItem[] = [
   { name: 'Agent', href: '/agent', icon: Mic },
   { name: 'RAG', href: '/ragclient', icon: FileText },
+  { name: 'RAG AI Sales Coach', href: '/rag-sales-coach', icon: Brain },
 ]
 
 // More Functions submenu items

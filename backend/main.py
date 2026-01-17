@@ -4,7 +4,37 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import os
 import asyncio
+import subprocess
+import sys
+import logging
 from motor.motor_asyncio import AsyncIOMotorClient
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+# Auto-install requirements on startup
+def ensure_requirements_installed():
+    """Install all requirements from requirements.txt on startup"""
+    requirements_path = os.path.join(os.path.dirname(__file__), "requirements.txt")
+    
+    print("📦 Installing dependencies from requirements.txt...")
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "-r", requirements_path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        print("✅ Dependencies installed successfully from requirements.txt")
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to install requirements: {e}")
+        print(f"⚠️ Please run manually: pip install -r {requirements_path}")
+
+# Install requirements on startup
+ensure_requirements_installed()
 
 from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies, uploads, prioritized_prospects
 

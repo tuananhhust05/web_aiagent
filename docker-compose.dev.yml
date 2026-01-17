@@ -18,6 +18,26 @@ services:
     networks:
       - agentvoice_network
 
+  # Weaviate Vector Database
+  weaviate:
+    image: semitechnologies/weaviate:1.24.0
+    container_name: agentvoice_weaviate_dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+      - "50051:50051"
+    environment:
+      - QUERY_DEFAULTS_LIMIT=25
+      - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
+      - PERSISTENCE_DATA_PATH=/var/lib/weaviate
+      - DEFAULT_VECTORIZER_MODULE=none
+      - ENABLE_MODULES=text2vec-openai,text2vec-cohere,text2vec-huggingface,ref2vec-centroid,generative-openai,qna-openai
+      - CLUSTER_HOSTNAME=node1
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    networks:
+      - agentvoice_network
+
   # Backend FastAPI
   backend:
     build:
@@ -27,12 +47,14 @@ services:
     restart: unless-stopped
     environment:
       - MONGODB_URL=mongodb://admin:password123@mongodb:27017/agentvoice?authSource=admin
+      - WEAVIATE_URL=http://weaviate:8080
       - JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
       - CORS_ORIGINS=https://forskale.com,https://forskale.com:3000
     ports:
       - "8000:8000"
     depends_on:
       - mongodb
+      - weaviate
     volumes:
       - ./backend:/app
       - /app/__pycache__
@@ -60,6 +82,7 @@ services:
 
 volumes:
   mongodb_data:
+  weaviate_data:
 
 networks:
   agentvoice_network:

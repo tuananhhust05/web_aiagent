@@ -1,17 +1,34 @@
-from fastapi import APIRouter, HTTPException, Depends, Path, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException, Depends, Path, UploadFile, File, Form, BackgroundTasks
+from fastapi.responses import FileResponse
 from app.core.auth import get_current_active_user
 from app.models.user import UserResponse
+from app.models.rag_document import RAGDocumentResponse, RAGDocumentStatus
 from app.core.config import settings
-from app.core.database import get_database
+from app.core.database import get_database, get_weaviate
+from app.services.pdf_processor import process_pdf_to_chunks
+from app.services.vectorization import vectorize_texts, vectorize_text
 import httpx
 import os
 import traceback
 import tempfile
 import shutil
-from typing import Optional
+from typing import Optional, List
 import json
 import base64
 from datetime import datetime
+import uuid
+from bson import ObjectId
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Try to import Weaviate Filter (for delete operations)
+try:
+    from weaviate.classes.query import Filter
+    WEAVIATE_FILTER_AVAILABLE = True
+except ImportError:
+    WEAVIATE_FILTER_AVAILABLE = False
+
 router = APIRouter()
 
 @router.get("/knowledge-base")
@@ -866,6 +883,612 @@ async def delete_knowledge_base(
             detail=f"Error connecting to ElevenLabs API: {str(e)}"
         )
     except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+# RAG Sales Coach Document Management Endpoints
+RAG_DOCUMENTS_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "rag_documents")
+)
+os.makedirs(RAG_DOCUMENTS_DIR, exist_ok=True)
+
+async def process_document_background(doc_id: str, file_path: str, user_id: str):
+    """
+    Background task to process PDF document
+    """
+    db = get_database()
+    logger.info(f"🔄 [RAG] Starting background processing for document {doc_id}")
+    
+    try:
+        # Step 1: Extract text and create chunks
+        logger.info(f"📄 [RAG] Step 1: Extracting text from PDF: {file_path}")
+        chunks = process_pdf_to_chunks(file_path, max_tokens=512)
+        logger.info(f"✅ [RAG] Step 1: Created {len(chunks)} chunks from PDF")
+        
+        if not chunks:
+            raise Exception("No chunks extracted from PDF")
+        
+        # Step 2: Vectorize chunks
+        logger.info(f"🔢 [RAG] Step 2: Vectorizing {len(chunks)} chunks...")
+        chunk_texts = [chunk[0] for chunk in chunks]
+        vectors = vectorize_texts(chunk_texts)
+        logger.info(f"✅ [RAG] Step 2: Vectorized {len(vectors)} chunks (vector dim: {len(vectors[0]) if vectors else 0})")
+        
+        # Step 3: Insert into Weaviate
+        logger.info(f"💾 [RAG] Step 3: Inserting into Weaviate...")
+        weaviate_client = get_weaviate()
+        if not weaviate_client:
+            raise Exception("Weaviate client not available")
+        
+        collection = weaviate_client.collections.get("DataAiSaleCoach")
+        logger.info(f"✅ [RAG] Step 3a: Got Weaviate collection 'DataAiSaleCoach'")
+        
+        # Prepare data objects
+        data_objects = []
+        for idx, (chunk_text, chunk_index) in enumerate(chunks):
+            data_objects.append({
+                "user_id": user_id,
+                "doc_id": doc_id,
+                "content": chunk_text,
+                "chunk_index": chunk_index
+            })
+        
+        logger.info(f"📦 [RAG] Step 3b: Prepared {len(data_objects)} data objects for insertion")
+        
+        # Insert with vectors
+        inserted_count = 0
+        with collection.batch.dynamic() as batch:
+            for idx, data_obj in enumerate(data_objects):
+                try:
+                    batch.add_object(
+                        properties=data_obj,
+                        vector=vectors[idx]
+                    )
+                    inserted_count += 1
+                    if (idx + 1) % 10 == 0:
+                        logger.info(f"📤 [RAG] Step 3c: Inserted {idx + 1}/{len(data_objects)} objects...")
+                except Exception as e:
+                    logger.error(f"❌ [RAG] Error inserting object {idx}: {e}")
+                    raise
+        
+        logger.info(f"✅ [RAG] Step 3: Successfully inserted {inserted_count} objects into Weaviate")
+        
+        # Step 4: Update document status
+        logger.info(f"💾 [RAG] Step 4: Updating document status in MongoDB...")
+        await db.rag_documents.update_one(
+            {"_id": doc_id},
+            {
+                "$set": {
+                    "status": RAGDocumentStatus.PROCESSED,
+                    "total_chunks": len(chunks),
+                    "processed_at": datetime.utcnow()
+                }
+            }
+        )
+        logger.info(f"✅ [RAG] Document {doc_id} processed successfully! Total chunks: {len(chunks)}")
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"❌ [RAG] Error processing document {doc_id}: {error_msg}")
+        traceback.print_exc()
+        
+        # Update document status to failed
+        try:
+            await db.rag_documents.update_one(
+                {"_id": doc_id},
+                {
+                    "$set": {
+                        "status": RAGDocumentStatus.FAILED,
+                        "error_message": error_msg,
+                        "processed_at": datetime.utcnow()
+                    }
+                }
+            )
+            logger.info(f"💾 [RAG] Updated document {doc_id} status to FAILED")
+        except Exception as update_error:
+            logger.error(f"❌ [RAG] Failed to update document status: {update_error}")
+
+@router.post("/sales-coach/documents")
+async def upload_rag_document(
+    file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Upload a PDF document for RAG Sales Coach
+    - Stores the file for later download
+    - Creates a record in MongoDB
+    - Processes PDF in background: extracts text, chunks it, vectorizes, and inserts into Weaviate
+    """
+    try:
+        logger.info(f"📤 [RAG] Starting upload for user {current_user.id}, file: {file.filename}")
+        
+        # Validate file type (only PDF)
+        file_extension = file.filename.lower().split('.')[-1]
+        if file_extension != 'pdf':
+            logger.warning(f"❌ [RAG] Invalid file type: {file_extension}")
+            raise HTTPException(
+                status_code=400,
+                detail="Only PDF files are supported"
+            )
+        
+        # Read file content
+        logger.info(f"📖 [RAG] Reading file content...")
+        file_bytes = await file.read()
+        file_size = len(file_bytes)
+        logger.info(f"✅ [RAG] File read: {file_size} bytes")
+        
+        # Generate unique filename
+        unique_filename = f"{uuid.uuid4().hex}.pdf"
+        file_path = os.path.join(RAG_DOCUMENTS_DIR, unique_filename)
+        logger.info(f"💾 [RAG] Saving file to: {file_path}")
+        
+        # Save file
+        with open(file_path, "wb") as f:
+            f.write(file_bytes)
+        logger.info(f"✅ [RAG] File saved successfully")
+        
+        # Create document record in MongoDB
+        db = get_database()
+        doc_id = str(ObjectId())
+        logger.info(f"📝 [RAG] Creating document record with ID: {doc_id}")
+        
+        document_doc = {
+            "_id": doc_id,
+            "filename": unique_filename,
+            "original_filename": file.filename,
+            "file_path": file_path,
+            "file_size": file_size,
+            "user_id": current_user.id,
+            "status": RAGDocumentStatus.PROCESSING,
+            "total_chunks": 0,
+            "error_message": None,
+            "uploaded_at": datetime.utcnow(),
+            "processed_at": None
+        }
+        
+        await db.rag_documents.insert_one(document_doc)
+        logger.info(f"✅ [RAG] Document record created in MongoDB")
+        
+        # Add background task to process PDF
+        logger.info(f"🚀 [RAG] Adding background task to process PDF...")
+        background_tasks.add_task(
+            process_document_background,
+            doc_id,
+            file_path,
+            current_user.id
+        )
+        logger.info(f"✅ [RAG] Background task added, returning response")
+        
+        return {
+            "id": doc_id,
+            "filename": file.filename,
+            "status": RAGDocumentStatus.PROCESSING,
+            "total_chunks": 0,
+            "message": "Document uploaded successfully. Processing in background..."
+        }
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ [RAG] Upload error: {str(e)}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+@router.get("/sales-coach/documents")
+async def get_rag_documents(
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Get list of RAG documents for the current user
+    """
+    try:
+        db = get_database()
+        cursor = db.rag_documents.find({"user_id": current_user.id}).sort("uploaded_at", -1)
+        documents = await cursor.to_list(length=None)
+        
+        result = []
+        for doc in documents:
+            result.append({
+                "id": str(doc["_id"]),
+                "name": doc.get("original_filename", doc.get("filename", "")),
+                "size": doc.get("file_size", 0),
+                "uploadedAt": doc.get("uploaded_at", datetime.utcnow()).isoformat(),
+                "status": doc.get("status", RAGDocumentStatus.PROCESSING),
+                "type": "pdf",
+                "pages": 0,  # We don't track pages separately
+                "total_chunks": doc.get("total_chunks", 0),
+                "error_message": doc.get("error_message")
+            })
+        
+        return result
+        
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+@router.get("/sales-coach/documents/{document_id}/download")
+async def download_rag_document(
+    document_id: str = Path(..., description="Document ID to download"),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Download a RAG document file
+    """
+    try:
+        db = get_database()
+        doc = await db.rag_documents.find_one({
+            "_id": document_id,
+            "user_id": current_user.id
+        })
+        
+        if not doc:
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found"
+            )
+        
+        file_path = doc.get("file_path")
+        if not file_path or not os.path.exists(file_path):
+            raise HTTPException(
+                status_code=404,
+                detail="File not found on server"
+            )
+        
+        original_filename = doc.get("original_filename", doc.get("filename", "document.pdf"))
+        
+        return FileResponse(
+            path=file_path,
+            filename=original_filename,
+            media_type="application/pdf"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+@router.delete("/sales-coach/documents/{document_id}")
+async def delete_rag_document(
+    document_id: str = Path(..., description="Document ID to delete"),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Delete a RAG document and its associated data from Weaviate and MongoDB
+    - Deletes all chunks with matching doc_id from Weaviate
+    - Deletes the document record from MongoDB
+    - Deletes the physical file from disk
+    """
+    try:
+        logger.info(f"🗑️ [RAG] Starting deletion of document {document_id} for user {current_user.id}")
+        
+        db = get_database()
+        doc = await db.rag_documents.find_one({
+            "_id": document_id,
+            "user_id": current_user.id
+        })
+        
+        if not doc:
+            logger.warning(f"❌ [RAG] Document {document_id} not found for user {current_user.id}")
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found"
+            )
+        
+        logger.info(f"✅ [RAG] Found document: {doc.get('original_filename', 'unknown')}")
+        
+        # Step 1: Delete from Weaviate
+        chunks_deleted = 0
+        try:
+            logger.info(f"💾 [RAG] Step 1: Deleting chunks from Weaviate for doc_id={document_id}...")
+            weaviate_client = get_weaviate()
+            if not weaviate_client:
+                logger.warning(f"⚠️ [RAG] Weaviate client not available, skipping Weaviate deletion")
+            else:
+                collection = weaviate_client.collections.get("DataAiSaleCoach")
+                
+                # Count chunks before deletion
+                try:
+                    if WEAVIATE_FILTER_AVAILABLE:
+                        # Use Filter API if available
+                        result = collection.query.fetch_objects(
+                            where=Filter.by_property("doc_id").equal(document_id),
+                            limit=10000  # Large limit to get all
+                        )
+                        chunks_deleted = len(result.objects) if result.objects else 0
+                        logger.info(f"📊 [RAG] Found {chunks_deleted} chunks to delete in Weaviate")
+                        
+                        if chunks_deleted > 0:
+                            # Delete using delete_many
+                            collection.data.delete_many(
+                                where=Filter.by_property("doc_id").equal(document_id)
+                            )
+                            logger.info(f"✅ [RAG] Deleted {chunks_deleted} chunks from Weaviate using delete_many")
+                    else:
+                        # Fallback: query and delete in batches
+                        total_deleted = 0
+                        batch_size = 1000
+                        offset = 0
+                        
+                        while True:
+                            results = collection.query.fetch_objects(
+                                where={"path": ["doc_id"], "operator": "Equal", "valueString": document_id},
+                                limit=batch_size,
+                                offset=offset
+                            )
+                            
+                            if not results.objects or len(results.objects) == 0:
+                                break
+                            
+                            uuids_to_delete = [obj.uuid for obj in results.objects]
+                            logger.info(f"📤 [RAG] Deleting batch of {len(uuids_to_delete)} chunks (offset={offset})...")
+                            
+                            for uuid_to_delete in uuids_to_delete:
+                                try:
+                                    collection.data.delete_by_id(uuid_to_delete)
+                                    total_deleted += 1
+                                except Exception as del_error:
+                                    logger.warning(f"⚠️ [RAG] Failed to delete chunk {uuid_to_delete}: {del_error}")
+                            
+                            if len(results.objects) < batch_size:
+                                break
+                            
+                            offset += batch_size
+                        
+                        chunks_deleted = total_deleted
+                        logger.info(f"✅ [RAG] Deleted {chunks_deleted} chunks from Weaviate (batch method)")
+                        
+                except Exception as count_error:
+                    logger.warning(f"⚠️ [RAG] Error counting/deleting chunks: {count_error}")
+                    # Try to delete anyway
+                    if WEAVIATE_FILTER_AVAILABLE:
+                        try:
+                            collection.data.delete_many(
+                                where=Filter.by_property("doc_id").equal(document_id)
+                            )
+                            logger.info(f"✅ [RAG] Attempted bulk delete from Weaviate")
+                        except:
+                            pass
+                            
+        except Exception as e:
+            logger.error(f"❌ [RAG] Error deleting from Weaviate: {e}")
+            traceback.print_exc()
+            # Continue with other deletions even if Weaviate fails
+        
+        # Step 2: Delete physical file
+        logger.info(f"📁 [RAG] Step 2: Deleting physical file...")
+        file_path = doc.get("file_path")
+        file_deleted = False
+        if file_path and os.path.exists(file_path):
+            try:
+                os.unlink(file_path)
+                file_deleted = True
+                logger.info(f"✅ [RAG] Deleted file: {file_path}")
+            except Exception as e:
+                logger.warning(f"⚠️ [RAG] Failed to delete file {file_path}: {e}")
+        else:
+            logger.info(f"ℹ️ [RAG] File not found or path not set: {file_path}")
+        
+        # Step 3: Delete from MongoDB
+        logger.info(f"💾 [RAG] Step 3: Deleting document record from MongoDB...")
+        result = await db.rag_documents.delete_one({"_id": document_id})
+        
+        if result.deleted_count > 0:
+            logger.info(f"✅ [RAG] Deleted document record from MongoDB")
+        else:
+            logger.warning(f"⚠️ [RAG] No document record deleted from MongoDB")
+        
+        logger.info(f"✅ [RAG] Document {document_id} deletion completed. Chunks: {chunks_deleted}, File: {file_deleted}, MongoDB: {result.deleted_count > 0}")
+        
+        return {
+            "message": "Document deleted successfully",
+            "id": document_id,
+            "chunks_deleted": chunks_deleted,
+            "file_deleted": file_deleted,
+            "mongodb_deleted": result.deleted_count > 0
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ [RAG] Error deleting document: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+@router.post("/sales-coach/search")
+async def search_rag_documents(
+    query: str = Form(..., description="Search query text"),
+    limit: int = Form(5, description="Number of results to return (max 5)"),
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Search RAG documents using semantic search
+    - Vectorizes the query text
+    - Searches in Weaviate for similar chunks
+    - Returns top N most relevant results (max 5)
+    """
+    try:
+        # Validate limit
+        if limit > 5:
+            limit = 5
+        if limit < 1:
+            limit = 5
+        
+        logger.info(f"🔍 [RAG] Starting semantic search for user {current_user.id}")
+        logger.info(f"📝 [RAG] Query: {query[:100]}...")
+        logger.info(f"📊 [RAG] Limit: {limit}")
+        
+        # Step 1: Vectorize query text
+        logger.info(f"🔢 [RAG] Step 1: Vectorizing query text...")
+        query_vector = vectorize_text(query)
+        logger.info(f"✅ [RAG] Step 1: Query vectorized (dimension: {len(query_vector)})")
+        
+        # Step 2: Search in Weaviate
+        logger.info(f"💾 [RAG] Step 2: Searching in Weaviate...")
+        weaviate_client = get_weaviate()
+        if not weaviate_client:
+            raise HTTPException(
+                status_code=503,
+                detail="Weaviate client not available"
+            )
+        
+        collection = weaviate_client.collections.get("DataAiSaleCoach")
+        logger.info(f"✅ [RAG] Step 2a: Got Weaviate collection 'DataAiSaleCoach'")
+        
+        # Perform vector similarity search
+        # Only search chunks belonging to the current user
+        try:
+            from weaviate.classes.query import MetadataQuery
+            
+            logger.info(f"🔍 [RAG] Step 2a: Filtering by user_id={current_user.id}")
+            
+            if WEAVIATE_FILTER_AVAILABLE:
+                # Use Filter API for user filtering
+                logger.info(f"✅ [RAG] Step 2b: Using Weaviate Filter API to filter by user_id")
+                results = collection.query.near_vector(
+                    near_vector=query_vector,
+                    limit=limit,
+                    filters=Filter.by_property("user_id").equal(current_user.id),
+                    return_metadata=MetadataQuery(distance=True)
+                )
+                logger.info(f"✅ [RAG] Step 2c: Weaviate query completed with filter")
+            else:
+                # Fallback: query without filter (will filter in post-processing)
+                logger.info(f"⚠️ [RAG] Step 2b: Filter API not available, using post-processing filter")
+                results = collection.query.near_vector(
+                    near_vector=query_vector,
+                    limit=limit * 2,  # Get more results to filter by user_id
+                    return_metadata=MetadataQuery(distance=True)
+                )
+                
+                # Filter by user_id in post-processing
+                if results.objects:
+                    logger.info(f"🔍 [RAG] Step 2c: Filtering {len(results.objects)} results by user_id={current_user.id}")
+                    filtered_objects = [
+                        obj for obj in results.objects 
+                        if obj.properties.get("user_id") == current_user.id
+                    ]
+                    logger.info(f"✅ [RAG] Step 2d: Filtered to {len(filtered_objects)} results for user {current_user.id}")
+                    # Limit to requested number
+                    filtered_objects = filtered_objects[:limit]
+                    # Create a new result object with filtered results
+                    class FilteredResults:
+                        def __init__(self, objects):
+                            self.objects = objects
+                    results = FilteredResults(filtered_objects)
+            
+            logger.info(f"✅ [RAG] Step 2: Found {len(results.objects) if results.objects else 0} results for user {current_user.id}")
+            
+            # Step 3: Format results
+            logger.info(f"📦 [RAG] Step 3: Formatting results...")
+            formatted_results = []
+            
+            if results.objects:
+                # Get document info from MongoDB for each result
+                # IMPORTANT: Also filter by user_id to ensure security
+                db = get_database()
+                doc_ids = list(set([obj.properties.get("doc_id") for obj in results.objects if obj.properties.get("doc_id")]))
+                
+                logger.info(f"📚 [RAG] Step 3a: Fetching metadata for {len(doc_ids)} documents (user_id={current_user.id})")
+                
+                # Fetch document metadata - filter by both doc_ids AND user_id for security
+                doc_metadata = {}
+                if doc_ids:
+                    cursor = db.rag_documents.find({
+                        "_id": {"$in": doc_ids},
+                        "user_id": current_user.id  # Additional security: ensure documents belong to current user
+                    })
+                    docs = await cursor.to_list(length=None)
+                    logger.info(f"✅ [RAG] Step 3b: Found {len(docs)} documents belonging to user {current_user.id}")
+                    
+                    for doc in docs:
+                        doc_metadata[str(doc["_id"])] = {
+                            "filename": doc.get("original_filename", doc.get("filename", "Unknown")),
+                            "uploaded_at": doc.get("uploaded_at").isoformat() if doc.get("uploaded_at") else None
+                        }
+                    
+                    # Verify all doc_ids have metadata (security check)
+                    missing_docs = set(doc_ids) - set(doc_metadata.keys())
+                    if missing_docs:
+                        logger.warning(f"⚠️ [RAG] Security: {len(missing_docs)} document(s) not found or belong to different user: {missing_docs}")
+                
+                # Format results - only include results that belong to current user
+                for obj in results.objects:
+                    props = obj.properties
+                    doc_id = props.get("doc_id")
+                    obj_user_id = props.get("user_id", "")
+                    
+                    # Security check: Skip if user_id doesn't match (shouldn't happen with filter, but double-check)
+                    if obj_user_id != current_user.id:
+                        logger.warning(f"⚠️ [RAG] Security: Skipping result with mismatched user_id. Expected: {current_user.id}, Got: {obj_user_id}")
+                        continue
+                    
+                    # Only include if document metadata exists (belongs to current user)
+                    if doc_id not in doc_metadata:
+                        logger.warning(f"⚠️ [RAG] Security: Skipping result with doc_id {doc_id} - document not found or belongs to different user")
+                        continue
+                    
+                    # Calculate similarity score (1 - distance, higher is better)
+                    distance = None
+                    similarity_score = None
+                    if obj.metadata and hasattr(obj.metadata, 'distance'):
+                        distance = obj.metadata.distance
+                        # Distance is typically 0-2 for cosine similarity (normalized vectors)
+                        # Convert to similarity score (0-1, higher is better)
+                        similarity_score = max(0, 1 - (distance / 2))
+                    
+                    result_item = {
+                        "content": props.get("content", ""),
+                        "doc_id": doc_id,
+                        "chunk_index": props.get("chunk_index", 0),
+                        "user_id": obj_user_id,
+                        "similarity_score": round(similarity_score, 4) if similarity_score is not None else None,
+                        "distance": round(distance, 4) if distance is not None else None,
+                        "document": doc_metadata.get(doc_id, {
+                            "filename": "Unknown",
+                            "uploaded_at": None
+                        })
+                    }
+                    formatted_results.append(result_item)
+            
+            logger.info(f"✅ [RAG] Step 3: Formatted {len(formatted_results)} results")
+            logger.info(f"✅ [RAG] Semantic search completed successfully")
+            
+            return {
+                "query": query,
+                "total_results": len(formatted_results),
+                "limit": limit,
+                "results": formatted_results
+            }
+            
+        except Exception as search_error:
+            logger.error(f"❌ [RAG] Error searching in Weaviate: {search_error}")
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error searching in Weaviate: {str(search_error)}"
+            )
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ [RAG] Error in semantic search: {e}")
         traceback.print_exc()
         raise HTTPException(
             status_code=500,

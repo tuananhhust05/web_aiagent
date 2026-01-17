@@ -4,11 +4,22 @@ from bson import ObjectId
 from typing import List, Optional, Dict, Any
 import httpx
 import json
+import logging
 
-from app.core.database import get_database
+from app.core.database import get_database, get_weaviate
 from app.core.auth import get_current_active_user
 from app.core.config import settings
 from app.models.user import UserResponse
+from app.services.vectorization import vectorize_text
+
+logger = logging.getLogger(__name__)
+
+# Try to import Weaviate Filter (for search operations)
+try:
+    from weaviate.classes.query import Filter, MetadataQuery
+    WEAVIATE_FILTER_AVAILABLE = True
+except ImportError:
+    WEAVIATE_FILTER_AVAILABLE = False
 from app.models.prioritized_prospect import (
     PrioritizedProspectCreate,
     PrioritizedProspectUpdate,
@@ -312,16 +323,28 @@ async def generate_prioritized_prospects(
         })
     
     # Call AI to generate prioritized prospects
-    prioritized_prospects_data = await generate_prioritized_prospects_with_ai(
+    result = await generate_prioritized_prospects_with_ai(
         contacts_for_ai,
         current_user.id
     )
     
+    # Extract prospects data and rules_used
+    if isinstance(result, tuple):
+        prioritized_prospects_data, rules_used_global = result
+        logger.info(f"✅ [PRIORITIZED PROSPECTS] Received {len(prioritized_prospects_data)} prospects with {len(rules_used_global)} rules")
+    else:
+        prioritized_prospects_data = result
+        rules_used_global = []
+        logger.info(f"✅ [PRIORITIZED PROSPECTS] Received {len(prioritized_prospects_data) if prioritized_prospects_data else 0} prospects without rules")
+    
+    # Handle return value
     if not prioritized_prospects_data:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to generate prioritized prospects"
         )
+    
+    logger.info(f"📝 [PRIORITIZED PROSPECTS] Will save {len(rules_used_global)} rules to all prospects")
     
     # Delete old prospects for this user
     await db.prioritized_prospects.delete_many({"user_id": current_user.id})
@@ -424,6 +447,14 @@ Closing:
 - Confirm availability for follow-up
 - Thank them for their time"""
         
+        # Prepare rules_used - only save if we have rules from Weaviate
+        rules_used_for_prospect = None
+        if rules_used_global and len(rules_used_global) > 0:
+            rules_used_for_prospect = rules_used_global
+            logger.info(f"📋 [PRIORITIZED PROSPECTS] Saving {len(rules_used_for_prospect)} rules for prospect {prospect_id_from_ai}")
+        else:
+            logger.info(f"ℹ️ [PRIORITIZED PROSPECTS] No rules to save for prospect {prospect_id_from_ai}")
+        
         prospect_doc = {
             "_id": str(ObjectId()),
             "user_id": current_user.id,
@@ -440,11 +471,18 @@ Closing:
             "contact_data": contact_data,
             "campaign_data": campaign_data,
             "deal_data": deal_data,
+            "rules_used": rules_used_for_prospect,  # Only save if rules from Weaviate
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
         
         await db.prioritized_prospects.insert_one(prospect_doc)
+        
+        # Log what was saved
+        if rules_used_for_prospect:
+            logger.info(f"💾 [PRIORITIZED PROSPECTS] Saved prospect with {len(rules_used_for_prospect)} rules")
+        else:
+            logger.info(f"💾 [PRIORITIZED PROSPECTS] Saved prospect without rules")
         
         prospect_doc['id'] = prospect_doc['_id']
         del prospect_doc['_id']
@@ -461,7 +499,7 @@ async def generate_prioritized_prospects_with_ai(
     """
     try:
         if not settings.GROQ_API_KEY:
-            print("⚠️ [PRIORITIZED PROSPECTS] GROQ_API_KEY not configured")
+            logger.warning("⚠️ [PRIORITIZED PROSPECTS] GROQ_API_KEY not configured")
             return None
         
         # Prepare context for AI
@@ -508,8 +546,141 @@ Contact: {contact.get('name', 'N/A')}
 """
             contacts_summary.append(contact_summary)
         
-        # Create AI prompt
+        # Step 1: Ask Groq what rules are needed for analysis (max 3 sentences)
+        logger.info(f"🤖 [PRIORITIZED PROSPECTS] Step 1: Asking Groq about required rules for analysis...")
+        contacts_data_summary = "\n".join(contacts_summary[:5])  # Use first 5 contacts as sample
+        
+        rules_query_prompt = f"""Based on the following contact data, what rules or guidelines are needed to analyze and prioritize these prospects? 
+
+Contact Data Sample:
+{contacts_data_summary}
+
+Provide a brief description (maximum 3 sentences) of what rules or guidelines would be relevant for analyzing these contacts. Focus on sales strategies, qualification criteria, engagement rules, or best practices that would help prioritize and create effective sales actions.
+
+Return ONLY the description text, no additional formatting."""
+        
+        try:
+            rules_query_payload = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a sales strategy expert. Provide concise, relevant rules or guidelines for sales analysis."
+                    },
+                    {
+                        "role": "user",
+                        "content": rules_query_prompt
+                    }
+                ],
+                "temperature": 0.5,
+                "max_tokens": 200
+            }
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                rules_response = await client.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+                        "Content-Type": "application/json"
+                    },
+                    json=rules_query_payload
+                )
+                rules_response.raise_for_status()
+                rules_result = rules_response.json()
+                rules_query_text = rules_result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                logger.info(f"✅ [PRIORITIZED PROSPECTS] Step 1: Got rules query from Groq: {rules_query_text[:100]}...")
+        except Exception as e:
+            logger.warning(f"⚠️ [PRIORITIZED PROSPECTS] Failed to get rules query from Groq: {e}")
+            rules_query_text = "sales strategies and best practices for contact analysis and prioritization"
+        
+        # Step 2: Search in Weaviate for relevant rules (max 5)
+        logger.info(f"🔍 [PRIORITIZED PROSPECTS] Step 2: Searching Weaviate for relevant rules...")
+        relevant_rules = []  # List of rule content strings
+        rules_used = []  # List of UsedRule objects with metadata
+        
+        try:
+            weaviate_client = get_weaviate()
+            if weaviate_client:
+                # Vectorize the rules query
+                query_vector = vectorize_text(rules_query_text)
+                logger.info(f"✅ [PRIORITIZED PROSPECTS] Step 2a: Vectorized rules query")
+                
+                # Search in Weaviate
+                collection = weaviate_client.collections.get("DataAiSaleCoach")
+                
+                if WEAVIATE_FILTER_AVAILABLE:
+                    results = collection.query.near_vector(
+                        near_vector=query_vector,
+                        limit=5,
+                        filters=Filter.by_property("user_id").equal(user_id),
+                        return_metadata=MetadataQuery(distance=True)
+                    )
+                else:
+                    results = collection.query.near_vector(
+                        near_vector=query_vector,
+                        limit=10,  # Get more to filter
+                        return_metadata=MetadataQuery(distance=True)
+                    )
+                    # Filter by user_id
+                    if results.objects:
+                        filtered_objects = [
+                            obj for obj in results.objects 
+                            if obj.properties.get("user_id") == user_id
+                        ][:5]
+                        class FilteredResults:
+                            def __init__(self, objects):
+                                self.objects = objects
+                        results = FilteredResults(filtered_objects)
+                
+                if results.objects:
+                    for obj in results.objects:
+                        if obj.properties.get("user_id") == user_id:
+                            content = obj.properties.get("content", "")
+                            doc_id = obj.properties.get("doc_id", "")
+                            chunk_index = obj.properties.get("chunk_index", 0)
+                            
+                            # Calculate similarity score
+                            similarity_score = None
+                            if obj.metadata and hasattr(obj.metadata, 'distance'):
+                                distance = obj.metadata.distance
+                                similarity_score = max(0, 1 - (distance / 2))
+                            
+                            relevant_rules.append(content)
+                            rules_used.append({
+                                "content": content,
+                                "doc_id": doc_id,
+                                "chunk_index": chunk_index,
+                                "similarity_score": round(similarity_score, 4) if similarity_score is not None else None
+                            })
+                    logger.info(f"✅ [PRIORITIZED PROSPECTS] Step 2: Found {len(relevant_rules)} relevant rules from Weaviate")
+                else:
+                    logger.info(f"ℹ️ [PRIORITIZED PROSPECTS] Step 2: No rules found in Weaviate")
+            else:
+                logger.warning(f"⚠️ [PRIORITIZED PROSPECTS] Weaviate client not available, skipping rule search")
+        except Exception as e:
+            logger.warning(f"⚠️ [PRIORITIZED PROSPECTS] Error searching Weaviate for rules: {e}")
+            # Continue without rules
+        
+        # Step 3: Combine rules + contact data for final analysis
+        rules_context = ""
+        if relevant_rules:
+            rules_context = f"""
+Relevant Sales Rules and Guidelines (from knowledge base):
+{chr(10).join([f"- {rule}" for rule in relevant_rules[:5]])}
+
+Use these rules and guidelines to inform your analysis and recommendations.
+"""
+        else:
+            rules_context = "\nNo specific rules found in knowledge base. Use general sales best practices.\n"
+        
+        logger.info(f"📝 [PRIORITIZED PROSPECTS] Step 3: Creating final prompt with {len(relevant_rules)} rules...")
+        
+        # Create AI prompt with rules context
         prompt = f"""You are an AI Sales Assistant. Analyze the following contacts and their associated campaigns, goals, and deals to generate prioritized prospects.
+
+{rules_context}
+
+For each contact, determine:
 
 For each contact, determine:
 1. What action should be taken (e.g., "Send introduction email about the new product", "Follow up on proposal", "Schedule a demo call")
@@ -571,7 +742,8 @@ IMPORTANT:
 - Tips should cover different aspects: personalization, timing, engagement strategies, communication techniques, relationship building, psychological triggers
 """
 
-        # Call Groq API
+        # Step 4: Call Groq API with rules + contact data
+        logger.info(f"🤖 [PRIORITIZED PROSPECTS] Step 4: Calling Groq API to generate prioritized prospects...")
         groq_url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {
             "Authorization": f"Bearer {settings.GROQ_API_KEY}",
@@ -583,7 +755,7 @@ IMPORTANT:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are an AI Sales Assistant that generates prioritized prospects based on contact data, campaigns, goals, and deals. Always return a valid JSON array. Generate detailed, professional sales coaching tips based on neuroscience and sales psychology."
+                    "content": "You are an AI Sales Assistant that generates prioritized prospects based on contact data, campaigns, goals, deals, and relevant sales rules. Always return a valid JSON array. Generate detailed, professional sales coaching tips based on neuroscience and sales psychology. Incorporate the provided rules and guidelines into your analysis."
                 },
                 {
                     "role": "user",
@@ -598,6 +770,7 @@ IMPORTANT:
             response = await client.post(groq_url, headers=headers, json=payload)
             response.raise_for_status()
             result = response.json()
+            logger.info(f"✅ [PRIORITIZED PROSPECTS] Step 4: Got response from Groq")
             
             content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
             
@@ -621,32 +794,54 @@ IMPORTANT:
                 parsed = json.loads(content_clean)
                 
                 # Ensure it's a list
+                prospects = []
                 if isinstance(parsed, list):
-                    return parsed
+                    prospects = parsed
                 elif isinstance(parsed, dict):
                     # Look for common keys
                     prospects = parsed.get("prospects") or parsed.get("results") or parsed.get("data") or parsed.get("items")
                     if prospects and isinstance(prospects, list):
-                        return prospects
-                    # If dict values are lists, return first list value
-                    for value in parsed.values():
-                        if isinstance(value, list):
-                            return value
+                        pass  # prospects already set
+                    else:
+                        # If dict values are lists, return first list value
+                        for value in parsed.values():
+                            if isinstance(value, list):
+                                prospects = value
+                                break
                 
-                print(f"⚠️ [PRIORITIZED PROSPECTS] Unexpected response format: {type(parsed)}")
-                return []
+                if not prospects:
+                    logger.warning(f"⚠️ [PRIORITIZED PROSPECTS] Unexpected response format: {type(parsed)}")
+                    prospects = []
+                
+                # Return both prospects and rules_used if we have rules from Weaviate
+                if rules_used and len(rules_used) > 0:
+                    logger.info(f"✅ [PRIORITIZED PROSPECTS] Returning {len(prospects)} prospects with {len(rules_used)} rules")
+                    return (prospects, rules_used)
+                else:
+                    logger.info(f"✅ [PRIORITIZED PROSPECTS] Returning {len(prospects)} prospects without rules")
+                    return prospects
+                    
             except json.JSONDecodeError as e:
-                print(f"⚠️ [PRIORITIZED PROSPECTS] JSON decode error: {str(e)}")
-                print(f"⚠️ [PRIORITIZED PROSPECTS] Content preview: {content[:500]}")
+                logger.error(f"⚠️ [PRIORITIZED PROSPECTS] JSON decode error: {str(e)}")
+                logger.error(f"⚠️ [PRIORITIZED PROSPECTS] Content preview: {content[:500]}")
+                # Return empty list with rules if available
+                if rules_used and len(rules_used) > 0:
+                    return ([], rules_used)
                 return []
             
-            print(f"⚠️ [PRIORITIZED PROSPECTS] Failed to parse AI response: {content[:200]}")
+            logger.error(f"⚠️ [PRIORITIZED PROSPECTS] Failed to parse AI response: {content[:200]}")
+            # Return None with rules if available
+            if rules_used and len(rules_used) > 0:
+                return (None, rules_used)
             return None
             
     except Exception as e:
-        print(f"❌ [PRIORITIZED PROSPECTS] Error generating prospects: {str(e)}")
+        logger.error(f"❌ [PRIORITIZED PROSPECTS] Error generating prospects: {str(e)}")
         import traceback
         traceback.print_exc()
+        # Return None with rules if available
+        if rules_used and len(rules_used) > 0:
+            return (None, rules_used)
         return None
 
 @router.get("", response_model=PrioritizedProspectListResponse)
@@ -686,13 +881,13 @@ async def get_prioritized_prospects(
         limit=limit
     )
 
-@router.get("/{prospect_id}", response_model=PrioritizedProspectResponse)
+@router.get("/{prospect_id}")
 async def get_prioritized_prospect(
     prospect_id: str,
     current_user: UserResponse = Depends(get_current_active_user)
 ):
     """
-    Get a specific prioritized prospect by ID.
+    Get a specific prioritized prospect by ID with document information for rules.
     """
     db = get_database()
     
@@ -710,6 +905,104 @@ async def get_prioritized_prospect(
     prospect_dict = dict(prospect)
     prospect_dict['id'] = str(prospect_dict['_id'])
     del prospect_dict['_id']
+    
+    # Enrich rules_used with FULL document information from rag_documents collection
+    rules_used = prospect_dict.get("rules_used", [])
+    if rules_used and isinstance(rules_used, list) and len(rules_used) > 0:
+        # Get unique doc_ids from rules
+        doc_ids = list(set([rule.get("doc_id") for rule in rules_used if rule.get("doc_id")]))
+        
+        logger.info(f"📚 [PRIORITIZED PROSPECTS] Enriching {len(rules_used)} rules with document info for {len(doc_ids)} unique documents")
+        
+        # Fetch FULL document details from rag_documents collection
+        doc_metadata = {}
+        if doc_ids:
+            try:
+                # Try to convert string IDs to ObjectId for MongoDB query
+                object_ids = []
+                for doc_id in doc_ids:
+                    if ObjectId.is_valid(doc_id):
+                        object_ids.append(ObjectId(doc_id))
+                    else:
+                        # If not valid ObjectId, try as string
+                        object_ids.append(doc_id)
+                
+                if object_ids:
+                    # Query rag_documents collection with all document IDs
+                    cursor = db.rag_documents.find({
+                        "_id": {"$in": object_ids},
+                        "user_id": current_user.id  # Security: ensure documents belong to user
+                    })
+                    docs = await cursor.to_list(length=None)
+                    
+                    logger.info(f"📄 [PRIORITIZED PROSPECTS] Found {len(docs)} documents in rag_documents collection")
+                    
+                    # Build metadata map with ALL fields from rag_documents
+                    for doc in docs:
+                        doc_id_str = str(doc["_id"])
+                        # Include ALL fields from rag_documents collection
+                        doc_metadata[doc_id_str] = {
+                            "id": doc_id_str,
+                            "filename": doc.get("filename", ""),
+                            "original_filename": doc.get("original_filename", doc.get("filename", "Unknown")),
+                            "file_path": doc.get("file_path", ""),
+                            "file_size": doc.get("file_size", 0),
+                            "user_id": doc.get("user_id", ""),
+                            "status": doc.get("status", "unknown"),
+                            "total_chunks": doc.get("total_chunks", 0),
+                            "error_message": doc.get("error_message"),
+                            "uploaded_at": doc.get("uploaded_at").isoformat() if doc.get("uploaded_at") else None,
+                            "processed_at": doc.get("processed_at").isoformat() if doc.get("processed_at") else None
+                        }
+                        logger.debug(f"📋 [PRIORITIZED PROSPECTS] Loaded document: {doc_metadata[doc_id_str]['original_filename']}")
+                    
+                    # Log missing documents
+                    missing_docs = set(doc_ids) - set(doc_metadata.keys())
+                    if missing_docs:
+                        logger.warning(f"⚠️ [PRIORITIZED PROSPECTS] {len(missing_docs)} documents not found in rag_documents: {missing_docs}")
+                        
+            except Exception as e:
+                logger.error(f"❌ [PRIORITIZED PROSPECTS] Error fetching document metadata from rag_documents: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Enrich rules with FULL document info
+        enriched_rules = []
+        for rule in rules_used:
+            doc_id = rule.get("doc_id")
+            document_info = doc_metadata.get(doc_id)
+            
+            if document_info:
+                # Include full document details
+                enriched_rule = {
+                    **rule,
+                    "document": document_info
+                }
+                logger.debug(f"✅ [PRIORITIZED PROSPECTS] Enriched rule with document: {document_info.get('original_filename')}")
+            else:
+                # Fallback if document not found in rag_documents
+                enriched_rule = {
+                    **rule,
+                    "document": {
+                        "id": doc_id,
+                        "filename": "Unknown Document",
+                        "original_filename": "Unknown Document",
+                        "file_path": "",
+                        "file_size": 0,
+                        "user_id": "",
+                        "status": "unknown",
+                        "total_chunks": 0,
+                        "error_message": None,
+                        "uploaded_at": None,
+                        "processed_at": None
+                    }
+                }
+                logger.warning(f"⚠️ [PRIORITIZED PROSPECTS] Document {doc_id} not found in rag_documents collection")
+            
+            enriched_rules.append(enriched_rule)
+        
+        prospect_dict["rules_used"] = enriched_rules
+        logger.info(f"✅ [PRIORITIZED PROSPECTS] Successfully enriched {len(enriched_rules)} rules with FULL document information from rag_documents")
     
     return PrioritizedProspectResponse(**prospect_dict)
 
