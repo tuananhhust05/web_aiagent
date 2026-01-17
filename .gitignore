@@ -178,4 +178,7 @@ dmypy.json
 .pyre/
 
 # Vite
-.vite/ 
+.vite/
+
+# Uploads
+backend/uploads/rag_documents/ 
