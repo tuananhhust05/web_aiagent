@@ -294,7 +294,7 @@ const GoalTodoSection: React.FC<GoalTodoSectionProps> = ({
               <Zap className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">AI Sales Coach - To-Do List</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Atlas - To-Do List</h3>
               <p className="text-xs text-gray-600">Actionable tasks to achieve your goal</p>
             </div>
           </div>

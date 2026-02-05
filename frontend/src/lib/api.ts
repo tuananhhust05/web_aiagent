@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -22,6 +22,8 @@ const getApiUrl = () => {
 }
 
 const FINAL_API_URL = getApiUrl()
+/** Base URL of the backend API (e.g. http://localhost:8000). Use for OAuth redirects to backend. */
+export const API_BASE_URL = FINAL_API_URL
 
 // Debug log
 console.log('🔧 API Configuration:', {
@@ -137,6 +139,83 @@ export const crmAPI = {
   sync: (provider: string) => api.post(`/api/crm/sync/${provider}`),
   export: (provider: string, contactIds: string[]) =>
     api.post(`/api/crm/export/${provider}`, { contact_ids: contactIds }),
+  // HubSpot specific endpoints
+  getHubSpotToken: () => api.get('/api/crm/hubspot/token'),
+  saveHubSpotToken: (token: string) => api.post('/api/crm/hubspot/token', { token }),
+  syncHubSpotContacts: () => api.post('/api/crm/hubspot/sync-contacts'),
+}
+
+export type CallPlaybookRuleResult = {
+  rule_id?: string
+  label: string
+  description?: string
+  passed: boolean
+  what_you_said?: string | null
+  what_you_should_say?: string | null
+}
+
+export type CallPlaybookAnalysis = {
+  call_id: string
+  template_id?: string
+  template_name?: string
+  source: 'llm' | 'cache' | 'none'
+  generated_at?: string
+  rules: CallPlaybookRuleResult[]
+  overall_score?: number | null
+  coaching_summary?: string | null
+  message?: string | null
+}
+
+export type MeetingPlaybookRuleResult = CallPlaybookRuleResult
+
+export type MeetingPlaybookAnalysis = {
+  meeting_id: string
+  template_id?: string
+  template_name?: string
+  source: 'llm' | 'cache' | 'none'
+  generated_at?: string
+  rules: MeetingPlaybookRuleResult[]
+  overall_score?: number | null
+  coaching_summary?: string | null
+  /** Per-dimension scores 0–100: Handled objections, Personalized demo, Intro Banter, Set Agenda, Demo told a story */
+  dimension_scores?: Record<string, number> | null
+  message?: string | null
+}
+
+export type MeetingFeedbackMetric = {
+  label: string
+  status: string
+  status_level?: 'great' | 'ok' | 'poor'
+  value: string
+  has_link?: boolean
+  link_url?: string | null
+}
+
+export type MeetingFeedbackBullet = {
+  title: string
+  details?: string | null
+}
+
+export type MeetingFeedback = {
+  meeting_id: string
+  source: 'llm' | 'cache' | 'none'
+  generated_at?: string
+  /** Call quality percentage 0–100 (AI-assessed). */
+  quality_score?: number | null
+  metrics: MeetingFeedbackMetric[]
+  did_well: MeetingFeedbackBullet[]
+  improve: MeetingFeedbackBullet[]
+  message?: string | null
+}
+
+export type MeetingComment = {
+  id: string
+  meeting_id: string
+  user_id: string
+  author: string
+  text: string
+  created_at: string
+  updated_at: string
 }
 
 // Calls API
@@ -145,12 +224,17 @@ export const callsAPI = {
   getCall: (id: string) => api.get(`/api/calls/${id}`),
   createCall: (data: any) => api.post('/api/calls', data),
   updateCall: (id: string, data: any) => api.put(`/api/calls/${id}`, data),
-  updateCallByPhone: (phoneNumber: string, data: any) => api.put(`/api/calls/update-by-phone/${phoneNumber}`, data),
-  autoUpdateCallByPhone: (phoneNumber: string, data: any) => api.put(`/api/calls/auto-update/${phoneNumber}`, data),
+  updateCallByPhone: (phoneNumber: string, data: any) =>
+    api.put(`/api/calls/update-by-phone/${phoneNumber}`, data),
+  autoUpdateCallByPhone: (phoneNumber: string, data: any) =>
+    api.put(`/api/calls/auto-update/${phoneNumber}`, data),
   autoUpdateLatestCall: (data: any) => api.put('/api/calls/auto-update-latest', data),
   deleteCall: (id: string) => api.delete(`/api/calls/${id}`),
   getKPISummary: (params?: any) => api.get('/api/calls/kpis/summary', { params }),
   getSentimentStats: (params?: any) => api.get('/api/calls/stats/sentiment', { params }),
+  /** Analyze a call transcript against the user's Sales Playbook template (Atlas /calls). */
+  getPlaybookAnalysis: (id: string, params?: { force_refresh?: boolean }) =>
+    api.get<CallPlaybookAnalysis>(`/api/calls/${id}/playbook-analysis`, { params }),
 }
 
 // Campaigns API
@@ -394,7 +478,7 @@ export const inboxAPI = {
     content: string
   }) => api.post('/api/inbox/send-message', data),
 
-  // Analyze conversation with AI Sales Coach
+  // Analyze conversation with Atlas
   analyzeConversation: (campaignId: string, telegramUsername: string) =>
     api.get(`/api/inbox/analyze/${campaignId}/${encodeURIComponent(telegramUsername)}`),
 
@@ -490,7 +574,7 @@ export const campaignGoalsAPI = {
   clearGoalTodoCache: (goalId: string) =>
     api.delete(`/api/campaign-goals/${goalId}/todo-items/cache`),
 
-  // Chat with AI Sales Coach
+  // Chat with Atlas
   chatWithSalesCoach: (goalId: string, data: {
     question: string
     context?: any
@@ -699,6 +783,227 @@ export const gmailAPI = {
   getReauthorizeUrl: () => api.get('/api/gmail/reauthorize'),
 }
 
+// User Google Calendar API (Atlas)
+export const calendarAPI = {
+  getStatus: () => api.get<{ connected: boolean }>('/api/user/calendar/status'),
+  getAuthUrl: (redirectOrigin?: string) =>
+    api.get<{ url: string }>('/api/user/calendar/auth-url', {
+      params: redirectOrigin ? { redirect_origin: redirectOrigin } : undefined,
+    }),
+  getEvents: (params?: { time_min?: string; time_max?: string }) =>
+    api.get<{ events: GoogleCalendarEvent[] }>('/api/user/calendar/events', { params }),
+  getEventsWithMeetingLink: (params?: { time_min?: string; time_max?: string }) =>
+    api.get<{ events: GoogleCalendarEvent[] }>('/api/user/calendar/events-with-meeting-link', { params }),
+}
+
+export interface GoogleCalendarEvent {
+  id?: string
+  summary?: string
+  start?: { dateTime?: string; date?: string }
+  end?: { dateTime?: string; date?: string }
+  status?: string
+  /** Google Meet / conference link */
+  hangoutLink?: string
+  htmlLink?: string
+  conferenceData?: {
+    entryPoints?: Array<{ entryPointType?: string; uri?: string }>
+  }
+}
+
+// Atlas meeting context for calendar detail panel
+export interface AtlasMeetingContext {
+  contact?: {
+    id: string
+    first_name: string
+    last_name: string
+    company?: string
+    email?: string
+    phone?: string
+    job_title?: string
+    address?: string
+    city?: string
+    state?: string
+    country?: string
+  }
+  deal?: {
+    id: string
+    name: string
+    status?: string
+    stage_name?: string
+    next_step?: string
+    amount: number
+  }
+  company?: {
+    name?: string
+    employee_count_range?: string
+    revenue_range?: string
+    business_description?: string
+    country?: string
+    region?: string
+    city?: string
+    locality?: string
+    crm_missing_message?: string
+  }
+  past_events?: Array<{
+    id: string
+    type: string
+    date: string
+    subject?: string
+    content?: string
+  }>
+  last_interaction?: {
+    summary?: string
+    open_points?: string
+    agreed_next_step?: string
+  }
+  meeting_preparation?: {
+    key_points?: string[]
+    risks_or_questions?: string[]
+    suggested_angle?: string
+  }
+  meeting_number_with_company?: number
+  objective_of_meeting?: string
+}
+
+// Meeting participants (per calendar event) - user-filled
+export interface MeetingParticipant {
+  id?: string
+  name: string
+  email?: string
+  job_title?: string
+  company?: string
+  notes?: string
+}
+
+export interface CompanyInfoUser {
+  industry?: string
+  size_revenue?: string
+  location?: string
+  founded?: string
+  website?: string
+  description?: string
+}
+
+export interface MainContactUser {
+  name?: string
+  email?: string
+  job_title?: string
+}
+
+export interface MeetingParticipantsResponse {
+  event_id: string
+  participants: MeetingParticipant[]
+  company_info?: CompanyInfoUser | null
+  main_contact?: MainContactUser | null
+  deal_stage?: string | null
+  event_title?: string | null
+  event_start?: string | null
+}
+
+export interface MeetingHistoryItem {
+  event_id: string
+  event_title?: string | null
+  event_start?: string | null
+}
+
+export interface MeetingHistoryByEmailResponse {
+  email: string
+  meetings: MeetingHistoryItem[]
+}
+
+export type AtlasQnARecord = {
+  id: string
+  question: string
+  answer: string
+  topic?: string | null
+  usage_count: number
+  last_used_at?: string | null
+  status?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface AtlasKnowledgeDocument {
+  id: string
+  name: string
+  size: number
+  uploadedAt: string
+  status: 'processed' | 'processing' | 'failed'
+  type: 'pdf' | 'docx'
+  pages: number
+  total_chunks?: number
+  error_message?: string
+}
+
+export const atlasAPI = {
+  getMeetingContext: (q: string) =>
+    api.get<AtlasMeetingContext>('/api/atlas/meeting-context', { params: { q } }),
+  getMeetingParticipants: (eventId: string) =>
+    api.get<MeetingParticipantsResponse>('/api/atlas/meeting-participants', { params: { event_id: eventId } }),
+  saveMeetingParticipants: (
+    eventId: string,
+    data: {
+      participants: MeetingParticipant[]
+      company_info?: CompanyInfoUser
+      main_contact?: MainContactUser
+      deal_stage?: string
+      event_title?: string
+      event_start?: string
+    }
+  ) =>
+    api.put<MeetingParticipantsResponse>('/api/atlas/meeting-participants', {
+      event_id: eventId,
+      participants: data.participants,
+      company_info: data.company_info ?? undefined,
+      main_contact: data.main_contact ?? undefined,
+      deal_stage: data.deal_stage ?? undefined,
+      event_title: data.event_title ?? undefined,
+      event_start: data.event_start ?? undefined,
+    }),
+  getMeetingHistoryByEmail: (email: string) =>
+    api.get<MeetingHistoryByEmailResponse>('/api/atlas/meeting-history-by-email', { params: { email } }),
+  /** Lưu danh sách meeting khi load lịch; trùng id thì update */
+  syncCalendarEvents: (events: Array<{ id?: string; summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }>) =>
+    api.post<{ synced: number }>('/api/atlas/calendar-events/sync', {
+      events: events
+        .filter((e) => e.id)
+        .map((e) => ({
+          id: e.id,
+          summary: e.summary,
+          start: e.start?.dateTime || e.start?.date || undefined,
+          end: e.end?.dateTime || e.end?.date || undefined,
+        })),
+    }),
+
+  /** Rolling Q&A Repository CRUD */
+  listQna: (params?: { search?: string; page?: number; limit?: number }) =>
+    api.get<{ items: AtlasQnARecord[]; total: number; page: number; limit: number }>('/api/atlas/qna', { params }),
+  createQna: (data: { question: string; answer: string; topic?: string; status?: string }) =>
+    api.post<AtlasQnARecord>('/api/atlas/qna', data),
+  getQna: (id: string) => api.get<AtlasQnARecord>(`/api/atlas/qna/${id}`),
+  updateQna: (id: string, data: { question?: string; answer?: string; topic?: string; status?: string }) =>
+    api.put<AtlasQnARecord>(`/api/atlas/qna/${id}`, data),
+  deleteQna: (id: string) => api.delete(`/api/atlas/qna/${id}`),
+  // Atlas Knowledge – documents by category (product-info | pricing-plan | objection-handling | competitive-intel | customer-faqs | company-policies)
+  getKnowledgeDocuments: (category: string) =>
+    api.get<AtlasKnowledgeDocument[]>(`/api/atlas/knowledge/${category}/documents`),
+  uploadKnowledgeDocument: (category: string, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post<{ id: string; filename: string; status: string; total_chunks: number; message: string }>(
+      `/api/atlas/knowledge/${category}/documents`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000 }
+    )
+  },
+  downloadKnowledgeDocument: (category: string, documentId: string) =>
+    api.get(`/api/atlas/knowledge/${category}/documents/${documentId}/download`, { responseType: 'blob' }),
+  deleteKnowledgeDocument: (category: string, documentId: string) =>
+    api.delete<{ message: string; id: string; chunks_deleted: number }>(
+      `/api/atlas/knowledge/${category}/documents/${documentId}`
+    ),
+}
+
 export const workflowsAPI = {
   // Get workflow by function
   getWorkflow: (functionName: string, campaignId?: string) => 
@@ -811,4 +1116,273 @@ export const prioritizedProspectsAPI = {
   deletePrioritizedProspect: (id: string) => api.delete(`/api/prioritized-prospects/${id}`),
   shortenContent: (id: string) => api.post(`/api/prioritized-prospects/${id}/shorten`),
   generateDifferentApproach: (id: string) => api.post(`/api/prioritized-prospects/${id}/different-approach`),
+}
+
+// Meetings API
+export type MeetingPlatform = 'teams' | 'zoom' | 'google_meet'
+
+export const meetingsAPI = {
+  getMeetings: (params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    platform?: MeetingPlatform;
+  }) => api.get('/api/meetings', { params }),
+  
+  getMeeting: (id: string) => api.get(`/api/meetings/${id}`),
+  
+  createMeeting: (data: {
+    title: string;
+    description?: string;
+    platform: MeetingPlatform;
+    link: string;
+  }) => api.post('/api/meetings', data),
+  
+  updateMeeting: (id: string, data: {
+    title?: string;
+    description?: string;
+    platform?: MeetingPlatform;
+    link?: string;
+    transcript_lines?: Array<{ speaker: string; role?: string; time: string; text: string }>;
+  }) => api.put(`/api/meetings/${id}`, data),
+
+  /** Backend will try Vexa, then fall back to cached DB transcript */
+  getMeetingTranscription: (id: string, params?: { refresh_ttl_seconds?: number }) =>
+    api.get<{ meeting_id: string; source: 'vexa' | 'cache' | 'none'; transcript_lines: Array<{ speaker: string; role?: string; time: string; text: string }>; fetched_at?: string; message?: string }>(
+      `/api/meetings/${id}/transcription`,
+      { params }
+    ),
+
+  getAtlasMeetingInsights: (id: string, params?: { force_refresh?: boolean }) =>
+    api.get<{
+      meeting_id: string;
+      source: 'llm' | 'cache' | 'none';
+      generated_at?: string;
+      summary: {
+        key_takeaways?: string[];
+        introduction_and_overview?: string[];
+        current_challenges?: string[];
+        product_fit_and_capabilities?: string[];
+      };
+      next_steps: Array<{ assignee: string; description: string; time?: string | null }>;
+      questions_and_objections: Array<{ question: string; time?: string | null; answer: string }>;
+      message?: string;
+    }>(`/api/meetings/${id}/atlas-insights`, { params }),
+  getMeetingPlaybookAnalysis: (
+    id: string,
+    params?: { force_refresh?: boolean; template_id?: string }
+  ) => api.get<MeetingPlaybookAnalysis>(`/api/meetings/${id}/playbook-analysis`, { params }),
+  getMeetingFeedback: (id: string, params?: { force_refresh?: boolean }) =>
+    api.get<MeetingFeedback>(`/api/meetings/${id}/feedback`, { params }),
+  getMeetingComments: (id: string) =>
+    api.get<MeetingComment[]>(`/api/meetings/${id}/comments`),
+  createMeetingComment: (id: string, data: { text: string }) =>
+    api.post<MeetingComment>(`/api/meetings/${id}/comments`, data),
+  updateMeetingComment: (id: string, commentId: string, data: { text: string }) =>
+    api.put<MeetingComment>(`/api/meetings/${id}/comments/${commentId}`, data),
+  deleteMeetingComment: (id: string, commentId: string) =>
+    api.delete(`/api/meetings/${id}/comments/${commentId}`),
+  
+  deleteMeeting: (id: string) => api.delete(`/api/meetings/${id}`),
+
+  /** Playbook scores per day for Insights page (last N days). */
+  getPlaybookScoresInsights: (params?: { days?: number }) =>
+    api.get<{
+      days: Array<{
+        date: string
+        label: string
+        score_pct: number | null
+        count: number
+        dimension_scores?: Record<string, number> | null
+      }>
+    }>('/api/meetings/insights/playbook-scores', { params: params ?? { days: 5 } }),
+
+  /** Speaking metrics per day + averages for Insights > Speaking Skills (from feedback_coach.speaking_metrics). */
+  getSpeakingScoresInsights: (params?: { days?: number }) =>
+    api.get<{
+      days: Array<{
+        date: string
+        label: string
+        count: number
+        speech_pace_wpm?: number | null
+        talk_ratio_pct?: number | null
+        longest_customer_monologue_sec?: number | null
+        questions_asked_avg?: number | null
+        filler_words_avg?: number | null
+      }>;
+      averages: {
+        speech_pace_wpm?: number
+        talk_ratio_pct?: number
+        longest_customer_monologue_sec?: number
+        questions_asked_avg?: number
+        filler_words_avg?: number
+      }
+    }>('/api/meetings/insights/speaking-scores', { params: params ?? { days: 5 } }),
+
+  /** To-Do items insights across meetings for Atlas /todo (day or week). */
+  getTodoInsights: (params?: { range_type?: 'day' | 'week' }) =>
+    api.get<{
+      range_type: 'day' | 'week'
+      analyzed_from: string
+      analyzed_to: string
+      total_calls: number
+      total_items: number
+      items: Array<{
+        meeting_id: string
+        meeting_title?: string | null
+        meeting_created_at?: string | null
+        assignee: string
+        description: string
+        time?: string | null
+        status: 'open' | 'done'
+        due_at?: string | null
+      }>
+      generated_at: string
+    }>('/api/meetings/insights/todo', { params: params ?? { range_type: 'day' } }),
+
+  analyzeTodoInsights: (params?: { range_type?: 'day' | 'week' }) =>
+    api.post<{
+      range_type: 'day' | 'week'
+      analyzed_from: string
+      analyzed_to: string
+      total_calls: number
+      total_items: number
+      items: Array<{
+        meeting_id: string
+        meeting_title?: string | null
+        meeting_created_at?: string | null
+        assignee: string
+        description: string
+        time?: string | null
+        status: 'open' | 'done'
+        due_at?: string | null
+      }>
+      generated_at: string
+    }>('/api/meetings/insights/todo/analyze', null, { params: params ?? { range_type: 'day' } }),
+  /** Objection Handling insights across calls (aggregated questions & objections by topic). */
+  getObjectionInsights: () =>
+    api.get<{
+      analyzed_from: string
+      analyzed_to: string
+      total_calls: number
+      topics: Array<{
+        topic: string
+        pct_calls: number
+        calls_count: number
+        questions_count: number
+        questions: Array<{
+          meeting_id: string
+          meeting_title?: string | null
+          meeting_created_at?: string | null
+          question: string
+          time?: string | null
+          answer: string
+        }>
+      }>
+      generated_at: string
+    }>('/api/meetings/insights/objections'),
+
+  analyzeObjectionInsights: (params?: { days?: number }) =>
+    api.post<{
+      analyzed_from: string
+      analyzed_to: string
+      total_calls: number
+      topics: Array<{
+        topic: string
+        pct_calls: number
+        calls_count: number
+        questions_count: number
+        questions: Array<{
+          meeting_id: string
+          meeting_title?: string | null
+          meeting_created_at?: string | null
+          question: string
+          time?: string | null
+          answer: string
+        }>
+      }>
+      generated_at: string
+    }>('/api/meetings/insights/objections/analyze', null, { params: params ?? { days: 5 } }),
+}
+
+// Playbooks API (Sales playbook templates / rules)
+export const playbooksAPI = {
+  list: (params?: { limit?: number }) => api.get<{ templates: Array<{ id: string; name: string; rules: Array<{ id?: string; label: string; description?: string }>; is_default: boolean; created_at: string; updated_at: string }>; total: number }>(
+    '/api/playbooks',
+    { params }
+  ),
+  create: (data: { name: string; rules: Array<{ id?: string; label: string; description?: string }> }) =>
+    api.post('/api/playbooks', data),
+  get: (id: string) => api.get(`/api/playbooks/${id}`),
+  update: (id: string, data: { name?: string; rules?: Array<{ id?: string; label: string; description?: string }>; is_default?: boolean }) =>
+    api.put(`/api/playbooks/${id}`, data),
+  setDefault: (id: string) => api.post(`/api/playbooks/${id}/set-default`),
+  delete: (id: string) => api.delete(`/api/playbooks/${id}`),
+}
+
+// Vexa AI API for Google Meet and Teams
+const VEXA_API_KEY = 'cbEsQmSHkRvCx1Frnou8liElUn9dkaVtBlLs0Gla'
+const VEXA_API_BASE = 'https://api.cloud.vexa.ai'
+
+export const vexaAPI = {
+  // Join Google Meet with bot
+  joinGoogleMeet: (nativeMeetingId: string) => {
+    return axios.post(
+      `${VEXA_API_BASE}/bots`,
+      {
+        platform: 'google_meet',
+        native_meeting_id: nativeMeetingId,
+        bot_name: 'MyMeetingBot'
+      },
+      {
+        headers: {
+          'X-API-Key': VEXA_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+  },
+  
+  // Join Teams meeting with bot
+  joinTeams: (nativeMeetingId: string, passcode: string) => {
+    return axios.post(
+      `${VEXA_API_BASE}/bots`,
+      {
+        platform: 'teams',
+        native_meeting_id: nativeMeetingId,
+        passcode: passcode,
+        bot_name: 'MyMeetingBot'
+      },
+      {
+        headers: {
+          'X-API-Key': VEXA_API_KEY,
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+  },
+  
+  // Get transcription for Google Meet
+  getGoogleMeetTranscription: (googleMeetId: string) => {
+    return axios.get(
+      `${VEXA_API_BASE}/transcripts/google_meet/${googleMeetId}`,
+      {
+        headers: {
+          'X-API-Key': VEXA_API_KEY
+        }
+      }
+    )
+  },
+  
+  // Get transcription for Teams
+  getTeamsTranscription: (teamsMeetingId: string) => {
+    return axios.get(
+      `${VEXA_API_BASE}/transcripts/teams/${teamsMeetingId}`,
+      {
+        headers: {
+          'X-API-Key': VEXA_API_KEY
+        }
+      }
+    )
+  }
 }

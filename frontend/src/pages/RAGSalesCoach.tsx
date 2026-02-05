@@ -196,10 +196,10 @@ export default function RAGSalesCoach() {
             </div>
             <div>
               <h1 className="text-4xl font-bold text-gray-900 tracking-tight">
-                RAG AI Sales Coach
+                RAG Atlas
               </h1>
               <p className="text-gray-600 mt-2 text-lg">
-                Upload documents to enhance your AI sales coach with intelligent knowledge retrieval
+                Upload documents to enhance your Atlas with intelligent knowledge retrieval
               </p>
             </div>
           </div>
@@ -491,7 +491,7 @@ export default function RAGSalesCoach() {
                         </li>
                         <li className="flex items-start gap-2">
                           <span className="text-blue-600 font-semibold mt-0.5">3.</span>
-                          <span>Your AI Sales Coach can now access this knowledge for smarter responses</span>
+                          <span>Your Atlas can now access this knowledge for smarter responses</span>
                         </li>
                       </ul>
                     </div>

@@ -21,19 +21,24 @@ class Database:
 db = Database()
 
 def load_weaviate_schema():
-    """Load Weaviate schema from JSON file"""
-    # Look for schema in backend root directory
+    """Load Weaviate schema from JSON file. Returns list of class configs (for migration)."""
     backend_root = Path(__file__).parent.parent.parent
     schema_path = backend_root / "weaviate_schema.json"
     try:
         with open(schema_path, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            data = json.load(f)
     except FileNotFoundError:
         print(f"⚠️ [WARNING] Schema file not found: {schema_path}")
-        return None
+        return []
     except json.JSONDecodeError as e:
         print(f"⚠️ [WARNING] Invalid JSON in schema file: {e}")
-        return None
+        return []
+    # Support both: {"classes": [...]} and legacy {"class": "...", "properties": [...]}
+    if "classes" in data:
+        return data["classes"]
+    if "class" in data:
+        return [data]
+    return []
 
 def ensure_weaviate_class(client, schema_config):
     """Ensure Weaviate class exists, create if it doesn't"""
@@ -137,9 +142,9 @@ async def init_db():
             )
         print(f"Connected to Weaviate at {settings.WEAVIATE_URL}")
         
-        # Ensure Weaviate class exists
-        schema_config = load_weaviate_schema()
-        if schema_config:
+        # Migration: ensure all Weaviate classes exist, create if missing
+        class_configs = load_weaviate_schema()
+        for schema_config in class_configs:
             ensure_weaviate_class(db.weaviate_client, schema_config)
         
     except Exception as e:

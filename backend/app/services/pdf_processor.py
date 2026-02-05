@@ -171,6 +171,36 @@ def create_chunks(
     logger.info(f"Created {len(chunks)} chunks from {len(sentences)} sentences")
     return chunks
 
+def extract_text_from_docx(docx_path: str) -> str:
+    """
+    Extract text from DOCX file.
+
+    Args:
+        docx_path: Path to DOCX file
+
+    Returns:
+        Extracted text content
+    """
+    try:
+        from docx import Document
+        doc = Document(docx_path)
+        text_parts = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                text_parts.append(para.text)
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = " ".join(cell.text.strip() for cell in row.cells if cell.text.strip())
+                if row_text:
+                    text_parts.append(row_text)
+        full_text = "\n\n".join(text_parts)
+        logger.info(f"Extracted {len(full_text)} characters from DOCX")
+        return full_text
+    except Exception as e:
+        logger.error(f"Error extracting text from DOCX: {e}")
+        raise
+
+
 def process_pdf_to_chunks(pdf_path: str, max_tokens: int = 512) -> List[Tuple[str, int]]:
     """
     Process PDF file: extract text, split into sentences, create chunks
@@ -198,5 +228,31 @@ def process_pdf_to_chunks(pdf_path: str, max_tokens: int = 512) -> List[Tuple[st
     logger.info(f"📦 [PDF] Creating chunks (max_tokens={max_tokens})...")
     chunks = create_chunks(sentences, max_tokens)
     logger.info(f"✅ [PDF] Created {len(chunks)} chunks")
-    
+
     return chunks
+
+
+def process_file_to_chunks(file_path: str, max_tokens: int = 512) -> List[Tuple[str, int]]:
+    """
+    Process a document file (PDF or DOCX): extract text, split into sentences, create chunks.
+
+    Args:
+        file_path: Path to PDF or DOCX file
+        max_tokens: Maximum tokens per chunk
+
+    Returns:
+        List of tuples (chunk_text, chunk_index)
+    """
+    file_path_lower = file_path.lower()
+    if file_path_lower.endswith(".pdf"):
+        return process_pdf_to_chunks(file_path, max_tokens)
+    if file_path_lower.endswith(".docx"):
+        logger.info(f"📄 [DOCX] Processing DOCX: {file_path}")
+        text = extract_text_from_docx(file_path)
+        logger.info(f"✅ [DOCX] Extracted {len(text)} characters")
+        sentences = split_into_sentences(text)
+        logger.info(f"✅ [DOCX] Split into {len(sentences)} sentences")
+        chunks = create_chunks(sentences, max_tokens)
+        logger.info(f"✅ [DOCX] Created {len(chunks)} chunks")
+        return chunks
+    raise ValueError(f"Unsupported file type. Use .pdf or .docx: {file_path}")

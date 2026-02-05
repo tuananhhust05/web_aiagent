@@ -188,7 +188,7 @@ export default function ConversationModal({
         </form>
           </div>
 
-          {/* AI Sales Coach Sidebar */}
+          {/* Atlas Sidebar */}
           {showAICopilot && (
             <div className="w-1/3 border-l border-gray-200 overflow-y-auto bg-gray-50 p-4">
               <AISalesCopilot

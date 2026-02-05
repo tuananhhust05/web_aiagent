@@ -69,9 +69,18 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str 
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str
+    # Google Calendar OAuth (optional; if not set, callback URL is derived from FRONTEND_URL + backend path)
+    GOOGLE_CALENDAR_REDIRECT_URI: str = ""
+    # Encrypt refresh_token at rest (optional; if not set, token stored in plaintext - not for production)
+    CALENDAR_REFRESH_TOKEN_ENCRYPTION_KEY: str = ""
     
     # Groq AI Configuration
     GROQ_API_KEY: str = ""
+
+    # Vexa AI (meeting bots + transcripts)
+    # NOTE: Set via environment variables in production.
+    VEXA_API_KEY: str = "cbEsQmSHkRvCx1Frnou8liElUn9dkaVtBlLs0Gla"
+    VEXA_API_BASE: str = "https://api.cloud.vexa.ai"
     
     # AI Sales Copilot Configuration
     AI_COPILOT_MAX_OUTPUT_TOKENS: int = 2000  # Maximum tokens for AI output responses

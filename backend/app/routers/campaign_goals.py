@@ -964,7 +964,7 @@ async def get_goal_todo_items(
             # Check if cache is still valid (within 24 hours)
             cache_age = (datetime.utcnow() - cached_analysis.get("created_at", datetime.utcnow())).total_seconds()
             if cache_age < 86400:  # 24 hours
-                print(f"✅ [AI SALES COACH] Returning cached analysis for goal {goal_id}")
+                print(f"✅ [Atlas] Returning cached analysis for goal {goal_id}")
                 return cached_analysis.get("todo_data")
     
     # Generate to-do items using AI
@@ -1005,7 +1005,7 @@ async def get_goal_todo_items(
         upsert=True
     )
     
-    print(f"✅ [AI SALES COACH] Analysis saved to database for goal {goal_id}")
+    print(f"✅ [Atlas] Analysis saved to database for goal {goal_id}")
     
     return todo_data
 
@@ -1039,7 +1039,7 @@ async def clear_goal_todo_cache(
         "user_id": current_user.id
     })
     
-    print(f"✅ [AI SALES COACH] Cleared {result.deleted_count} cached analysis(es) for goal {goal_id}")
+    print(f"✅ [Atlas] Cleared {result.deleted_count} cached analysis(es) for goal {goal_id}")
     
     return {
         "message": "Cache cleared successfully",
@@ -1054,7 +1054,7 @@ async def chat_with_ai_sales_coach(
     current_user: UserResponse = Depends(get_current_active_user)
 ):
     """
-    Chat with AI Sales Coach - ask questions, request message variations,
+    Chat with Atlas - ask questions, request message variations,
     prepare for calls, simulate prospect responses, etc.
     """
     db = get_database()
@@ -1084,7 +1084,7 @@ async def chat_with_ai_sales_coach(
     goal_name = goal.get("name", "")
     goal_description = goal.get("description")
     
-    # Chat with AI Sales Coach
+    # Chat with Atlas
     coach_response = await chat_with_sales_coach(
         goal_name=goal_name,
         goal_description=goal_description,
@@ -1095,7 +1095,7 @@ async def chat_with_ai_sales_coach(
     if not coach_response:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get response from AI Sales Coach"
+            detail="Failed to get response from Atlas"
         )
     
     return coach_response

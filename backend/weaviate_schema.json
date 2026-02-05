@@ -1,27 +1,81 @@
 {
-  "class": "DataAiSaleCoach",
-  "description": "Vectorized text chunks from documents",
-  "vectorizer": "none",
-  "properties": [
+  "classes": [
     {
-      "name": "user_id",
-      "dataType": ["text"],
-      "description": "Owner of the document"
+      "class": "DataAiSaleCoach",
+      "description": "Vectorized text chunks from documents",
+      "vectorizer": "none",
+      "properties": [
+        {"name": "user_id", "dataType": ["text"], "description": "Owner of the document"},
+        {"name": "doc_id", "dataType": ["text"], "description": "ID of the original document (book)"},
+        {"name": "content", "dataType": ["text"], "description": "Text content of the chunk"},
+        {"name": "chunk_index", "dataType": ["int"], "description": "Order of the chunk within the document"}
+      ]
     },
     {
-      "name": "doc_id",
-      "dataType": ["text"],
-      "description": "ID of the original document (book)"
+      "class": "AtlasProductInfo",
+      "description": "Atlas product information chunks",
+      "vectorizer": "none",
+      "properties": [
+        {"name": "user_id", "dataType": ["text"], "description": "Owner of the document"},
+        {"name": "doc_id", "dataType": ["text"], "description": "ID of the original document"},
+        {"name": "content", "dataType": ["text"], "description": "Text content of the chunk"},
+        {"name": "chunk_index", "dataType": ["int"], "description": "Order of the chunk within the document"}
+      ]
     },
     {
-      "name": "content",
-      "dataType": ["text"],
-      "description": "Text content of the chunk"
+      "class": "AtlasPricingPlan",
+      "description": "Atlas pricing plan chunks",
+      "vectorizer": "none",
+      "properties": [
+        {"name": "user_id", "dataType": ["text"], "description": "Owner of the document"},
+        {"name": "doc_id", "dataType": ["text"], "description": "ID of the original document"},
+        {"name": "content", "dataType": ["text"], "description": "Text content of the chunk"},
+        {"name": "chunk_index", "dataType": ["int"], "description": "Order of the chunk within the document"}
+      ]
     },
     {
-      "name": "chunk_index",
-      "dataType": ["int"],
-      "description": "Order of the chunk within the document"
+      "class": "AtlasObjectionHandling",
+      "description": "Atlas objection handling chunks",
+      "vectorizer": "none",
+      "properties": [
+        {"name": "user_id", "dataType": ["text"], "description": "Owner of the document"},
+        {"name": "doc_id", "dataType": ["text"], "description": "ID of the original document"},
+        {"name": "content", "dataType": ["text"], "description": "Text content of the chunk"},
+        {"name": "chunk_index", "dataType": ["int"], "description": "Order of the chunk within the document"}
+      ]
+    },
+    {
+      "class": "AtlasCompetitiveIntel",
+      "description": "Atlas competitive intelligence chunks",
+      "vectorizer": "none",
+      "properties": [
+        {"name": "user_id", "dataType": ["text"], "description": "Owner of the document"},
+        {"name": "doc_id", "dataType": ["text"], "description": "ID of the original document"},
+        {"name": "content", "dataType": ["text"], "description": "Text content of the chunk"},
+        {"name": "chunk_index", "dataType": ["int"], "description": "Order of the chunk within the document"}
+      ]
+    },
+    {
+      "class": "AtlasCustomerFaqs",
+      "description": "Atlas customer FAQs chunks",
+      "vectorizer": "none",
+      "properties": [
+        {"name": "user_id", "dataType": ["text"], "description": "Owner of the document"},
+        {"name": "doc_id", "dataType": ["text"], "description": "ID of the original document"},
+        {"name": "content", "dataType": ["text"], "description": "Text content of the chunk"},
+        {"name": "chunk_index", "dataType": ["int"], "description": "Order of the chunk within the document"}
+      ]
+    },
+    {
+      "class": "AtlasCompanyPolicies",
+      "description": "Atlas company policies chunks",
+      "vectorizer": "none",
+      "properties": [
+        {"name": "user_id", "dataType": ["text"], "description": "Owner of the document"},
+        {"name": "doc_id", "dataType": ["text"], "description": "ID of the original document"},
+        {"name": "content", "dataType": ["text"], "description": "Text content of the chunk"},
+        {"name": "chunk_index", "dataType": ["int"], "description": "Order of the chunk within the document"}
+      ]
     }
   ]
 }

@@ -113,6 +113,12 @@ export default function Privacy() {
                 <p className="mb-2"><strong>Legal basis:</strong> Legitimate interest of the Controller to improve its services</p>
                 <p className="text-sm text-gray-600"><strong>Categories of data:</strong> Platform usage data (aggregated and anonymous), Behavioral data (aggregated and anonymous)</p>
               </div>
+
+              <div className="border-l-4 border-blue-500 pl-4">
+                <p className="font-semibold mb-2">Purpose: B2B commercial prospecting directed at companies and business professionals</p>
+                <p className="mb-2"><strong>Legal basis:</strong> Legitimate interest of the Data Controller to carry out direct marketing activities in a business-to-business context, pursuant to Article 6(1)(f) of the GDPR</p>
+                <p className="text-sm text-gray-600"><strong>Categories of data:</strong> Professional contact data, such as business email addresses</p>
+              </div>
             </div>
           </div>
 
@@ -130,6 +136,7 @@ export default function Privacy() {
             <div className="space-y-2 text-gray-700">
               <p><strong>Contractual data:</strong> 10 years from the termination of the contractual relationship (for tax and accounting purposes)</p>
               <p><strong>Marketing data:</strong> until consent is revoked or for a maximum of 24 months from the last interaction</p>
+              <p><strong>B2B commercial prospecting data:</strong> maximum 24 months from the last interaction with the data subject or until an objection is raised, whichever occurs first</p>
               <p><strong>Navigation data:</strong> maximum 12 months</p>
             </div>
           </div>

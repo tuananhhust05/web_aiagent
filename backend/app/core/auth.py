@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from typing import Optional
+from bson import ObjectId
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import HTTPException, status, Depends
@@ -11,6 +12,22 @@ from app.core.database import get_database
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 security_optional = HTTPBearer(auto_error=False)
+
+
+async def _find_user_by_id(db, user_id: str):
+    """Find user by _id trying string then ObjectId so we match regardless of storage type."""
+    uid_str = str(user_id) if user_id else ""
+    user = await db.users.find_one({"_id": uid_str})
+    if user:
+        return user
+    if len(uid_str) == 24 and all(c in "0123456789abcdefABCDEF" for c in uid_str):
+        try:
+            user = await db.users.find_one({"_id": ObjectId(uid_str)})
+            if user:
+                return user
+        except Exception:
+            pass
+    return None
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
@@ -43,10 +60,12 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise credentials_exception
     
     db = get_database()
-    user = await db.users.find_one({"_id": user_id})
+    user = await _find_user_by_id(db, user_id)
     if user is None:
         raise credentials_exception
-    
+    # Normalize _id to str for UserResponse so id is always string
+    if isinstance(user.get("_id"), ObjectId):
+        user = {**user, "_id": str(user["_id"])}
     return UserResponse(**user)
 
 async def get_current_active_user(current_user: UserResponse = Depends(get_current_user)) -> UserResponse:
@@ -68,8 +87,9 @@ async def get_current_user_optional(credentials: HTTPAuthorizationCredentials = 
         return None
     
     db = get_database()
-    user = await db.users.find_one({"_id": user_id})
+    user = await _find_user_by_id(db, user_id)
     if user is None:
         return None
-    
-    return UserResponse(**user) 
+    if isinstance(user.get("_id"), ObjectId):
+        user = {**user, "_id": str(user["_id"])}
+    return UserResponse(**user)

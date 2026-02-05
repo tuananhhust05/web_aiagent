@@ -1013,6 +1013,149 @@ IMPORTANT:
         return None
 
 
+async def analyze_call_against_playbook(
+    *,
+    transcript: str,
+    playbook_name: str,
+    rules: List[Dict[str, Any]],
+) -> Optional[Dict[str, Any]]:
+    """
+    Analyze a single call transcript against a sales playbook template.
+
+    Returns structured JSON with per-rule evaluation:
+    - passed: whether the seller satisfied the rule
+    - what_you_said: concrete quote or summary from the transcript (can be empty)
+    - what_you_should_say: suggested phrasing to satisfy the rule
+    """
+    try:
+        if not settings.GROQ_API_KEY:
+            print("⚠️ [Atlas] GROQ_API_KEY not configured (playbook analysis)")
+            return None
+
+        # Protect against overly long transcripts
+        max_input_tokens = getattr(settings, "AI_COPILOT_MAX_INPUT_TOKENS", 8000)
+        safe_transcript = truncate_text_from_start(transcript, max_input_tokens)
+
+        # Format rules for the prompt
+        rules_text_lines = []
+        for idx, rule in enumerate(rules, start=1):
+            label = rule.get("label") or ""
+            description = rule.get("description") or ""
+            rule_id = rule.get("id") or ""
+            rules_text_lines.append(
+                f"- Rule {idx} (id={rule_id}): {label}\n  Description: {description}"
+            )
+        rules_text = "\n".join(rules_text_lines) if rules_text_lines else "No rules defined."
+
+        prompt = f"""You are an expert sales coach.
+You will evaluate a sales call transcript against a Sales Playbook template.
+
+Sales Playbook: {playbook_name}
+
+Playbook Rules:
+{rules_text}
+
+Call Transcript (seller and prospect):
+\"\"\"{safe_transcript}\"\"\"
+
+TASK:
+For EACH rule in the playbook, decide if the SELLER satisfied that rule during the call.
+
+For each rule:
+- Carefully scan the transcript for what the seller actually said.
+- If the rule is clearly satisfied, set "passed" to true.
+- If the rule is not satisfied or is weakly satisfied, set "passed" to false.
+- "what_you_said": extract the most relevant QUOTE or short summary (1-3 sentences) of what the seller said that relates to this rule. If the seller did not say anything relevant, use an empty string.
+- "what_you_should_say": propose a concrete, ready-to-use sentence (1-3 sentences) that would satisfy this rule in a future call. This should be specific and natural, not meta-commentary.
+
+Return ONLY valid JSON in the following format:
+{{
+  "rules": [
+    {{
+      "rule_id": "<id from input or empty>",
+      "label": "<rule label>",
+      "description": "<rule description if any>",
+      "passed": true or false,
+      "what_you_said": "<quote or short summary, or empty string>",
+      "what_you_should_say": "<suggested phrasing, 1-3 sentences>"
+    }}
+  ],
+  "overall_score": 0-100,
+  "coaching_summary": "1-3 sentence overview of how well the playbook was followed.",
+  "dimension_scores": {{
+    "Handled objections": 0-100,
+    "Personalized demo": 0-100,
+    "Intro Banter": 0-100,
+    "Set Agenda": 0-100,
+    "Demo told a story": 0-100
+  }}
+}}
+
+IMPORTANT:
+- Base your evaluation STRICTLY on the transcript content.
+- When there is no clear evidence, mark the rule as not passed and leave "what_you_said" empty.
+- dimension_scores: rate the call 0-100 for EACH of the five dimensions above. Handled objections = how well objections were addressed. Personalized demo = how tailored the demo was. Intro Banter = warmth/small talk at start. Set Agenda = clarity of purpose and agenda. Demo told a story = whether the demo had a clear narrative. Use 0 if absent, up to 100 if excellent.
+- Always return valid JSON, with double quotes and no trailing commas.
+"""
+
+        groq_url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are an expert B2B sales coach. Always respond with valid JSON only.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.3,
+            "max_tokens": getattr(settings, "AI_COPILOT_MAX_OUTPUT_TOKENS", 2048),
+            "response_format": {"type": "json_object"},
+        }
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                groq_url,
+                json=payload,
+                headers=headers,
+                timeout=aiohttp.ClientTimeout(total=45),
+            ) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    print(
+                        f"❌ [Atlas] Playbook analysis API error: {response.status} - {error_text}"
+                    )
+                    return None
+
+                result = await response.json()
+                choices = result.get("choices", [])
+                if not choices:
+                    print("⚠️ [Atlas] Playbook analysis: no choices in response")
+                    return None
+
+                content = choices[0].get("message", {}).get("content", "").strip()
+                try:
+                    data = json.loads(content)
+                    print("✅ [Atlas] Playbook analysis completed successfully")
+                    return data
+                except json.JSONDecodeError as e:
+                    print(f"❌ [Atlas] Failed to parse playbook JSON response: {e}")
+                    print(f"   - Response content (first 500 chars): {content[:500]}")
+                    return None
+
+    except Exception as e:
+        print(f"❌ [Atlas] Error in analyze_call_against_playbook: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        return None
+
+
 async def generate_goal_todo_items(
     goal_name: str,
     goal_description: Optional[str],
@@ -1026,7 +1169,7 @@ async def generate_goal_todo_items(
     """
     try:
         if not settings.GROQ_API_KEY:
-            print("⚠️ [AI SALES COACH] GROQ_API_KEY not configured")
+            print("⚠️ [Atlas] GROQ_API_KEY not configured")
             return None
 
         # Prepare goal context
@@ -1086,7 +1229,7 @@ Related Campaigns Context:
 {campaign_context_text}"""
 
         # Create prompt for to-do generation
-        prompt = f"""You are an AI Sales Coach, an intelligent assistant that helps salespeople manage their sales activities efficiently.
+        prompt = f"""You are an Atlas, an intelligent assistant that helps salespeople manage their sales activities efficiently.
 
 {full_context}
 
@@ -1164,7 +1307,7 @@ IMPORTANT RULES:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are an AI Sales Coach. Generate actionable to-do items for salespeople in JSON format. Always return valid JSON only."
+                    "content": "You are an Atlas. Generate actionable to-do items for salespeople in JSON format. Always return valid JSON only."
                 },
                 {
                     "role": "user",
@@ -1192,23 +1335,23 @@ IMPORTANT RULES:
                         
                         try:
                             todo_data = json.loads(content)
-                            print(f"✅ [AI SALES COACH] To-do items generated successfully")
+                            print(f"✅ [Atlas] To-do items generated successfully")
                             return todo_data
                         except json.JSONDecodeError as e:
-                            print(f"❌ [AI SALES COACH] Failed to parse JSON response: {e}")
+                            print(f"❌ [Atlas] Failed to parse JSON response: {e}")
                             print(f"   - Response content: {content[:500]}")
                             return None
                     else:
-                        print(f"⚠️ [AI SALES COACH] No choices in response")
+                        print(f"⚠️ [Atlas] No choices in response")
                         return None
                 else:
                     error_text = await response.text()
-                    print(f"❌ [AI SALES COACH] API error: {response.status}")
+                    print(f"❌ [Atlas] API error: {response.status}")
                     print(f"   - Error: {error_text}")
                     return None
 
     except Exception as e:
-        print(f"❌ [AI SALES COACH] Error generating to-do items: {str(e)}")
+        print(f"❌ [Atlas] Error generating to-do items: {str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -1221,12 +1364,12 @@ async def chat_with_sales_coach(
     context: Optional[Dict[str, Any]] = None
 ) -> Optional[Dict[str, Any]]:
     """
-    Chat with AI Sales Coach - allows user to ask questions, request message variations,
+    Chat with Atlas - allows user to ask questions, request message variations,
     prepare for calls, simulate prospect responses, etc.
     """
     try:
         if not settings.GROQ_API_KEY:
-            print("⚠️ [AI SALES COACH] GROQ_API_KEY not configured")
+            print("⚠️ [Atlas] GROQ_API_KEY not configured")
             return None
 
         # Prepare goal context
@@ -1250,7 +1393,7 @@ Campaign Goal:
                 context_text += f"\nCall script to review: {context['call_script']}\n"
 
         # Create prompt for sales coach chat
-        prompt = f"""You are an AI Sales Coach, a personal sales coach that helps salespeople improve their sales performance.
+        prompt = f"""You are an Atlas, a personal sales coach that helps salespeople improve their sales performance.
 
 {goal_context}
 
@@ -1310,7 +1453,7 @@ IMPORTANT:
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are an AI Sales Coach. Provide helpful, coaching-style responses in JSON format. Always return valid JSON only."
+                    "content": "You are an Atlas. Provide helpful, coaching-style responses in JSON format. Always return valid JSON only."
                 },
                 {
                     "role": "user",
@@ -1338,23 +1481,23 @@ IMPORTANT:
                         
                         try:
                             coach_response = json.loads(content)
-                            print(f"✅ [AI SALES COACH] Chat response generated successfully")
+                            print(f"✅ [Atlas] Chat response generated successfully")
                             return coach_response
                         except json.JSONDecodeError as e:
-                            print(f"❌ [AI SALES COACH] Failed to parse JSON response: {e}")
+                            print(f"❌ [Atlas] Failed to parse JSON response: {e}")
                             print(f"   - Response content: {content[:500]}")
                             return None
                     else:
-                        print(f"⚠️ [AI SALES COACH] No choices in response")
+                        print(f"⚠️ [Atlas] No choices in response")
                         return None
                 else:
                     error_text = await response.text()
-                    print(f"❌ [AI SALES COACH] API error: {response.status}")
+                    print(f"❌ [Atlas] API error: {response.status}")
                     print(f"   - Error: {error_text}")
                     return None
 
     except Exception as e:
-        print(f"❌ [AI SALES COACH] Error in sales coach chat: {str(e)}")
+        print(f"❌ [Atlas] Error in sales coach chat: {str(e)}")
         import traceback
         traceback.print_exc()
         return None

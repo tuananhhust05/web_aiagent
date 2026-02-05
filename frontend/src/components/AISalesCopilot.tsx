@@ -210,7 +210,7 @@ const AISalesCopilot: React.FC<AISalesCopilotProps> = ({
               <Brain className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">AI Sales Coach</h3>
+              <h3 className="text-lg font-semibold text-gray-900">Atlas</h3>
               <p className="text-xs text-gray-600">Intelligent analysis</p>
             </div>
           </div>

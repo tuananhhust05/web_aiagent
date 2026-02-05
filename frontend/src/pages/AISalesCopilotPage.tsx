@@ -73,7 +73,7 @@ export default function AISalesCopilotPage() {
                 {/* Greeting */}
                 <div>
                   <p className="text-lg text-gray-800">
-                    Hello, I'm Atlas, your <span className="font-semibold">AI Sales Coach</span>.
+                    Hello, I'm Atlas, your <span className="font-semibold">Atlas</span>.
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
                     I'm here to help you close your deals.
@@ -90,14 +90,14 @@ export default function AISalesCopilotPage() {
                 </div>
               </div>
 
-              {/* Right: AI Sales Coach Image */}
+              {/* Right: Atlas Image */}
               <div className="relative z-10 flex-shrink-0 ml-6">
                 <div className="relative w-48 h-48 md:w-56 md:h-56 bg-white rounded-2xl">
-                  {/* AI Sales Coach Image */}
+                  {/* Atlas Image */}
                   <img
                     style={{position:'absolute',right:'-20px'}}
                     src="/images/ai_sales_coach.png"
-                    alt="AI Sales Coach"
+                    alt="Atlas"
                     className="relative w-full h-full object-contain object-center"
                     onError={(e) => {
                       // Fallback if image doesn't exist
@@ -177,7 +177,7 @@ export default function AISalesCopilotPage() {
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No Campaigns Found</h3>
             <p className="text-gray-500">
-              Create a campaign first to use AI Sales Coach.
+              Create a campaign first to use Atlas.
             </p>
           </div>
         ) : (

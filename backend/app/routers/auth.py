@@ -10,6 +10,10 @@ from app.models.user import (
 from app.core.config import settings
 from app.services.email import send_password_reset_email, generate_reset_token
 from app.services.google_auth import google_auth_service
+from app.services.google_calendar_service import exchange_code_for_calendar_token
+from app.services.calendar_crypto import encrypt_refresh_token
+from jose import JWTError, jwt
+from fastapi.responses import RedirectResponse
 import secrets
 import logging
 
@@ -484,5 +488,111 @@ async def google_login_callback(
     except Exception as e:
         print(f"🔐 [GOOGLE_OAUTH] Callback error: {str(e)}")
         error_url = f"https://forskale.com/login?error=oauth_failed"
-        from fastapi.responses import RedirectResponse
-        return RedirectResponse(url=error_url) 
+        return RedirectResponse(url=error_url)
+
+
+# ----- Google Calendar OAuth (calendar-only scope) -----
+@router.get("/google/calendar/callback")
+async def google_calendar_callback(
+    code: str = None,
+    state: str = None,
+    error: str = None,
+    scope: str = None,
+):
+    """
+    Handle Google OAuth callback for Calendar only.
+    Exchange code -> token, validate scope, save refresh_token (encrypted), set connected.
+    Redirect to redirect_origin from state (if allowed) or FRONTEND_URL, then path /atlas/calendar?connected=...
+    """
+    logger.info(
+        "[Calendar OAuth] Callback received: has_code=%s, has_state=%s, error=%s, scope=%s",
+        bool(code), bool(state), error, scope,
+    )
+    frontend_base = getattr(settings, "FRONTEND_URL", None) or "https://forskale.com"
+    success_url = f"{frontend_base}/atlas/calendar?connected=success"
+    error_url = f"{frontend_base}/atlas/calendar?connected=error"
+
+    if error:
+        logger.warning("[Calendar OAuth] Error from Google: %s -> redirect to error_url", error)
+        return RedirectResponse(url=error_url)
+    if not code or not state:
+        logger.warning("[Calendar OAuth] Missing code or state -> redirect to error_url")
+        return RedirectResponse(url=error_url)
+
+    try:
+        payload = jwt.decode(
+            state,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+        if payload.get("purpose") != "calendar_connect":
+            logger.warning("[Calendar OAuth] Invalid state purpose=%s", payload.get("purpose"))
+            return RedirectResponse(url=error_url)
+        user_id = payload.get("sub")
+        if not user_id:
+            logger.warning("[Calendar OAuth] No sub in state")
+            return RedirectResponse(url=error_url)
+        logger.info("[Calendar OAuth] State decoded: user_id=%s, redirect_origin=%s", user_id, payload.get("redirect_origin"))
+        # Use redirect_origin from state so user returns to same origin (e.g. localhost)
+        redirect_origin = payload.get("redirect_origin")
+        if redirect_origin and isinstance(redirect_origin, str):
+            base = redirect_origin.rstrip("/")
+            allowed = (
+                base.startswith("http://localhost")
+                or base.startswith("https://localhost")
+                or base.startswith("http://127.0.0.1")
+                or base.startswith("https://127.0.0.1")
+                or (frontend_base and base == frontend_base.rstrip("/"))
+            )
+            if allowed:
+                success_url = f"{base}/atlas/calendar?connected=success"
+                error_url = f"{base}/atlas/calendar?connected=error"
+                logger.info("[Calendar OAuth] Using redirect_origin: success_url=%s", success_url)
+    except JWTError as e:
+        logger.warning("[Calendar OAuth] Invalid state JWT: %s", e)
+        return RedirectResponse(url=error_url)
+
+    try:
+        logger.info("[Calendar OAuth] Exchanging code for token...")
+        token_data = await exchange_code_for_calendar_token(code)
+        refresh_token = token_data.get("refresh_token")
+        if not refresh_token:
+            logger.warning("[Calendar OAuth] No refresh_token in token response")
+            return RedirectResponse(url=error_url)
+        scope_val = token_data.get("scope", "")
+        logger.info("[Calendar OAuth] Token received: has_refresh_token=True, scope=%s", scope_val)
+        if "calendar" not in scope_val.lower():
+            logger.warning("[Calendar OAuth] Scope missing calendar: %s", scope_val)
+            return RedirectResponse(url=error_url)
+
+        encrypted = encrypt_refresh_token(refresh_token)
+        logger.info("[Calendar OAuth] Refresh token encrypted, updating user in DB...")
+        db = get_database()
+        from app.core.auth import _find_user_by_id
+        user_doc = await _find_user_by_id(db, str(user_id))
+        if not user_doc:
+            logger.warning("[Calendar OAuth] User not found for _id=%s", user_id)
+            return RedirectResponse(url=error_url)
+        payload_set = {
+            "google_calendar_connected": True,
+            "google_calendar_refresh_token": encrypted,
+            "google_calendar_scope": scope_val,
+            "google_calendar_connected_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+        result = await db.users.update_one(
+            {"_id": user_doc["_id"]},
+            {"$set": payload_set},
+        )
+        if result.matched_count == 0:
+            logger.warning("[Calendar OAuth] DB update matched_count=0 for _id=%s", user_doc["_id"])
+        else:
+            logger.info(
+                "[Calendar OAuth] DB updated: user_id=%s, matched=%s, modified=%s, google_calendar_connected=True",
+                user_id, result.matched_count, result.modified_count,
+            )
+        logger.info("[Calendar OAuth] Redirecting to success_url: %s", success_url)
+        return RedirectResponse(url=success_url)
+    except Exception as e:
+        logger.exception("[Calendar OAuth] Failed: %s", e)
+        return RedirectResponse(url=error_url)

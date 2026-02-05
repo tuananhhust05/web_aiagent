@@ -28,6 +28,7 @@ import {
   MoreHorizontal,
   LogIn,
   Brain,
+  Calendar,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -44,7 +45,7 @@ interface NavigationItem {
 const settingsNavigation: NavigationItem[] = [
   { name: 'Agent', href: '/agent', icon: Mic },
   { name: 'RAG', href: '/ragclient', icon: FileText },
-  { name: 'RAG AI Sales Coach', href: '/rag-sales-coach', icon: Brain },
+  { name: 'RAG Atlas', href: '/rag-sales-coach', icon: Brain },
 ]
 
 // More Functions submenu items
@@ -57,6 +58,7 @@ const moreFunctionsNavigation: NavigationItem[] = [
   { name: 'WhatsApp Login', href: '/whatsapp-login', icon: LogIn },
   { name: 'Telegram Campaigns', href: '/telegram', icon: Send },
   { name: 'Telegram Login', href: '/telegram-login', icon: LogIn },
+  { name: 'CRM Integration', href: '/crm-integrations', icon: Database },
 ]
 
 // New main navigation for sidebar
@@ -70,13 +72,15 @@ const mainNavigation: NavigationItem[] = [
   { name: 'Renewals', href: '/renewals', icon: UserCheck },
   { name: 'Up / Cross Sell', href: '/upsell', icon: ArrowUpRight },
   { name: 'Marketing Data', href: '/marketing-data', icon: Database },
-  { name: 'AI Sales Coach', href: '/ai-sales-copilot', icon: Brain },
+  { name: 'Atlas', href: '/atlas', icon: Brain },
 ]
 
 // Main dropdown navigation (simplified)
 const dropdownNavigation: NavigationItem[] = [
   { name: 'Settings', href: '#', icon: Settings, hasSubmenu: true, submenu: settingsNavigation },
   { name: 'More Functions', href: '#', icon: MoreHorizontal, hasSubmenu: true, submenu: moreFunctionsNavigation },
+  { name: 'Meetings', href: '/meetings', icon: Calendar },
+  { name: 'Edit Sales Playbook', href: '/atlas/playbooks', icon: FileText },
   { name: 'Profile', href: '/profile', icon: User },
 ]
 

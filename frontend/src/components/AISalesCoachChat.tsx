@@ -52,7 +52,7 @@ const AISalesCoachChat: React.FC<AISalesCoachChatProps> = ({
     {
       id: '1',
       role: 'assistant',
-      content: `Hi! I'm your AI Sales Coach for "${goalName}". I'm here to help you:\n\n• Understand why certain follow-ups are suggested\n• Get different versions of messages\n• Prepare for calls\n• Simulate prospect responses\n• Answer any sales questions\n\nWhat would you like to know?`,
+      content: `Hi! I'm your Atlas for "${goalName}". I'm here to help you:\n\n• Understand why certain follow-ups are suggested\n• Get different versions of messages\n• Prepare for calls\n• Simulate prospect responses\n• Answer any sales questions\n\nWhat would you like to know?`,
       timestamp: new Date()
     }
   ])
@@ -84,7 +84,7 @@ const AISalesCoachChat: React.FC<AISalesCoachChatProps> = ({
       setInput('')
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to get response from AI Sales Coach')
+      toast.error(error.response?.data?.detail || 'Failed to get response from Atlas')
     }
   })
 
@@ -122,7 +122,7 @@ const AISalesCoachChat: React.FC<AISalesCoachChatProps> = ({
             <Brain className="h-5 w-5 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">AI Sales Coach</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Atlas</h3>
           </div>
         </div>
       </div>

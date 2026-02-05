@@ -36,7 +36,7 @@ def ensure_requirements_installed():
 # Install requirements on startup
 ensure_requirements_installed()
 
-from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies, uploads, prioritized_prospects
+from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies, uploads, prioritized_prospects, meetings, calendar, atlas, playbooks
 
 # Import pipelines separately with error handling
 try:
@@ -145,9 +145,13 @@ app.include_router(campaign_goals.router, prefix="/api/campaign-goals", tags=["C
 app.include_router(renewals.router, prefix="/api/renewals", tags=["Renewals"])
 app.include_router(csm.router, prefix="/api/csm", tags=["Customer Success Management"])
 app.include_router(upsell.router, prefix="/api/upsell", tags=["Up/Cross Sell"])
+app.include_router(meetings.router, prefix="/api/meetings", tags=["Meetings"])
+app.include_router(playbooks.router, prefix="/api/playbooks", tags=["Playbooks"])
 app.include_router(workflows.router, prefix="/api/workflows", tags=["Workflows"])
 app.include_router(campaign_workflow_scripts.router, prefix="/api/campaign-workflow-scripts", tags=["Campaign Workflow Scripts"])
 app.include_router(gmail.router, prefix="/api/gmail", tags=["Gmail"])
+app.include_router(calendar.router, prefix="/api/user/calendar", tags=["User Calendar"])
+app.include_router(atlas.router, prefix="/api", tags=["Atlas"])
 app.include_router(companies.router, prefix="/api", tags=["Companies"])
 app.include_router(uploads.router, tags=["File Upload"])
 app.include_router(prioritized_prospects.router, prefix="/api/prioritized-prospects", tags=["Prioritized Prospects"])

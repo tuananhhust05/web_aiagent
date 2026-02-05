@@ -186,6 +186,8 @@ async def get_deals(
     view_type: Optional[DealViewType] = Query(None, description="Filter view type"),
     priority: Optional[DealPriority] = Query(None, description="Filter by priority"),
     search: Optional[str] = Query(None, description="Search in name and description"),
+    contact_id: Optional[str] = Query(None, description="Filter by contact ID"),
+    company_id: Optional[str] = Query(None, description="Filter by company ID"),
     current_user: UserResponse = Depends(get_current_active_user),
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
@@ -199,6 +201,12 @@ async def get_deals(
     
     if pipeline_id:
         filter_query["pipeline_id"] = pipeline_id
+    
+    if contact_id:
+        filter_query["contact_id"] = contact_id
+    
+    if company_id:
+        filter_query["company_id"] = company_id
     
     if priority:
         filter_query["priority"] = priority.value

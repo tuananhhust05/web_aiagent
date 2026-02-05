@@ -12,14 +12,23 @@ from app.core.auth import get_current_active_user
 from app.core.config import settings
 from app.models.user import UserResponse
 from app.models.call import (
-    CallCreate, CallUpdate, CallResponse, KPISummary, CallFilters,
-    CallType, CallStatus, SentimentType
+    CallCreate,
+    CallUpdate,
+    CallResponse,
+    KPISummary,
+    CallFilters,
+    CallType,
+    CallStatus,
+    SentimentType,
 )
+from app.services.ai_sales_copilot import analyze_call_against_playbook
+from motor.motor_asyncio import AsyncIOMotorDatabase
 
 router = APIRouter()
 
-# Model for updating call by phone number
 class CallUpdateByPhone(BaseModel):
+    """Model for updating call by phone number (for AI/webhooks)."""
+
     recording_url: Optional[str] = None
     transcript: Optional[str] = None
     sentiment: Optional[SentimentType] = None
@@ -30,6 +39,31 @@ class CallUpdateByPhone(BaseModel):
     notes: Optional[str] = None
     duration: Optional[int] = None
     status: Optional[CallStatus] = None
+
+
+class PlaybookRuleResult(BaseModel):
+    """Single rule evaluation result for a call vs sales playbook."""
+
+    rule_id: Optional[str] = None
+    label: str
+    description: Optional[str] = None
+    passed: bool
+    what_you_said: Optional[str] = None
+    what_you_should_say: Optional[str] = None
+
+
+class CallPlaybookAnalysisResponse(BaseModel):
+    """Response model for call playbook analysis used by Atlas /calls."""
+
+    call_id: str
+    template_id: Optional[str] = None
+    template_name: Optional[str] = None
+    source: str
+    generated_at: Optional[datetime] = None
+    rules: List[PlaybookRuleResult] = []
+    overall_score: Optional[int] = None
+    coaching_summary: Optional[str] = None
+    message: Optional[str] = None
 
 
 @router.get("", response_model=List[CallResponse])
@@ -85,29 +119,31 @@ async def get_calls(
     
     # Handle unique calls filter
     # Get calls (removed unique_calls_only logic)
-    calls = await db.calls.find(filter_query).sort("created_at", -1).skip(offset).limit(limit).to_list(length=limit)
+    calls = (
+        await db.calls.find(filter_query)
+        .sort("created_at", -1)
+        .skip(offset)
+        .limit(limit)
+        .to_list(length=limit)
+    )
     
     # Ensure each call has an id field
     calls_with_id = []
     for call in calls:
         call_dict = dict(call)
-        call_dict['id'] = call_dict['_id']  # Ensure id field is set
+        call_dict["id"] = call_dict["_id"]  # Ensure id field is set
         calls_with_id.append(CallResponse(**call_dict))
     
     return calls_with_id
 
 @router.get("/{call_id}", response_model=CallResponse)
 async def get_call(
-    call_id: str,
-    current_user: UserResponse = Depends(get_current_active_user)
+    call_id: str, current_user: UserResponse = Depends(get_current_active_user)
 ):
     """Get a specific call by ID"""
     db = get_database()
     
-    call = await db.calls.find_one({
-        "_id": call_id,
-        "user_id": current_user.id
-    })
+    call = await db.calls.find_one({"_id": call_id, "user_id": current_user.id})
     
     if not call:
         raise HTTPException(
@@ -119,8 +155,7 @@ async def get_call(
 
 @router.post("", response_model=CallResponse)
 async def create_call(
-    call_data: CallCreate,
-    current_user: UserResponse = Depends(get_current_active_user)
+    call_data: CallCreate, current_user: UserResponse = Depends(get_current_active_user)
 ):
     """Create a new call record and optionally initiate Twilio call"""
     db = get_database()
@@ -155,37 +190,43 @@ async def create_call(
                     settings.AI_CALL_API_URL,
                     json=ai_call_payload,
                     headers={"Content-Type": "application/json"},
-                    timeout=aiohttp.ClientTimeout(total=30)
+                    timeout=aiohttp.ClientTimeout(total=30),
                 ) as response:
                     if response.status == 200:
                         ai_response = await response.json()
                         print(f"✅ AI call initiated successfully: {ai_response}")
-                        
+
                         # Update call record with success status
                         await db.calls.update_one(
                             {"_id": call_doc["_id"]},
-                            {"$set": {
-                                "status": CallStatus.CONNECTING,
-                                "updated_at": datetime.utcnow()
-                            }}
+                            {
+                                "$set": {
+                                    "status": CallStatus.CONNECTING,
+                                    "updated_at": datetime.utcnow(),
+                                }
+                            },
                         )
                         call_doc["status"] = CallStatus.CONNECTING
                         call_doc["updated_at"] = datetime.utcnow()
                     else:
                         error_text = await response.text()
                         print(f"❌ AI call API error: {response.status} - {error_text}")
-                        raise Exception(f"AI call API returned {response.status}: {error_text}")
+                        raise Exception(
+                            f"AI call API returned {response.status}: {error_text}"
+                        )
             
         except Exception as e:
             print(f"❌ Failed to initiate AI call: {str(e)}")
             # If AI call fails, update call status but don't fail the API
             await db.calls.update_one(
                 {"_id": call_doc["_id"]},
-                {"$set": {
-                    "status": CallStatus.FAILED,
-                    "notes": f"AI call failed: {str(e)}",
-                    "updated_at": datetime.utcnow()
-                }}
+                {
+                    "$set": {
+                        "status": CallStatus.FAILED,
+                        "notes": f"AI call failed: {str(e)}",
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
             )
             
             # Update the call_doc for response
@@ -199,16 +240,15 @@ async def create_call(
 async def update_call(
     call_id: str,
     call_update: CallUpdate,
-    current_user: UserResponse = Depends(get_current_active_user)
+    current_user: UserResponse = Depends(get_current_active_user),
 ):
     """Update a call record"""
     db = get_database()
     
     # Check if call exists and belongs to user
-    existing_call = await db.calls.find_one({
-        "_id": call_id,
-        "user_id": current_user.id
-    })
+    existing_call = await db.calls.find_one(
+        {"_id": call_id, "user_id": current_user.id}
+    )
     
     if not existing_call:
         raise HTTPException(
@@ -223,10 +263,7 @@ async def update_call(
             update_data[field] = value
     
     # Update call
-    await db.calls.update_one(
-        {"_id": call_id},
-        {"$set": update_data}
-    )
+    await db.calls.update_one({"_id": call_id}, {"$set": update_data})
     
     # Get updated call
     updated_call = await db.calls.find_one({"_id": call_id})
@@ -234,16 +271,12 @@ async def update_call(
 
 @router.delete("/{call_id}")
 async def delete_call(
-    call_id: str,
-    current_user: UserResponse = Depends(get_current_active_user)
+    call_id: str, current_user: UserResponse = Depends(get_current_active_user)
 ):
     """Delete a call record"""
     db = get_database()
     
-    result = await db.calls.delete_one({
-        "_id": call_id,
-        "user_id": current_user.id
-    })
+    result = await db.calls.delete_one({"_id": call_id, "user_id": current_user.id})
     
     if result.deleted_count == 0:
         raise HTTPException(
@@ -257,7 +290,7 @@ async def delete_call(
 async def update_call_by_phone(
     phone_number: str,
     update_data: CallUpdateByPhone,
-    current_user: UserResponse = Depends(get_current_active_user)
+    current_user: UserResponse = Depends(get_current_active_user),
 ):
     """
     Update the most recent call record for a specific phone number.
@@ -267,11 +300,8 @@ async def update_call_by_phone(
     
     # Find the most recent call for this phone number and user
     latest_call = await db.calls.find_one(
-        {
-            "phone_number": phone_number,
-            "user_id": current_user.id
-        },
-        sort=[("created_at", -1)]
+        {"phone_number": phone_number, "user_id": current_user.id},
+        sort=[("created_at", -1)],
     )
     
     if not latest_call:
@@ -287,10 +317,7 @@ async def update_call_by_phone(
             update_fields[field] = value
     
     # Update the call
-    await db.calls.update_one(
-        {"_id": latest_call["_id"]},
-        {"$set": update_fields}
-    )
+    await db.calls.update_one({"_id": latest_call["_id"]}, {"$set": update_fields})
     
     # Get updated call
     updated_call = await db.calls.find_one({"_id": latest_call["_id"]})
@@ -299,8 +326,7 @@ async def update_call_by_phone(
 
 @router.put("/auto-update/{phone_number}")
 async def auto_update_call_by_phone(
-    phone_number: str,
-    update_data: CallUpdateByPhone
+    phone_number: str, update_data: CallUpdateByPhone
 ):
     """
     Auto update the most recent call record for a specific phone number.
@@ -311,10 +337,7 @@ async def auto_update_call_by_phone(
     
     # Find the most recent call for this phone number (any user)
     latest_call = await db.calls.find_one(
-        {
-            "phone_number": phone_number
-        },
-        sort=[("created_at", -1)]
+        {"phone_number": phone_number}, sort=[("created_at", -1)]
     )
     
     if not latest_call:
@@ -331,8 +354,7 @@ async def auto_update_call_by_phone(
     
     # Update the call
     result = await db.calls.update_one(
-        {"_id": latest_call["_id"]},
-        {"$set": update_fields}
+        {"_id": latest_call["_id"]}, {"$set": update_fields}
     )
     
     if result.modified_count == 0:
@@ -352,9 +374,7 @@ async def auto_update_call_by_phone(
     }
 
 @router.put("/auto-update-latest", dependencies=[])
-async def auto_update_latest_call(
-    update_data: CallUpdateByPhone
-):
+async def auto_update_latest_call(update_data: CallUpdateByPhone):
     """
     Auto update the most recent call record in the entire calls collection.
     This endpoint is designed for AI agents to update call data without authentication.
@@ -363,10 +383,7 @@ async def auto_update_latest_call(
     db = get_database()
     
     # Find the most recent call in the entire collection
-    latest_call = await db.calls.find_one(
-        {},
-        sort=[("created_at", -1)]
-    )
+    latest_call = await db.calls.find_one({}, sort=[("created_at", -1)])
     
     if not latest_call:
         raise HTTPException(
@@ -382,8 +399,7 @@ async def auto_update_latest_call(
     
     # Update the call
     result = await db.calls.update_one(
-        {"_id": latest_call["_id"]},
-        {"$set": update_fields}
+        {"_id": latest_call["_id"]}, {"$set": update_fields}
     )
     
     if result.modified_count == 0:
@@ -407,7 +423,7 @@ async def auto_update_latest_call(
 async def get_kpi_summary(
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
-    current_user: UserResponse = Depends(get_current_active_user)
+    current_user: UserResponse = Depends(get_current_active_user),
 ):
     """Get KPI summary for dashboard"""
     db = get_database()
@@ -482,7 +498,7 @@ async def get_kpi_summary(
 async def get_sentiment_stats(
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
-    current_user: UserResponse = Depends(get_current_active_user)
+    current_user: UserResponse = Depends(get_current_active_user),
 ):
     """Get sentiment analysis statistics"""
     db = get_database()
@@ -495,24 +511,212 @@ async def get_sentiment_stats(
     filter_query = {
         "user_id": current_user.id,
         "created_at": {"$gte": start_date, "$lte": end_date},
-        "sentiment": {"$exists": True, "$ne": None}
+        "sentiment": {"$exists": True, "$ne": None},
     }
     
     pipeline = [
         {"$match": filter_query},
-        {"$group": {
-            "_id": "$sentiment",
-            "count": {"$sum": 1},
-            "avg_score": {"$avg": "$sentiment_score"}
-        }},
-        {"$sort": {"count": -1}}
+        {
+            "$group": {
+                "_id": "$sentiment",
+                "count": {"$sum": 1},
+                "avg_score": {"$avg": "$sentiment_score"},
+            }
+        },
+        {"$sort": {"count": -1}},
     ]
     
     sentiment_stats = await db.calls.aggregate(pipeline).to_list(length=None)
-    
+
     return {
         "sentiment_distribution": sentiment_stats,
-        "total_analyzed_calls": sum(stat["count"] for stat in sentiment_stats)
+        "total_analyzed_calls": sum(stat["count"] for stat in sentiment_stats),
     }
+
+
+@router.get(
+    "/{call_id}/playbook-analysis", response_model=CallPlaybookAnalysisResponse
+)
+async def get_call_playbook_analysis(
+    call_id: str,
+    force_refresh: bool = Query(
+        False,
+        description="If true, ignore cached analysis and re-run AI against playbook rules.",
+    ),
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """
+    Analyze a call transcript against the Sales Playbook template for this user.
+
+    Used by Atlas `/atlas/calls` page when user clicks Playbook check:
+    - If cached analysis exists and force_refresh is false, return it (source = cache)
+    - Otherwise, ensure a playbook template exists (auto-generate default if needed),
+      call the AI sales copilot, store result on the call, and return it (source = llm).
+    """
+    call_doc = await db.calls.find_one({"_id": call_id, "user_id": current_user.id})
+    if not call_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Call not found"
+        )
+
+    transcript = call_doc.get("transcript")
+    if not transcript or not str(transcript).strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Call has no transcript to analyze",
+        )
+
+    # 1) Return cached analysis if available and not forcing refresh
+    existing = call_doc.get("playbook_analysis")
+    if existing and not force_refresh:
+        rules = [
+            PlaybookRuleResult(
+                rule_id=r.get("rule_id"),
+                label=r.get("label") or "",
+                description=r.get("description"),
+                passed=bool(r.get("passed")),
+                what_you_said=r.get("what_you_said") or None,
+                what_you_should_say=r.get("what_you_should_say") or None,
+            )
+            for r in existing.get("rules", []) or []
+        ]
+        return CallPlaybookAnalysisResponse(
+            call_id=call_id,
+            template_id=existing.get("template_id"),
+            template_name=existing.get("template_name"),
+            source="cache",
+            generated_at=existing.get("generated_at"),
+            rules=rules,
+            overall_score=existing.get("overall_score"),
+            coaching_summary=existing.get("coaching_summary"),
+            message=existing.get("message"),
+        )
+
+    # 2) Find or auto-create a default sales playbook template for this user
+    tpl = await db.playbook_templates.find_one(
+        {"user_id": current_user.id, "is_default": True}
+    )
+    if not tpl:
+        tpl = await db.playbook_templates.find_one({"user_id": current_user.id})
+
+    if not tpl:
+        # Auto-generate a simple default playbook if user has none yet
+        now = datetime.utcnow()
+        default_rules = [
+            {
+                "id": "intro",
+                "label": "Build rapport and introduce yourself clearly",
+                "description": "Did you open the call with a warm greeting and a clear introduction of yourself and your company?",
+            },
+            {
+                "id": "discovery",
+                "label": "Ask discovery questions about challenges and goals",
+                "description": "Did you ask specific questions to understand the prospect's current situation, pains, and objectives?",
+            },
+            {
+                "id": "value",
+                "label": "Connect product value to customer needs",
+                "description": "Did you explain how your solution addresses the exact pains and goals mentioned by the prospect?",
+            },
+            {
+                "id": "next_steps",
+                "label": "Align on clear next steps",
+                "description": "Did you agree on a concrete next step (e.g. follow-up meeting, sending materials, involving stakeholders)?",
+            },
+        ]
+        doc = {
+            "user_id": current_user.id,
+            "name": "Default Sales Playbook",
+            "rules": default_rules,
+            "is_default": True,
+            "created_at": now,
+            "updated_at": now,
+        }
+        res = await db.playbook_templates.insert_one(doc)
+        tpl = {**doc, "_id": res.inserted_id}
+
+    template_id = str(tpl["_id"])
+    template_name = tpl.get("name") or "Sales Playbook"
+    rules_input = tpl.get("rules") or []
+
+    # 3) Call AI sales copilot to analyze transcript vs playbook rules
+    ai_result = await analyze_call_against_playbook(
+        transcript=str(transcript),
+        playbook_name=template_name,
+        rules=rules_input,
+    )
+
+    if not ai_result:
+        return CallPlaybookAnalysisResponse(
+            call_id=call_id,
+            template_id=template_id,
+            template_name=template_name,
+            source="none",
+            rules=[],
+            overall_score=None,
+            coaching_summary=None,
+            message="Playbook analysis failed. Please try again later.",
+        )
+
+    ai_rules = ai_result.get("rules") or []
+    rules_out: List[PlaybookRuleResult] = []
+    for r in ai_rules:
+        # Make sure we always have a label
+        label = r.get("label") or ""
+        description = r.get("description")
+        rules_out.append(
+            PlaybookRuleResult(
+                rule_id=r.get("rule_id"),
+                label=label,
+                description=description,
+                passed=bool(r.get("passed")),
+                what_you_said=(r.get("what_you_said") or "").strip() or None,
+                what_you_should_say=(r.get("what_you_should_say") or "").strip() or None,
+            )
+        )
+
+    generated_at = datetime.utcnow()
+    analysis_doc = {
+        "template_id": template_id,
+        "template_name": template_name,
+        "generated_at": generated_at,
+        "rules": [
+            {
+                "rule_id": r.rule_id,
+                "label": r.label,
+                "description": r.description,
+                "passed": r.passed,
+                "what_you_said": r.what_you_said,
+                "what_you_should_say": r.what_you_should_say,
+            }
+            for r in rules_out
+        ],
+        "overall_score": ai_result.get("overall_score"),
+        "coaching_summary": ai_result.get("coaching_summary"),
+    }
+
+    # 4) Persist analysis on call document for future reuse
+    await db.calls.update_one(
+        {"_id": call_id},
+        {
+            "$set": {
+                "playbook_analysis": analysis_doc,
+                "updated_at": datetime.utcnow(),
+            }
+        },
+    )
+
+    return CallPlaybookAnalysisResponse(
+        call_id=call_id,
+        template_id=template_id,
+        template_name=template_name,
+        source="llm",
+        generated_at=generated_at,
+        rules=rules_out,
+        overall_score=ai_result.get("overall_score"),
+        coaching_summary=ai_result.get("coaching_summary"),
+        message=None,
+    )
 
 

@@ -309,7 +309,7 @@ const CampaignGoalDetail: React.FC = () => {
               }`}
             >
               <Brain className="h-4 w-4" />
-              AI Sales Coach
+              Atlas
             </button>
           </nav>
         </div>
@@ -335,7 +335,7 @@ const CampaignGoalDetail: React.FC = () => {
           </>
         )}
 
-        {/* AI Sales Coach Tab */}
+        {/* Atlas Tab */}
         {mainTab === 'ai-coach' && goal && (
           <AISalesCoachWithTodo
             goalId={goalId!}

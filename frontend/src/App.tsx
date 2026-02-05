@@ -10,6 +10,7 @@ import Onboarding from './pages/auth/Onboarding'
 import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
 import GoogleCallback from './pages/auth/GoogleCallback'
+import GoogleCalendarCallback from './pages/auth/GoogleCalendarCallback'
 import GoogleSuccess from './pages/auth/GoogleSuccess'
 import Home from './pages/Home'
 import Dashboard from './pages/Dashboard'
@@ -65,6 +66,13 @@ import AISalesCopilotDetailPage from './pages/AISalesCopilotDetailPage'
 import RAGSalesCoach from './pages/RAGSalesCoach'
 import ComingSoon from './pages/ComingSoon'
 import LoadingSpinner from './components/ui/LoadingSpinner'
+import CRMIntegrationsList from './pages/CRMIntegrationsList'
+import HubSpotIntegration from './pages/HubSpotIntegration'
+import Meetings from './pages/Meetings'
+import AtlasLayout from './pages/AtlasLayout'
+import AtlasCalendarPage from './pages/AtlasCalendarPage'
+import AtlasMain from './pages/AtlasMain'
+import AtlasPlaybookTemplates from './pages/AtlasPlaybookTemplates'
 
 function App() {
   const { user, loading } = useAuth()
@@ -91,6 +99,7 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
+        <Route path="/auth/google/calendar/callback" element={<GoogleCalendarCallback />} />
         <Route path="/auth/google/success" element={<GoogleSuccess />} />
         <Route path="/about" element={<About />} />
         <Route path="/privacy" element={<Privacy />} />
@@ -111,6 +120,19 @@ function App() {
       <Route path="/workflows" element={<WorkflowBuilder />} />
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/auth/google/calendar/callback" element={<GoogleCalendarCallback />} />
+      {/* Atlas uses its own full-page layout (no global Layout); calendar has its own URL */}
+      <Route path="/atlas" element={<AtlasLayout />}>
+        <Route index element={<Navigate to="/atlas/calls" replace />} />
+        <Route path="calendar" element={<AtlasCalendarPage />} />
+        <Route path="calls" element={<AtlasMain />} />
+        <Route path="insights" element={<AtlasMain />} />
+        <Route path="todo" element={<AtlasMain />} />
+        <Route path="qna" element={<AtlasMain />} />
+        <Route path="playbooks" element={<AtlasPlaybookTemplates />} />
+        <Route path="knowledge" element={<AtlasMain />} />
+        <Route path="record" element={<AtlasMain />} />
+      </Route>
       <Route path="*" element={
         <Layout>
           <Routes>
@@ -128,6 +150,8 @@ function App() {
             <Route path="/campaigns" element={<ComingSoon />} />
             <Route path="/campaigns/:id" element={<CampaignDetail />} />
             <Route path="/crm-integration" element={<CRMIntegrationPage />} />
+            <Route path="/crm-integrations" element={<CRMIntegrationsList />} />
+            <Route path="/crm-integrations/hubspot" element={<HubSpotIntegration />} />
             <Route path="/crm" element={<CRM />} />
             <Route path="/agent" element={<Agent />} />
             <Route path="/ragclient" element={<RAG />} />
@@ -156,6 +180,7 @@ function App() {
             <Route path="/marketing-data" element={<MarketingData />} />
             <Route path="/ai-sales-copilot" element={<AISalesCopilotPage />} />
             <Route path="/ai-sales-copilot/:prospectId/:actionId" element={<AISalesCopilotDetailPage />} />
+            <Route path="/meetings" element={<Meetings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>

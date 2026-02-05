@@ -191,7 +191,7 @@ export default function AISalesCopilotDetailPage() {
                   </div>
                   <div className="leading-tight">
                     <p className="text-xs font-semibold text-gray-900">Atlas</p>
-                    <p className="text-[11px] text-slate-500">AI Sales Coach</p>
+                    <p className="text-[11px] text-slate-500">Atlas</p>
                   </div>
                 </div>
               </div>
