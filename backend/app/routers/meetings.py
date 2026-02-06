@@ -677,6 +677,26 @@ async def get_meetings(
         )
 
 
+@router.get("/by-link", response_model=MeetingResponse)
+async def get_meeting_by_link(
+    link: str = Query(..., description="Meeting link to find"),
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """Get a meeting by its link (for current user). Returns 404 if not found."""
+    collection = db.meetings
+    record = await collection.find_one({
+        "user_id": current_user.id,
+        "link": link.strip(),
+    })
+    if not record:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    if "_id" in record:
+        record["id"] = str(record["_id"])
+        del record["_id"]
+    return record
+
+
 @router.get("/insights/playbook-scores", response_model=PlaybookScoresInsightsResponse)
 async def get_playbook_scores_insights(
     days: int = Query(5, ge=1, le=31, description="Number of days (last N days including today)."),

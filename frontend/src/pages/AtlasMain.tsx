@@ -482,7 +482,7 @@ export default function AtlasMain() {
         : '—'
       return {
         id: m.id,
-        title: m.title,
+        title: (m.title || '').trim() || m.id,
         date: dateStr,
         duration: '—',
         meetingLink: m.link,
@@ -961,7 +961,7 @@ export default function AtlasMain() {
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900 truncate">{call.title}</span>
+                    <span className="text-sm font-medium text-gray-900 truncate">{call.title || call.id}</span>
                     <ChevronRight className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                   </div>
                   <div className="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
@@ -986,7 +986,7 @@ export default function AtlasMain() {
                 </button>
                 {activeCall ? (
                   <>
-                    <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">{activeCall.title}</h1>
+                    <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">{activeCall.title || activeCall.id}</h1>
                     <div className="flex items-center gap-4 mt-3 flex-wrap text-sm text-gray-600">
                       <span className="inline-flex items-center gap-1.5">
                         <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />

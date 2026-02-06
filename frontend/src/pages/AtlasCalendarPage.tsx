@@ -19,6 +19,7 @@ import {
   calendarAPI,
   atlasAPI,
   vexaAPI,
+  meetingsAPI,
   type GoogleCalendarEvent,
   type AtlasMeetingContext,
   type MeetingParticipant,
@@ -403,10 +404,23 @@ export default function AtlasCalendarPage() {
     if (!joinUrl) return
     const meetId = extractGoogleMeetId(joinUrl)
     const teamsInfo = extractTeamsInfo(joinUrl)
+    const calendarTitle = (selectedEvent?.title || '').trim() || 'Meeting'
+    const ensureMeetingInDb = async (platform: 'google_meet' | 'teams') => {
+      try {
+        await meetingsAPI.getMeetingByLink(joinUrl)
+      } catch {
+        await meetingsAPI.createMeeting({
+          title: calendarTitle,
+          platform,
+          link: joinUrl,
+        })
+      }
+    }
     if (meetId) {
       try {
         setBotJoinLoading(true)
         await vexaAPI.joinGoogleMeet(meetId)
+        await ensureMeetingInDb('google_meet')
         toast.success('Bot joined the meeting successfully!')
       } catch (err: unknown) {
         const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -420,6 +434,7 @@ export default function AtlasCalendarPage() {
       try {
         setBotJoinLoading(true)
         await vexaAPI.joinTeams(teamsInfo.meetingId, teamsInfo.passcode)
+        await ensureMeetingInDb('teams')
         toast.success('Bot joined the meeting successfully!')
       } catch (err: unknown) {
         const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message

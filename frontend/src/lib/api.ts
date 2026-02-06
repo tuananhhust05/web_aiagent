@@ -1128,6 +1128,13 @@ export const meetingsAPI = {
     search?: string;
     platform?: MeetingPlatform;
   }) => api.get('/api/meetings', { params }),
+
+  /** Get meeting by link (404 if not found). Use to check before creating from calendar Bot join. */
+  getMeetingByLink: (link: string) =>
+    api.get<{ id: string; title: string; link: string; platform: MeetingPlatform; created_at?: string; updated_at?: string }>(
+      '/api/meetings/by-link',
+      { params: { link } }
+    ),
   
   getMeeting: (id: string) => api.get(`/api/meetings/${id}`),
   
