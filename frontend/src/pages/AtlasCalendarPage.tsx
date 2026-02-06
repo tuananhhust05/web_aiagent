@@ -4,6 +4,7 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertTriangle,
+  Bot,
   Calendar as CalendarIcon,
   Loader2,
   User,
@@ -13,9 +14,11 @@ import {
   Save,
   Trash2,
 } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 import {
   calendarAPI,
   atlasAPI,
+  vexaAPI,
   type GoogleCalendarEvent,
   type AtlasMeetingContext,
   type MeetingParticipant,
@@ -131,6 +134,42 @@ function getJoinUrl(evt: GoogleCalendarEvent | null): string | null {
   return uri || null
 }
 
+/** Extract native_meeting_id from Google Meet link */
+function extractGoogleMeetId(link: string): string | null {
+  try {
+    const url = new URL(link)
+    if (url.hostname.includes('meet.google.com')) {
+      const pathParts = url.pathname.split('/').filter((p) => p)
+      if (pathParts.length > 0) return pathParts[pathParts.length - 1]
+    }
+    return null
+  } catch {
+    const match = link.match(/meet\.google\.com\/([a-z-]+)/i)
+    return match ? match[1] : null
+  }
+}
+
+/** Extract native_meeting_id and passcode from Teams link */
+function extractTeamsInfo(link: string): { meetingId: string | null; passcode: string | null } {
+  try {
+    const url = new URL(link)
+    if (url.hostname.includes('teams.live.com')) {
+      const pathParts = url.pathname.split('/').filter((p) => p)
+      const meetingId = pathParts.length > 1 ? pathParts[pathParts.length - 1] : null
+      const passcode = url.searchParams.get('p')
+      return { meetingId, passcode }
+    }
+    return { meetingId: null, passcode: null }
+  } catch {
+    const meetingMatch = link.match(/teams\.live\.com\/meet\/(\d+)/i)
+    const passcodeMatch = link.match(/[?&]p=([^&]+)/i)
+    return {
+      meetingId: meetingMatch ? meetingMatch[1] : null,
+      passcode: passcodeMatch ? passcodeMatch[1] : null,
+    }
+  }
+}
+
 export default function AtlasCalendarPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [connected, setConnected] = useState<boolean | null>(null)
@@ -158,6 +197,7 @@ export default function AtlasCalendarPage() {
   const [participantsSaving, setParticipantsSaving] = useState(false)
   const [newParticipant, setNewParticipant] = useState<MeetingParticipant>({ name: '' })
   const [showAddParticipant, setShowAddParticipant] = useState(false)
+  const [botJoinLoading, setBotJoinLoading] = useState(false)
 
   const selectedRawEvent = useMemo(() => {
     if (!selectedEvent) return null
@@ -358,6 +398,43 @@ export default function AtlasCalendarPage() {
       })
     return () => { cancelled = true }
   }, [contactEmail, selectedEvent?.id])
+
+  const handleBotJoin = async () => {
+    if (!joinUrl) return
+    const meetId = extractGoogleMeetId(joinUrl)
+    const teamsInfo = extractTeamsInfo(joinUrl)
+    if (meetId) {
+      try {
+        setBotJoinLoading(true)
+        await vexaAPI.joinGoogleMeet(meetId)
+        toast.success('Bot joined the meeting successfully!')
+      } catch (err: unknown) {
+        const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        toast.error(message || 'Failed to join meeting with bot')
+      } finally {
+        setBotJoinLoading(false)
+      }
+      return
+    }
+    if (teamsInfo.meetingId && teamsInfo.passcode) {
+      try {
+        setBotJoinLoading(true)
+        await vexaAPI.joinTeams(teamsInfo.meetingId, teamsInfo.passcode)
+        toast.success('Bot joined the meeting successfully!')
+      } catch (err: unknown) {
+        const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        toast.error(message || 'Failed to join meeting with bot')
+      } finally {
+        setBotJoinLoading(false)
+      }
+      return
+    }
+    if (teamsInfo.meetingId && !teamsInfo.passcode) {
+      toast.error('Teams link requires passcode for bot to join')
+      return
+    }
+    toast.error('Bot only supports Google Meet and Teams')
+  }
 
   const handleConnectGoogleCalendar = async () => {
     setConnecting(true)
@@ -711,16 +788,34 @@ export default function AtlasCalendarPage() {
                 <p className="text-sm text-white/80 mt-1">
                   {formatEventDateTime(weekStartForGrid, selectedEvent)}
                 </p>
-                {joinUrl && (
-                  <a
-                    href={joinUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-blue-300 hover:text-blue-200"
-                  >
-                    Join meeting →
-                  </a>
-                )}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {joinUrl && (
+                    <>
+                      <a
+                        href={joinUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-blue-500 text-white hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-[#0B1220] transition-colors shadow-sm"
+                      >
+                        <Video className="h-4 w-4 shrink-0" aria-hidden />
+                        Join meeting
+                      </a>
+                      <button
+                        type="button"
+                        onClick={handleBotJoin}
+                        disabled={botJoinLoading}
+                        className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-white/15 text-white hover:bg-white/25 focus:outline-none focus:ring-2 focus:ring-white/30 focus:ring-offset-2 focus:ring-offset-[#0B1220] disabled:opacity-50 disabled:pointer-events-none transition-colors"
+                      >
+                        {botJoinLoading ? (
+                          <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                        ) : (
+                          <Bot className="h-4 w-4 shrink-0" aria-hidden />
+                        )}
+                        Bot join
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
 
