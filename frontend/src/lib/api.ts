@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -22,8 +22,16 @@ const getApiUrl = () => {
 }
 
 const FINAL_API_URL = getApiUrl()
-/** Base URL of the backend API (e.g. http://localhost:8000). Use for OAuth redirects to backend. */
+/** Base URL of the backend API (e.g. http://localhost:8000). Use for API requests. */
 export const API_BASE_URL = FINAL_API_URL
+
+/**
+ * Backend base URL for OAuth callback redirect (Google Calendar).
+ * In production, if frontend and backend share the same origin, set VITE_BACKEND_OAUTH_URL
+ * to the actual backend URL (e.g. https://api.forskale.com) to avoid infinite redirect loop.
+ */
+export const BACKEND_OAUTH_BASE_URL =
+  ((import.meta as any).env?.VITE_BACKEND_OAUTH_URL as string)?.trim() || FINAL_API_URL
 
 // Debug log
 console.log('🔧 API Configuration:', {
@@ -1327,69 +1335,23 @@ export const playbooksAPI = {
   delete: (id: string) => api.delete(`/api/playbooks/${id}`),
 }
 
-// Vexa AI API for Google Meet and Teams
-const VEXA_API_KEY = 'cbEsQmSHkRvCx1Frnou8liElUn9dkaVtBlLs0Gla'
-const VEXA_API_BASE = 'https://api.cloud.vexa.ai'
-
+// Vexa AI API (proxied via backend; API key is on server, see .env VEXA_API_KEY / VEXA_API_BASE)
 export const vexaAPI = {
-  // Join Google Meet with bot
-  joinGoogleMeet: (nativeMeetingId: string) => {
-    return axios.post(
-      `${VEXA_API_BASE}/bots`,
-      {
-        platform: 'google_meet',
-        native_meeting_id: nativeMeetingId,
-        bot_name: 'MyMeetingBot'
-      },
-      {
-        headers: {
-          'X-API-Key': VEXA_API_KEY,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-  },
-  
-  // Join Teams meeting with bot
-  joinTeams: (nativeMeetingId: string, passcode: string) => {
-    return axios.post(
-      `${VEXA_API_BASE}/bots`,
-      {
-        platform: 'teams',
-        native_meeting_id: nativeMeetingId,
-        passcode: passcode,
-        bot_name: 'MyMeetingBot'
-      },
-      {
-        headers: {
-          'X-API-Key': VEXA_API_KEY,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
-  },
-  
-  // Get transcription for Google Meet
-  getGoogleMeetTranscription: (googleMeetId: string) => {
-    return axios.get(
-      `${VEXA_API_BASE}/transcripts/google_meet/${googleMeetId}`,
-      {
-        headers: {
-          'X-API-Key': VEXA_API_KEY
-        }
-      }
-    )
-  },
-  
-  // Get transcription for Teams
-  getTeamsTranscription: (teamsMeetingId: string) => {
-    return axios.get(
-      `${VEXA_API_BASE}/transcripts/teams/${teamsMeetingId}`,
-      {
-        headers: {
-          'X-API-Key': VEXA_API_KEY
-        }
-      }
-    )
-  }
+  joinGoogleMeet: (nativeMeetingId: string) =>
+    api.post('/api/vexa/bots', {
+      platform: 'google_meet',
+      native_meeting_id: nativeMeetingId,
+      bot_name: 'MyMeetingBot',
+    }),
+  joinTeams: (nativeMeetingId: string, passcode: string) =>
+    api.post('/api/vexa/bots', {
+      platform: 'teams',
+      native_meeting_id: nativeMeetingId,
+      passcode,
+      bot_name: 'MyMeetingBot',
+    }),
+  getGoogleMeetTranscription: (googleMeetId: string) =>
+    api.get(`/api/vexa/transcripts/google_meet/${googleMeetId}`),
+  getTeamsTranscription: (teamsMeetingId: string) =>
+    api.get(`/api/vexa/transcripts/teams/${teamsMeetingId}`),
 }

@@ -58,13 +58,9 @@ const GoogleSuccess: React.FC = () => {
           toast.success(`Welcome back, ${userData.first_name}!`)
         }
 
-        // Redirect after delay
+        // Redirect after delay to Atlas
         setTimeout(() => {
-          if (isNew) {
-            navigate('/onboarding')
-          } else {
-            navigate('/dashboard')
-          }
+          navigate('/atlas/calls')
         }, 1500)
 
       } catch (error: any) {

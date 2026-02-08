@@ -36,7 +36,7 @@ def ensure_requirements_installed():
 # Install requirements on startup
 ensure_requirements_installed()
 
-from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies, uploads, prioritized_prospects, meetings, calendar, atlas, playbooks
+from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies, uploads, prioritized_prospects, meetings, calendar, atlas, playbooks, vexa
 
 # Import pipelines separately with error handling
 try:
@@ -155,6 +155,7 @@ app.include_router(atlas.router, prefix="/api", tags=["Atlas"])
 app.include_router(companies.router, prefix="/api", tags=["Companies"])
 app.include_router(uploads.router, tags=["File Upload"])
 app.include_router(prioritized_prospects.router, prefix="/api/prioritized-prospects", tags=["Prioritized Prospects"])
+app.include_router(vexa.router, prefix="/api/vexa", tags=["Vexa Proxy"])
 
 # Add pipelines router if import succeeded
 # if pipelines:

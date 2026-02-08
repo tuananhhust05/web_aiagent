@@ -73,7 +73,7 @@ export default function Login() {
             toast.success(`Welcome back, ${userData.first_name}!`)
           }
 
-          navigate('/dashboard', { replace: true })
+          navigate('/atlas/calls', { replace: true })
         } catch (error: any) {
           console.error('Google OAuth token processing error:', error)
           toast.error('Failed to complete authentication')
@@ -95,7 +95,7 @@ export default function Login() {
         toast.error(error.message || 'Login failed')
       } else {
         toast.success('Welcome back!')
-        navigate('/')
+        navigate('/atlas/calls')
       }
     } catch (error: any) {
       toast.error('An unexpected error occurred')
@@ -108,10 +108,10 @@ export default function Login() {
     const { user, is_new_user } = data
     if (is_new_user) {
       toast.success(`Welcome to For Skale, ${user.first_name}!`)
-      navigate('/onboarding')
+      navigate('/atlas/calls')
     } else {
       toast.success(`Welcome back, ${user.first_name}!`)
-      navigate('/dashboard')
+      navigate('/atlas/calls')
     }
   }
 

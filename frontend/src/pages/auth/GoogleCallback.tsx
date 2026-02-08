@@ -55,13 +55,9 @@ const GoogleCallback: React.FC = () => {
         setStatus('success')
         setMessage(is_new_user ? 'Account created successfully!' : 'Welcome back!')
 
-        // Redirect after delay
+        // Redirect after delay to Atlas
         setTimeout(() => {
-          if (is_new_user) {
-            navigate('/onboarding')
-          } else {
-            navigate('/dashboard')
-          }
+          navigate('/atlas/calls')
         }, 1500)
 
       } catch (error: any) {

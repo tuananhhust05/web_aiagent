@@ -579,7 +579,7 @@ export default function AtlasMain() {
     }
 
     meetingsAPI
-      .getMeetingTranscription(activeCallId, { refresh_ttl_seconds: 600 })
+      .getMeetingTranscription(activeCallId, { refresh_ttl_seconds: 0 })
       .then((res) => {
         if (cancelled) return
         const lines = (res.data.transcript_lines ?? []) as TranscriptLineDb[]
@@ -811,7 +811,7 @@ export default function AtlasMain() {
     setAtlasInsightsLoading(true)
     setAtlasInsightsError(null)
     meetingsAPI
-      .getAtlasMeetingInsights(activeCallId)
+      .getAtlasMeetingInsights(activeCallId, { force_refresh: true })
       .then((res) => {
         if (cancelled) return
         const data = res.data

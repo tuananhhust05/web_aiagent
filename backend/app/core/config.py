@@ -77,8 +77,7 @@ class Settings(BaseSettings):
     # Groq AI Configuration
     GROQ_API_KEY: str = ""
 
-    # Vexa AI (meeting bots + transcripts)
-    # NOTE: Set via environment variables in production.
+    # Vexa AI (meeting bots + transcripts). Load from .env in production (VEXA_API_KEY, VEXA_API_BASE).
     VEXA_API_KEY: str = "cbEsQmSHkRvCx1Frnou8liElUn9dkaVtBlLs0Gla"
     VEXA_API_BASE: str = "https://api.cloud.vexa.ai"
     
