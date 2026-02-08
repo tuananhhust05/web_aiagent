@@ -13,7 +13,6 @@ import GoogleCallback from './pages/auth/GoogleCallback'
 import GoogleCalendarCallback from './pages/auth/GoogleCalendarCallback'
 import GoogleSuccess from './pages/auth/GoogleSuccess'
 import Home from './pages/Home'
-import Dashboard from './pages/Dashboard'
 import CallsDashboard from './pages/CallsDashboard'
 import CallsLog from './pages/CallsLog'
 import CallSentiment from './pages/CallSentiment'
@@ -136,7 +135,7 @@ function App() {
       <Route path="*" element={
         <Layout>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<Navigate to="/atlas/calls" replace />} />
             <Route path="/calls-dashboard" element={<CallsDashboard />} />
             <Route path="/calls" element={<CallsLog />} />
             <Route path="/calls/:callId" element={<CallDetail />} />
