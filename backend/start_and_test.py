@@ -29,7 +29,7 @@ def test_api():
     """Test the API endpoints"""
     print("🧪 Testing API endpoints...")
     
-    base_url = "http://localhost:8001"
+    base_url = "http://localhost:8000"
     
     # Test basic endpoints
     endpoints = [
@@ -72,8 +72,8 @@ def main():
         test_api()
         
         print("\n✅ Testing completed!")
-        print("🔧 Server is running at http://localhost:8001")
-        print("📚 API docs available at http://localhost:8001/docs")
+        print("🔧 Server is running at http://localhost:8000")
+        print("📚 API docs available at http://localhost:8000/docs")
         
         # Keep server running
         print("\n⏹️  Press Ctrl+C to stop the server")

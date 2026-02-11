@@ -51,7 +51,7 @@ services:
       - JWT_SECRET_KEY=your-super-secret-jwt-key-change-in-production
       - CORS_ORIGINS=https://forskale.com,https://forskale.com:3000
     ports:
-      - "8001:8000"
+      - "8000:8000"
     depends_on:
       - mongodb
       - weaviate
