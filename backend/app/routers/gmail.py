@@ -36,7 +36,7 @@ async def get_latest_emails(
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        if not user.get("gmail_refresh_token"):
+        if not user.get("google_refresh_token"):
             raise HTTPException(
                 status_code=400,
                 detail="Gmail not configured. Please login with Google and grant Gmail permissions."
@@ -79,15 +79,15 @@ async def get_gmail_status(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    has_refresh_token = bool(user.get("gmail_refresh_token"))
-    has_access_token = bool(user.get("gmail_access_token"))
-    token_expiry = user.get("gmail_token_expiry")
+    has_refresh_token = bool(user.get("google_refresh_token"))
+    has_access_token = bool(user.get("google_access_token"))
+    token_expiry = user.get("google_token_expiry")
     
     # Check token scopes if access token exists
     token_scopes = None
     has_gmail_scope = False
     if has_access_token:
-        token_scopes = await gmail_service.check_token_scope(user.get("gmail_access_token"))
+        token_scopes = await gmail_service.check_token_scope(user.get("google_access_token"))
         if token_scopes:
             has_gmail_scope = any("gmail" in scope.lower() for scope in token_scopes)
     

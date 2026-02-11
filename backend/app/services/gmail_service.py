@@ -29,10 +29,17 @@ class GmailService:
             logger.error(f"User {user_id} not found")
             return None
         
-        refresh_token = user.get("gmail_refresh_token")
+        refresh_token = user.get("google_refresh_token")
         if not refresh_token:
             logger.warning(f"No refresh token found for user {user_id}")
             return None
+        
+        # Decrypt refresh token if encrypted
+        try:
+            from app.services.calendar_crypto import decrypt_refresh_token
+            refresh_token = decrypt_refresh_token(refresh_token)
+        except Exception as e:
+            logger.warning(f"Failed to decrypt refresh token, trying as plain text: {e}")
         
         try:
             async with httpx.AsyncClient() as client:
@@ -56,8 +63,8 @@ class GmailService:
                         {"_id": user_id},
                         {
                             "$set": {
-                                "gmail_access_token": new_access_token,
-                                "gmail_token_expiry": datetime.utcnow() + timedelta(seconds=expires_in)
+                                "google_access_token": new_access_token,
+                                "google_token_expiry": datetime.utcnow() + timedelta(seconds=expires_in)
                             }
                         }
                     )
@@ -107,8 +114,8 @@ class GmailService:
             logger.error(f"❌ User {user_id} not found")
             return None
         
-        access_token = user.get("gmail_access_token")
-        token_expiry = user.get("gmail_token_expiry")
+        access_token = user.get("google_access_token")
+        token_expiry = user.get("google_token_expiry")
         
         # Log token info for debugging
         if access_token:
@@ -206,10 +213,10 @@ class GmailService:
                             msg_data = msg_response.json()
                             
                             # Extract email details
-                            headers = msg_data.get("payload", {}).get("headers", [])
+                            email_headers = msg_data.get("payload", {}).get("headers", [])
                             
                             def get_header(name: str) -> str:
-                                for h in headers:
+                                for h in email_headers:
                                     if h.get("name", "").lower() == name.lower():
                                         return h.get("value", "")
                                 return ""

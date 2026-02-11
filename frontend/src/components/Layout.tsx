@@ -77,6 +77,7 @@ const mainNavigation: NavigationItem[] = [
 
 // Main dropdown navigation (simplified)
 const dropdownNavigation: NavigationItem[] = [
+  { name: 'Gmail', href: '/gmail', icon: Mail },
   { name: 'Settings', href: '#', icon: Settings, hasSubmenu: true, submenu: settingsNavigation },
   { name: 'More Functions', href: '#', icon: MoreHorizontal, hasSubmenu: true, submenu: moreFunctionsNavigation },
   { name: 'Meetings', href: '/meetings', icon: Calendar },

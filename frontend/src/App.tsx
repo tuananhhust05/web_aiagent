@@ -68,6 +68,7 @@ import LoadingSpinner from './components/ui/LoadingSpinner'
 import CRMIntegrationsList from './pages/CRMIntegrationsList'
 import HubSpotIntegration from './pages/HubSpotIntegration'
 import Meetings from './pages/Meetings'
+import GmailPage from './pages/GmailPage'
 import AtlasLayout from './pages/AtlasLayout'
 import AtlasCalendarPage from './pages/AtlasCalendarPage'
 import AtlasMain from './pages/AtlasMain'
@@ -180,6 +181,7 @@ function App() {
             <Route path="/ai-sales-copilot" element={<AISalesCopilotPage />} />
             <Route path="/ai-sales-copilot/:prospectId/:actionId" element={<AISalesCopilotDetailPage />} />
             <Route path="/meetings" element={<Meetings />} />
+            <Route path="/gmail" element={<GmailPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Layout>

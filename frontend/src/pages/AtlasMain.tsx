@@ -180,10 +180,23 @@ export default function AtlasMain() {
   const [_objectionTimeframe, _setObjectionTimeframe] = useState<Timeframe>('Last week')
   const [recordMode, setRecordMode] = useState<'join' | 'no_join'>('join')
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false)
+  // Local client-side recording state (Don't Join Meeting mode)
+  const [isLocalRecording, setIsLocalRecording] = useState(false)
+  const [recordingElapsed, setRecordingElapsed] = useState(0)
+  const [recordingError, setRecordingError] = useState<string | null>(null)
+  const [recordedPreviewUrl, setRecordedPreviewUrl] = useState<string | null>(null)
+  const [recordedFileExt, setRecordedFileExt] = useState<string>('wav')
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
+  const [localTranscriptLoading, setLocalTranscriptLoading] = useState(false)
+  const [transcriptResult, setTranscriptResult] = useState<string | null>(null)
+  const [transcriptPopupOpen, setTranscriptPopupOpen] = useState(false)
+  const [saveRecordingLoading, setSaveRecordingLoading] = useState(false)
+  const [saveRecordingModalOpen, setSaveRecordingModalOpen] = useState(false)
+  const [saveRecordingTitle, setSaveRecordingTitle] = useState('')
   const [insightsActiveTab, setInsightsActiveTab] = useState<'playbook' | 'speaking' | 'objection'>('playbook')
   const [insightsDateRange] = useState('Last week')
   const [todoActiveTab, setTodoActiveTab] = useState<'prioritized' | 'followups' | 'overdue'>('prioritized')
-  const [todoRange, setTodoRange] = useState<'today' | 'week'>('today')
+  const [todoRange, setTodoRange] = useState<'today' | 'week'>('week')
   const [knowledgeCategory, setKnowledgeCategory] = useState<
     'product' | 'pricing' | 'objection' | 'competitive' | 'faqs' | 'policies'
   >('product')
@@ -201,6 +214,9 @@ export default function AtlasMain() {
   const [isJoinMeetingModalOpen, setIsJoinMeetingModalOpen] = useState(false)
   const [joinMeetingLink, setJoinMeetingLink] = useState('')
   const [joinMeetingSubmitting, setJoinMeetingSubmitting] = useState(false)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordingTimerRef = useRef<number | null>(null)
+
   const [transcriptLines, setTranscriptLines] = useState<
     Array<{ speaker: string; role?: string; time: string; text: string; color: 'blue' | 'red' }>
   | null
@@ -221,6 +237,241 @@ export default function AtlasMain() {
     questions_and_objections: Array<{ question: string; time?: string | null; answer: string }>
   } | null>(null)
   const [playbookAnalysis, setPlaybookAnalysis] = useState<MeetingPlaybookAnalysis | null>(null)
+
+  const formatRecordingTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60)
+    const s = seconds % 60
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  }
+
+  const startLocalRecording = async () => {
+    try {
+      setRecordingError(null)
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setRecordingError('Your browser does not support audio recording.')
+        return
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      
+      // Prefer formats that Whisper API supports well
+      // Order: wav > mp3 > ogg > webm (webm often not supported by Whisper)
+      let mimeType = ''
+      const preferredTypes = ['audio/wav', 'audio/mp3', 'audio/ogg', 'audio/webm;codecs=opus', 'audio/webm']
+      for (const type of preferredTypes) {
+        if (MediaRecorder.isTypeSupported(type)) {
+          mimeType = type
+          break
+        }
+      }
+      console.log('[Recording] Using mimeType:', mimeType || 'default')
+      
+      const mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream)
+      const chunks: BlobPart[] = []
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          chunks.push(event.data)
+        }
+      }
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop())
+        const recordedMime = mediaRecorder.mimeType || 'audio/webm'
+        const blob = new Blob(chunks, { type: recordedMime })
+        // Convert to WAV using Web Audio API for better compatibility with Whisper API
+        let finalBlob = blob
+        let finalExt = recordedMime.includes('wav') ? 'wav' : 'webm'
+        try {
+          const audioCtx = new AudioContext()
+          const arrayBuffer = await blob.arrayBuffer()
+          const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer)
+          const wavBlob = audioBufferToWav(audioBuffer)
+          finalBlob = wavBlob
+          finalExt = 'wav'
+          audioCtx.close()
+          console.log('[Recording] Successfully converted to WAV format')
+        } catch (convErr) {
+          // If WAV conversion fails, log and use original blob
+          console.warn('[Recording] WAV conversion failed, using original format:', convErr)
+          toast.error('Could not convert to WAV. Transcription may fail.')
+        }
+        const url = URL.createObjectURL(finalBlob)
+        setRecordedPreviewUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev)
+          return url
+        })
+        setRecordedFileExt(finalExt)
+        setRecordedBlob(finalBlob)
+        setIsLocalRecording(false)
+        if (recordingTimerRef.current !== null) {
+          window.clearInterval(recordingTimerRef.current)
+          recordingTimerRef.current = null
+        }
+      }
+      mediaRecorderRef.current = mediaRecorder
+      setIsLocalRecording(true)
+      setRecordingElapsed(0)
+      mediaRecorder.start()
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingElapsed((prev) => prev + 1)
+      }, 1000)
+    } catch (err) {
+      console.error('Error starting local recording', err)
+      setRecordingError('Could not access microphone. Please check your browser permissions.')
+    }
+  }
+
+  // Helper: convert AudioBuffer to WAV Blob
+  const audioBufferToWav = (buffer: AudioBuffer): Blob => {
+    const numChannels = buffer.numberOfChannels
+    const sampleRate = buffer.sampleRate
+    const format = 1 // PCM
+    const bitDepth = 16
+    const bytesPerSample = bitDepth / 8
+    const blockAlign = numChannels * bytesPerSample
+    const dataLength = buffer.length * blockAlign
+    const bufferLength = 44 + dataLength
+    const arrayBuffer = new ArrayBuffer(bufferLength)
+    const view = new DataView(arrayBuffer)
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i))
+      }
+    }
+    writeString(0, 'RIFF')
+    view.setUint32(4, 36 + dataLength, true)
+    writeString(8, 'WAVE')
+    writeString(12, 'fmt ')
+    view.setUint32(16, 16, true)
+    view.setUint16(20, format, true)
+    view.setUint16(22, numChannels, true)
+    view.setUint32(24, sampleRate, true)
+    view.setUint32(28, sampleRate * blockAlign, true)
+    view.setUint16(32, blockAlign, true)
+    view.setUint16(34, bitDepth, true)
+    writeString(36, 'data')
+    view.setUint32(40, dataLength, true)
+    // Interleave channels
+    const channels: Float32Array[] = []
+    for (let ch = 0; ch < numChannels; ch++) {
+      channels.push(buffer.getChannelData(ch))
+    }
+    let offset = 44
+    for (let i = 0; i < buffer.length; i++) {
+      for (let ch = 0; ch < numChannels; ch++) {
+        const sample = Math.max(-1, Math.min(1, channels[ch][i]))
+        const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7fff
+        view.setInt16(offset, intSample, true)
+        offset += 2
+      }
+    }
+    return new Blob([arrayBuffer], { type: 'audio/wav' })
+  }
+
+  const stopLocalRecording = () => {
+    const mr = mediaRecorderRef.current
+    if (mr && mr.state !== 'inactive') {
+      mr.stop()
+    }
+  }
+
+  const handleTranscriptRecording = async () => {
+    if (!recordedBlob) {
+      toast.error('No recording available to transcribe.')
+      return
+    }
+    try {
+      setLocalTranscriptLoading(true)
+      setTranscriptResult(null)
+      const response = await atlasAPI.transcribeAudio(recordedBlob, `recording.${recordedFileExt}`, 'en')
+      setTranscriptResult(response.data.text || '')
+      setTranscriptPopupOpen(true)
+    } catch (err) {
+      console.error('Transcription error:', err)
+      toast.error('Failed to transcribe recording.')
+    } finally {
+      setLocalTranscriptLoading(false)
+    }
+  }
+
+  const openSaveRecordingModal = () => {
+    const now = new Date()
+    setSaveRecordingTitle(`Recording - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`)
+    setSaveRecordingModalOpen(true)
+  }
+
+  const closeSaveRecordingModal = () => {
+    setSaveRecordingModalOpen(false)
+  }
+
+  const handleSaveRecording = async () => {
+    if (!recordedBlob) {
+      toast.error('No recording available to save.')
+      return
+    }
+    if (!saveRecordingTitle.trim()) {
+      toast.error('Please enter a title for the recording.')
+      return
+    }
+    try {
+      setSaveRecordingLoading(true)
+      // 1. Call transcript API via backend proxy
+      const transcriptResponse = await atlasAPI.transcribeAudio(recordedBlob, `recording.${recordedFileExt}`, 'en')
+      const transcriptText = transcriptResponse.data.text || ''
+
+      // 2. Create meeting with user-provided title
+      const createRes = await meetingsAPI.createMeeting({
+        title: saveRecordingTitle.trim(),
+        description: 'Recorded from browser microphone',
+        platform: 'google_meet',
+        link: '',
+      })
+      const meetingId = createRes.data.id
+
+      // 3. Update meeting with transcript_lines
+      const transcriptLines = transcriptText
+        ? [{ speaker: 'Speaker', role: undefined, time: '00:00', text: transcriptText }]
+        : []
+      await meetingsAPI.updateMeeting(meetingId, { transcript_lines: transcriptLines })
+
+      // 4. Refresh calls list
+      const listRes = await meetingsAPI.getMeetings()
+      const newList = (listRes.data.meetings || []).map((m: { id: string; title: string; created_at?: string; link?: string }) => ({
+        id: m.id,
+        title: m.title,
+        date: m.created_at ? new Date(m.created_at).toLocaleDateString() : '',
+        duration: '-',
+        meetingLink: m.link,
+      }))
+      setCallsList(newList)
+
+      toast.success('Recording saved to Call History!')
+      // Close modals
+      closeSaveRecordingModal()
+      closeRecordModal()
+    } catch (err) {
+      console.error('Save recording error:', err)
+      toast.error('Failed to save recording.')
+    } finally {
+      setSaveRecordingLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    // Cleanup on unmount to stop recording/timers if still running
+    return () => {
+      const mr = mediaRecorderRef.current
+      if (mr && mr.state !== 'inactive') {
+        mr.stop()
+      }
+      if (recordingTimerRef.current !== null) {
+        window.clearInterval(recordingTimerRef.current)
+      }
+      if (recordedPreviewUrl) {
+        URL.revokeObjectURL(recordedPreviewUrl)
+      }
+    }
+  }, [])
   const [playbookLoading, setPlaybookLoading] = useState(false)
   const [playbookError, setPlaybookError] = useState<string | null>(null)
   const [playbookRuleOpen, setPlaybookRuleOpen] = useState<Record<number, boolean>>({})
@@ -929,11 +1180,196 @@ export default function AtlasMain() {
         </p>
       )
     }
+    // Don't Join Meeting: fake SilkChart-like UI, recording from microphone on client
     return (
-      <p className="text-sm text-gray-700">
-        Atlas will start recording audio from your computer speakers for all
-        participants in the meeting, without joining as a visible participant.
-      </p>
+      <div className="space-y-4">
+        <p className="text-sm text-gray-700">
+          Atlas will record audio from your microphone in this browser tab. In a future version,
+          desktop recording from computer speakers will be supported.
+        </p>
+        <div className="flex flex-col items-center gap-4">
+          <button
+            type="button"
+            onClick={isLocalRecording ? stopLocalRecording : startLocalRecording}
+            className={`relative flex items-center justify-center h-16 w-16 rounded-full border-4 ${
+              isLocalRecording
+                ? 'border-red-200 bg-red-500 text-white'
+                : 'border-blue-200 bg-blue-600 text-white'
+            } shadow-md transition-colors`}
+          >
+            <span className="text-xs font-semibold">
+              {isLocalRecording ? 'STOP' : 'REC'}
+            </span>
+            {isLocalRecording && (
+              <span className="absolute -top-2 -right-2 h-3 w-3 rounded-full bg-red-500 animate-pulse" />
+            )}
+          </button>
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-xs uppercase tracking-wide text-gray-500">
+              Recording time
+            </span>
+            <span className="font-mono text-sm text-gray-900">
+              {formatRecordingTime(recordingElapsed)}
+            </span>
+          </div>
+          <div className="flex items-end gap-1 h-10">
+            {Array.from({ length: 16 }).map((_, i) => (
+              <div
+                // eslint-disable-next-line react/no-array-index-key
+                key={i}
+                className={`w-1 rounded-sm ${
+                  isLocalRecording ? 'bg-blue-500 animate-pulse' : 'bg-gray-300'
+                }`}
+                style={{ height: `${4 + ((i * 7) % 20)}px` }}
+              />
+            ))}
+          </div>
+        </div>
+        {recordedPreviewUrl && (
+          <div className="w-full pt-3 border-t border-gray-100">
+            <p className="text-xs text-gray-500 mb-1">Preview last recording</p>
+            <audio controls src={recordedPreviewUrl} className="w-full" />
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <a
+                href={recordedPreviewUrl}
+                download={`atlas-recording-${new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-')}.${recordedFileExt}`}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+              >
+                <Download className="h-3 w-3" />
+                Download
+              </a>
+              <button
+                type="button"
+                onClick={handleTranscriptRecording}
+                disabled={localTranscriptLoading}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+              >
+                {localTranscriptLoading ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Transcribing…
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-3 w-3" />
+                    Transcript
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={openSaveRecordingModal}
+                disabled={saveRecordingLoading}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50"
+              >
+                {saveRecordingLoading ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Saving…
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-3 w-3" />
+                    Save
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Transcript result popup */}
+        {transcriptPopupOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex items-start justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Transcript Result</h3>
+                <button
+                  type="button"
+                  onClick={() => setTranscriptPopupOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4 text-sm text-gray-800 whitespace-pre-wrap">
+                {transcriptResult || '(No transcript text)'}
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setTranscriptPopupOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {recordingError && (
+          <p className="text-xs text-red-600">
+            {recordingError}
+          </p>
+        )}
+
+        {/* Save recording modal - enter title */}
+        {saveRecordingModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 space-y-4">
+              <div className="flex items-start justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Save Recording</h3>
+                <button
+                  type="button"
+                  onClick={closeSaveRecordingModal}
+                  disabled={saveRecordingLoading}
+                  className="text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div>
+                <label htmlFor="save-recording-title" className="block text-sm font-medium text-gray-700 mb-1">
+                  Meeting Title
+                </label>
+                <input
+                  id="save-recording-title"
+                  type="text"
+                  value={saveRecordingTitle}
+                  onChange={(e) => setSaveRecordingTitle(e.target.value)}
+                  placeholder="Enter a title for this recording"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={closeSaveRecordingModal}
+                  disabled={saveRecordingLoading}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveRecording}
+                  disabled={saveRecordingLoading || !saveRecordingTitle.trim()}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {saveRecordingLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    'Save'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     )
   }
 
@@ -2694,16 +3130,16 @@ export default function AtlasMain() {
   if (section === 'todo') {
     return (
       <div className="h-full overflow-y-auto bg-white">
-        <div className="px-10 pt-12 pb-8">
-          {/* Header: 48px spacing below title area */}
-          <div className="flex items-start justify-between gap-6 mb-12">
+        <div className="px-8 pt-6 pb-5">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900">To Do Ready</h1>
-              <p className="mt-2 text-sm text-gray-500">
+              <h1 className="text-xl font-semibold tracking-tight text-gray-900">To Do Ready</h1>
+              <p className="mt-1 text-sm text-gray-500">
                 AI-generated action items from your calls and deals.
               </p>
             </div>
-            <div className="flex items-center gap-3 shrink-0" style={{ marginRight: 40 }}>
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 onClick={() => setTodoRange('today')}
@@ -2761,8 +3197,8 @@ export default function AtlasMain() {
             </div>
           </div>
 
-          {/* Tabs: 48px below header */}
-          <div className="border-b border-gray-200 mb-12">
+          {/* Tabs + Filter inline */}
+          <div className="flex items-center justify-between border-b border-gray-200 mb-4">
             <nav className="flex gap-8 text-sm">
               {[
                 { id: 'prioritized', label: 'Prioritized Prospects' },
@@ -2783,20 +3219,18 @@ export default function AtlasMain() {
                 </button>
               ))}
             </nav>
+            {/* Filter dropdown */}
+            <div className="flex items-center gap-2 pb-3">
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Filter:</span>
+              <button
+                type="button"
+                className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+              >
+                <span className="text-gray-600">Prospect</span>
+                <ChevronDown className="h-4 w-4 text-gray-500 shrink-0 ml-2" />
+              </button>
+            </div>
           </div>
-
-          {/* Content section label */}
-          <div className="text-[11px] font-medium text-gray-400 tracking-[0.12em] uppercase mb-3">
-            Content section
-          </div>
-          {/* Single PROSPECT dropdown */}
-          <button
-            type="button"
-            className="w-full max-w-md flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-left text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
-          >
-            <span className="uppercase tracking-wide text-gray-600">Prospect</span>
-            <ChevronDown className="h-4 w-4 text-gray-500 shrink-0" />
-          </button>
 
           {/* To-do list area: filter by tab (Prioritized = all, Follow-ups = open & not overdue, Overdue = open & past due) */}
           {(() => {
@@ -2849,14 +3283,28 @@ export default function AtlasMain() {
                 )}
                 {!todoInsightsLoading && todoInsights && displayItems.length > 0 && (
                   <div className="space-y-3">
-                    {displayItems.map((item) => (
+                    {displayItems.map((item, idx) => (
                       <div
-                        key={`${item.meeting_id}-${item.description.slice(0, 40)}-${item.time ?? ''}`}
-                        className={`flex items-start gap-3 rounded-xl bg-white px-4 py-3 shadow-sm border ${todoActiveTab === 'overdue' ? 'border-red-100' : 'border-gray-100'}`}
+                        key={`${item.meeting_id}-${item.description.slice(0, 40)}-${item.time ?? ''}-${idx}`}
+                        className={`flex items-start gap-3 rounded-xl px-4 py-3 shadow-sm border transition-all ${
+                          item.status === 'done' 
+                            ? 'bg-gray-50 border-gray-100 opacity-60' 
+                            : todoActiveTab === 'overdue' 
+                              ? 'bg-white border-red-100' 
+                              : 'bg-white border-gray-100'
+                        }`}
                       >
-                        <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${todoActiveTab === 'overdue' ? 'bg-red-500' : 'bg-[#3B82F6]'}`} />
+                        <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${
+                          item.status === 'done'
+                            ? 'bg-green-500'
+                            : todoActiveTab === 'overdue' 
+                              ? 'bg-red-500' 
+                              : 'bg-[#3B82F6]'
+                        }`} />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900">{item.description}</p>
+                          <p className={`text-sm font-medium ${item.status === 'done' ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                            {item.description}
+                          </p>
                           <p className="mt-0.5 text-[12px] text-gray-500">
                             From{' '}
                             <span className="font-medium text-gray-700">
@@ -2873,9 +3321,48 @@ export default function AtlasMain() {
                         </div>
                         <button
                           type="button"
-                          className="mt-1 inline-flex items-center rounded-full border border-gray-200 px-2 py-0.5 text-[11px] text-gray-500 hover:bg-gray-50"
+                          onClick={async () => {
+                            const newStatus = item.status === 'done' ? 'open' : 'done'
+                            try {
+                              await meetingsAPI.updateTodoItemStatus({
+                                meeting_id: item.meeting_id,
+                                description: item.description,
+                                time: item.time,
+                                status: newStatus,
+                              }, { range_type: todoRange === 'today' ? 'day' : 'week' })
+                              // Update local state
+                              setTodoInsights((prev) => {
+                                if (!prev) return prev
+                                return {
+                                  ...prev,
+                                  items: prev.items.map((it) =>
+                                    it.meeting_id === item.meeting_id &&
+                                    it.description === item.description &&
+                                    it.time === item.time
+                                      ? { ...it, status: newStatus }
+                                      : it
+                                  ),
+                                }
+                              })
+                              toast.success(newStatus === 'done' ? 'Marked as done!' : 'Marked as open')
+                            } catch (err) {
+                              toast.error('Failed to update status')
+                            }
+                          }}
+                          className={`mt-1 inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors ${
+                            item.status === 'done'
+                              ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                              : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                          }`}
                         >
-                          Mark done
+                          {item.status === 'done' ? (
+                            <>
+                              <CheckCircle2 className="h-3 w-3" />
+                              Done
+                            </>
+                          ) : (
+                            'Mark done'
+                          )}
                         </button>
                       </div>
                     ))}
@@ -2891,23 +3378,23 @@ export default function AtlasMain() {
 
   if (section === 'qna') {
     return (
-      <div className="h-full overflow-y-auto px-10 py-8 bg-[#f5f5f7]">
-        <div className="flex items-start justify-between gap-6 mb-6">
+      <div className="h-full overflow-y-auto px-8 py-6 bg-[#f5f5f7]">
+        <div className="flex items-center justify-between gap-4 mb-5">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900">
+            <h1 className="text-xl font-semibold tracking-tight text-gray-900">
               Rolling Q&amp;A Repository
             </h1>
-            <p className="mt-1.5 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-gray-500">
               Centralized database of prospect questions with AI-generated answers.
             </p>
           </div>
           <button
             type="button"
             onClick={() => { setQnaEditingId(null); setQnaFormQuestion(''); setQnaFormAnswer(''); setQnaModalOpen(true) }}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#007AFF] px-4 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90"
+            className="inline-flex items-center gap-2 rounded-lg bg-[#007AFF] px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90"
           >
             <Plus className="h-4 w-4" />
-            Add Question Manually
+            Add Question
           </button>
         </div>
 
@@ -2919,7 +3406,7 @@ export default function AtlasMain() {
               value={qnaSearch}
               onChange={(e) => setQnaSearch(e.target.value)}
               placeholder="Search questions, answers, or keywords..."
-              className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-[#007AFF] focus:outline-none focus:ring-1 focus:ring-[#007AFF]"
+              className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-[#007AFF] focus:outline-none focus:ring-1 focus:ring-[#007AFF]"
             />
           </div>
         </div>
@@ -3095,13 +3582,13 @@ export default function AtlasMain() {
     ]
     return (
       <div className="h-full overflow-y-auto bg-[#f5f5f7]">
-        <div className="px-10 pt-10 pb-6">
-          <div className="flex items-start justify-between gap-6 mb-10">
+        <div className="px-8 pt-6 pb-5">
+          <div className="flex items-center justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
+              <h1 className="text-xl font-semibold tracking-tight text-gray-900">
                 Knowledge Configuration
               </h1>
-              <p className="mt-2 text-sm text-gray-500 max-w-xl">
+              <p className="mt-1 text-sm text-gray-500 max-w-xl">
                 Train Atlas AI with your company information to provide intelligent assistance during calls.
               </p>
             </div>
@@ -3109,14 +3596,14 @@ export default function AtlasMain() {
               <button
                 type="button"
                 onClick={() => setKnowledgeUploadModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-[#007AFF] px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:opacity-90"
+                className="inline-flex items-center gap-2 rounded-lg bg-[#007AFF] px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90"
               >
                 <Upload className="h-4 w-4" />
                 Upload Document
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
               >
                 <RefreshCw className="h-4 w-4" />
                 Sync CRM
@@ -3529,18 +4016,29 @@ export default function AtlasMain() {
             {renderRecordModalContent()}
 
             <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={closeRecordModal}
-                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={closeRecordModal}
-                className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
-              >
-                Confirm
-              </button>
+              {recordMode === 'join' ? (
+                <>
+                  <button
+                    onClick={closeRecordModal}
+                    className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={closeRecordModal}
+                    className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+                  >
+                    Confirm
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={closeRecordModal}
+                  className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  Close
+                </button>
+              )}
             </div>
           </div>
         </div>

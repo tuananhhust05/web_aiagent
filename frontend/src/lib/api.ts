@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
+  const url = 'http://localhost:8001'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -22,7 +22,7 @@ const getApiUrl = () => {
 }
 
 const FINAL_API_URL = getApiUrl()
-/** Base URL of the backend API (e.g. http://localhost:8000). Use for API requests. */
+/** Base URL of the backend API (e.g. http://localhost:8001). Use for API requests. */
 export const API_BASE_URL = FINAL_API_URL
 
 /**
@@ -783,13 +783,6 @@ export const upsellAPI = {
 }
 
 // Workflows API
-// Gmail API
-export const gmailAPI = {
-  getLatestEmails: (maxResults: number = 10, query?: string) =>
-    api.get('/api/gmail/latest', { params: { max_results: maxResults, query } }),
-  getStatus: () => api.get('/api/gmail/status'),
-  getReauthorizeUrl: () => api.get('/api/gmail/reauthorize'),
-}
 
 // User Google Calendar API (Atlas)
 export const calendarAPI = {
@@ -1010,6 +1003,17 @@ export const atlasAPI = {
     api.delete<{ message: string; id: string; chunks_deleted: number }>(
       `/api/atlas/knowledge/${category}/documents/${documentId}`
     ),
+  
+  /** Transcribe audio file using backend proxy */
+  transcribeAudio: (file: Blob, filename: string, language: string = 'en') => {
+    const formData = new FormData()
+    formData.append('file', file, filename)
+    return api.post<{ text: string }>(
+      `/api/atlas/transcribe?language=${encodeURIComponent(language)}`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 120000 }
+    )
+  },
 }
 
 export const workflowsAPI = {
@@ -1127,7 +1131,7 @@ export const prioritizedProspectsAPI = {
 }
 
 // Meetings API
-export type MeetingPlatform = 'teams' | 'zoom' | 'google_meet'
+export type MeetingPlatform = 'teams' | 'zoom' | 'google_meet' | 'local'
 
 export const meetingsAPI = {
   getMeetings: (params?: {
@@ -1274,6 +1278,20 @@ export const meetingsAPI = {
       }>
       generated_at: string
     }>('/api/meetings/insights/todo/analyze', null, { params: params ?? { range_type: 'day' } }),
+
+  /** Update todo item status (mark as done/open) */
+  updateTodoItemStatus: (data: {
+    meeting_id: string
+    description: string
+    time?: string | null
+    status: 'open' | 'done'
+  }, params?: { range_type?: 'day' | 'week' }) =>
+    api.patch<{ success: boolean; status: string }>(
+      '/api/meetings/insights/todo/item',
+      data,
+      { params: params ?? { range_type: 'week' } }
+    ),
+
   /** Objection Handling insights across calls (aggregated questions & objections by topic). */
   getObjectionInsights: () =>
     api.get<{
@@ -1333,6 +1351,43 @@ export const playbooksAPI = {
     api.put(`/api/playbooks/${id}`, data),
   setDefault: (id: string) => api.post(`/api/playbooks/${id}/set-default`),
   delete: (id: string) => api.delete(`/api/playbooks/${id}`),
+}
+
+// Gmail API
+export interface GmailEmail {
+  id: string
+  thread_id: string
+  subject: string
+  from: string
+  snippet: string
+  date: string | null
+  internal_date: string | null
+}
+
+export interface GmailStatusResponse {
+  configured: boolean
+  has_access_token: boolean
+  has_gmail_scope: boolean
+  token_scopes: string[] | null
+  token_expiry: string | null
+  email: string
+  needs_reauthorization: boolean
+}
+
+export const gmailAPI = {
+  /** Get Gmail connection status */
+  getStatus: () => api.get<GmailStatusResponse>('/api/gmail/status'),
+  
+  /** Get latest emails from user's Gmail inbox */
+  getLatestEmails: (params?: { max_results?: number; query?: string }) =>
+    api.get<{ success: boolean; count: number; emails: GmailEmail[] }>(
+      '/api/gmail/latest',
+      { params }
+    ),
+  
+  /** Get reauthorization URL if Gmail scope is missing */
+  getReauthorizeUrl: () =>
+    api.get<{ auth_url: string; state: string; message: string }>('/api/gmail/reauthorize'),
 }
 
 // Vexa AI API (proxied via backend; API key is on server, see .env VEXA_API_KEY / VEXA_API_BASE)

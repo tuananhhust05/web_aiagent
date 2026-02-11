@@ -74,27 +74,27 @@ class GoogleAuthService:
     
     def get_google_auth_url(self, state: Optional[str] = None) -> str:
         """
-        Generate Google OAuth authorization URL with BASIC scopes only
-        (no Gmail read/send permissions).
+        Generate Google OAuth authorization URL with identity and Gmail read scopes.
         """
-        # Only request basic identity scopes
+        # Request identity scopes + Gmail readonly
         scopes = [
             "openid",
             "email",
             "profile",
+            "https://www.googleapis.com/auth/gmail.readonly",
         ]
         scope_string = " ".join(scopes)
         
         # Log scopes for debugging
-        logger.info(f"🔐 [GOOGLE_OAUTH] Generating auth URL with BASIC scopes (no Gmail permissions): {scopes}")
+        logger.info(f"🔐 [GOOGLE_OAUTH] Generating auth URL with scopes: {scopes}")
         
         params = {
             "client_id": self.client_id,
             "redirect_uri": self.redirect_uri,
             "scope": scope_string,
             "response_type": "code",
-            "access_type": "offline",  # Keep offline to allow future extensions if needed
-            "prompt": "select_account",  # Just select account, no explicit Gmail consent
+            "access_type": "offline",  # Required for refresh token
+            "prompt": "consent",  # Force consent to ensure user sees Gmail permission
         }
         
         if state:

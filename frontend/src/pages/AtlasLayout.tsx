@@ -13,11 +13,13 @@ import {
   LogOut,
   FileText,
   Calendar,
+  Mail,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 
 /** Settings menu items in the avatar dropdown */
 const settingsMenuItems = [
+  { label: 'Gmail', href: '/gmail', icon: Mail },
   { label: 'Profile', href: '/profile', icon: User },
   { label: 'Edit Sales Playbook', href: '/atlas/playbooks', icon: FileText },
   { label: 'Meetings', href: '/meetings', icon: Calendar },

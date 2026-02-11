@@ -11,12 +11,12 @@ python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ### 2. Test API Endpoints
 ```bash
 # Test basic endpoints
-curl http://localhost:8000/
-curl http://localhost:8000/health
+curl http://localhost:8001/
+curl http://localhost:8001/health
 
 # Test deals endpoints (will return 401 without auth)
-curl http://localhost:8000/api/deals
-curl http://localhost:8000/api/deals/stats
+curl http://localhost:8001/api/deals
+curl http://localhost:8001/api/deals/stats
 ```
 
 ### 3. Initialize Database Collection
@@ -31,7 +31,7 @@ python init_deals_collection.py
 
 1. **Check if server is running:**
    ```bash
-   curl http://localhost:8000/health
+   curl http://localhost:8001/health
    ```
 
 2. **Check if deals routes are registered:**
@@ -119,7 +119,7 @@ The deals collection will be created automatically when you:
 - Server starts without errors
 - `/health` endpoint returns `{"status": "healthy"}`
 - `/api/deals` returns 401 (not 404)
-- API docs available at `http://localhost:8000/docs`
+- API docs available at `http://localhost:8001/docs`
 
 
 

@@ -58,7 +58,7 @@ const LatestMail: React.FC = () => {
       setLoading(true)
       setError(null)
       
-      const response = await gmailAPI.getLatestEmails(maxResults)
+      const response = await gmailAPI.getLatestEmails({ max_results: maxResults })
       setEmails(response.data.emails || [])
     } catch (error: any) {
       console.error('Error loading latest emails:', error)

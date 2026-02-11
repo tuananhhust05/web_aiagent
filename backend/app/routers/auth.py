@@ -313,11 +313,12 @@ async def google_callback(auth_request: GoogleAuthRequest):
     try:
         print(f"🔐 [GOOGLE_OAUTH] Starting OAuth callback with code: {auth_request.code[:10]}...")
         
-        # Exchange code for access token (basic identity only)
+        # Exchange code for access token (now includes Gmail readonly)
         token_data = await google_auth_service.exchange_code_for_token(auth_request.code)
         access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
         
-        print(f"🔐 [GOOGLE_OAUTH] Token exchange successful (basic scopes)")
+        print(f"🔐 [GOOGLE_OAUTH] Token exchange successful, has_refresh_token={refresh_token is not None}")
         
         if not access_token:
             raise HTTPException(
@@ -336,14 +337,19 @@ async def google_callback(auth_request: GoogleAuthRequest):
             # User exists, log them in and update Google info
             logger.info(f"Existing user logged in via Google: {google_user.email}")
             
-            # Update user with Google info
+            # Update user with Google info and tokens for Gmail access
             update_fields = {
                 "google_id": google_user.id,
                 "auth_provider": "google",
                 "avatar_url": google_user.picture,
                 "is_verified": True,  # Google verified emails are trusted
+                "google_access_token": access_token,
                 "updated_at": datetime.utcnow()
             }
+            # Only update refresh_token if we received one (won't be sent on re-auth)
+            if refresh_token:
+                update_fields["google_refresh_token"] = encrypt_refresh_token(refresh_token)
+            
             await db.users.update_one(
                 {"_id": existing_user["_id"]},
                 {"$set": update_fields}
@@ -387,6 +393,8 @@ async def google_callback(auth_request: GoogleAuthRequest):
             "google_id": google_user.id,
             "avatar_url": google_user.picture,
             "auth_provider": "google",
+            "google_access_token": access_token,
+            "google_refresh_token": encrypt_refresh_token(refresh_token) if refresh_token else None,
             "role": "user",
             "is_active": True,
             "is_verified": True,  # Google verified emails are trusted

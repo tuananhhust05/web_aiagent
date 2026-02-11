@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Optional, List, Any, Literal, Dict
 from datetime import datetime, timedelta
 from bson import ObjectId
+import logging
 from ..models.meeting import (
     MeetingCreate,
     MeetingUpdate,
@@ -20,6 +21,8 @@ from pydantic import BaseModel, Field
 from ..core.config import settings
 import json
 from ..services.ai_sales_copilot import analyze_call_against_playbook
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -1134,6 +1137,10 @@ async def analyze_todo_insights(
     )
     docs = await cursor.to_list(length=1000)
 
+    logger.info(f"[TODO] Analyzing for user {current_user.id}, range_type={range_type}, days={days}")
+    logger.info(f"[TODO] Query range: {start_dt} to {end_dt}")
+    logger.info(f"[TODO] Found {len(docs)} meetings in range")
+
     total_calls = len(docs)
     items: List[TodoNextStepItem] = []
 
@@ -1141,13 +1148,17 @@ async def analyze_todo_insights(
         meeting_id = str(doc.get("_id"))
         meeting_title = doc.get("title") or ""
         meeting_created_at = doc.get("created_at")
+        
+        logger.info(f"[TODO] Processing meeting: {meeting_id}, title='{meeting_title}', created_at={meeting_created_at}")
 
         raw_next = doc.get("atlas_next_steps") or []
         next_steps = _sanitize_next_steps(raw_next)
+        logger.info(f"[TODO] Meeting {meeting_id}: has {len(next_steps)} cached next_steps")
 
         # If there is no cached next steps, try to generate once via existing helper
         if not next_steps:
             try:
+                logger.info(f"[TODO] Meeting {meeting_id}: No cached next_steps, calling get_atlas_meeting_insights...")
                 insights = await get_atlas_meeting_insights(
                     meeting_id=meeting_id,
                     force_refresh=False,
@@ -1155,10 +1166,13 @@ async def analyze_todo_insights(
                     db=db,
                 )
                 next_steps = _sanitize_next_steps([ns.model_dump() for ns in insights.next_steps])
-            except Exception:
+                logger.info(f"[TODO] Meeting {meeting_id}: Generated {len(next_steps)} next_steps from insights")
+            except Exception as e:
+                logger.warning(f"[TODO] Meeting {meeting_id}: Failed to generate insights: {str(e)}")
                 next_steps = []
 
         if not next_steps:
+            logger.info(f"[TODO] Meeting {meeting_id}: Skipping - no next_steps available")
             continue
 
         # due_at = meeting date + 1 day (end of that day) so Overdue = open items with due_at < now
@@ -1259,6 +1273,63 @@ async def get_todo_insights(
         items=items,
         generated_at=doc.get("generated_at") or now,
     )
+
+
+class TodoItemUpdateRequest(BaseModel):
+    """Request body for updating a todo item status."""
+    meeting_id: str
+    description: str
+    time: Optional[str] = None
+    status: Literal["open", "done"]
+
+
+@router.patch("/insights/todo/item")
+async def update_todo_item_status(
+    request: TodoItemUpdateRequest,
+    range_type: Literal["day", "week"] = Query("week", description="Which snapshot to update: 'day' or 'week'."),
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """
+    Update the status of a specific todo item (mark as done/open).
+    Identifies item by meeting_id + description + time combination.
+    """
+    insights_coll = db.todo_insights
+    
+    # Find the latest snapshot for this user and range_type
+    doc = await insights_coll.find_one(
+        {"user_id": current_user.id, "range_type": range_type},
+        sort=[("generated_at", -1)],
+    )
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="No todo insights found for this range")
+    
+    items = doc.get("items") or []
+    updated = False
+    
+    for item in items:
+        # Match by meeting_id, description, and optionally time
+        if (item.get("meeting_id") == request.meeting_id and 
+            item.get("description") == request.description and
+            (request.time is None or item.get("time") == request.time)):
+            item["status"] = request.status
+            updated = True
+            break
+    
+    if not updated:
+        raise HTTPException(status_code=404, detail="Todo item not found")
+    
+    # Update the document in database
+    await insights_coll.update_one(
+        {"_id": doc["_id"]},
+        {"$set": {"items": items}}
+    )
+    
+    logger.info(f"[TODO] Updated item status to '{request.status}' for user {current_user.id}")
+    
+    return {"success": True, "status": request.status}
+
 
 @router.get("/{meeting_id}", response_model=MeetingResponse)
 async def get_meeting(

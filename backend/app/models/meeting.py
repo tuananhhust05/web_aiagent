@@ -7,6 +7,7 @@ class MeetingPlatform(str, Enum):
     teams = "teams"
     zoom = "zoom"
     google_meet = "google_meet"
+    local = "google_meet"
 
 
 class TranscriptLine(BaseModel):

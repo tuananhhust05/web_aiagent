@@ -6,6 +6,7 @@ import os
 import uuid
 import traceback
 import logging
+import httpx
 from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File, BackgroundTasks, Path
 from fastapi.responses import FileResponse
 from typing import Optional, List, Any
@@ -21,6 +22,9 @@ from app.services.vectorization import vectorize_texts
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
+
+# Whisper API URL for transcription
+WHISPER_API_URL = os.getenv("WHISPER_API_URL", "http://207.180.227.97:8060/v1/audio/transcriptions")
 
 try:
     from weaviate.classes.query import Filter
@@ -988,3 +992,105 @@ async def delete_atlas_knowledge_document(
             pass
     await coll.delete_one({"_id": document_id})
     return {"message": "Document deleted successfully", "id": document_id, "chunks_deleted": chunks_deleted}
+
+
+class TranscriptionResponse(BaseModel):
+    """Response from transcription API."""
+    text: str
+
+
+# Map file extensions to proper content types for Whisper API
+AUDIO_CONTENT_TYPES = {
+    "webm": "audio/webm",
+    "wav": "audio/wav",
+    "mp3": "audio/mpeg",
+    "m4a": "audio/mp4",
+    "ogg": "audio/ogg",
+    "flac": "audio/flac",
+}
+
+
+@router.post("/transcribe", response_model=TranscriptionResponse)
+async def transcribe_audio(
+    file: UploadFile = File(..., description="Audio file to transcribe"),
+    language: str = Query("en", description="Language code for transcription"),
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """
+    Proxy endpoint for audio transcription using Whisper API.
+    Accepts audio file and returns transcribed text.
+    """
+    filename = file.filename or "audio.wav"
+    logger.info(f"[TRANSCRIBE] User {current_user.id} requesting transcription for file: {filename}, content_type: {file.content_type}")
+    
+    # Read file content
+    file_content = await file.read()
+    
+    if not file_content:
+        raise HTTPException(status_code=400, detail="Empty file uploaded")
+    
+    logger.info(f"[TRANSCRIBE] File size: {len(file_content)} bytes")
+    
+    # Determine proper content type from filename extension
+    ext = filename.lower().split(".")[-1] if "." in filename else "wav"
+    content_type = AUDIO_CONTENT_TYPES.get(ext, file.content_type or "application/octet-stream")
+    
+    logger.info(f"[TRANSCRIBE] Using content_type: {content_type} for extension: {ext}")
+    
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            # Build multipart data manually to match exact format expected by Whisper API
+            # The key must be 'file' and we send the raw file bytes
+            files_payload = {
+                "file": (filename, file_content, content_type),
+            }
+            
+            # Some Whisper APIs expect 'model' parameter
+            data_payload = {
+                "language": language,
+            }
+            
+            logger.info(f"[TRANSCRIBE] Sending request to Whisper API: {WHISPER_API_URL}")
+            
+            response = await client.post(
+                WHISPER_API_URL,
+                files=files_payload,
+                data=data_payload,
+            )
+            
+            logger.info(f"[TRANSCRIBE] Whisper API response status: {response.status_code}")
+            
+            if response.status_code != 200:
+                error_detail = response.text
+                logger.error(f"[TRANSCRIBE] Whisper API error: {response.status_code} - {error_detail}")
+                
+                # If webm is not supported, suggest converting on frontend
+                if "Format not recognised" in error_detail and ext == "webm":
+                    raise HTTPException(
+                        status_code=400,
+                        detail="WebM format not supported by transcription service. Please ensure audio is converted to WAV format."
+                    )
+                
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Transcription service error: {error_detail}"
+                )
+            
+            result = response.json()
+            text = result.get("text", "")
+            
+            logger.info(f"[TRANSCRIBE] Successfully transcribed {len(text)} characters for user {current_user.id}")
+            
+            return TranscriptionResponse(text=text)
+            
+    except HTTPException:
+        raise
+    except httpx.TimeoutException:
+        logger.error("[TRANSCRIBE] Whisper API timeout")
+        raise HTTPException(status_code=504, detail="Transcription service timeout")
+    except httpx.RequestError as e:
+        logger.error(f"[TRANSCRIBE] Request error: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"Failed to connect to transcription service: {str(e)}")
+    except Exception as e:
+        logger.error(f"[TRANSCRIBE] Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
