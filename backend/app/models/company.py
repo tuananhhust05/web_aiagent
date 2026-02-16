@@ -11,6 +11,7 @@ class BusinessModel(str, Enum):
 
 class CompanyBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=200)
+    domain: Optional[str] = None  # Email domain for automatic company matching
     business_model: BusinessModel
     industry: Optional[Industry] = None
     website: Optional[str] = None
@@ -27,6 +28,7 @@ class CompanyCreate(CompanyBase):
 
 class CompanyUpdate(BaseModel):
     name: Optional[str] = None
+    domain: Optional[str] = None  # Email domain for automatic company matching
     business_model: Optional[BusinessModel] = None
     industry: Optional[Industry] = None
     website: Optional[str] = None
@@ -38,6 +40,7 @@ class CompanyUpdate(BaseModel):
 class CompanyResponse(BaseModel):
     id: str = Field(alias="_id")
     name: str
+    domain: Optional[str] = None  # Email domain for automatic company matching
     business_model: BusinessModel
     industry: Optional[Industry] = None
     website: Optional[str] = None
@@ -45,7 +48,7 @@ class CompanyResponse(BaseModel):
     address: Optional[str] = None
     country: Optional[str] = None
     tax_id: Optional[str] = None
-    admin_user_id: str  # ID of the company admin
+    admin_user_id: Optional[str] = None  # ID of the company admin (can be None if not set yet)
     employee_count: int = 0
     is_active: bool = True
     created_at: datetime

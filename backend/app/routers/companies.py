@@ -94,10 +94,14 @@ async def register_company(company_data: CompanyCreate):
         username = f"{original_username}{counter}"
         counter += 1
     
+    # Extract domain from admin email for automatic matching
+    admin_domain = company_data.admin_email.split("@")[-1].lower() if "@" in company_data.admin_email else None
+    
     # Create company document
     company_doc = {
         "_id": str(ObjectId()),
         "name": company_data.name,
+        "domain": admin_domain,  # Set domain for automatic company matching
         "business_model": company_data.business_model.value,
         "industry": company_data.industry.value if company_data.industry else None,
         "website": company_data.website,
@@ -561,6 +565,81 @@ async def link_admin_account(
         "message": "Admin account linked successfully",
         "company": CompanyResponse(**company)
     }
+
+@router.put("/me", response_model=CompanyResponse)
+async def update_my_company(
+    company_update: CompanyUpdate,
+    current_user: UserResponse = Depends(get_current_active_user)
+):
+    """
+    Update current user's company information (only if user is company admin/owner).
+    """
+    db = get_database()
+    
+    # Get user's company
+    if not current_user.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User is not associated with any company"
+        )
+    
+    company = await db.companies.find_one({"_id": current_user.company_id})
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Company not found"
+        )
+    
+    # Check if user is company admin/owner
+    is_admin = (
+        company.get("admin_user_id") == current_user.id or
+        current_user.role == UserRole.COMPANY_ADMIN.value or
+        current_user.workspace_role == "owner"
+    )
+    
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only company admin/owner can update company information"
+        )
+    
+    # Build update document
+    update_data = {"updated_at": datetime.utcnow()}
+    if company_update.name is not None:
+        update_data["name"] = company_update.name
+    if company_update.domain is not None:
+        update_data["domain"] = company_update.domain
+    if company_update.business_model is not None:
+        update_data["business_model"] = company_update.business_model.value
+    if company_update.industry is not None:
+        update_data["industry"] = company_update.industry.value
+    if company_update.website is not None:
+        update_data["website"] = company_update.website
+    if company_update.phone is not None:
+        update_data["phone"] = company_update.phone
+    if company_update.address is not None:
+        update_data["address"] = company_update.address
+    if company_update.country is not None:
+        update_data["country"] = company_update.country
+    if company_update.tax_id is not None:
+        update_data["tax_id"] = company_update.tax_id
+    
+    # Update company
+    await db.companies.update_one(
+        {"_id": current_user.company_id},
+        {"$set": update_data}
+    )
+    
+    # Also update company_name in user documents for legacy support
+    if company_update.name is not None:
+        await db.users.update_many(
+            {"company_id": current_user.company_id},
+            {"$set": {"company_name": company_update.name, "updated_at": datetime.utcnow()}}
+        )
+    
+    # Get updated company
+    updated_company = await db.companies.find_one({"_id": current_user.company_id})
+    return CompanyResponse(**updated_company)
 
 @router.get("/me", response_model=CompanyResponse)
 async def get_my_company(

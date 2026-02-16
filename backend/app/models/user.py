@@ -51,6 +51,12 @@ class UserUpdate(BaseModel):
     tone: Optional[str] = None
     language: Optional[str] = None
     phone: Optional[str] = None
+    role: Optional[UserRole] = None
+
+class WorkspaceRole(str, Enum):
+    OWNER = "owner"
+    MEMBER = "member"
+
 
 class UserResponse(BaseModel):
     id: str = Field(alias="_id")
@@ -59,7 +65,7 @@ class UserResponse(BaseModel):
     first_name: str
     last_name: str
     company_name: Optional[str] = None  # Legacy field
-    company_id: Optional[str] = None  # Reference to company
+    company_id: Optional[str] = None  # Reference to company (workspace)
     industry: Optional[Industry] = None
     tone: str = "professional"
     language: str = "en"
@@ -71,6 +77,10 @@ class UserResponse(BaseModel):
     updated_at: datetime
     gdpr_consent: bool = False
     terms_accepted: bool = False
+    # Atlas workspace (MVP)
+    plan: Optional[str] = None  # "trial" | "demo"
+    workspace_role: Optional[str] = None  # "owner" | "member"
+    source_attribution: Optional[str] = None  # e.g. "linkedin", "direct"
     # Google OAuth fields
     google_id: Optional[str] = None
     avatar_url: Optional[str] = None
@@ -122,4 +132,5 @@ class GoogleAuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
-    is_new_user: bool = False 
+    is_new_user: bool = False
+    needs_profile_completion: bool = False  # SSO user missing terms/gdpr or profile info

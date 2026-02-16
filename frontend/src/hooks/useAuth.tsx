@@ -15,6 +15,7 @@ interface User {
   language: string
   phone?: string
   role: string
+  workspace_role?: string  // "owner" | "member"
   is_active: boolean
   is_verified: boolean
   gdpr_consent: boolean
@@ -98,8 +99,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const signOut = () => {
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    localStorage.clear()
+    // Clear all cookies
+    document.cookie.split(';').forEach((c) => {
+      const name = c.trim().split('=')[0]
+      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`
+    })
     setUser(null)
   }
 

@@ -60,7 +60,7 @@ const GoogleSuccess: React.FC = () => {
 
         // Redirect after delay to Atlas
         setTimeout(() => {
-          navigate('/atlas/calls')
+          navigate('/atlas/calendar')
         }, 1500)
 
       } catch (error: any) {

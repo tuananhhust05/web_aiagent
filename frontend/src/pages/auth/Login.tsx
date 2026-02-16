@@ -34,12 +34,13 @@ export default function Login() {
     resolver: zodResolver(loginSchema),
   })
 
-  // Handle Google OAuth token from URL params
+  // Handle Google OAuth token from URL params (backend redirect: /login?token=...&user_id=...&needs_profile=...)
   useEffect(() => {
     const handleGoogleToken = async () => {
       const token = searchParams.get('token')
       const userId = searchParams.get('user_id')
       const isNew = searchParams.get('is_new') === 'true'
+      const needsProfile = searchParams.get('needs_profile') === 'true'
       const error = searchParams.get('error')
 
       if (error) {
@@ -48,6 +49,7 @@ export default function Login() {
         return
       }
 
+      // If we have OAuth callback params, always process them (even if user was already in context)
       if (token && userId) {
         setIsProcessingToken(true)
         try {
@@ -67,13 +69,20 @@ export default function Login() {
           localStorage.setItem('user', JSON.stringify(userData))
           refreshUser()
 
+          const needsProfileFromUser = !userData.terms_accepted || !userData.gdpr_consent
+          const mustCompleteProfile = needsProfile || needsProfileFromUser
+          if (mustCompleteProfile) {
+            navigate(`/auth/welcome?is_new=${isNew}`, { replace: true })
+            return
+          }
+
           if (isNew) {
-            toast.success(`Welcome to For Skale, ${userData.first_name}!`)
+            toast.success(`Welcome to Atlas, ${userData.first_name}!`)
           } else {
             toast.success(`Welcome back, ${userData.first_name}!`)
           }
 
-          navigate('/atlas/calls', { replace: true })
+          navigate('/atlas/calendar', { replace: true })
         } catch (error: any) {
           console.error('Google OAuth token processing error:', error)
           toast.error('Failed to complete authentication')
@@ -95,7 +104,7 @@ export default function Login() {
         toast.error(error.message || 'Login failed')
       } else {
         toast.success('Welcome back!')
-        navigate('/atlas/calls')
+        navigate('/atlas/calendar')
       }
     } catch (error: any) {
       toast.error('An unexpected error occurred')
@@ -108,10 +117,10 @@ export default function Login() {
     const { user, is_new_user } = data
     if (is_new_user) {
       toast.success(`Welcome to For Skale, ${user.first_name}!`)
-      navigate('/atlas/calls')
+      navigate('/atlas/calendar')
     } else {
       toast.success(`Welcome back, ${user.first_name}!`)
-      navigate('/atlas/calls')
+      navigate('/atlas/calendar')
     }
   }
 
@@ -252,6 +261,7 @@ export default function Login() {
               onSuccess={handleGoogleSuccess}
               onError={handleGoogleError}
               variant="login"
+              source={searchParams.get('utm_source') || searchParams.get('source') || undefined}
             />
           </div>
         </div>

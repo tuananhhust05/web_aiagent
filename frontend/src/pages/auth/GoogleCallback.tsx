@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { authAPI } from '../../lib/api'
 import { useAuth } from '../../hooks/useAuth'
@@ -11,15 +11,20 @@ const GoogleCallback: React.FC = () => {
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('')
   const [user, setUser] = useState<any>(null)
+  const processedRef = useRef(false)
 
   useEffect(() => {
+    const code = searchParams.get('code')
+    const errorParam = searchParams.get('error')
+    // Guard: only one execution (avoids double call from React StrictMode or re-mount)
+    if (processedRef.current) return
+    processedRef.current = true
+
     const handleCallback = async () => {
       try {
-        const code = searchParams.get('code')
         const state = searchParams.get('state')
-        const error = searchParams.get('error')
 
-        if (error) {
+        if (errorParam) {
           setStatus('error')
           setMessage('Authentication was cancelled or failed')
           return
@@ -39,9 +44,9 @@ const GoogleCallback: React.FC = () => {
           return
         }
 
-        // Exchange code for token
+        // Exchange code for token (only once; ref prevents double call from StrictMode/re-mount)
         const response = await authAPI.googleCallback({ code, state: state || undefined })
-        const { access_token, user: userData, is_new_user } = response.data
+        const { access_token, user: userData, is_new_user, needs_profile_completion } = response.data
 
         // Store authentication data
         localStorage.setItem('token', access_token)
@@ -55,17 +60,51 @@ const GoogleCallback: React.FC = () => {
         setStatus('success')
         setMessage(is_new_user ? 'Account created successfully!' : 'Welcome back!')
 
-        // Redirect after delay to Atlas
-        setTimeout(() => {
-          navigate('/atlas/calls')
-        }, 1500)
+        // Needs profile completion → go to welcome (chime + tour) then supplement-profile
+        if (needs_profile_completion) {
+          setTimeout(() => {
+            navigate(`/auth/welcome?is_new=${is_new_user}`, { replace: true })
+          }, 1200)
+        } else {
+          setTimeout(() => {
+            navigate('/atlas/calendar')
+          }, 1500)
+        }
 
       } catch (error: any) {
+        const detail = error.response?.data?.detail ?? ''
+        const isInvalidGrant = typeof detail === 'string' && detail.includes('invalid_grant')
+
+        // Code already used (e.g. double call): if we already have token/user from first call, treat as success
+        if (isInvalidGrant) {
+          const token = localStorage.getItem('token')
+          const storedUser = localStorage.getItem('user')
+          if (token && storedUser) {
+            try {
+              const userData = JSON.parse(storedUser)
+              if (userData._id && !userData.id) userData.id = userData._id
+              login(userData, token)
+              setUser(userData)
+              setStatus('success')
+              setMessage('Welcome!')
+              const needsProfile = !userData.terms_accepted || !userData.gdpr_consent
+              setTimeout(() => {
+                if (needsProfile) {
+                  navigate(`/auth/welcome?is_new=${!!userData.google_id}`, { replace: true })
+                } else {
+                  navigate('/atlas/calendar', { replace: true })
+                }
+              }, 800)
+              return
+            } catch (_) {}
+          }
+        }
+
+        processedRef.current = true
         console.error('Google callback error:', error)
         setStatus('error')
-        setMessage(error.response?.data?.detail || 'Authentication failed')
+        setMessage(typeof detail === 'string' ? detail : 'Authentication failed')
 
-        // Redirect to login after delay
         setTimeout(() => {
           navigate('/login')
         }, 3000)

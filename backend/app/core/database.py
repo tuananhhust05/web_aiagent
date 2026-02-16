@@ -164,6 +164,8 @@ async def close_db():
             print(f"⚠️ [WARNING] Error closing Weaviate connection: {e}")
 
 def get_database():
+    if db.client is None:
+        raise RuntimeError("Database client not initialized. Call init_db() first.")
     return db.client[settings.MONGODB_DATABASE]
 
 def get_weaviate():

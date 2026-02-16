@@ -8,21 +8,24 @@ interface GoogleAuthButtonProps {
   className?: string
   children?: React.ReactNode
   variant?: 'login' | 'register'
+  /** Source attribution e.g. linkedin, direct (from URL utm_source or source) */
+  source?: string | null
 }
 
 export const GoogleAuthButton: React.FC<GoogleAuthButtonProps> = ({
   onError,
   className = '',
-  children
+  children,
+  source,
 }) => {
   const [loading, setLoading] = useState(false)
 
   const handleGoogleAuth = async () => {
     try {
       setLoading(true)
-      
-      // Get Google auth URL from backend
-      const response = await authAPI.getGoogleAuthUrl()
+      const response = await authAPI.getGoogleAuthUrl(
+        source ? { source: source || undefined } : undefined
+      )
       const { auth_url, state } = response.data
       
       // Store state in localStorage for verification

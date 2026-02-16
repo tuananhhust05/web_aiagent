@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import Layout from './components/Layout'
 import Login from './pages/auth/Login'
@@ -12,6 +12,9 @@ import ResetPassword from './pages/auth/ResetPassword'
 import GoogleCallback from './pages/auth/GoogleCallback'
 import GoogleCalendarCallback from './pages/auth/GoogleCalendarCallback'
 import GoogleSuccess from './pages/auth/GoogleSuccess'
+import SupplementProfile from './pages/auth/SupplementProfile'
+import OAuthDone from './pages/auth/OAuthDone'
+import WelcomeTour from './pages/auth/WelcomeTour'
 import Home from './pages/Home'
 import CallsDashboard from './pages/CallsDashboard'
 import CallsLog from './pages/CallsLog'
@@ -74,8 +77,12 @@ import AtlasCalendarPage from './pages/AtlasCalendarPage'
 import AtlasMain from './pages/AtlasMain'
 import AtlasPlaybookTemplates from './pages/AtlasPlaybookTemplates'
 
+const ALLOWED_WHEN_PROFILE_INCOMPLETE = ['/supplement-profile', '/auth/welcome', '/auth/oauth-done', '/login']
+
 function App() {
   const { user, loading } = useAuth()
+  const location = useLocation()
+  const pathname = location.pathname
 
   if (loading) {
     return (
@@ -88,6 +95,8 @@ function App() {
   if (!user) {
     return (
       <Routes>
+        <Route path="/auth/oauth-done" element={<OAuthDone />} />
+        <Route path="/auth/welcome" element={<WelcomeTour />} />
         <Route path="/" element={<Navigate to="/home" replace />} />
         <Route path="/home" element={<Home />} />
         <Route path="/login" element={<Login />} />
@@ -114,8 +123,19 @@ function App() {
     )
   }
 
+  // Global guard: if user has not completed required info (terms + gdpr), redirect to supplement-profile from any page
+  const profileIncomplete = user && (user.terms_accepted === false || user.gdpr_consent === false)
+  const isAllowedWhenIncomplete = ALLOWED_WHEN_PROFILE_INCOMPLETE.some((p) => pathname === p)
+  if (profileIncomplete && !isAllowedWhenIncomplete) {
+    return <Navigate to="/supplement-profile" replace />
+  }
+
   return (
     <Routes>
+      <Route path="/auth/oauth-done" element={<OAuthDone />} />
+      <Route path="/auth/welcome" element={<WelcomeTour />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/supplement-profile" element={<SupplementProfile />} />
       <Route path="/workflow-builder" element={<WorkflowBuilder />} />
       <Route path="/workflows" element={<WorkflowBuilder />} />
       <Route path="/privacy" element={<Privacy />} />
@@ -123,7 +143,7 @@ function App() {
       <Route path="/auth/google/calendar/callback" element={<GoogleCalendarCallback />} />
       {/* Atlas uses its own full-page layout (no global Layout); calendar has its own URL */}
       <Route path="/atlas" element={<AtlasLayout />}>
-        <Route index element={<Navigate to="/atlas/calls" replace />} />
+        <Route index element={<Navigate to="/atlas/calendar" replace />} />
         <Route path="calendar" element={<AtlasCalendarPage />} />
         <Route path="calls" element={<AtlasMain />} />
         <Route path="insights" element={<AtlasMain />} />
@@ -133,10 +153,14 @@ function App() {
         <Route path="knowledge" element={<AtlasMain />} />
         <Route path="record" element={<AtlasMain />} />
       </Route>
+      {/* Profile page uses AtlasLayout sidebar */}
+      <Route path="/profile" element={<AtlasLayout />}>
+        <Route index element={<Profile />} />
+      </Route>
       <Route path="*" element={
         <Layout>
           <Routes>
-            <Route path="/" element={<Navigate to="/atlas/calls" replace />} />
+            <Route path="/" element={<Navigate to="/atlas/calendar" replace />} />
             <Route path="/calls-dashboard" element={<CallsDashboard />} />
             <Route path="/calls" element={<CallsLog />} />
             <Route path="/calls/:callId" element={<CallDetail />} />
@@ -157,7 +181,6 @@ function App() {
             <Route path="/ragclient" element={<RAG />} />
             <Route path="/rag-sales-coach" element={<RAGSalesCoach />} />
             <Route path="/voice-training" element={<VoiceTraining />} />
-            <Route path="/profile" element={<Profile />} />
             <Route path="/emails" element={<EmailList />} />
             <Route path="/emails/create" element={<EmailCreate />} />
             <Route path="/emails/:id" element={<EmailDetail />} />

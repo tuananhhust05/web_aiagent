@@ -74,18 +74,17 @@ class GoogleAuthService:
     
     def get_google_auth_url(self, state: Optional[str] = None) -> str:
         """
-        Generate Google OAuth authorization URL with identity and Gmail read scopes.
+        Generate Google OAuth authorization URL with identity scopes only (MVP).
+        No Gmail/Calendar/Meet permissions at login; those are requested later when needed.
         """
-        # Request identity scopes + Gmail readonly
+        # MVP: identity scopes only (openid, email, profile)
         scopes = [
             "openid",
             "email",
             "profile",
-            "https://www.googleapis.com/auth/gmail.readonly",
         ]
         scope_string = " ".join(scopes)
         
-        # Log scopes for debugging
         logger.info(f"🔐 [GOOGLE_OAUTH] Generating auth URL with scopes: {scopes}")
         
         params = {
@@ -93,8 +92,8 @@ class GoogleAuthService:
             "redirect_uri": self.redirect_uri,
             "scope": scope_string,
             "response_type": "code",
-            "access_type": "offline",  # Required for refresh token
-            "prompt": "consent",  # Force consent to ensure user sees Gmail permission
+            "access_type": "offline",
+            "prompt": "consent",  # Ensure we get refresh_token when possible
         }
         
         if state:

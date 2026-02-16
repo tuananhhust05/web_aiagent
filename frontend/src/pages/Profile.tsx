@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -15,7 +16,7 @@ import {
   AlertTriangle
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
-import { userAPI, authAPI } from '../lib/api'
+import { userAPI, authAPI, companiesAPI } from '../lib/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
@@ -39,15 +40,33 @@ const passwordSchema = z.object({
   path: ["confirm_password"],
 })
 
+const companySchema = z.object({
+  name: z.string().min(1, 'Company name is required'),
+  domain: z.string().optional(),
+  website: z.string().optional(),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  country: z.string().optional(),
+  tax_id: z.string().optional(),
+})
+
 type ProfileForm = z.infer<typeof profileSchema>
 type PasswordForm = z.infer<typeof passwordSchema>
+type CompanyForm = z.infer<typeof companySchema>
 
 export default function Profile() {
-  const { user, updateUser } = useAuth()
+  const { user, updateUser, signOut } = useAuth()
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('profile')
   const [isLoading, setIsLoading] = useState(false)
   const [isPasswordLoading, setIsPasswordLoading] = useState(false)
+  const [isCompanyLoading, setIsCompanyLoading] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [, setCompany] = useState<any>(null)
+  const [loadingCompany, setLoadingCompany] = useState(false)
+
+  // Check if user is company owner/admin
+  const isCompanyOwner = user?.workspace_role === 'owner' || user?.role === 'company_admin'
 
   const {
     register: registerProfile,
@@ -75,6 +94,67 @@ export default function Profile() {
   } = useForm<PasswordForm>({
     resolver: zodResolver(passwordSchema),
   })
+
+  const {
+    register: registerCompany,
+    handleSubmit: handleCompanySubmit,
+    formState: { errors: companyErrors },
+    reset: resetCompanyForm,
+  } = useForm<CompanyForm>({
+    resolver: zodResolver(companySchema),
+    defaultValues: {
+      name: '',
+      domain: '',
+      website: '',
+      phone: '',
+      address: '',
+      country: '',
+      tax_id: '',
+    },
+  })
+
+  // Load company info if user is owner
+  useEffect(() => {
+    if (isCompanyOwner && user?.company_id) {
+      loadCompany()
+    }
+  }, [isCompanyOwner, user?.company_id])
+
+  const loadCompany = async () => {
+    setLoadingCompany(true)
+    try {
+      const response = await companiesAPI.getMyCompany()
+      setCompany(response.data)
+      resetCompanyForm({
+        name: response.data.name || '',
+        domain: response.data.domain || '',
+        website: response.data.website || '',
+        phone: response.data.phone || '',
+        address: response.data.address || '',
+        country: response.data.country || '',
+        tax_id: response.data.tax_id || '',
+      })
+    } catch (error: any) {
+      if (error.response?.status !== 404) {
+        toast.error('Failed to load company information')
+      }
+    } finally {
+      setLoadingCompany(false)
+    }
+  }
+
+  const onCompanySubmit = async (data: CompanyForm) => {
+    setIsCompanyLoading(true)
+    try {
+      const response = await companiesAPI.updateMyCompany(data)
+      setCompany(response.data)
+      toast.success('Company information updated successfully!')
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || 'Failed to update company information')
+    } finally {
+      setIsCompanyLoading(false)
+    }
+  }
 
   const onProfileSubmit = async (data: ProfileForm) => {
     setIsLoading(true)
@@ -106,7 +186,11 @@ export default function Profile() {
     try {
       await userAPI.deleteAccount()
       toast.success('Account deleted successfully')
+      setShowDeleteConfirm(false)
+      // Sign out and clear all data
+      signOut()
       // Redirect to login
+      navigate('/login', { replace: true })
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Failed to delete account')
     }
@@ -119,42 +203,43 @@ export default function Profile() {
   ]
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-8">
-      {/* Header */}
-      <div className="mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 tracking-tight mb-3">
-          Account Settings
-        </h1>
-        <p className="text-lg text-gray-600 leading-relaxed">
-          Manage your account information and preferences
-        </p>
-      </div>
+    <div className="h-full overflow-hidden bg-[#f5f5f7]">
+      <div className="h-full overflow-y-auto">
+        <div className="max-w-4xl mx-auto p-6 pb-12">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">
+            Account Settings
+          </h1>
+          <p className="text-lg text-gray-600">
+            Manage your account information and preferences
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        {/* Sidebar Navigation */}
-        <div className="lg:col-span-1">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <nav className="space-y-2">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                    activeTab === tab.id
-                      ? 'bg-primary-50 text-primary-700 border border-primary-200'
-                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <tab.icon className="h-5 w-5" />
-                  <span className="font-medium">{tab.label}</span>
-                </button>
-              ))}
-            </nav>
+        {/* Tabs Navigation */}
+        <div className="mb-6">
+          <div className="flex gap-2 border-b border-gray-200">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab.id
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <tab.icon className="h-4 w-4" />
+                  <span>{tab.label}</span>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="lg:col-span-3">
+        <div>
           {/* Profile Tab */}
           {activeTab === 'profile' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
@@ -250,8 +335,12 @@ export default function Profile() {
                       type="text"
                       {...registerProfile('company_name')}
                       className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                      readOnly={isCompanyOwner} // Read-only if owner (should edit in company section)
                     />
                   </div>
+                  {isCompanyOwner && (
+                    <p className="mt-1 text-xs text-gray-500">Edit company details in the Company section below</p>
+                  )}
                 </div>
 
                 <div className="flex justify-end">
@@ -271,6 +360,145 @@ export default function Profile() {
                   </button>
                 </div>
               </form>
+
+              {/* Company Information Section - Only for Owners */}
+              {isCompanyOwner && (
+                <div className="mt-8 pt-8 border-t border-gray-200">
+                  <div className="flex items-center space-x-4 mb-6">
+                    <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
+                      <Building2 className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900">Company Information</h3>
+                      <p className="text-gray-600">Manage your company details and settings</p>
+                    </div>
+                  </div>
+
+                  {loadingCompany ? (
+                    <div className="flex items-center justify-center py-8">
+                      <LoadingSpinner size="sm" />
+                      <span className="ml-2 text-gray-600">Loading company information...</span>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleCompanySubmit(onCompanySubmit)} className="space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Company Name <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            {...registerCompany('name')}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                          />
+                          {companyErrors.name && (
+                            <p className="mt-2 text-sm text-red-600">{companyErrors.name.message}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Domain
+                          </label>
+                          <input
+                            type="text"
+                            {...registerCompany('domain')}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                            placeholder="example.com"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Website
+                          </label>
+                          <div className="relative">
+                            <Globe className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                            <input
+                              type="url"
+                              {...registerCompany('website')}
+                              className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                              placeholder="https://example.com"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Phone
+                          </label>
+                          <div className="relative">
+                            <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                            <input
+                              type="tel"
+                              {...registerCompany('phone')}
+                              className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                              placeholder="+1 234 567 8900"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Address
+                        </label>
+                        <input
+                          type="text"
+                          {...registerCompany('address')}
+                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                          placeholder="Company address"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Country
+                          </label>
+                          <input
+                            type="text"
+                            {...registerCompany('country')}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                            placeholder="Country"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Tax ID
+                          </label>
+                          <input
+                            type="text"
+                            {...registerCompany('tax_id')}
+                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                            placeholder="Tax identification number"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end">
+                        <button
+                          type="submit"
+                          disabled={isCompanyLoading}
+                          className="btn btn-primary btn-lg group"
+                        >
+                          {isCompanyLoading ? (
+                            <LoadingSpinner size="sm" />
+                          ) : (
+                            <>
+                              <Save className="mr-2 h-5 w-5" />
+                              Save Company Information
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -450,7 +678,6 @@ export default function Profile() {
           )}
 
         </div>
-      </div>
 
       {/* Danger Zone */}
       <div className="mt-12">
@@ -515,6 +742,8 @@ export default function Profile() {
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   )
 } 

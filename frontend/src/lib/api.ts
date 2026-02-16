@@ -104,8 +104,24 @@ export const authAPI = {
     api.post('/auth/change-password', data),
   acceptTerms: () => api.post('/auth/accept-terms'),
   gdprConsent: () => api.post('/auth/gdpr-consent'),
-  // Google OAuth
-  getGoogleAuthUrl: () => api.get('/auth/google/login'),
+  /** Complete profile: update user + optional company creation (single call for supplement-profile page). */
+  supplementProfile: (data: {
+    first_name: string
+    last_name: string
+    phone?: string
+    industry?: string
+    language: string
+    workspace_role: 'owner' | 'member'
+    company_id?: string
+    company_name?: string
+    company_website?: string
+    company_phone?: string
+    company_address?: string
+    company_country?: string
+  }) => api.post('/auth/supplement-profile', data),
+  // Google OAuth (optional params: source for attribution e.g. linkedin, direct)
+  getGoogleAuthUrl: (params?: { source?: string }) =>
+    api.get('/auth/google/login', { params }),
   googleCallback: (data: { code: string; state?: string }) => api.post('/auth/google/callback', data),
   getGoogleUserInfo: () => api.get('/auth/google/user-info'),
   getMe: () => api.get('/auth/me'),
@@ -1075,6 +1091,7 @@ export const workflowsAPI = {
 export const companiesAPI = {
   registerCompany: (data: any) => api.post('/api/companies/register', data),
   getMyCompany: () => api.get('/api/companies/me'),
+  updateMyCompany: (data: any) => api.put('/api/companies/me', data),
   getPublicCompanies: () => api.get('/api/companies/public/list'),
   inviteEmployee: (companyId: string, data: any) => 
     api.post(`/api/companies/${companyId}/invite-employee`, data),
