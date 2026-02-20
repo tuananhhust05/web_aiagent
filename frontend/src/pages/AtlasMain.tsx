@@ -63,9 +63,6 @@ const KNOWLEDGE_CATEGORY_API_MAP: Record<string, string> = {
   policies: 'company-policies',
 }
 import { toast } from 'react-hot-toast'
-import { useAuth } from '../hooks/useAuth'
-import AtlasWelcomeModal from '../components/AtlasWelcomeModal'
-import AtlasIntroTour from '../components/AtlasIntroTour'
 
 type AtlasMainSection = 'calls' | 'insights' | 'todo' | 'qna' | 'knowledge' | 'record'
 
@@ -144,11 +141,8 @@ const SECTION_PATH_MAP: Record<string, AtlasMainSection> = {
 export default function AtlasMain() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { user } = useAuth()
   const pathSegment = location.pathname.split('/').pop() || 'calls'
   const section: AtlasMainSection = SECTION_PATH_MAP[pathSegment] ?? 'calls'
-  const [showWelcomeModal, setShowWelcomeModal] = useState(() => !!(location.state as any)?.showWelcome)
-  const [showIntroTour, setShowIntroTour] = useState(false)
 
   const [callsList, setCallsList] = useState<CallListItem[]>([])
   const [callsLoading, setCallsLoading] = useState(false)
@@ -1382,19 +1376,6 @@ export default function AtlasMain() {
   if (section === 'calls') {
     return (
       <>
-        {showWelcomeModal && (
-          <AtlasWelcomeModal
-            onClose={() => {
-              setShowWelcomeModal(false)
-              navigate(location.pathname, { replace: true, state: {} })
-              setShowIntroTour(true)
-            }}
-            userName={user?.first_name}
-          />
-        )}
-        {showIntroTour && (
-          <AtlasIntroTour onComplete={() => setShowIntroTour(false)} />
-        )}
         <div className="flex h-full bg-[#f5f5f7]">
           <div className="w-52 border-r border-gray-100 bg-white/80 backdrop-blur-sm p-4 space-y-3 overflow-y-auto shrink-0">
             <h2 className="text-[13px] font-semibold text-gray-900 mb-3 tracking-tight">Call History</h2>

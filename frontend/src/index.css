@@ -228,6 +228,14 @@
       filter: brightness(1.2) saturate(1.3);
     }
   }
+
+  @keyframes atlas-glow {
+    0%, 100% { opacity: 0.5; transform: translateX(-4px); }
+    50% { opacity: 1; transform: translateX(0); }
+  }
+  .atlas-nav-glow {
+    animation: atlas-glow 2s ease-in-out infinite;
+  }
   
   /* Override button padding globally */
   .btn {

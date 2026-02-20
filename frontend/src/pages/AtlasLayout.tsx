@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
 import {
   CalendarDays,
   PhoneCall,
@@ -16,6 +16,15 @@ import {
   Mail,
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
+import {
+  getAtlasOnboardingState,
+  markFirstModalDone,
+  markSectionVisited,
+  pathToSectionId,
+  type AtlasSectionId,
+} from '../lib/atlasOnboarding'
+import AtlasWelcomeModal from '../components/AtlasWelcomeModal'
+import AtlasSectionGuide from '../components/AtlasSectionGuide'
 
 /** Settings menu items in the avatar dropdown */
 const settingsMenuItems = [
@@ -26,21 +35,59 @@ const settingsMenuItems = [
   { label: 'Dashboard', href: '/', icon: BarChart3 },
 ] as const
 
-const navItems = [
-  { to: '/atlas/calendar', icon: CalendarDays, label: 'Calendar' },
-  { to: '/atlas/calls', icon: PhoneCall, label: 'Call History' },
-  { to: '/atlas/insights', icon: BarChart3, label: 'Insights' },
-  { to: '/atlas/todo', icon: ClipboardCheck, label: 'To Do Ready' },
-  { to: '/atlas/qna', icon: HelpCircle, label: 'Rolling Q&A' },
-  { to: '/atlas/knowledge', icon: BookOpen, label: 'Knowledge' },
-  { to: '/atlas/record', icon: RadioIcon, label: 'Record' },
-] as const
+const navItems: { to: string; icon: typeof CalendarDays; label: string; sectionId: AtlasSectionId }[] = [
+  { to: '/atlas/calendar', icon: CalendarDays, label: 'Calendar', sectionId: 'calendar' },
+  { to: '/atlas/calls', icon: PhoneCall, label: 'Call History', sectionId: 'calls' },
+  { to: '/atlas/insights', icon: BarChart3, label: 'Insights', sectionId: 'insights' },
+  { to: '/atlas/todo', icon: ClipboardCheck, label: 'To Do Ready', sectionId: 'todo' },
+  { to: '/atlas/qna', icon: HelpCircle, label: 'Rolling Q&A', sectionId: 'qna' },
+  { to: '/atlas/knowledge', icon: BookOpen, label: 'Knowledge', sectionId: 'knowledge' },
+  { to: '/atlas/record', icon: RadioIcon, label: 'Record', sectionId: 'record' },
+]
 
 export default function AtlasLayout() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const userId = user?.id ?? user?._id
+  const onboarding = getAtlasOnboardingState(userId)
+  const showWelcomeFromState = !!(location.state as { showWelcome?: boolean })?.showWelcome
+  const showFirstModal = showWelcomeFromState || !onboarding.firstModalDone
+  const currentSection = pathToSectionId(location.pathname)
+
+  const [showFirstModalOpen, setShowFirstModalOpen] = useState(showFirstModal)
+  const [sectionGuideSection, setSectionGuideSection] = useState<AtlasSectionId | null>(null)
+
+  useEffect(() => {
+    if (showFirstModal && !onboarding.firstModalDone) {
+      setShowFirstModalOpen(true)
+    }
+  }, [showFirstModal, onboarding.firstModalDone])
+
+  useEffect(() => {
+    if (!userId || !onboarding.firstModalDone) return
+    if (!currentSection) return
+    if (onboarding.sectionsVisited.includes(currentSection)) return
+    setSectionGuideSection(currentSection)
+  }, [userId, onboarding.firstModalDone, currentSection, onboarding.sectionsVisited])
+
+  const handleFirstModalClose = () => {
+    markFirstModalDone(userId)
+    setShowFirstModalOpen(false)
+    navigate(location.pathname, { replace: true, state: {} })
+  }
+
+  const handleSectionGuideClose = () => {
+    if (sectionGuideSection) {
+      markSectionVisited(userId, sectionGuideSection)
+      setSectionGuideSection(null)
+    }
+  }
+
+  const welcomeRole = user?.role === 'company_admin' ? 'sales_manager' : user?.workspace_role === 'owner' ? 'sales_manager' : 'sales_employee'
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -70,20 +117,23 @@ export default function AtlasLayout() {
         </div>
 
         <nav className="flex-1 py-4 space-y-1 text-sm">
-          {navItems.map(({ to, icon: Icon, label }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `w-full flex items-center gap-2 px-5 py-2.5 text-left hover:bg-white/5 ${
-                  isActive ? 'bg-white/10 text-white' : 'text-gray-300'
-                }`
-              }
-            >
-              <Icon className="h-4 w-4" />
-              <span>{label}</span>
-            </NavLink>
-          ))}
+          {navItems.map(({ to, icon: Icon, label, sectionId }) => {
+            const notVisited = onboarding.firstModalDone && !onboarding.sectionsVisited.includes(sectionId)
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  `w-full flex items-center gap-2 px-5 py-2.5 text-left hover:bg-white/5 ${
+                    isActive ? 'bg-white/10 text-white' : 'text-gray-300'
+                  } ${notVisited ? 'border-l-2 border-blue-400 bg-white/5' : 'border-l-2 border-transparent'}`
+                }
+              >
+                <Icon className="h-4 w-4" />
+                <span className="relative z-0">{label}</span>
+              </NavLink>
+            )
+          })}
         </nav>
 
         <div className="px-5 py-3 border-t border-white/10 text-[11px] text-gray-400">
@@ -152,6 +202,20 @@ export default function AtlasLayout() {
           <Outlet />
         </div>
       </div>
+
+      {showFirstModalOpen && (
+        <AtlasWelcomeModal
+          onClose={handleFirstModalClose}
+          userName={user?.first_name}
+          role={welcomeRole}
+        />
+      )}
+      {sectionGuideSection && (
+        <AtlasSectionGuide
+          sectionId={sectionGuideSection}
+          onClose={handleSectionGuideClose}
+        />
+      )}
     </div>
   )
 }
