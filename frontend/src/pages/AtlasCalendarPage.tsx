@@ -28,9 +28,11 @@ import {
   type MeetingHistoryItem,
 } from '../lib/api'
 
-const HOURS = 11 // 8 AM to 6 PM
-const HOUR_LABELS = Array.from({ length: HOURS }, (_, i) => i + 8)
+const HOURS = 24 // Full day: 12 AM to 11 PM
+const HOUR_LABELS = Array.from({ length: HOURS }, (_, i) => i)
 const ROW_HEIGHT = 56
+/** Calendar grid height (header 40px + hour rows) so meeting detail panel can match. */
+const CALENDAR_GRID_HEIGHT = 40 + HOURS * ROW_HEIGHT
 
 type ViewMode = 'day' | 'week' | 'month'
 
@@ -206,6 +208,14 @@ export default function AtlasCalendarPage() {
   }, [selectedEvent, rawEvents])
 
   const joinUrl = getJoinUrl(selectedRawEvent)
+
+  /** True if this meeting has already ended (past meeting). Join/Bot join should be hidden. */
+  const isPastMeeting = useMemo(() => {
+    if (!selectedRawEvent?.end) return false
+    const endStr = selectedRawEvent.end.dateTime || selectedRawEvent.end.date
+    if (!endStr) return false
+    return new Date(endStr).getTime() < Date.now()
+  }, [selectedRawEvent])
 
   useEffect(() => {
     let cancelled = false
@@ -627,7 +637,7 @@ export default function AtlasCalendarPage() {
         <h1 className="text-lg font-bold text-gray-900 tracking-tight">CALENDAR</h1>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex rounded-lg border border-gray-200 overflow-hidden">
-            {(['day', 'week', 'month'] as const).map((mode) => (
+            {(['week', 'month'] as const).map((mode) => (
               <button
                 key={mode}
                 type="button"
@@ -704,7 +714,10 @@ export default function AtlasCalendarPage() {
             </div>
           </div>
         ) : (
-          <div className="relative flex-1 min-w-0" style={{ minWidth: viewMode === 'day' ? '200px' : '720px' }}>
+          <div
+            className="relative flex-1 min-w-0 shrink-0"
+            style={{ minWidth: viewMode === 'day' ? '200px' : '720px', minHeight: CALENDAR_GRID_HEIGHT }}
+          >
             <div
               className="grid border border-gray-200 rounded-lg bg-gray-50 overflow-hidden relative"
               style={{
@@ -734,7 +747,7 @@ export default function AtlasCalendarPage() {
                     className="flex items-start justify-end pr-2 pt-1 border-b border-gray-200 bg-gray-50 text-xs text-gray-500 font-medium"
                     style={{ gridRow: rowIdx + 2 }}
                   >
-                    {hour === 12 ? '12:00 PM' : hour < 12 ? `${hour}:00 AM` : `${hour - 12}:00 PM`}
+                    {hour === 0 ? '12:00 AM' : hour === 12 ? '12:00 PM' : hour < 12 ? `${hour}:00 AM` : `${hour - 12}:00 PM`}
                   </div>
                   {Array.from({ length: dayColumnCount }, (_, colIdx) => (
                     <div
@@ -747,9 +760,9 @@ export default function AtlasCalendarPage() {
               ))}
 
               {displayEvents
-                .filter((evt) => evt.startHour >= 8 && evt.startHour < 8 + HOURS)
+                .filter((evt) => evt.startHour >= 0 && evt.startHour < HOURS)
                 .map((evt) => {
-                  const startOffset = (evt.startHour - 8) * ROW_HEIGHT + (evt.startMinute / 60) * ROW_HEIGHT
+                  const startOffset = evt.startHour * ROW_HEIGHT + (evt.startMinute / 60) * ROW_HEIGHT
                   const duration = (evt.endHour - evt.startHour) * ROW_HEIGHT + ((evt.endMinute - evt.startMinute) / 60) * ROW_HEIGHT
                   const top = 40 + startOffset
                   const dayColumnWidth = `calc((100% - 64px) / ${dayColumnCount})`
@@ -783,9 +796,14 @@ export default function AtlasCalendarPage() {
           </div>
         )}
 
-        {/* Meeting detail panel - design matching reference: dark header, Company Profile, Primary Contact */}
+        {/* Meeting detail panel - same height as calendar (day/week) */}
         {selectedEvent && (
-          <div className="shrink-0 w-[400px] max-w-full bg-white border-l border-gray-200 rounded-tl-2xl shadow-lg overflow-hidden flex flex-col ml-4">
+          <div
+            className="shrink-0 w-[400px] max-w-full bg-white border-l border-gray-200 rounded-tl-2xl shadow-lg overflow-hidden flex flex-col ml-4 self-stretch"
+            style={{
+              minHeight: viewMode === 'month' ? undefined : CALENDAR_GRID_HEIGHT,
+            }}
+          >
             {/* Dark header: Line 1 = meeting title, Line 2 = time, Join meeting, Close */}
             <div className="bg-[#0B1220] text-white p-5 pb-4 relative flex-shrink-0">
               <button
@@ -804,7 +822,7 @@ export default function AtlasCalendarPage() {
                   {formatEventDateTime(weekStartForGrid, selectedEvent)}
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {joinUrl && (
+                  {joinUrl && !isPastMeeting && (
                     <>
                       <a
                         href={joinUrl}
