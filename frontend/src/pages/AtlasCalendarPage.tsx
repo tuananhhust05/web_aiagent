@@ -20,6 +20,7 @@ import {
   atlasAPI,
   vexaAPI,
   meetingsAPI,
+  getVexaBotJoinErrorMessage,
   type GoogleCalendarEvent,
   type AtlasMeetingContext,
   type MeetingParticipant,
@@ -433,8 +434,7 @@ export default function AtlasCalendarPage() {
         await ensureMeetingInDb('google_meet')
         toast.success('Bot joined the meeting successfully!')
       } catch (err: unknown) {
-        const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        toast.error(message || 'Failed to join meeting with bot')
+        toast.error(getVexaBotJoinErrorMessage(err))
       } finally {
         setBotJoinLoading(false)
       }
@@ -447,8 +447,7 @@ export default function AtlasCalendarPage() {
         await ensureMeetingInDb('teams')
         toast.success('Bot joined the meeting successfully!')
       } catch (err: unknown) {
-        const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        toast.error(message || 'Failed to join meeting with bot')
+        toast.error(getVexaBotJoinErrorMessage(err))
       } finally {
         setBotJoinLoading(false)
       }

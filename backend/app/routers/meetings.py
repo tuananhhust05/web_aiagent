@@ -686,12 +686,21 @@ async def get_meeting_by_link(
     current_user: UserResponse = Depends(get_current_active_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ):
-    """Get a meeting by its link (for current user). Returns 404 if not found."""
+    """Get a meeting by its link (for current user). Tries exact link then platform+native_meeting_id. Returns 404 if not found."""
     collection = db.meetings
-    record = await collection.find_one({
-        "user_id": current_user.id,
-        "link": link.strip(),
-    })
+    link_stripped = link.strip()
+    record = await collection.find_one({"user_id": current_user.id, "link": link_stripped})
+    if not record:
+        for platform, extract in [("google_meet", _extract_google_meet_id), ("teams", _extract_teams_meeting_id)]:
+            native_id = extract(link_stripped)
+            if native_id:
+                record = await collection.find_one({
+                    "user_id": current_user.id,
+                    "platform": platform,
+                    "native_meeting_id": native_id,
+                })
+                if record:
+                    break
     if not record:
         raise HTTPException(status_code=404, detail="Meeting not found")
     if "_id" in record:
@@ -1360,32 +1369,59 @@ async def get_meeting(
         print(f"Error in get_meeting: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+def _native_meeting_id_from_link(link: str, platform: str) -> Optional[str]:
+    """Extract canonical meeting ID from link for deduplication."""
+    if not link or not platform:
+        return None
+    if platform == "google_meet":
+        return _extract_google_meet_id(link)
+    if platform == "teams":
+        return _extract_teams_meeting_id(link)
+    return None
+
+
 @router.post("", response_model=MeetingResponse)
 async def create_meeting(
     meeting_data: MeetingCreate,
     current_user: UserResponse = Depends(get_current_active_user),
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
-    """Create a new meeting"""
+    """Create a new meeting. One record per (user_id, platform, native_meeting_id)."""
     try:
         collection = db.meetings
-        
-        # Convert to dict and add timestamps and user_id
+        user_id = current_user.id
+        link = (meeting_data.link or "").strip()
+        platform = meeting_data.platform.value if hasattr(meeting_data.platform, "value") else meeting_data.platform
+        native_id = _native_meeting_id_from_link(link, platform)
+
+        # Dedupe: allow only one meeting per user + same meeting (by link or platform+native_meeting_id)
+        existing = None
+        if link:
+            existing = await collection.find_one({"user_id": user_id, "link": link})
+        if not existing and native_id:
+            existing = await collection.find_one({
+                "user_id": user_id,
+                "platform": platform,
+                "native_meeting_id": native_id,
+            })
+        if existing:
+            if "_id" in existing:
+                existing["id"] = str(existing["_id"])
+                del existing["_id"]
+            return existing
+
         record_data = meeting_data.dict()
-        record_data["user_id"] = current_user.id
+        record_data["user_id"] = user_id
         record_data["created_at"] = datetime.utcnow()
         record_data["updated_at"] = datetime.utcnow()
-        
+        if native_id:
+            record_data["native_meeting_id"] = native_id
+
         result = await collection.insert_one(record_data)
-        
-        # Get the created record
         created_record = await collection.find_one({"_id": result.inserted_id})
-        
-        # Convert ObjectId to string
-        if created_record and '_id' in created_record:
-            created_record['id'] = str(created_record['_id'])
-            del created_record['_id']
-        
+        if created_record and "_id" in created_record:
+            created_record["id"] = str(created_record["_id"])
+            del created_record["_id"]
         return created_record
     except Exception as e:
         print(f"Error in create_meeting: {e}")

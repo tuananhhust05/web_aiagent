@@ -45,6 +45,7 @@ import {
   meetingsAPI,
   vexaAPI,
   playbooksAPI,
+  getVexaBotJoinErrorMessage,
   type GoogleCalendarEvent,
   type MeetingPlatform,
   type MeetingPlaybookAnalysis,
@@ -1133,8 +1134,7 @@ export default function AtlasMain() {
           // optional: show in Call History; ignore if create fails
         }
       } catch (err: unknown) {
-        const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        toast.error(message || 'Failed to join meeting')
+        toast.error(getVexaBotJoinErrorMessage(err))
       } finally {
         setJoinMeetingSubmitting(false)
       }
@@ -1157,8 +1157,7 @@ export default function AtlasMain() {
           // optional: show in Call History; ignore if create fails
         }
       } catch (err: unknown) {
-        const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        toast.error(message || 'Failed to join meeting')
+        toast.error(getVexaBotJoinErrorMessage(err))
       } finally {
         setJoinMeetingSubmitting(false)
       }

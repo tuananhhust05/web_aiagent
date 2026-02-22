@@ -1427,3 +1427,18 @@ export const vexaAPI = {
   getTeamsTranscription: (teamsMeetingId: string) =>
     api.get(`/api/vexa/transcripts/teams/${teamsMeetingId}`),
 }
+
+/** Message to show when Vexa bot join fails. Use for Calendar and Record bot-join errors. */
+export function getVexaBotJoinErrorMessage(err: unknown): string {
+  const data = (err as { response?: { data?: unknown } })?.response?.data
+  if (!data || typeof data !== 'object') return 'Failed to join meeting with bot'
+  const detail = (data as { detail?: unknown }).detail
+  const msg =
+    typeof detail === 'string'
+      ? detail
+      : detail && typeof detail === 'object' && 'detail' in detail
+        ? String((detail as { detail: string }).detail)
+        : ''
+  if (/already exists|active or requested meeting/i.test(msg)) return 'Your bot has already joined the meeting'
+  return msg || 'Failed to join meeting with bot'
+}
