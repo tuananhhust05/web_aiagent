@@ -1434,16 +1434,6 @@ export default function AtlasMain() {
                         2 speakers
                       </span>
                     </div>
-                    {activeCall.meetingLink && (
-                      <a
-                        href={activeCall.meetingLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 mt-3 text-sm font-medium text-[#007AFF] hover:underline"
-                      >
-                        Join meeting →
-                      </a>
-                    )}
                   </>
                 ) : (
                   <p className="text-sm text-gray-500 mt-1">Select a meeting from the list.</p>

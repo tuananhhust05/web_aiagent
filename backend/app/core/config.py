@@ -71,6 +71,8 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str
     # Google Calendar OAuth (optional; if not set, callback URL is derived from FRONTEND_URL + backend path)
     GOOGLE_CALENDAR_REDIRECT_URI: str = ""
+    # Google Gmail OAuth (optional; if not set, uses FRONTEND_URL + /auth/google/gmail/callback)
+    GOOGLE_GMAIL_REDIRECT_URI: str = ""
     # Encrypt refresh_token at rest (optional; if not set, token stored in plaintext - not for production)
     CALENDAR_REFRESH_TOKEN_ENCRYPTION_KEY: str = ""
     

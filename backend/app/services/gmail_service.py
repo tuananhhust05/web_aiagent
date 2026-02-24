@@ -4,6 +4,7 @@ Gmail Service for reading and sending emails using user's Gmail account
 import httpx
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List
+from bson import ObjectId
 from app.core.config import settings
 from app.core.database import get_database
 import logging
@@ -17,13 +18,37 @@ class GmailService:
     GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1"
     GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
     
+    async def _find_user_by_id(self, db, user_id: str):
+        """Find user by _id trying both string and ObjectId."""
+        uid_str = str(user_id) if user_id else ""
+        logger.info(f"[GMAIL] _find_user_by_id: Looking for user_id={uid_str}")
+        
+        # Try as string first
+        user = await db.users.find_one({"_id": uid_str})
+        if user:
+            logger.info(f"[GMAIL] _find_user_by_id: Found user by string _id")
+            return user
+        
+        # Try as ObjectId
+        if len(uid_str) == 24 and all(c in "0123456789abcdefABCDEF" for c in uid_str):
+            try:
+                user = await db.users.find_one({"_id": ObjectId(uid_str)})
+                if user:
+                    logger.info(f"[GMAIL] _find_user_by_id: Found user by ObjectId _id")
+                    return user
+            except Exception as e:
+                logger.warning(f"[GMAIL] _find_user_by_id: ObjectId lookup failed: {e}")
+        
+        logger.warning(f"[GMAIL] _find_user_by_id: User not found for {uid_str}")
+        return None
+    
     async def _refresh_access_token(self, user_id: str) -> Optional[str]:
         """
         Refresh the access token using refresh token stored in database
         Returns new access_token or None if refresh fails
         """
         db = get_database()
-        user = await db.users.find_one({"_id": user_id})
+        user = await self._find_user_by_id(db, user_id)
         
         if not user:
             logger.error(f"User {user_id} not found")
@@ -58,9 +83,9 @@ class GmailService:
                     new_access_token = token_data.get("access_token")
                     expires_in = token_data.get("expires_in", 3600)
                     
-                    # Update access token in database
+                    # Update access token in database - use the actual user _id
                     await db.users.update_one(
-                        {"_id": user_id},
+                        {"_id": user["_id"]},
                         {
                             "$set": {
                                 "google_access_token": new_access_token,
@@ -108,7 +133,7 @@ class GmailService:
         Also checks if token has Gmail scopes
         """
         db = get_database()
-        user = await db.users.find_one({"_id": user_id})
+        user = await self._find_user_by_id(db, user_id)
         
         if not user:
             logger.error(f"❌ User {user_id} not found")
@@ -116,32 +141,14 @@ class GmailService:
         
         access_token = user.get("google_access_token")
         token_expiry = user.get("google_token_expiry")
+        stored_scope = user.get("google_gmail_scope", "")
         
-        # Log token info for debugging
-        if access_token:
-            # Only log first 20 chars of token for security
-            token_preview = access_token[:20] + "..." if len(access_token) > 20 else access_token
-            logger.info(f"🔑 [GMAIL] Using access token: {token_preview}")
-            
-            # Check token scope
-            scopes = await self.check_token_scope(access_token)
-            if scopes:
-                logger.info(f"📋 [GMAIL] Token scopes: {', '.join(scopes)}")
-                has_gmail_scope = any("gmail" in scope.lower() for scope in scopes)
-                if not has_gmail_scope:
-                    logger.error(f"❌ [GMAIL] Token does NOT have Gmail scopes! User needs to re-authorize.")
-                    logger.error(f"❌ [GMAIL] Current scopes: {scopes}")
-                    return None
+        logger.info(f"🔍 [GMAIL] User {user_id}: has_token={bool(access_token)}, stored_scope={stored_scope}")
         
         # Check if token is expired or about to expire (within 5 minutes)
         if not access_token or not token_expiry:
             logger.info(f"🔄 No access token or expiry found, refreshing for user {user_id}")
             new_token = await self._refresh_access_token(user_id)
-            if new_token:
-                # Check scope of new token
-                scopes = await self.check_token_scope(new_token)
-                if scopes:
-                    logger.info(f"📋 [GMAIL] Refreshed token scopes: {', '.join(scopes)}")
             return new_token
         
         # Check if token is expired
@@ -149,12 +156,12 @@ class GmailService:
             if datetime.utcnow() >= token_expiry - timedelta(minutes=5):
                 logger.info(f"🔄 Token expired or expiring soon, refreshing for user {user_id}")
                 new_token = await self._refresh_access_token(user_id)
-                if new_token:
-                    # Check scope of new token
-                    scopes = await self.check_token_scope(new_token)
-                    if scopes:
-                        logger.info(f"📋 [GMAIL] Refreshed token scopes: {', '.join(scopes)}")
                 return new_token
+        
+        # Log token info for debugging
+        if access_token:
+            token_preview = access_token[:20] + "..." if len(access_token) > 20 else access_token
+            logger.info(f"🔑 [GMAIL] Using access token: {token_preview}")
         
         return access_token
     
@@ -165,21 +172,27 @@ class GmailService:
         query: str = ""
     ) -> List[Dict]:
         """
-        Get latest emails from user's Gmail inbox
+        Get latest emails from user's Gmail inbox (excluding sent emails).
         Returns list of email dictionaries with id, subject, from, snippet, date
+        Only returns emails that need a reply (incoming emails, not sent by user).
         """
         access_token = await self._get_valid_access_token(user_id)
         if not access_token:
             raise Exception("Failed to get valid access token. Please re-authenticate with Google.")
         
         try:
-            # First, get list of message IDs
+            # First, get list of message IDs - filter to inbox only (exclude sent)
             list_url = f"{self.GMAIL_API_BASE}/users/me/messages"
+            
+            # Build query: inbox emails only, exclude sent and drafts
+            base_query = "in:inbox -in:sent -in:drafts"
+            if query:
+                base_query = f"{base_query} {query}"
+            
             params = {
                 "maxResults": max_results,
+                "q": base_query,
             }
-            if query:
-                params["q"] = query
             
             async with httpx.AsyncClient() as client:
                 headers = {"Authorization": f"Bearer {access_token}"}
@@ -260,6 +273,268 @@ class GmailService:
         except Exception as e:
             logger.error(f"❌ Error getting emails: {str(e)}")
             raise Exception(f"Failed to get emails: {str(e)}")
+
+    async def get_email_by_id(self, user_id: str, email_id: str) -> Optional[Dict]:
+        """
+        Get full email content by ID including body text
+        """
+        access_token = await self._get_valid_access_token(user_id)
+        if not access_token:
+            raise Exception("Failed to get valid access token. Please re-authenticate with Google.")
+        
+        try:
+            msg_url = f"{self.GMAIL_API_BASE}/users/me/messages/{email_id}"
+            
+            async with httpx.AsyncClient() as client:
+                headers = {"Authorization": f"Bearer {access_token}"}
+                msg_response = await client.get(
+                    msg_url,
+                    headers=headers,
+                    params={"format": "full"}
+                )
+                
+                if msg_response.status_code != 200:
+                    logger.error(f"❌ Gmail API error: {msg_response.status_code} - {msg_response.text}")
+                    return None
+                
+                msg_data = msg_response.json()
+                
+                # Extract headers
+                email_headers = msg_data.get("payload", {}).get("headers", [])
+                
+                def get_header(name: str) -> str:
+                    for h in email_headers:
+                        if h.get("name", "").lower() == name.lower():
+                            return h.get("value", "")
+                    return ""
+                
+                subject = get_header("Subject")
+                sender = get_header("From")
+                to = get_header("To")
+                date_str = get_header("Date")
+                
+                # Parse date
+                email_date = None
+                if date_str:
+                    try:
+                        from email.utils import parsedate_to_datetime
+                        email_date = parsedate_to_datetime(date_str)
+                    except:
+                        pass
+                
+                # Extract body
+                body_text = self._extract_email_body(msg_data.get("payload", {}))
+                
+                return {
+                    "id": email_id,
+                    "thread_id": msg_data.get("threadId", ""),
+                    "subject": subject,
+                    "from": sender,
+                    "to": to,
+                    "date": email_date.isoformat() if email_date else None,
+                    "snippet": msg_data.get("snippet", ""),
+                    "body": body_text,
+                    "labels": msg_data.get("labelIds", []),
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Error getting email {email_id}: {str(e)}")
+            return None
+    
+    def _extract_email_body(self, payload: Dict) -> str:
+        """
+        Extract plain text body from email payload
+        Handles multipart messages
+        """
+        import base64
+        
+        body_text = ""
+        
+        # Check if body is directly in payload
+        body_data = payload.get("body", {}).get("data")
+        if body_data:
+            try:
+                body_text = base64.urlsafe_b64decode(body_data).decode("utf-8", errors="ignore")
+            except Exception:
+                pass
+        
+        # Check parts for multipart messages
+        parts = payload.get("parts", [])
+        for part in parts:
+            mime_type = part.get("mimeType", "")
+            
+            # Prefer text/plain
+            if mime_type == "text/plain":
+                data = part.get("body", {}).get("data")
+                if data:
+                    try:
+                        body_text = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+                        break
+                    except Exception:
+                        pass
+            
+            # Fallback to text/html if no plain text
+            elif mime_type == "text/html" and not body_text:
+                data = part.get("body", {}).get("data")
+                if data:
+                    try:
+                        html = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+                        # Simple HTML to text conversion
+                        import re
+                        body_text = re.sub(r'<[^>]+>', '', html)
+                        body_text = body_text.replace('&nbsp;', ' ')
+                        body_text = body_text.replace('&amp;', '&')
+                        body_text = body_text.replace('&lt;', '<')
+                        body_text = body_text.replace('&gt;', '>')
+                    except Exception:
+                        pass
+            
+            # Recursively check nested parts
+            nested_parts = part.get("parts", [])
+            if nested_parts and not body_text:
+                body_text = self._extract_email_body(part)
+        
+        return body_text.strip()
+
+    async def send_email(
+        self,
+        user_id: str,
+        to: str,
+        subject: str,
+        body: str,
+        reply_to_message_id: Optional[str] = None,
+        thread_id: Optional[str] = None,
+    ) -> Dict:
+        """
+        Send an email using the user's Gmail account.
+        
+        Args:
+            user_id: The user's ID
+            to: Recipient email address
+            subject: Email subject
+            body: Email body (plain text)
+            reply_to_message_id: If replying, the original message ID
+            thread_id: If replying, the thread ID to keep conversation together
+            
+        Returns:
+            Dict with id, threadId, labelIds of the sent message
+        """
+        access_token = await self._get_valid_access_token(user_id)
+        if not access_token:
+            raise Exception("Failed to get valid access token. Please re-authenticate with Google.")
+        
+        import base64
+        from email.mime.text import MIMEText
+        
+        # Create email message
+        message = MIMEText(body)
+        message['to'] = to
+        message['subject'] = subject
+        
+        # If replying, add headers to keep in same thread
+        if reply_to_message_id:
+            # Get original message to extract Message-ID header for In-Reply-To
+            original = await self.get_email_by_id(user_id, reply_to_message_id)
+            if original:
+                # For replies, prepend "Re: " if not already there
+                if not subject.lower().startswith('re:'):
+                    message['subject'] = f"Re: {subject}"
+        
+        # Encode to base64url
+        raw = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
+        
+        # Build request body
+        request_body: Dict[str, str] = {"raw": raw}
+        if thread_id:
+            request_body["threadId"] = thread_id
+        
+        try:
+            send_url = f"{self.GMAIL_API_BASE}/users/me/messages/send"
+            
+            async with httpx.AsyncClient() as client:
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                }
+                response = await client.post(
+                    send_url,
+                    headers=headers,
+                    json=request_body,
+                    timeout=30.0,
+                )
+                
+                if response.status_code != 200:
+                    error_text = response.text
+                    logger.error(f"❌ Gmail send error: {response.status_code} - {error_text}")
+                    
+                    # Check for permission error
+                    if response.status_code == 403:
+                        raise Exception("Permission denied. Please reconnect Gmail with send access.")
+                    raise Exception(f"Failed to send email: {error_text}")
+                
+                result = response.json()
+                logger.info(f"✅ Email sent successfully. Message ID: {result.get('id')}")
+                return result
+                
+        except httpx.HTTPStatusError as e:
+            logger.error(f"❌ HTTP error sending email: {str(e)}")
+            raise Exception(f"Failed to send email: {str(e)}")
+        except Exception as e:
+            logger.error(f"❌ Error sending email: {str(e)}")
+            raise
+
+    async def check_send_permission(self, user_id: str) -> bool:
+        """
+        Check if the user's Gmail token has permission to send emails.
+        First checks stored scope in DB, then validates with Google API if needed.
+        Returns True if can send, False otherwise.
+        """
+        try:
+            db = get_database()
+            user = await self._find_user_by_id(db, user_id)
+            
+            if not user:
+                logger.warning(f"[GMAIL] check_send_permission: User {user_id} not found in DB")
+                return False
+            
+            # First check stored scope from OAuth
+            stored_scope = user.get("google_gmail_scope", "")
+            gmail_connected = user.get("google_gmail_connected", False)
+            access_token = user.get("google_access_token", "")
+            
+            logger.info(f"[GMAIL] check_send_permission for user {user_id}:")
+            logger.info(f"  - gmail_connected: {gmail_connected}")
+            logger.info(f"  - stored_scope: {stored_scope}")
+            logger.info(f"  - has_access_token: {bool(access_token)}")
+            
+            if not gmail_connected:
+                logger.warning(f"[GMAIL] check_send_permission: gmail_connected is False")
+                return False
+            
+            if not access_token:
+                logger.warning(f"[GMAIL] check_send_permission: No access token")
+                return False
+            
+            # Check if stored scope includes modify/send permission
+            has_send_scope = (
+                "gmail.modify" in stored_scope.lower() or
+                "gmail.send" in stored_scope.lower() or
+                "gmail.compose" in stored_scope.lower()
+            )
+            
+            logger.info(f"  - has_send_scope: {has_send_scope}")
+            
+            if has_send_scope:
+                logger.info(f"[GMAIL] check_send_permission: User {user_id} has send permission!")
+                return True
+            
+            logger.warning(f"[GMAIL] check_send_permission: User does not have send permission. Scope: {stored_scope}")
+            return False
+            
+        except Exception as e:
+            logger.exception(f"Error checking send permission: {e}")
+            return False
+
 
 # Create global instance
 gmail_service = GmailService()

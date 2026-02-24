@@ -939,3 +939,123 @@ async def google_calendar_callback(
     except Exception as e:
         logger.exception("[Calendar OAuth] Failed: %s", e)
         return RedirectResponse(url=error_url)
+
+
+# ----- Google Gmail OAuth (gmail-only scope) -----
+@router.get("/google/gmail/callback")
+async def google_gmail_callback(
+    code: str = None,
+    state: str = None,
+    error: str = None,
+    scope: str = None,
+):
+    """
+    Handle Google OAuth callback for Gmail only.
+    Exchange code -> token, validate scope, save refresh_token (encrypted), set connected.
+    Redirect to redirect_origin from state (if allowed) or FRONTEND_URL, then path /atlas/todo?gmail_connected=...
+    """
+    from app.services.google_gmail_oauth_service import exchange_code_for_gmail_token
+    from app.services.calendar_crypto import encrypt_refresh_token
+    
+    logger.info(
+        "[Gmail OAuth] Callback received: has_code=%s, has_state=%s, error=%s, scope=%s",
+        bool(code), bool(state), error, scope,
+    )
+    frontend_base = getattr(settings, "FRONTEND_URL", None) or "https://forskale.com"
+    success_url = f"{frontend_base}/atlas/todo-ready?gmail_connected=success"
+    error_url = f"{frontend_base}/atlas/todo-ready?gmail_connected=error"
+
+    if error:
+        logger.warning("[Gmail OAuth] Error from Google: %s -> redirect to error_url", error)
+        return RedirectResponse(url=error_url)
+    if not code or not state:
+        logger.warning("[Gmail OAuth] Missing code or state -> redirect to error_url")
+        return RedirectResponse(url=error_url)
+
+    try:
+        payload = jwt.decode(
+            state,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+        )
+        if payload.get("purpose") != "gmail_connect":
+            logger.warning("[Gmail OAuth] Invalid state purpose=%s", payload.get("purpose"))
+            return RedirectResponse(url=error_url)
+        user_id = payload.get("sub")
+        if not user_id:
+            logger.warning("[Gmail OAuth] No sub in state")
+            return RedirectResponse(url=error_url)
+        logger.info("[Gmail OAuth] State decoded: user_id=%s, redirect_origin=%s", user_id, payload.get("redirect_origin"))
+        redirect_origin = payload.get("redirect_origin")
+        if redirect_origin and isinstance(redirect_origin, str):
+            base = redirect_origin.rstrip("/")
+            allowed = (
+                base.startswith("http://localhost")
+                or base.startswith("https://localhost")
+                or base.startswith("http://127.0.0.1")
+                or base.startswith("https://127.0.0.1")
+                or (frontend_base and base == frontend_base.rstrip("/"))
+            )
+            if allowed:
+                success_url = f"{base}/atlas/todo-ready?gmail_connected=success"
+                error_url = f"{base}/atlas/todo-ready?gmail_connected=error"
+                logger.info("[Gmail OAuth] Using redirect_origin: success_url=%s", success_url)
+    except JWTError as e:
+        logger.warning("[Gmail OAuth] Invalid state JWT: %s", e)
+        return RedirectResponse(url=error_url)
+
+    try:
+        logger.info("[Gmail OAuth] Exchanging code for token...")
+        token_data = await exchange_code_for_gmail_token(code)
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        scope_val = token_data.get("scope", "")
+        logger.info("[Gmail OAuth] Token response: has_access_token=%s, has_refresh_token=%s, scope=%s", 
+                    bool(access_token), bool(refresh_token), scope_val)
+        
+        if not access_token:
+            logger.warning("[Gmail OAuth] No access_token in token response")
+            return RedirectResponse(url=error_url)
+        
+        if "gmail" not in scope_val.lower():
+            logger.warning("[Gmail OAuth] Scope missing gmail: %s", scope_val)
+            return RedirectResponse(url=error_url)
+
+        from app.core.auth import _find_user_by_id
+        db = get_database()
+        user_doc = await _find_user_by_id(db, str(user_id))
+        if not user_doc:
+            logger.warning("[Gmail OAuth] User not found for _id=%s", user_id)
+            return RedirectResponse(url=error_url)
+        
+        expires_in = token_data.get("expires_in", 3600)
+        token_expiry = datetime.utcnow() + timedelta(seconds=expires_in)
+        
+        payload_set = {
+            "google_gmail_connected": True,
+            "google_gmail_scope": scope_val,
+            "google_gmail_connected_at": datetime.utcnow(),
+            "google_access_token": access_token,
+            "google_token_expiry": token_expiry,
+            "updated_at": datetime.utcnow(),
+        }
+        
+        if refresh_token:
+            encrypted = encrypt_refresh_token(refresh_token)
+            payload_set["google_gmail_refresh_token"] = encrypted
+            payload_set["google_refresh_token"] = encrypted
+            logger.info("[Gmail OAuth] Refresh token received and saved")
+        
+        result = await db.users.update_one(
+            {"_id": user_doc["_id"]},
+            {"$set": payload_set},
+        )
+        logger.info(
+            "[Gmail OAuth] DB updated: user_id=%s, matched=%s, modified=%s",
+            user_id, result.matched_count, result.modified_count,
+        )
+        logger.info("[Gmail OAuth] Redirecting to success_url: %s", success_url)
+        return RedirectResponse(url=success_url)
+    except Exception as e:
+        logger.exception("[Gmail OAuth] Failed: %s", e)
+        return RedirectResponse(url=error_url)

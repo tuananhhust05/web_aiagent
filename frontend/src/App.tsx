@@ -11,6 +11,7 @@ import ForgotPassword from './pages/auth/ForgotPassword'
 import ResetPassword from './pages/auth/ResetPassword'
 import GoogleCallback from './pages/auth/GoogleCallback'
 import GoogleCalendarCallback from './pages/auth/GoogleCalendarCallback'
+import GoogleGmailCallback from './pages/auth/GoogleGmailCallback'
 import GoogleSuccess from './pages/auth/GoogleSuccess'
 import SupplementProfile from './pages/auth/SupplementProfile'
 import OAuthDone from './pages/auth/OAuthDone'
@@ -76,6 +77,7 @@ import AtlasLayout from './pages/AtlasLayout'
 import AtlasCalendarPage from './pages/AtlasCalendarPage'
 import AtlasMain from './pages/AtlasMain'
 import AtlasPlaybookTemplates from './pages/AtlasPlaybookTemplates'
+import ToDoReadyPage from './pages/ToDoReadyPage'
 
 const ALLOWED_WHEN_PROFILE_INCOMPLETE = ['/supplement-profile', '/auth/welcome', '/auth/oauth-done', '/login']
 
@@ -109,6 +111,7 @@ function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/auth/google/callback" element={<GoogleCallback />} />
         <Route path="/auth/google/calendar/callback" element={<GoogleCalendarCallback />} />
+        <Route path="/auth/google/gmail/callback" element={<GoogleGmailCallback />} />
         <Route path="/auth/google/success" element={<GoogleSuccess />} />
         <Route path="/about" element={<About />} />
         <Route path="/privacy" element={<Privacy />} />
@@ -141,13 +144,14 @@ function App() {
       <Route path="/privacy" element={<Privacy />} />
       <Route path="/terms" element={<Terms />} />
       <Route path="/auth/google/calendar/callback" element={<GoogleCalendarCallback />} />
+      <Route path="/auth/google/gmail/callback" element={<GoogleGmailCallback />} />
       {/* Atlas uses its own full-page layout (no global Layout); calendar has its own URL */}
       <Route path="/atlas" element={<AtlasLayout />}>
         <Route index element={<Navigate to="/atlas/calendar" replace />} />
         <Route path="calendar" element={<AtlasCalendarPage />} />
         <Route path="calls" element={<AtlasMain />} />
         <Route path="insights" element={<AtlasMain />} />
-        <Route path="todo" element={<AtlasMain />} />
+        <Route path="todo" element={<ToDoReadyPage />} />
         <Route path="qna" element={<AtlasMain />} />
         <Route path="playbooks" element={<AtlasPlaybookTemplates />} />
         <Route path="knowledge" element={<AtlasMain />} />

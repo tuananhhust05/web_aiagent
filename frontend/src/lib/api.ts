@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -167,6 +167,144 @@ export const crmAPI = {
   getHubSpotToken: () => api.get('/api/crm/hubspot/token'),
   saveHubSpotToken: (token: string) => api.post('/api/crm/hubspot/token', { token }),
   syncHubSpotContacts: () => api.post('/api/crm/hubspot/sync-contacts'),
+}
+
+// --- To-Do Ready (Atlas) types and API ---
+export type ToDoTaskTriggerSource = 'email' | 'call' | 'objection' | 'competitive'
+export type ToDoTaskStatus = 'ready' | 'needs_input' | 'overdue' | 'done'
+
+export type Company = {
+  id: string
+  name: string
+}
+
+export type ToDoTask = {
+  id: string
+  company: Company
+  dealStage: string
+  triggerSource: ToDoTaskTriggerSource
+  priorityScore: number
+  preparedDraft: string
+  strategyType: string
+  /** Optional explanation for the prepared action (PRD Section 8). */
+  explanationLine?: string
+  status: ToDoTaskStatus
+  /** For mapping from meetings API */
+  meeting_id?: string
+  meeting_title?: string | null
+  assignee?: string
+  description: string
+  time?: string | null
+  due_at?: string | null
+  /** Optional; when set, ReplyLab can lazy-load thread (PRD Section 16). */
+  thread_id?: string
+  /** Deal intelligence fields (PRD Section 8A) */
+  lastCallSentiment?: string
+  lastObjection?: string
+  competitorMentioned?: string
+  viewCallLink?: string
+  viewInsightsLink?: string
+  viewCompetitiveLink?: string
+}
+
+export type CommunicationMessage = {
+  id: string
+  role: 'prospect' | 'sales'
+  content: string
+  date: string
+}
+
+export type CommunicationThreadResponse = {
+  thread_id: string
+  messages: CommunicationMessage[]
+}
+
+export type LegacyTodoListResponse = {
+  items: ToDoTask[]
+  total_items: number
+  range_type?: 'day' | 'week'
+  analyzed_from?: string
+  analyzed_to?: string
+}
+
+export const todoAPI = {
+  /** List todo tasks (uses meetings insights API and maps to ToDoTask[] until /api/todo exists). */
+  getList: async (params: { range_type?: 'day' | 'week' }): Promise<LegacyTodoListResponse> => {
+    const res = await meetingsAPI.getTodoInsights({ range_type: params.range_type ?? 'week' })
+    const data = res.data
+    const now = new Date()
+    const items: ToDoTask[] = (data.items || []).map((it, idx) => {
+      const dueAt = it.due_at ? new Date(it.due_at) : null
+      const isOverdue = dueAt && dueAt < now && it.status !== 'done'
+      const status: ToDoTaskStatus =
+        it.status === 'done'
+          ? 'done'
+          : isOverdue
+            ? 'overdue'
+            : 'ready'
+      return {
+        id: `${it.meeting_id}-${idx}-${(it.description || '').slice(0, 30)}`,
+        company: { id: it.meeting_id, name: it.meeting_title || 'Call' },
+        dealStage: '—',
+        triggerSource: 'call',
+        priorityScore: 0,
+        preparedDraft: '',
+        strategyType: 'Follow-up',
+        explanationLine: undefined,
+        status,
+        meeting_id: it.meeting_id,
+        meeting_title: it.meeting_title,
+        assignee: it.assignee,
+        description: it.description,
+        time: it.time,
+        due_at: it.due_at,
+      }
+    })
+    return {
+      items,
+      total_items: data.total_items ?? items.length,
+      range_type: data.range_type,
+      analyzed_from: data.analyzed_from,
+      analyzed_to: data.analyzed_to,
+    }
+  },
+
+  getById: (id: string) =>
+    api.get<ToDoTask>(`/api/todo/${id}`).catch(() => {
+      return { data: null as unknown as ToDoTask }
+    }),
+
+  /** Mark task done (uses existing meetings API when task has meeting_id). */
+  complete: async (
+    task: ToDoTask,
+    params?: { range_type?: 'day' | 'week' }
+  ): Promise<{ success: boolean }> => {
+    if (task.meeting_id) {
+      const res = await meetingsAPI.updateTodoItemStatus(
+        {
+          meeting_id: task.meeting_id,
+          description: task.description,
+          time: task.time ?? undefined,
+          status: 'done',
+        },
+        { range_type: params?.range_type ?? 'week' }
+      )
+      return res.data as { success: boolean }
+    }
+    return api.post<{ success: boolean }>(`/api/todo/${task.id}/complete`).then((r) => r.data)
+  },
+
+  pasteEmail: (data: {
+    company?: string
+    contact?: string
+    deal?: string
+    direction: 'prospect' | 'sales'
+    text: string
+    date: string
+  }) => api.post<{ task_id: string; message_id: string }>('/api/email/paste', data),
+
+  getCommunicationThread: (threadId: string) =>
+    api.get<CommunicationThreadResponse>(`/api/communication/thread/${threadId}`),
 }
 
 export type CallPlaybookRuleResult = {
@@ -1441,4 +1579,223 @@ export function getVexaBotJoinErrorMessage(err: unknown): string {
         : ''
   if (/already exists|active or requested meeting/i.test(msg)) return 'Your bot has already joined the meeting'
   return msg || 'Failed to join meeting with bot'
+}
+
+// ============================================
+// To-Do Ready API (Unified task management)
+// ============================================
+
+export type TodoSource = 'email' | 'meeting' | 'manual'
+export type TodoStatus = 'ready' | 'needs_input' | 'overdue' | 'done'
+export type TodoPriority = 'high' | 'medium' | 'low'
+export type TodoTaskType =
+  | 'send_integration_doc'
+  | 'respond_to_email'
+  | 'handle_pricing_objection'
+  | 'competitive_followup'
+  | 'schedule_demo'
+  | 'send_case_study'
+  | 'general_followup'
+
+export interface DealIntelligence {
+  company_name: string
+  company_id?: string | null
+  deal_id?: string | null
+  deal_stage?: string | null
+  last_call_sentiment?: string | null
+  last_objection?: string | null
+  competitor_mentioned?: string | null
+}
+
+export interface ThreadMessage {
+  id: string
+  role: 'prospect' | 'sales'
+  sender_name: string
+  content: string
+  timestamp: string
+}
+
+export interface PreparedAction {
+  strategy_label: string
+  explanation: string
+  draft_text: string
+  variants?: string[] | null
+}
+
+export interface TodoItem {
+  id: string
+  user_id: string
+  title: string
+  description?: string | null
+  task_type: TodoTaskType
+  priority: TodoPriority
+  status: TodoStatus
+  due_at?: string | null
+  assignee?: string | null
+  source: TodoSource
+  source_id?: string | null
+  deal_intelligence?: DealIntelligence | null
+  thread_id?: string | null
+  prepared_action?: PreparedAction | null
+  created_at: string
+  updated_at: string
+}
+
+export interface TodoListResponse {
+  items: TodoItem[]
+  total: number
+  page: number
+  limit: number
+}
+
+export type MemorySignalType = 'sla_breach' | 'promise_pending' | 'objection_unhandled' | 'followup_overdue'
+
+export interface MemorySignal {
+  id: string
+  type: MemorySignalType
+  label: string
+  task_id: string
+  severity: 'warning' | 'critical'
+  detected_at: string
+}
+
+export interface MemorySignalsResponse {
+  signals: MemorySignal[]
+  total: number
+}
+
+export interface AnalyzeResponse {
+  success: boolean
+  new_todos_created: number
+  emails_analyzed: number
+  meetings_analyzed: number
+  message: string
+}
+
+export interface AnalysisState {
+  email: {
+    analyzed_count: number
+    last_analysis_at: string | null
+  }
+  meeting: {
+    analyzed_count: number
+    last_analysis_at: string | null
+  }
+}
+
+export const todoReadyAPI = {
+  /** List todo items with optional filters */
+  listItems: (params?: { status?: TodoStatus; source?: TodoSource; priority?: TodoPriority; page?: number; limit?: number }) =>
+    api.get<TodoListResponse>('/api/todo-ready/items', { params }),
+
+  /** Get a single todo item by ID */
+  getItem: (id: string) =>
+    api.get<TodoItem>(`/api/todo-ready/items/${id}`),
+
+  /** Create a new todo item */
+  createItem: (data: {
+    title: string
+    description?: string
+    task_type?: TodoTaskType
+    priority?: TodoPriority
+    status?: TodoStatus
+    due_at?: string
+    assignee?: string
+    source?: TodoSource
+    source_id?: string
+    deal_intelligence?: DealIntelligence
+    prepared_action?: PreparedAction
+  }) => api.post<TodoItem>('/api/todo-ready/items', data),
+
+  /** Update a todo item */
+  updateItem: (id: string, data: {
+    title?: string
+    description?: string
+    status?: TodoStatus
+    priority?: TodoPriority
+    due_at?: string
+    prepared_action?: PreparedAction
+  }) => api.patch<TodoItem>(`/api/todo-ready/items/${id}`, data),
+
+  /** Delete a todo item */
+  deleteItem: (id: string) =>
+    api.delete<{ success: boolean; deleted_id: string }>(`/api/todo-ready/items/${id}`),
+
+  /** Mark a todo item as complete */
+  completeItem: (id: string) =>
+    api.post<TodoItem>(`/api/todo-ready/items/${id}/complete`),
+
+  /** Get memory signals (reminders) */
+  getMemorySignals: () =>
+    api.get<MemorySignalsResponse>('/api/todo-ready/memory-signals'),
+
+  /** Analyze new emails and meetings to create todo items */
+  analyze: () =>
+    api.post<AnalyzeResponse>('/api/todo-ready/analyze'),
+
+  /** Get analysis state (which items have been analyzed) */
+  getAnalysisState: () =>
+    api.get<AnalysisState>('/api/todo-ready/analysis-state'),
+
+  /** Reset analysis state to re-analyze */
+  resetAnalysis: (source?: 'email' | 'meeting' | 'all') =>
+    api.post<{ success: boolean; reset: string }>('/api/todo-ready/reset-analysis', null, { params: { source: source ?? 'all' } }),
+
+  /** Get source content for a task (email body or meeting transcript) */
+  getSourceContent: (taskId: string) =>
+    api.get<TaskSourceContent>(`/api/todo-ready/items/${taskId}/source-content`),
+
+  /** Send email for a task */
+  sendEmail: (taskId: string) =>
+    api.post<SendEmailResponse>(`/api/todo-ready/items/${taskId}/send-email`),
+
+  /** Check if Gmail has send permission */
+  checkGmailSendStatus: () =>
+    api.get<GmailSendStatusResponse>('/api/todo-ready/gmail-send-status'),
+}
+
+// Send email response
+export interface SendEmailResponse {
+  success: boolean
+  message?: string
+  message_id?: string
+  thread_id?: string
+  needs_reauthorization?: boolean
+  auth_url?: string
+}
+
+// Gmail send status response
+export interface GmailSendStatusResponse {
+  can_send: boolean
+  needs_reauthorization: boolean
+  auth_url?: string
+  message?: string
+}
+
+// Task source content types
+export interface EmailSourceContent {
+  id: string
+  subject: string
+  from: string
+  to: string
+  date: string | null
+  body: string
+  snippet: string
+}
+
+export interface MeetingSourceContent {
+  id: string
+  title: string
+  created_at: string | null
+  platform: string
+  transcript: string | null
+  summary: string | null
+  next_steps: Array<{ description: string; assignee?: string }> | null
+  questions_and_objections: Array<{ question: string; answer?: string }> | null
+}
+
+export interface TaskSourceContent {
+  type: 'email' | 'meeting' | 'manual'
+  content: EmailSourceContent | MeetingSourceContent | null
+  message?: string
 }
