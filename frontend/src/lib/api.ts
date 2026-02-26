@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -963,6 +963,13 @@ export interface GoogleCalendarEvent {
   conferenceData?: {
     entryPoints?: Array<{ entryPointType?: string; uri?: string }>
   }
+  /** Attendees of the event */
+  attendees?: Array<{
+    email?: string
+    displayName?: string
+    responseStatus?: string
+    self?: boolean
+  }>
 }
 
 // Atlas meeting context for calendar detail panel
@@ -1066,6 +1073,17 @@ export interface MeetingHistoryByEmailResponse {
   meetings: MeetingHistoryItem[]
 }
 
+export interface MeetingEnrichResponse {
+  event_id: string
+  enriched: boolean
+  attendee_email?: string | null
+  company_name?: string | null
+  company_info?: CompanyInfoUser | null
+  main_contact?: MainContactUser | null
+  error?: string | null
+  already_enriched?: boolean
+}
+
 export type AtlasQnARecord = {
   id: string
   question: string
@@ -1118,7 +1136,13 @@ export const atlasAPI = {
   getMeetingHistoryByEmail: (email: string) =>
     api.get<MeetingHistoryByEmailResponse>('/api/atlas/meeting-history-by-email', { params: { email } }),
   /** Lưu danh sách meeting khi load lịch; trùng id thì update */
-  syncCalendarEvents: (events: Array<{ id?: string; summary?: string; start?: { dateTime?: string; date?: string }; end?: { dateTime?: string; date?: string } }>) =>
+  syncCalendarEvents: (events: Array<{ 
+    id?: string
+    summary?: string
+    start?: { dateTime?: string; date?: string }
+    end?: { dateTime?: string; date?: string }
+    attendees?: Array<{ email?: string; displayName?: string; responseStatus?: string; self?: boolean }>
+  }>) =>
     api.post<{ synced: number }>('/api/atlas/calendar-events/sync', {
       events: events
         .filter((e) => e.id)
@@ -1127,8 +1151,21 @@ export const atlasAPI = {
           summary: e.summary,
           start: e.start?.dateTime || e.start?.date || undefined,
           end: e.end?.dateTime || e.end?.date || undefined,
+          attendees: e.attendees?.map((a) => ({
+            email: a.email,
+            displayName: a.displayName,
+            responseStatus: a.responseStatus,
+            self: a.self,
+          })),
         })),
     }),
+
+  /** Auto-enrich meeting info from attendee email */
+  enrichMeeting: (eventId: string, forceRefresh: boolean = false) =>
+    api.post<MeetingEnrichResponse>('/api/atlas/meeting-enrich', {
+      event_id: eventId,
+      force_refresh: forceRefresh,
+    }, { timeout: 180000 }),  // 3 minute timeout for slow company search API
 
   /** Rolling Q&A Repository CRUD */
   listQna: (params?: { search?: string; page?: number; limit?: number }) =>

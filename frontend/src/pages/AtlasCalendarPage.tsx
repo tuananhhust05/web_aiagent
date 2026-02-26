@@ -13,6 +13,7 @@ import {
   UserPlus,
   Save,
   Trash2,
+  RefreshCw,
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import {
@@ -202,6 +203,8 @@ export default function AtlasCalendarPage() {
   const [newParticipant, setNewParticipant] = useState<MeetingParticipant>({ name: '' })
   const [showAddParticipant, setShowAddParticipant] = useState(false)
   const [botJoinLoading, setBotJoinLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [enriching, setEnriching] = useState(false)
 
   const selectedRawEvent = useMemo(() => {
     if (!selectedEvent) return null
@@ -324,6 +327,7 @@ export default function AtlasCalendarPage() {
   }, [selectedEvent?.id, selectedEvent?.title])
 
   // Load participants + company_info + main_contact for this meeting (by event_id)
+  // Also auto-enrich from attendee email if not already enriched
   useEffect(() => {
     if (!selectedEvent?.id) {
       setMeetingParticipants([])
@@ -336,26 +340,70 @@ export default function AtlasCalendarPage() {
     }
     let cancelled = false
     setParticipantsLoading(true)
-    atlasAPI
-      .getMeetingParticipants(selectedEvent.id)
-      .then((res) => {
+    
+    const loadAndEnrich = async () => {
+      try {
+        // First load existing data
+        const res = await atlasAPI.getMeetingParticipants(selectedEvent.id)
         if (cancelled) return
-        setMeetingParticipants(res.data.participants || [])
-        setCompanyInfo(res.data.company_info || {})
-        setMainContact(res.data.main_contact || {})
-        setDealStage(res.data.deal_stage || '')
-      })
-      .catch(() => {
+        
+        const existingParticipants = res.data.participants || []
+        const existingCompanyInfo = res.data.company_info || {}
+        const existingMainContact = res.data.main_contact || {}
+        const existingDealStage = res.data.deal_stage || ''
+        
+        setMeetingParticipants(existingParticipants)
+        setCompanyInfo(existingCompanyInfo)
+        setMainContact(existingMainContact)
+        setDealStage(existingDealStage)
+        
+        // Check if we need to auto-enrich (no company info yet)
+        const hasCompanyInfo = existingCompanyInfo.industry || existingCompanyInfo.description || existingCompanyInfo.size_revenue
+        const hasMainContact = existingMainContact.name || existingMainContact.email
+        
+        if (!hasCompanyInfo && !hasMainContact) {
+          // Try auto-enrich from attendee email
+          setEnriching(true)
+          try {
+            const enrichRes = await atlasAPI.enrichMeeting(selectedEvent.id, false)
+            if (cancelled) return
+            
+            if (enrichRes.data.enriched) {
+              // Update with enriched data
+              if (enrichRes.data.company_info) {
+                setCompanyInfo(enrichRes.data.company_info)
+              }
+              if (enrichRes.data.main_contact) {
+                setMainContact(enrichRes.data.main_contact)
+              }
+              toast.success(`Company info loaded for ${enrichRes.data.company_name || 'meeting'}`)
+            } else if (enrichRes.data.already_enriched) {
+              // Already enriched, use existing data
+              if (enrichRes.data.company_info) setCompanyInfo(enrichRes.data.company_info)
+              if (enrichRes.data.main_contact) setMainContact(enrichRes.data.main_contact)
+            } else if (enrichRes.data.error) {
+              // Silent fail - user can still manually fill info
+              console.log('Auto-enrich skipped:', enrichRes.data.error)
+            }
+          } catch (enrichErr) {
+            console.error('Auto-enrich failed:', enrichErr)
+          } finally {
+            if (!cancelled) setEnriching(false)
+          }
+        }
+      } catch (err) {
         if (!cancelled) {
           setMeetingParticipants([])
           setCompanyInfo({})
           setMainContact({})
           setDealStage('')
         }
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setParticipantsLoading(false)
-      })
+      }
+    }
+    
+    loadAndEnrich()
     return () => { cancelled = true }
   }, [selectedEvent?.id])
 
@@ -474,6 +522,38 @@ export default function AtlasCalendarPage() {
     }
   }
 
+  const handleRefreshCalendar = async () => {
+    if (!connected || refreshing) return
+    setRefreshing(true)
+    try {
+      const timeMin = rangeStart.toISOString()
+      const timeMax = rangeEnd.toISOString()
+      
+      // Fetch fresh events from Google Calendar
+      const res = await calendarAPI.getEvents({ time_min: timeMin, time_max: timeMax })
+      const list = res.data.events || []
+      setRawEvents(list)
+      
+      // Sync to backend (includes attendees data)
+      await atlasAPI.syncCalendarEvents(list)
+      
+      // Update local state
+      const weekStart = viewMode === 'week' ? calendarWeekStart : viewMode === 'day' ? getWeekStart(calendarDayStart) : getMonthStart(calendarMonthStart)
+      const allowAnyDay = viewMode === 'month'
+      const mapped = list
+        .map((e) => parseGoogleEvent(e, weekStart, allowAnyDay))
+        .filter((e): e is CalendarEvent => e !== null)
+      setEvents(mapped)
+      
+      toast.success('Calendar refreshed successfully')
+    } catch (err) {
+      console.error('Failed to refresh calendar:', err)
+      toast.error('Failed to refresh calendar')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   const goPrev = () => {
     if (viewMode === 'day') {
       const d = new Date(calendarDayStart)
@@ -513,6 +593,33 @@ export default function AtlasCalendarPage() {
 
   const handleRemoveParticipant = (index: number) => {
     setMeetingParticipants((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const handleRefreshEnrich = async () => {
+    if (!selectedEvent?.id || enriching) return
+    setEnriching(true)
+    try {
+      const enrichRes = await atlasAPI.enrichMeeting(selectedEvent.id, true)
+      
+      if (enrichRes.data.enriched) {
+        if (enrichRes.data.company_info) {
+          setCompanyInfo(enrichRes.data.company_info)
+        }
+        if (enrichRes.data.main_contact) {
+          setMainContact(enrichRes.data.main_contact)
+        }
+        toast.success(`Refreshed company info for ${enrichRes.data.company_name || 'meeting'}`)
+      } else if (enrichRes.data.error) {
+        toast.error(enrichRes.data.error)
+      } else {
+        toast.error('Could not find company information')
+      }
+    } catch (err) {
+      console.error('Refresh enrich failed:', err)
+      toast.error('Failed to refresh company information')
+    } finally {
+      setEnriching(false)
+    }
   }
 
   const handleSaveAll = async () => {
@@ -658,6 +765,16 @@ export default function AtlasCalendarPage() {
               <ChevronRight className="h-5 w-5" />
             </button>
           </div>
+          <button
+            type="button"
+            onClick={handleRefreshCalendar}
+            disabled={refreshing || eventsLoading}
+            className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Refresh calendar events"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
         </div>
       </div>
 
@@ -851,11 +968,32 @@ export default function AtlasCalendarPage() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto scrollbar-hide p-5 space-y-6">
+            <div className="flex-1 overflow-y-auto scrollbar-hide p-5 space-y-6 relative">
+              {/* Full card loading overlay when enriching */}
+              {enriching && (
+                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-3" />
+                  <p className="text-sm font-medium text-gray-900">Looking up company information...</p>
+                  <p className="text-xs text-gray-500 mt-1">This may take up to a minute</p>
+                </div>
+              )}
+              
               {/* Company profile - user can fill/edit */}
               <section>
-                <h3 className="text-sm font-bold text-gray-900 mb-3">Company profile</h3>
-                <p className="text-xs text-gray-500 mb-2">You can fill in or edit the information below.</p>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-gray-900">Company profile</h3>
+                  <button
+                    type="button"
+                    onClick={handleRefreshEnrich}
+                    disabled={enriching || participantsLoading}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    title="Refresh company info from attendee email"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${enriching ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mb-2">Auto-filled from attendee email. You can edit below.</p>
                 <div className="space-y-2 text-sm">
                   <div>
                     <label className="block text-gray-500 mb-0.5">Industry</label>

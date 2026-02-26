@@ -160,11 +160,22 @@ class MeetingHistoryByEmailResponse(BaseModel):
     meetings: List[MeetingHistoryItem]
 
 
+class CalendarEventAttendee(BaseModel):
+    email: Optional[str] = None
+    displayName: Optional[str] = None
+    responseStatus: Optional[str] = None
+    self_: Optional[bool] = Field(None, alias="self")
+
+    class Config:
+        populate_by_name = True
+
+
 class CalendarEventSyncItem(BaseModel):
     id: str = Field(..., description="Calendar event ID")
     summary: Optional[str] = None
     start: Optional[str] = None  # ISO datetime or date
     end: Optional[str] = None
+    attendees: Optional[List[CalendarEventAttendee]] = None
 
 
 class CalendarEventsSyncPayload(BaseModel):
@@ -483,12 +494,26 @@ async def sync_calendar_events(
     for ev in payload.events or []:
         if not ev.id:
             continue
+        
+        # Extract external attendees (not self)
+        attendees_data = []
+        if ev.attendees:
+            for att in ev.attendees:
+                if att.self_:
+                    continue
+                attendees_data.append({
+                    "email": att.email,
+                    "displayName": att.displayName,
+                    "responseStatus": att.responseStatus,
+                })
+        
         doc = {
             "user_id": user_id,
             "event_id": ev.id,
             "event_title": (ev.summary or "").strip() or None,
             "event_start": (ev.start or "").strip() or None,
             "event_end": (ev.end or "").strip() or None,
+            "attendees": attendees_data,
             "updated_at": now,
         }
         await db[CALENDAR_EVENTS_CACHE].update_one(
@@ -1094,3 +1119,351 @@ async def transcribe_audio(
     except Exception as e:
         logger.error(f"[TRANSCRIBE] Unexpected error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
+
+
+# ============================================================
+# MEETING AUTO-ENRICH: Extract company info from attendee email
+# ============================================================
+
+COMPANY_SEARCH_API_URL = os.getenv("COMPANY_SEARCH_API_URL", "http://207.180.227.97:5001/search")
+
+# Common email domains to skip (personal emails)
+PERSONAL_EMAIL_DOMAINS = {
+    "gmail.com", "googlemail.com", "yahoo.com", "yahoo.co.uk", "hotmail.com", 
+    "outlook.com", "live.com", "msn.com", "icloud.com", "me.com", "mac.com",
+    "aol.com", "protonmail.com", "zoho.com", "mail.com", "yandex.com",
+    "gmx.com", "gmx.de", "web.de", "qq.com", "163.com", "126.com",
+}
+
+
+class CompanySearchRequest(BaseModel):
+    company_name: str
+
+
+class CompanySearchResponse(BaseModel):
+    company: str
+    result: str
+    success: bool = True
+    error: Optional[str] = None
+
+
+class MeetingEnrichRequest(BaseModel):
+    event_id: str
+    force_refresh: bool = False
+
+
+class MeetingEnrichResponse(BaseModel):
+    event_id: str
+    enriched: bool
+    attendee_email: Optional[str] = None
+    company_name: Optional[str] = None
+    company_info: Optional[dict] = None
+    main_contact: Optional[dict] = None
+    error: Optional[str] = None
+    already_enriched: bool = False
+
+
+def extract_company_from_email(email: str) -> Optional[str]:
+    """Extract company name from email domain, skipping personal emails."""
+    if not email or "@" not in email:
+        return None
+    
+    domain = email.split("@")[-1].lower().strip()
+    
+    # Skip personal email domains
+    if domain in PERSONAL_EMAIL_DOMAINS:
+        return None
+    
+    # Extract company name from domain (e.g., forskale.com -> forskale)
+    company_part = domain.split(".")[0]
+    
+    # Skip if too short or looks like a subdomain
+    if len(company_part) < 2:
+        return None
+    
+    return company_part
+
+
+@router.post("/company-search", response_model=CompanySearchResponse)
+async def search_company_info(
+    request: CompanySearchRequest,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """
+    Proxy endpoint to search company information from external API.
+    This API can take a long time (30-60s), so we set a high timeout.
+    """
+    company_name = request.company_name.strip()
+    if not company_name:
+        raise HTTPException(status_code=400, detail="Company name is required")
+    
+    logger.info(f"[COMPANY-SEARCH] Searching for company: {company_name}")
+    
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                COMPANY_SEARCH_API_URL,
+                json={"company_name": company_name},
+                headers={"Content-Type": "application/json"},
+            )
+            
+            if response.status_code != 200:
+                logger.warning(f"[COMPANY-SEARCH] API returned {response.status_code}: {response.text}")
+                return CompanySearchResponse(
+                    company=company_name,
+                    result="",
+                    success=False,
+                    error=f"Search API returned {response.status_code}",
+                )
+            
+            data = response.json()
+            logger.info(f"[COMPANY-SEARCH] Found info for {company_name}: {len(data.get('result', ''))} chars")
+            
+            return CompanySearchResponse(
+                company=data.get("company", company_name),
+                result=data.get("result", ""),
+                success=True,
+            )
+            
+    except httpx.TimeoutException:
+        logger.error(f"[COMPANY-SEARCH] Timeout searching for {company_name}")
+        return CompanySearchResponse(
+            company=company_name,
+            result="",
+            success=False,
+            error="Search timed out. Please try again.",
+        )
+    except Exception as e:
+        logger.error(f"[COMPANY-SEARCH] Error: {str(e)}")
+        return CompanySearchResponse(
+            company=company_name,
+            result="",
+            success=False,
+            error=str(e),
+        )
+
+
+async def extract_company_info_with_ai(company_name: str, search_result: str) -> dict:
+    """Use Groq/Llama to extract structured company info from search result text."""
+    from app.core.config import settings
+    
+    if not search_result:
+        return {}
+    
+    if not settings.GROQ_API_KEY:
+        logger.warning("[AI-EXTRACT] Missing GROQ_API_KEY")
+        return {"description": search_result[:500]}
+    
+    prompt = f"""Extract company information from the following text about "{company_name}".
+Return a JSON object with these fields (leave empty string if not found):
+- industry: string (main industry/sector)
+- size_revenue: string (employee count, revenue if mentioned)
+- location: string (headquarters location)
+- founded: string (year founded)
+- website: string (company website)
+- description: string (2-3 sentence company description)
+- ceo_name: string (CEO or founder name if mentioned)
+- key_people: array of strings (names and titles of key people)
+
+Text:
+{search_result}
+
+Return ONLY valid JSON, no markdown or explanation."""
+
+    try:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": "Return ONLY valid JSON. No markdown. No extra text."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.2,
+        }
+        
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+        
+        content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        content = content.strip()
+        
+        # Clean up potential markdown
+        if content.startswith("```"):
+            lines = content.split("\n")
+            content = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
+        content = content.strip()
+        
+        # Parse JSON
+        import json
+        try:
+            return json.loads(content)
+        except Exception:
+            # Try extracting first {...} block
+            start = content.find("{")
+            end = content.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                return json.loads(content[start:end + 1])
+            raise
+        
+    except Exception as e:
+        logger.error(f"[AI-EXTRACT] Error extracting company info: {e}")
+        return {"description": search_result[:500]}
+
+
+@router.post("/meeting-enrich", response_model=MeetingEnrichResponse)
+async def enrich_meeting_from_attendee(
+    request: MeetingEnrichRequest,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """
+    Auto-enrich meeting info from attendee email:
+    1. Get first external attendee email from calendar_events_cache
+    2. Check if already enriched (skip unless force_refresh)
+    3. Extract company name from email domain
+    4. Search company info via external API
+    5. Use AI to extract structured info
+    6. Save to calendar_event_participants collection
+    """
+    db = get_database()
+    user_id = str(current_user.id)
+    event_id = request.event_id
+    
+    logger.info(f"[MEETING-ENRICH] Enriching event {event_id} for user {user_id}, force={request.force_refresh}")
+    
+    # Check if already enriched
+    existing = await db[PARTICIPANTS_COLLECTION].find_one({
+        "user_id": user_id,
+        "event_id": event_id,
+    })
+    
+    if existing and existing.get("auto_enriched") and not request.force_refresh:
+        logger.info(f"[MEETING-ENRICH] Event {event_id} already enriched, skipping")
+        return MeetingEnrichResponse(
+            event_id=event_id,
+            enriched=False,
+            already_enriched=True,
+            company_info=existing.get("company_info"),
+            main_contact=existing.get("main_contact"),
+        )
+    
+    # Get event from cache to find attendees
+    event_cache = await db[CALENDAR_EVENTS_CACHE].find_one({
+        "user_id": user_id,
+        "event_id": event_id,
+    })
+    
+    if not event_cache:
+        return MeetingEnrichResponse(
+            event_id=event_id,
+            enriched=False,
+            error="Event not found in cache. Please refresh calendar first.",
+        )
+    
+    attendees = event_cache.get("attendees") or []
+    if not attendees:
+        return MeetingEnrichResponse(
+            event_id=event_id,
+            enriched=False,
+            error="No attendees found for this event.",
+        )
+    
+    # Find first external attendee with business email
+    attendee_email = None
+    attendee_name = None
+    for att in attendees:
+        email = (att.get("email") or "").lower().strip()
+        if not email:
+            continue
+        
+        company_name = extract_company_from_email(email)
+        if company_name:
+            attendee_email = email
+            attendee_name = att.get("displayName") or email.split("@")[0]
+            break
+    
+    if not attendee_email:
+        return MeetingEnrichResponse(
+            event_id=event_id,
+            enriched=False,
+            error="No business email found among attendees (only personal emails like Gmail).",
+        )
+    
+    company_name = extract_company_from_email(attendee_email)
+    logger.info(f"[MEETING-ENRICH] Found attendee {attendee_email}, company: {company_name}")
+    
+    # Search company info
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(
+                COMPANY_SEARCH_API_URL,
+                json={"company_name": company_name},
+                headers={"Content-Type": "application/json"},
+            )
+            
+            if response.status_code == 200:
+                search_data = response.json()
+                search_result = search_data.get("result", "")
+            else:
+                search_result = ""
+                logger.warning(f"[MEETING-ENRICH] Company search failed: {response.status_code}")
+                
+    except Exception as e:
+        logger.error(f"[MEETING-ENRICH] Company search error: {e}")
+        search_result = ""
+    
+    # Extract structured info with AI
+    company_info = {}
+    if search_result:
+        company_info = await extract_company_info_with_ai(company_name, search_result)
+    
+    # Build main contact from attendee
+    main_contact = {
+        "name": attendee_name,
+        "email": attendee_email,
+    }
+    
+    # Add key people info if available
+    if company_info.get("key_people"):
+        for person in company_info["key_people"]:
+            if attendee_name and attendee_name.lower() in person.lower():
+                # Extract job title from key_people entry
+                main_contact["job_title"] = person.replace(attendee_name, "").strip(" -–,")
+                break
+    
+    # Save to database
+    now = datetime.utcnow()
+    update_doc = {
+        "user_id": user_id,
+        "event_id": event_id,
+        "event_title": event_cache.get("event_title"),
+        "event_start": event_cache.get("event_start"),
+        "company_info": company_info,
+        "main_contact": main_contact,
+        "auto_enriched": True,
+        "enriched_at": now,
+        "enriched_from_email": attendee_email,
+        "updated_at": now,
+    }
+    
+    await db[PARTICIPANTS_COLLECTION].update_one(
+        {"user_id": user_id, "event_id": event_id},
+        {"$set": update_doc},
+        upsert=True,
+    )
+    
+    logger.info(f"[MEETING-ENRICH] Successfully enriched event {event_id}")
+    
+    return MeetingEnrichResponse(
+        event_id=event_id,
+        enriched=True,
+        attendee_email=attendee_email,
+        company_name=company_name,
+        company_info=company_info,
+        main_contact=main_contact,
+    )
