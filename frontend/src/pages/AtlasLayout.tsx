@@ -110,13 +110,13 @@ export default function AtlasLayout() {
 
   return (
     <div className="flex w-screen h-screen bg-gray-50 overflow-hidden">
-      <aside className="w-64 bg-[#0B1220] text-white flex flex-col shrink-0">
-        <div className="px-5 py-4 border-b border-white/10">
-          <div className="text-xs uppercase tracking-widest text-blue-300 mb-1">Atlas</div>
-          <div className="text-sm text-blue-100">by ForSkale</div>
+      <aside className="w-56 bg-[#0B1220] text-white flex flex-col shrink-0">
+        <div className="px-4 py-3 border-b border-white/10">
+          <div className="text-[9px] uppercase tracking-widest text-blue-300 mb-0.5">Atlas</div>
+          <div className="text-[10px] text-blue-100">by ForSkale</div>
         </div>
 
-        <nav className="flex-1 py-4 space-y-1 text-sm">
+        <nav className="flex-1 py-3 space-y-0.5 text-[11px]">
           {navItems.map(({ to, icon: Icon, label, sectionId }) => {
             const notVisited = onboarding.firstModalDone && !onboarding.sectionsVisited.includes(sectionId)
             return (
@@ -124,19 +124,19 @@ export default function AtlasLayout() {
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `w-full flex items-center gap-2 px-5 py-2.5 text-left hover:bg-white/5 ${
+                  `w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-white/5 ${
                     isActive ? 'bg-white/10 text-white' : 'text-gray-300'
                   } ${notVisited ? 'border-l-2 border-blue-400 bg-white/5' : 'border-l-2 border-transparent'}`
                 }
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-3.5 w-3.5" />
                 <span className="relative z-0">{label}</span>
               </NavLink>
             )
           })}
         </nav>
 
-        <div className="px-5 py-3 border-t border-white/10 text-[11px] text-gray-400">
+        <div className="px-4 py-2 border-t border-white/10 text-[9px] text-gray-400">
           v2.1.0
         </div>
       </aside>
