@@ -20,12 +20,12 @@ export function setAtlasTourCompleted(): void {
 const steps = [
   {
     icon: PhoneCall,
-    title: 'Call History',
+    title: 'Call Insights',
     description: 'View your call history and AI analysis from your meetings.',
   },
   {
     icon: BarChart3,
-    title: 'Insights',
+    title: 'Performance',
     description: 'Track performance and trends across your calls.',
   },
   {
@@ -41,7 +41,7 @@ const steps = [
   {
     icon: Check,
     title: "You're all set!",
-    description: 'Atlas Intelligence is ready to support you. Start from Call History or Record.',
+    description: 'Atlas Intelligence is ready to support you. Start from Call Insights or Record.',
   },
 ]
 

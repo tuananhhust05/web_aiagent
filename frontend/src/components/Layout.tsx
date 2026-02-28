@@ -205,23 +205,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <div className="lg:pl-64">
-        <div className="sticky top-0 z-50 flex h-16 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 shadow-sm sm:px-6 lg:px-8">
-          <div className="flex items-center gap-x-4">
+        <div className="sticky top-0 z-50 flex h-10 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 shadow-sm sm:px-4 lg:px-6">
+          <div className="flex items-center gap-x-3">
             <button
               type="button"
-              className="-m-2.5 p-2.5 text-gray-700 lg:hidden"
+              className="-m-2 p-2 text-gray-700 lg:hidden"
               onClick={() => setSidebarOpen(true)}
             >
-              <Menu className="h-6 w-6" />
+              <Menu className="h-5 w-5" />
             </button>
             
             {/* Search Bar */}
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search..."
-                className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </div>
@@ -230,12 +230,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="relative">
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center gap-x-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+              className="flex items-center gap-x-1.5 text-xs font-medium text-gray-700 hover:text-gray-900"
             >
-              <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
-                <User className="h-4 w-4 text-white" />
+              <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center">
+                <User className="h-3 w-3 text-white" />
               </div>
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-3.5 w-3.5" />
             </button>
             
             {/* Dropdown Menu */}

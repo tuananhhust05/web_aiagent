@@ -1,18 +1,7 @@
 import {
-  CheckCircle2,
-  ChevronRight,
-  RefreshCw,
-  Clock,
-  Mail,
-  PhoneCall,
-  FileText,
-  Calendar,
-  MessageSquare,
-  Zap,
-  ArrowUpRight,
-  Building2,
+  Edit3,
 } from 'lucide-react'
-import type { TodoItem, TodoSource, TodoTaskType, TodoPriority } from '../../lib/api'
+import type { TodoItem, TodoSource, TodoTaskType } from '../../lib/api'
 import { cn } from '../../lib/utils'
 
 function formatDueDate(dueAt: string): string {
@@ -23,59 +12,46 @@ function formatDueDate(dueAt: string): string {
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
   
   if (diffHours < -24) {
-    return `${Math.abs(diffDays)} days overdue`
+    return `${Math.abs(diffDays)}d overdue`
   } else if (diffHours < 0) {
     return `${Math.abs(diffHours)}h overdue`
   } else if (diffHours < 1) {
     return 'Due soon'
   } else if (diffHours < 24) {
-    return `Due in ${diffHours}h`
+    return `${diffHours}h`
   } else if (diffDays === 1) {
-    return 'Due tomorrow'
+    return 'Tomorrow'
   } else if (diffDays <= 7) {
-    return `Due in ${diffDays} days`
+    return `${diffDays}d`
   } else {
-    return `Due ${due.toLocaleDateString()}`
+    return due.toLocaleDateString('en', { month: 'short', day: 'numeric' })
   }
 }
 
-const SOURCE_ICONS: Record<TodoSource, typeof Mail> = {
-  email: Mail,
-  meeting: PhoneCall,
-  manual: FileText,
+const SOURCE_LABELS: Record<TodoSource, string> = {
+  email: 'Email',
+  meeting: 'Meeting',
+  manual: 'Manual',
 }
 
 const TASK_TYPE_LABELS: Record<TodoTaskType, string> = {
-  send_integration_doc: 'Integration Doc',
-  respond_to_email: 'Email Response',
-  handle_pricing_objection: 'Pricing Objection',
+  send_integration_doc: 'Integration',
+  respond_to_email: 'Email',
+  handle_pricing_objection: 'Pricing',
   competitive_followup: 'Competitive',
-  schedule_demo: 'Schedule Demo',
+  schedule_demo: 'Demo',
   send_case_study: 'Case Study',
   general_followup: 'Follow-Up',
 }
 
-const TASK_TYPE_ICONS: Record<TodoTaskType, typeof Mail> = {
-  send_integration_doc: FileText,
-  respond_to_email: Mail,
-  handle_pricing_objection: MessageSquare,
-  competitive_followup: Zap,
-  schedule_demo: Calendar,
-  send_case_study: FileText,
-  general_followup: ArrowUpRight,
-}
-
-const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
-  ready: { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500' },
-  needs_input: { bg: 'bg-amber-50', text: 'text-amber-700', dot: 'bg-amber-500' },
-  overdue: { bg: 'bg-red-50', text: 'text-red-700', dot: 'bg-red-500' },
-  done: { bg: 'bg-slate-50', text: 'text-slate-500', dot: 'bg-slate-400' },
-}
-
-const PRIORITY_COLORS: Record<TodoPriority, string> = {
-  high: 'bg-red-500',
-  medium: 'bg-blue-500',
-  low: 'bg-slate-400',
+const TASK_TYPE_COLORS: Record<TodoTaskType, { bg: string; text: string }> = {
+  send_integration_doc: { bg: 'bg-slate-100', text: 'text-slate-600' },
+  respond_to_email: { bg: 'bg-blue-50', text: 'text-blue-600' },
+  handle_pricing_objection: { bg: 'bg-amber-50', text: 'text-amber-600' },
+  competitive_followup: { bg: 'bg-purple-50', text: 'text-purple-600' },
+  schedule_demo: { bg: 'bg-green-50', text: 'text-green-600' },
+  send_case_study: { bg: 'bg-cyan-50', text: 'text-cyan-600' },
+  general_followup: { bg: 'bg-slate-100', text: 'text-slate-600' },
 }
 
 export interface TaskCardProps {
@@ -89,127 +65,99 @@ export interface TaskCardProps {
 export default function TaskCard({
   task,
   onOpen,
-  onMarkDone,
   onRegenerate,
-  onSnooze,
 }: TaskCardProps) {
-  const TaskTypeIcon = TASK_TYPE_ICONS[task.task_type] ?? ArrowUpRight
-  const SourceIcon = SOURCE_ICONS[task.source]
   const isDone = task.status === 'done'
-  const companyName = task.deal_intelligence?.company_name ?? 'Unknown'
-  const dealStage = task.deal_intelligence?.deal_stage
-  const statusStyle = STATUS_STYLES[task.status] ?? STATUS_STYLES.ready
+  const taskTypeColor = TASK_TYPE_COLORS[task.task_type] ?? TASK_TYPE_COLORS.general_followup
+  const competitor = task.deal_intelligence?.competitor_mentioned
 
   return (
     <article
       className={cn(
-        'group rounded-xl border bg-white p-4 transition-all cursor-pointer',
+        'group rounded-lg border-l-3 bg-white p-2.5 transition-all cursor-pointer shadow-sm hover:shadow',
         isDone 
-          ? 'border-slate-100 opacity-60' 
-          : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
+          ? 'border-l-slate-300 opacity-60' 
+          : 'border-l-blue-500'
       )}
       onClick={() => onOpen(task)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && onOpen(task)}
     >
-      {/* Top row: Company + Status */}
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
-            <Building2 className="h-4 w-4 text-slate-500" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-900 truncate">{companyName}</p>
-            {dealStage && (
-              <p className="text-xs text-slate-500 truncate">{dealStage}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className={cn('w-2 h-2 rounded-full', PRIORITY_COLORS[task.priority])} title={`${task.priority} priority`} />
-          <span className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', statusStyle.bg, statusStyle.text)}>
-            <span className={cn('w-1.5 h-1.5 rounded-full', statusStyle.dot)} />
-            {task.status === 'done' ? 'Done' : task.status.replace('_', ' ')}
-          </span>
-        </div>
-      </div>
-
-      {/* Task title */}
-      <h3 className={cn('text-sm font-medium text-slate-800 mb-2 line-clamp-2', isDone && 'line-through text-slate-500')}>
-        {task.title}
-      </h3>
-
-      {/* Metadata row */}
-      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mb-3">
-        <div className="inline-flex items-center gap-1">
-          <TaskTypeIcon className="h-3.5 w-3.5" />
-          <span>{TASK_TYPE_LABELS[task.task_type]}</span>
-        </div>
-        <div className="inline-flex items-center gap-1">
-          <SourceIcon className="h-3.5 w-3.5" />
-          <span className="capitalize">{task.source}</span>
-        </div>
+      {/* Task type + source */}
+      <div className="flex items-center gap-1 mb-1.5 flex-wrap">
+        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', isDone ? 'bg-slate-400' : 'bg-blue-500')} />
+        <span className="text-[10px] font-medium text-blue-600">
+          {TASK_TYPE_LABELS[task.task_type]}
+        </span>
+        <span className="text-[10px] text-slate-400">•</span>
+        <span className="text-[10px] text-slate-400">{SOURCE_LABELS[task.source]}</span>
         {task.due_at && (
-          <div className={cn(
-            'inline-flex items-center gap-1',
-            task.status === 'overdue' ? 'text-red-600 font-medium' : 
-            new Date(task.due_at) < new Date() ? 'text-red-600' : 'text-amber-600'
-          )}>
-            <Clock className="h-3.5 w-3.5" />
-            <span>{formatDueDate(task.due_at)}</span>
-          </div>
+          <>
+            <span className="text-[10px] text-slate-400">•</span>
+            <span className={cn(
+              'text-[10px]',
+              task.status === 'overdue' || new Date(task.due_at) < new Date() 
+                ? 'text-red-500 font-medium' 
+                : 'text-slate-400'
+            )}>
+              {formatDueDate(task.due_at)}
+            </span>
+          </>
         )}
       </div>
 
-      {/* Draft preview */}
+      {/* Title - wrap text */}
+      <h3 className={cn(
+        'text-[11px] font-medium text-slate-800 mb-1.5 leading-snug break-words',
+        isDone && 'line-through text-slate-500'
+      )}>
+        {task.title}
+      </h3>
+
+      {/* Tags */}
+      <div className="flex flex-wrap items-center gap-1 mb-1.5">
+        <span className={cn(
+          'inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium',
+          taskTypeColor.bg,
+          taskTypeColor.text
+        )}>
+          {TASK_TYPE_LABELS[task.task_type]}
+        </span>
+        {competitor && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-50 text-purple-600 break-words">
+            {competitor}
+          </span>
+        )}
+      </div>
+
+      {/* Draft preview - wrap text */}
       {task.prepared_action?.draft_text && !isDone && (
-        <p className="text-xs text-slate-500 line-clamp-2 mb-3 bg-slate-50 rounded-lg p-2 border border-slate-100">
-          {task.prepared_action.draft_text}
-        </p>
+        <div className="bg-slate-50 rounded p-2 mb-2 border-l-2 border-slate-200">
+          <p className="text-[10px] text-slate-500 leading-relaxed break-words whitespace-pre-wrap line-clamp-2">
+            {task.prepared_action.draft_text}
+          </p>
+        </div>
       )}
 
       {/* Action buttons */}
-      <div className="flex items-center gap-1 pt-3 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
           onClick={() => onOpen(task)}
-          className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+          className="inline-flex items-center px-2.5 py-1.5 rounded text-[10px] font-semibold text-white bg-blue-500 hover:bg-blue-600 transition-colors"
         >
-          Open
-          <ChevronRight className="h-3.5 w-3.5" />
+          Review
         </button>
-        {!isDone && (
-          <>
-            <button
-              type="button"
-              onClick={() => onMarkDone(task)}
-              className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Done
-            </button>
-            {onRegenerate && (
-              <button
-                type="button"
-                onClick={() => onRegenerate(task)}
-                className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1"
-                title="Regenerate draft"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-              </button>
-            )}
-            {onSnooze && (
-              <button
-                type="button"
-                onClick={() => onSnooze(task)}
-                className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-1"
-                title="Snooze"
-              >
-                <Clock className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </>
+        {onRegenerate && !isDone && (
+          <button
+            type="button"
+            onClick={() => onRegenerate(task)}
+            className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+          >
+            <Edit3 className="h-2.5 w-2.5" />
+            Edit
+          </button>
         )}
       </div>
     </article>

@@ -6,8 +6,8 @@ import axios from 'axios'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -1084,16 +1084,44 @@ export interface MeetingEnrichResponse {
   already_enriched?: boolean
 }
 
+export type AtlasQnAClassification = 'product' | 'service' | 'general'
+export type AtlasQnAStatus = 'draft' | 'approved' | 'archived'
+
 export type AtlasQnARecord = {
   id: string
   question: string
   answer: string
+  classification: AtlasQnAClassification
   topic?: string | null
+  product_tag?: string | null
+  service_tag?: string | null
   usage_count: number
   last_used_at?: string | null
-  status?: string | null
+  status: AtlasQnAStatus
+  created_by_user_id?: string | null
+  created_by_user_name?: string | null
+  approved_by_user_id?: string | null
+  approved_by_user_name?: string | null
+  approved_at?: string | null
+  source_meeting_id?: string | null
+  source_meeting_title?: string | null
+  organization_id: string
   created_at: string
   updated_at: string
+}
+
+export interface AtlasQnAStats {
+  total_questions: number
+  approved_count: number
+  draft_count: number
+  total_usage: number
+  top_questions: Array<{ id: string; question: string; usage_count: number }>
+  classification_breakdown: {
+    product: number
+    service: number
+    general: number
+  }
+  recent_trend: Array<{ date: string; count: number }>
 }
 
 export interface AtlasKnowledgeDocument {
@@ -1168,14 +1196,44 @@ export const atlasAPI = {
     }, { timeout: 180000 }),  // 3 minute timeout for slow company search API
 
   /** Rolling Q&A Repository CRUD */
-  listQna: (params?: { search?: string; page?: number; limit?: number }) =>
+  listQna: (params?: { 
+    search?: string
+    page?: number
+    limit?: number
+    classification?: AtlasQnAClassification
+    status?: AtlasQnAStatus
+    sort_by?: 'usage_count' | 'created_at' | 'last_used_at'
+    sort_order?: 'asc' | 'desc'
+  }) =>
     api.get<{ items: AtlasQnARecord[]; total: number; page: number; limit: number }>('/api/atlas/qna', { params }),
-  createQna: (data: { question: string; answer: string; topic?: string; status?: string }) =>
+  createQna: (data: { 
+    question: string
+    answer: string
+    classification: AtlasQnAClassification
+    topic?: string
+    product_tag?: string
+    service_tag?: string
+    status?: AtlasQnAStatus
+    source_meeting_id?: string
+  }) =>
     api.post<AtlasQnARecord>('/api/atlas/qna', data),
   getQna: (id: string) => api.get<AtlasQnARecord>(`/api/atlas/qna/${id}`),
-  updateQna: (id: string, data: { question?: string; answer?: string; topic?: string; status?: string }) =>
+  updateQna: (id: string, data: { 
+    question?: string
+    answer?: string
+    classification?: AtlasQnAClassification
+    topic?: string
+    product_tag?: string
+    service_tag?: string
+    status?: AtlasQnAStatus
+  }) =>
     api.put<AtlasQnARecord>(`/api/atlas/qna/${id}`, data),
   deleteQna: (id: string) => api.delete(`/api/atlas/qna/${id}`),
+  approveQna: (id: string) => api.post<AtlasQnARecord>(`/api/atlas/qna/${id}/approve`),
+  incrementQnaUsage: (id: string) => api.post<AtlasQnARecord>(`/api/atlas/qna/${id}/increment-usage`),
+  getQnaStats: () => api.get<AtlasQnAStats>('/api/atlas/qna/stats'),
+  searchSimilarQna: (question: string) => 
+    api.post<{ matches: Array<AtlasQnARecord & { similarity: number }> }>('/api/atlas/qna/search-similar', { question }),
   // Atlas Knowledge – documents by category (product-info | pricing-plan | objection-handling | competitive-intel | customer-faqs | company-policies)
   getKnowledgeDocuments: (category: string) =>
     api.get<AtlasKnowledgeDocument[]>(`/api/atlas/knowledge/${category}/documents`),

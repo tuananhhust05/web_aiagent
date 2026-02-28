@@ -265,26 +265,23 @@ export default function ToDoReadyPage() {
 
   return (
     <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
-      {/* Page Header - Clean enterprise style */}
+      {/* Page Header - Compact */}
       <header className="shrink-0 bg-white border-b border-slate-200">
-        <div className="px-6 lg:px-8 py-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="px-3 lg:px-4 py-2">
+          <div className="flex items-center justify-between gap-3">
             {/* Title section */}
             <div className="min-w-0">
-              <h1 className="text-2xl font-semibold text-slate-900 tracking-tight">
-                To-Do Ready
+              <h1 className="text-sm font-semibold text-slate-900">
+                Action Ready
               </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                AI-prepared next actions from calls and email intelligence
-              </p>
             </div>
             
             {/* Actions section */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center gap-1.5">
               {/* Date range selector */}
               <div className="relative">
-                <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white shadow-sm">
-                  <Calendar className="h-4 w-4 text-slate-400 ml-3" />
+                <div className="inline-flex items-center rounded border border-slate-200 bg-white">
+                  <Calendar className="h-3 w-3 text-slate-400 ml-2" />
                   {DATE_RANGE_OPTIONS.map((opt, idx) => (
                     <button
                       key={opt.id}
@@ -297,9 +294,9 @@ export default function ToDoReadyPage() {
                           setCustomDatePopoverOpen(false)
                         }
                       }}
-                      className={`px-3 py-2 text-sm font-medium transition-colors ${
-                        idx === 0 ? 'rounded-l-lg' : ''
-                      } ${idx === DATE_RANGE_OPTIONS.length - 1 ? 'rounded-r-lg' : ''} ${
+                      className={`px-2 py-1 text-[10px] font-medium transition-colors ${
+                        idx === 0 ? 'rounded-l' : ''
+                      } ${idx === DATE_RANGE_OPTIONS.length - 1 ? 'rounded-r' : ''} ${
                         dateRange === opt.id
                           ? 'bg-blue-50 text-blue-700'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -323,30 +320,30 @@ export default function ToDoReadyPage() {
                 )}
               </div>
 
-              <div className="h-6 w-px bg-slate-200" />
+              <div className="h-4 w-px bg-slate-200" />
 
               {/* Action buttons */}
               <button
                 type="button"
                 onClick={() => analyzeMutation.mutate()}
                 disabled={analyzeMutation.isPending}
-                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
                 {analyzeMutation.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                  <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
                 ) : (
-                  <Sparkles className="h-4 w-4 text-blue-600" />
+                  <Sparkles className="h-3 w-3 text-blue-600" />
                 )}
-                Analyze New
+                Analyze
               </button>
 
               <button
                 type="button"
                 onClick={() => queryClient.invalidateQueries({ queryKey: ['todo-ready'] })}
-                className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:bg-slate-50 shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="inline-flex items-center justify-center w-6 h-6 rounded border border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:bg-slate-50"
                 aria-label="Refresh"
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className="h-3 w-3" />
               </button>
 
               {/* Filter dropdown */}
@@ -354,21 +351,21 @@ export default function ToDoReadyPage() {
                 <button
                   type="button"
                   onClick={() => setFilterDropdownOpen((o) => !o)}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium border shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium border ${
                     filters.prospect
                       ? 'bg-blue-50 border-blue-200 text-blue-700'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  <Filter className="h-4 w-4" />
+                  <Filter className="h-3 w-3" />
                   {filters.prospect || 'Filter'}
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-3 w-3" />
                 </button>
                 {filterDropdownOpen && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setFilterDropdownOpen(false)} />
-                    <div className="absolute right-0 mt-2 w-56 rounded-xl border border-slate-200 bg-white py-2 shadow-xl z-20">
-                      <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    <div className="absolute right-0 mt-1 w-44 rounded border border-slate-200 bg-white py-1 shadow-lg z-20">
+                      <div className="px-2 py-1 text-[9px] font-semibold text-slate-400 uppercase">
                         Filter by Company
                       </div>
                       <button
@@ -377,7 +374,7 @@ export default function ToDoReadyPage() {
                           setFilters({ prospect: undefined })
                           setFilterDropdownOpen(false)
                         }}
-                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                        className={`w-full text-left px-2 py-1.5 text-[10px] ${
                           !filters.prospect ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'
                         }`}
                       >
@@ -391,7 +388,7 @@ export default function ToDoReadyPage() {
                             setFilters({ prospect: name })
                             setFilterDropdownOpen(false)
                           }}
-                          className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
+                          className={`w-full text-left px-2 py-1.5 text-[10px] ${
                             filters.prospect === name ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'
                           }`}
                         >
@@ -407,17 +404,17 @@ export default function ToDoReadyPage() {
               <button
                 type="button"
                 onClick={() => setPasteModalOpen(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-blue-700"
               >
-                <ClipboardList className="h-4 w-4" />
-                Paste Email
+                <ClipboardList className="h-3 w-3" />
+                Paste
               </button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Memory Signals Strip - Accountability Intelligence Layer */}
+      {/* Memory Signals Strip - Compact */}
       {memorySignals.length > 0 && (
         <div className="shrink-0 bg-white border-b border-slate-200">
           <MemorySignalsBar
@@ -427,9 +424,9 @@ export default function ToDoReadyPage() {
         </div>
       )}
 
-      {/* Gmail connection prompt */}
+      {/* Gmail connection prompt - Compact */}
       {!gmailConnected && (
-        <div className="shrink-0 bg-white border-b border-slate-200 px-6 lg:px-8 py-4">
+        <div className="shrink-0 bg-white border-b border-slate-200 px-3 lg:px-4 py-1.5">
           <GmailConnectPrompt
             status={gmailStatus ?? null}
             loading={gmailStatusLoading}
@@ -440,10 +437,10 @@ export default function ToDoReadyPage() {
         </div>
       )}
 
-      {/* Tab Navigation - Separated with proper spacing */}
+      {/* Tab Navigation - Compact */}
       <div className="shrink-0 bg-white border-b border-slate-200">
-        <div className="px-6 lg:px-8">
-          <nav className="flex gap-1" aria-label="Task status tabs">
+        <div className="px-3 lg:px-4">
+          <nav className="flex gap-0" aria-label="Task status tabs">
             {TABS.map((tab) => {
               const Icon = tab.icon
               const count = tabCounts[tab.id]
@@ -453,16 +450,16 @@ export default function ToDoReadyPage() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`group relative inline-flex items-center gap-2 px-4 py-3.5 text-sm font-medium transition-colors focus:outline-none ${
+                  className={`group relative inline-flex items-center gap-1 px-2 py-2 text-[10px] font-medium transition-colors focus:outline-none ${
                     isActive
                       ? 'text-blue-600'
                       : 'text-slate-500 hover:text-slate-700'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 ${isActive ? 'text-blue-600' : 'text-slate-400 group-hover:text-slate-500'}`} />
+                  <Icon className={`h-3 w-3 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
                   {tab.label}
                   {count > 0 && (
-                    <span className={`inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-medium rounded-full ${
+                    <span className={`inline-flex items-center justify-center min-w-[14px] h-[14px] px-0.5 text-[9px] font-medium rounded-full ${
                       isActive
                         ? 'bg-blue-100 text-blue-700'
                         : 'bg-slate-100 text-slate-600'
@@ -470,7 +467,6 @@ export default function ToDoReadyPage() {
                       {count}
                     </span>
                   )}
-                  {/* Active indicator */}
                   <span
                     className={`absolute bottom-0 left-0 right-0 h-0.5 transition-colors ${
                       isActive ? 'bg-blue-600' : 'bg-transparent'
@@ -485,29 +481,29 @@ export default function ToDoReadyPage() {
 
       {/* Main Workspace */}
       <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* Left Panel - Task Feed */}
+        {/* Left Panel - Task Feed (narrower) */}
         <div
-          className={`flex flex-col min-h-0 bg-white border-r border-slate-200 transition-all ${
+          className={`flex flex-col min-h-0 bg-white border-r border-slate-200 transition-all shrink-0 ${
             taskFeedCollapsed 
               ? 'w-0 overflow-hidden' 
-              : 'w-full md:w-[400px] lg:w-[420px]'
+              : 'w-full md:w-[320px] lg:w-[340px]'
           }`}
         >
           {/* Panel header */}
-          <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/50">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-700">Tasks</span>
-              <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-xs font-medium rounded-full bg-slate-200 text-slate-600">
+          <div className="shrink-0 flex items-center justify-between px-3 py-2 border-b border-slate-100 bg-slate-50/50">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-semibold text-slate-700">Tasks</span>
+              <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-medium rounded-full bg-slate-200 text-slate-600">
                 {displayTasks.length}
               </span>
             </div>
             <button
               type="button"
               onClick={() => setTaskFeedCollapsed(true)}
-              className="p-1.5 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500 hidden md:flex lg:hidden"
+              className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 focus:outline-none focus:ring-1 focus:ring-blue-500 hidden md:flex lg:hidden"
               aria-label="Collapse task list"
             >
-              <PanelLeftClose className="h-4 w-4" />
+              <PanelLeftClose className="h-3.5 w-3.5" />
             </button>
           </div>
           
@@ -542,14 +538,12 @@ export default function ToDoReadyPage() {
           </button>
         )}
         
-        {/* Right Panel - Reply Lab */}
-        <div className="flex-1 min-w-0 min-h-0 flex-col bg-slate-50 p-4 lg:p-6 hidden md:flex overflow-y-auto">
+        {/* Right Panel - Reply Lab (larger) */}
+        <div className="flex-1 min-w-0 min-h-0 flex-col bg-slate-100 p-3 lg:p-4 hidden md:flex">
           <ReplyLab
             key={selectedTask?.id ?? 'empty'}
             task={selectedTask}
-            threadMessages={[]}
             onApproveCopy={() => toast.success('Copied to clipboard')}
-            onCopyToCrm={() => toast('Copy to CRM requires CRM integration.')}
             onTaskSent={() => setSelectedTaskId(null)}
           />
         </div>
@@ -562,25 +556,24 @@ export default function ToDoReadyPage() {
           role="dialog"
           aria-label="Reply lab"
         >
-          <div className="shrink-0 flex items-center gap-3 px-4 py-4 border-b border-slate-200 bg-white">
+          <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white">
             <button
               type="button"
               onClick={() => setSelectedTaskId(null)}
-              className="p-2 -ml-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="p-2 -ml-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100"
               aria-label="Back to list"
             >
               <ChevronRight className="h-5 w-5 rotate-180" />
             </button>
             <span className="text-base font-semibold text-slate-900">Task Details</span>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto bg-slate-50 p-4">
+          <div className="flex-1 min-h-0 bg-slate-100 p-3">
             <ReplyLab
               key={selectedTask?.id ?? 'empty'}
               task={selectedTask}
-              threadMessages={[]}
               onApproveCopy={() => toast.success('Copied to clipboard')}
-              onCopyToCrm={() => toast('Copy to CRM requires CRM integration.')}
               onTaskSent={() => setSelectedTaskId(null)}
+              onBack={() => setSelectedTaskId(null)}
             />
           </div>
         </div>

@@ -15,27 +15,27 @@ interface SectionCopy {
 
 const SECTION_COPY: Record<AtlasSectionId, SectionCopy> = {
   calendar: {
-    title: 'Calendar',
+    title: 'Meeting Intelligence',
     why: 'Your meetings live here so Atlas can prep you and follow up.',
     result: 'See the week, join with one click, AI context ready for every call.',
   },
   calls: {
-    title: 'Call History',
+    title: 'Call Insights',
     why: 'Every conversation is analyzed so you never miss a commitment.',
     result: 'Summaries, playbook alignment, and feedback in one place.',
   },
   insights: {
-    title: 'Insights',
+    title: 'Performance',
     why: 'Track how you’re performing across calls and deals.',
     result: 'Trends and gaps so you can improve over time.',
   },
   todo: {
-    title: 'To Do Ready',
+    title: 'Action Ready',
     why: 'Next steps from your meetings, ready to execute.',
     result: 'Clear actions so nothing falls through the cracks.',
   },
   qna: {
-    title: 'Rolling Q&A',
+    title: 'Q&A Engine',
     why: 'Questions and answers that span your conversations.',
     result: 'See what’s open and what’s resolved in one place.',
   },

@@ -36,11 +36,11 @@ const settingsMenuItems = [
 ] as const
 
 const navItems: { to: string; icon: typeof CalendarDays; label: string; sectionId: AtlasSectionId }[] = [
-  { to: '/atlas/calendar', icon: CalendarDays, label: 'Calendar', sectionId: 'calendar' },
-  { to: '/atlas/calls', icon: PhoneCall, label: 'Call History', sectionId: 'calls' },
-  { to: '/atlas/insights', icon: BarChart3, label: 'Insights', sectionId: 'insights' },
-  { to: '/atlas/todo', icon: ClipboardCheck, label: 'To Do Ready', sectionId: 'todo' },
-  { to: '/atlas/qna', icon: HelpCircle, label: 'Rolling Q&A', sectionId: 'qna' },
+  { to: '/atlas/calendar', icon: CalendarDays, label: 'Meeting Intelligence', sectionId: 'calendar' },
+  { to: '/atlas/calls', icon: PhoneCall, label: 'Call Insights', sectionId: 'calls' },
+  { to: '/atlas/insights', icon: BarChart3, label: 'Performance', sectionId: 'insights' },
+  { to: '/atlas/todo', icon: ClipboardCheck, label: 'Action Ready', sectionId: 'todo' },
+  { to: '/atlas/qna', icon: HelpCircle, label: 'Q&A Engine', sectionId: 'qna' },
   { to: '/atlas/knowledge', icon: BookOpen, label: 'Knowledge', sectionId: 'knowledge' },
   { to: '/atlas/record', icon: RadioIcon, label: 'Record', sectionId: 'record' },
 ]
@@ -142,25 +142,25 @@ export default function AtlasLayout() {
       </aside>
 
       <div className="flex-1 bg-[#f5f5f7] overflow-hidden min-w-0 flex flex-col">
-        <header className="shrink-0 h-14 px-6 flex items-center justify-end border-b border-gray-200 bg-white/80">
+        <header className="shrink-0 h-10 px-4 flex items-center justify-end border-b border-gray-200 bg-white/80">
           <div className="relative" ref={dropdownRef}>
             <button
               type="button"
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center gap-2 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              className="flex items-center gap-1.5 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
             >
               {user?.avatar_url ? (
                 <img
                   src={user.avatar_url}
                   alt=""
-                  className="h-8 w-8 rounded-full object-cover"
+                  className="h-6 w-6 rounded-full object-cover"
                 />
               ) : (
-                <div className="h-8 w-8 rounded-full bg-[#0B1220] flex items-center justify-center text-white text-sm font-medium">
+                <div className="h-6 w-6 rounded-full bg-[#0B1220] flex items-center justify-center text-white text-xs font-medium">
                   {initial}
                 </div>
               )}
-              <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`h-3.5 w-3.5 text-gray-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
             </button>
 
             {dropdownOpen && (

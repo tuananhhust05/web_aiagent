@@ -1377,7 +1377,7 @@ export default function AtlasMain() {
       <>
         <div className="flex h-full bg-[#f5f5f7]">
           <div className="w-52 border-r border-gray-100 bg-white/80 backdrop-blur-sm p-4 space-y-3 overflow-y-auto shrink-0">
-            <h2 className="text-[13px] font-semibold text-gray-900 mb-3 tracking-tight">Call History</h2>
+            <h2 className="text-[13px] font-semibold text-gray-900 mb-3 tracking-tight">Call Insights</h2>
             {callsLoading ? (
               <p className="text-xs text-gray-500 py-2">Loading meetings…</p>
             ) : callsList.length === 0 ? (
@@ -2609,7 +2609,7 @@ export default function AtlasMain() {
       <div className="p-8 h-full overflow-y-auto relative bg-[#f5f5f7]">
         <div className="flex items-start justify-between gap-6 mb-6">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Insights across calls</h1>
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Performance across calls</h1>
             <p className="text-[13px] text-gray-600 mt-1.5 leading-relaxed max-w-xl">
               {insightsSubtitle[insightsActiveTab]}
             </p>
@@ -3424,9 +3424,9 @@ export default function AtlasMain() {
                   <div className="pr-4 text-gray-700 leading-relaxed min-w-0 line-clamp-2" title={row.answer}>
                     {row.answer}
                     {row.status && (
-                      <span className={`ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${row.status === 'verified' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                        {row.status === 'verified' ? <Check className="mr-1 h-3 w-3 inline" /> : <AlertTriangle className="mr-1 h-3 w-3 inline" />}
-                        {row.status === 'verified' ? 'Verified' : row.status}
+                      <span className={`ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${row.status === 'approved' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                        {row.status === 'approved' ? <Check className="mr-1 h-3 w-3 inline" /> : <AlertTriangle className="mr-1 h-3 w-3 inline" />}
+                        {row.status === 'approved' ? 'Approved' : row.status}
                       </span>
                     )}
                   </div>
@@ -3538,7 +3538,7 @@ export default function AtlasMain() {
                         await atlasAPI.updateQna(qnaEditingId, { question: q, answer: a })
                         toast.success('Q&A updated')
                       } else {
-                        await atlasAPI.createQna({ question: q, answer: a })
+                        await atlasAPI.createQna({ question: q, answer: a, classification: 'general' })
                         toast.success('Q&A added')
                       }
                       setQnaModalOpen(false); setQnaEditingId(null); setQnaFormQuestion(''); setQnaFormAnswer('')
