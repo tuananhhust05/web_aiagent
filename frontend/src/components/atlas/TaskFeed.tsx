@@ -1,11 +1,11 @@
 import { Loader2, Inbox } from 'lucide-react'
 import type { TodoItem } from '../../lib/api'
-import type { TodoActiveTab } from '../../stores/useToDoStore'
+import type { TodoViewTab } from '../../stores/useToDoStore'
 import TaskCard from './TaskCard'
 
 export interface TaskFeedProps {
   tasks: TodoItem[]
-  activeTab: TodoActiveTab
+  activeTab: TodoViewTab
   loading?: boolean
   onOpenTask: (task: TodoItem) => void
   onMarkDone: (task: TodoItem) => void
@@ -13,10 +13,10 @@ export interface TaskFeedProps {
   onSnooze?: (task: TodoItem) => void
 }
 
-const TAB_EMPTY_MESSAGES: Record<TodoActiveTab, { title: string; description: string }> = {
-  ready: {
-    title: 'No tasks ready to send',
-    description: 'New tasks from emails and meetings will appear here',
+const TAB_EMPTY_MESSAGES: Record<TodoViewTab, { title: string; description: string }> = {
+  inbox: {
+    title: 'Inbox is empty',
+    description: 'All items from emails and meetings appear here',
   },
   needs_input: {
     title: 'No tasks need input',
@@ -24,11 +24,11 @@ const TAB_EMPTY_MESSAGES: Record<TodoActiveTab, { title: string; description: st
   },
   overdue: {
     title: 'No overdue tasks',
-    description: 'Great job staying on top of your tasks!',
+    description: 'Overdue tasks will appear here',
   },
   completed: {
     title: 'No completed tasks',
-    description: 'Completed tasks will be shown here',
+    description: 'Completed tasks will appear here',
   },
 }
 
@@ -63,7 +63,7 @@ export default function TaskFeed({
       )}
       
       {!loading && tasks.length > 0 && (
-        <div className="p-2 space-y-1.5" role="list">
+        <div className="space-y-4" role="list">
           {tasks.map((task) => (
             <TaskCard
               key={task.id}

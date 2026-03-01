@@ -1,7 +1,5 @@
-import {
-  Edit3,
-} from 'lucide-react'
-import type { TodoItem, TodoSource, TodoTaskType } from '../../lib/api'
+import { Edit3, Phone, Check } from 'lucide-react'
+import type { TodoItem, TodoSource, IntentCategory } from '../../lib/api'
 import { cn } from '../../lib/utils'
 
 function formatDueDate(dueAt: string): string {
@@ -10,22 +8,13 @@ function formatDueDate(dueAt: string): string {
   const diffMs = due.getTime() - now.getTime()
   const diffHours = Math.round(diffMs / (1000 * 60 * 60))
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24))
-  
-  if (diffHours < -24) {
-    return `${Math.abs(diffDays)}d overdue`
-  } else if (diffHours < 0) {
-    return `${Math.abs(diffHours)}h overdue`
-  } else if (diffHours < 1) {
-    return 'Due soon'
-  } else if (diffHours < 24) {
-    return `${diffHours}h`
-  } else if (diffDays === 1) {
-    return 'Tomorrow'
-  } else if (diffDays <= 7) {
-    return `${diffDays}d`
-  } else {
-    return due.toLocaleDateString('en', { month: 'short', day: 'numeric' })
-  }
+  if (diffHours < -24) return `${Math.abs(diffDays)}d overdue`
+  if (diffHours < 0) return `${Math.abs(diffHours)}h overdue`
+  if (diffHours < 1) return 'Due soon'
+  if (diffHours < 24) return `Due in ${diffHours}h`
+  if (diffDays === 1) return 'Tomorrow'
+  if (diffDays <= 7) return `Due in ${diffDays}d`
+  return due.toLocaleDateString('en', { month: 'short', day: 'numeric' })
 }
 
 const SOURCE_LABELS: Record<TodoSource, string> = {
@@ -34,24 +23,24 @@ const SOURCE_LABELS: Record<TodoSource, string> = {
   manual: 'Manual',
 }
 
-const TASK_TYPE_LABELS: Record<TodoTaskType, string> = {
-  send_integration_doc: 'Integration',
-  respond_to_email: 'Email',
-  handle_pricing_objection: 'Pricing',
-  competitive_followup: 'Competitive',
-  schedule_demo: 'Demo',
-  send_case_study: 'Case Study',
-  general_followup: 'Follow-Up',
+const INTENT_LABELS: Record<IntentCategory, string> = {
+  interested: 'Interested',
+  not_interested: 'Not interested',
+  do_not_contact: 'Do not contact',
+  not_now: 'Not now',
+  forwarded: 'Forwarded',
+  meeting_intent: 'Meeting intent',
+  non_in_target: 'Non in target',
 }
 
-const TASK_TYPE_COLORS: Record<TodoTaskType, { bg: string; text: string }> = {
-  send_integration_doc: { bg: 'bg-slate-100', text: 'text-slate-600' },
-  respond_to_email: { bg: 'bg-blue-50', text: 'text-blue-600' },
-  handle_pricing_objection: { bg: 'bg-amber-50', text: 'text-amber-600' },
-  competitive_followup: { bg: 'bg-purple-50', text: 'text-purple-600' },
-  schedule_demo: { bg: 'bg-green-50', text: 'text-green-600' },
-  send_case_study: { bg: 'bg-cyan-50', text: 'text-cyan-600' },
-  general_followup: { bg: 'bg-slate-100', text: 'text-slate-600' },
+const INTENT_TAG_COLORS: Record<IntentCategory, string> = {
+  interested: 'bg-emerald-100 text-emerald-700',
+  not_interested: 'bg-slate-100 text-slate-600',
+  do_not_contact: 'bg-red-100 text-red-700',
+  not_now: 'bg-sky-100 text-sky-600',
+  forwarded: 'bg-violet-100 text-violet-700',
+  meeting_intent: 'bg-violet-200 text-violet-800',
+  non_in_target: 'bg-pink-100 text-pink-700',
 }
 
 export interface TaskCardProps {
@@ -68,95 +57,147 @@ export default function TaskCard({
   onRegenerate,
 }: TaskCardProps) {
   const isDone = task.status === 'done'
-  const taskTypeColor = TASK_TYPE_COLORS[task.task_type] ?? TASK_TYPE_COLORS.general_followup
+  const isEmail = task.source === 'email'
   const competitor = task.deal_intelligence?.competitor_mentioned
+  const dealStage = task.deal_intelligence?.deal_stage
+  const typeLabel = isEmail ? 'Email Response' : 'Call Follow-up'
 
   return (
     <article
       className={cn(
-        'group rounded-lg border-l-3 bg-white p-2.5 transition-all cursor-pointer shadow-sm hover:shadow',
-        isDone 
-          ? 'border-l-slate-300 opacity-60' 
-          : 'border-l-blue-500'
+        'group rounded-xl border bg-white p-4 transition-all cursor-pointer shadow-sm hover:shadow-md',
+        isDone && 'opacity-60'
       )}
       onClick={() => onOpen(task)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && onOpen(task)}
     >
-      {/* Task type + source */}
-      <div className="flex items-center gap-1 mb-1.5 flex-wrap">
-        <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', isDone ? 'bg-slate-400' : 'bg-blue-500')} />
-        <span className="text-[10px] font-medium text-blue-600">
-          {TASK_TYPE_LABELS[task.task_type]}
-        </span>
-        <span className="text-[10px] text-slate-400">•</span>
-        <span className="text-[10px] text-slate-400">{SOURCE_LABELS[task.source]}</span>
-        {task.due_at && (
-          <>
-            <span className="text-[10px] text-slate-400">•</span>
-            <span className={cn(
-              'text-[10px]',
-              task.status === 'overdue' || new Date(task.due_at) < new Date() 
-                ? 'text-red-500 font-medium' 
-                : 'text-slate-400'
-            )}>
-              {formatDueDate(task.due_at)}
-            </span>
-          </>
+      {/* Decision vs Execution: recommended next step (PRD action-type differentiation) */}
+      {task.task_strategy?.recommended_next_step_type && (
+        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] text-slate-500">
+          <span className="font-medium text-slate-600">Decision:</span>
+          <span>
+            {task.task_strategy.recommended_next_step_label ??
+              (task.task_strategy.recommended_next_step_type === 'send_email'
+                ? 'Send email'
+                : task.task_strategy.recommended_next_step_type === 'make_call'
+                  ? 'Make call'
+                  : task.task_strategy.recommended_next_step_type.replace(/_/g, ' '))}
+          </span>
+        </div>
+      )}
+
+      {/* Type header: Email Response (blue) / Call Follow-up (red) + Reviewed badge */}
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        {isEmail ? (
+          <span className="flex items-center gap-1.5 text-[11px] font-medium text-blue-600">
+            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            {typeLabel}
+          </span>
+        ) : (
+          <span className="flex items-center gap-1.5 text-[11px] font-medium text-red-600">
+            <Phone className="h-3.5 w-3.5" />
+            {typeLabel}
+          </span>
+        )}
+        {task.reviewed_at && (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+            <Check className="h-3 w-3" />
+            Reviewed
+          </span>
         )}
       </div>
 
-      {/* Title - wrap text */}
+      {/* Objective (PRD action objective framing) */}
+      {task.task_strategy?.objective && (
+        <p className="text-[10px] text-slate-600 mb-2 px-2 py-1 rounded bg-amber-50 border border-amber-100">
+          <span className="font-medium text-slate-700">Objective:</span> {task.task_strategy.objective}
+        </p>
+      )}
+
+      {/* Title - bold */}
       <h3 className={cn(
-        'text-[11px] font-medium text-slate-800 mb-1.5 leading-snug break-words',
+        'text-sm font-semibold text-slate-900 mb-2 leading-snug break-words',
         isDone && 'line-through text-slate-500'
       )}>
         {task.title}
       </h3>
 
-      {/* Tags */}
-      <div className="flex flex-wrap items-center gap-1 mb-1.5">
-        <span className={cn(
-          'inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium',
-          taskTypeColor.bg,
-          taskTypeColor.text
-        )}>
-          {TASK_TYPE_LABELS[task.task_type]}
-        </span>
+      {/* Intent / tags: Pricing Objection, Competitor: X, etc. */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-2">
+        {task.task_type === 'handle_pricing_objection' && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800">
+            Pricing Objection
+          </span>
+        )}
+        {task.task_type === 'schedule_demo' && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-700">
+            Demo Requested
+          </span>
+        )}
+        {task.intent_category && (
+          <span className={cn(
+            'inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium',
+            INTENT_TAG_COLORS[task.intent_category]
+          )}>
+            {INTENT_LABELS[task.intent_category]}
+          </span>
+        )}
         {competitor && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-50 text-purple-600 break-words">
-            {competitor}
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-red-100 text-red-700 break-words">
+            Competitor: {competitor}
           </span>
         )}
       </div>
 
-      {/* Draft preview - wrap text */}
+      {/* Metadata: Triggered from • Due • Deal stage • Sentiment */}
+      <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-slate-500 mb-2">
+        <span>Triggered from: {SOURCE_LABELS[task.source]}</span>
+        {task.due_at && (
+          <>
+            <span>•</span>
+            <span className={task.status === 'overdue' || new Date(task.due_at) < new Date() ? 'text-red-600 font-medium' : ''}>
+              {formatDueDate(task.due_at)}
+            </span>
+          </>
+        )}
+        {dealStage && (
+          <>
+            <span>•</span>
+            <span>Deal Stage: {dealStage}</span>
+          </>
+        )}
+        <span>•</span>
+        <span>Sentiment: Neutral</span>
+      </div>
+
+      {/* Preview snippet */}
       {task.prepared_action?.draft_text && !isDone && (
-        <div className="bg-slate-50 rounded p-2 mb-2 border-l-2 border-slate-200">
-          <p className="text-[10px] text-slate-500 leading-relaxed break-words whitespace-pre-wrap line-clamp-2">
+        <div className="bg-slate-50 rounded-lg p-2.5 mb-3 border border-slate-100">
+          <p className="text-[11px] text-slate-600 leading-relaxed break-words whitespace-pre-wrap line-clamp-2">
             {task.prepared_action.draft_text}
           </p>
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+      {/* Action buttons: Review & Send / Edit Draft */}
+      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"
           onClick={() => onOpen(task)}
-          className="inline-flex items-center px-2.5 py-1.5 rounded text-[10px] font-semibold text-white bg-blue-500 hover:bg-blue-600 transition-colors"
+          className="inline-flex items-center px-3 py-2 rounded-lg text-[11px] font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors"
         >
-          Review
+          {isEmail ? 'Review & Send' : 'Send Follow-up'}
         </button>
         {onRegenerate && !isDone && (
           <button
             type="button"
             onClick={() => onRegenerate(task)}
-            className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-[10px] font-medium text-slate-500 bg-slate-100 hover:bg-slate-200 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-medium text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors"
           >
-            <Edit3 className="h-2.5 w-2.5" />
-            Edit
+            <Edit3 className="h-3 w-3" />
+            {isEmail ? 'Edit Draft' : 'Schedule Demo'}
           </button>
         )}
       </div>

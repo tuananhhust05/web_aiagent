@@ -15,16 +15,38 @@ import {
   ChevronUp,
   Sparkles,
   MessageSquare,
+  Tag,
 } from 'lucide-react'
-import type { TodoItem, EmailSourceContent, MeetingSourceContent } from '../../lib/api'
+import type { TodoItem, EmailSourceContent, MeetingSourceContent, IntentCategory } from '../../lib/api'
 import { todoReadyAPI } from '../../lib/api'
 import { cn } from '../../lib/utils'
 import { toast } from 'react-hot-toast'
+
+const INTENT_CATEGORY_LABELS: Record<IntentCategory, string> = {
+  interested: 'Interested',
+  not_interested: 'Not interested',
+  do_not_contact: 'Do not contact',
+  not_now: 'Not now',
+  forwarded: 'Forwarded',
+  meeting_intent: 'Meeting intent',
+  non_in_target: 'Non in target',
+}
+
+const INTENT_CATEGORY_STYLES: Record<IntentCategory, string> = {
+  interested: 'text-emerald-600',
+  not_interested: 'text-slate-600',
+  do_not_contact: 'text-amber-600',
+  not_now: 'text-sky-600',
+  forwarded: 'text-rose-600',
+  meeting_intent: 'text-violet-600',
+  non_in_target: 'text-pink-600',
+}
 
 export interface ReplyLabProps {
   task: TodoItem | null
   onApproveCopy?: (task: TodoItem, draft: string) => void
   onTaskSent?: (task: TodoItem) => void
+  onTaskUpdated?: (task: TodoItem) => void
   onBack?: () => void
 }
 
@@ -32,6 +54,7 @@ export default function ReplyLab({
   task,
   onApproveCopy,
   onTaskSent,
+  onTaskUpdated,
   onBack,
 }: ReplyLabProps) {
   const queryClient = useQueryClient()
@@ -46,6 +69,21 @@ export default function ReplyLab({
       setIsEditing(false)
     }
   }, [task?.id, task?.prepared_action?.draft_text])
+
+  const analyzeIntentMutation = useMutation({
+    mutationFn: (taskId: string) => todoReadyAPI.analyzeIntent(taskId).then((r) => r.data),
+    onSuccess: (updated) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-ready', 'item', updated.id] })
+      queryClient.invalidateQueries({ queryKey: ['todo-ready', 'items'] })
+      onTaskUpdated?.(updated)
+    },
+  })
+
+  useEffect(() => {
+    if (task?.id && !task.intent_category && task.source !== 'manual') {
+      analyzeIntentMutation.mutate(task.id)
+    }
+  }, [task?.id, task?.source, task?.intent_category])
 
   const { data: sourceData, isLoading: sourceLoading } = useQuery({
     queryKey: ['todo-ready', 'source-content', task?.id],
@@ -120,45 +158,75 @@ export default function ReplyLab({
   }
 
   return (
-    <div className="h-full flex flex-col bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-      {/* Header */}
-      <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-slate-200 bg-slate-50">
+    <div className="flex flex-col bg-white">
+      {/* Header — subtle metadata row */}
+      <div className="shrink-0 flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white">
         {onBack && (
           <button
             type="button"
             onClick={onBack}
-            className="p-1.5 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-200"
+            className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-3.5 w-3.5" />
           </button>
         )}
         <div className="flex-1 min-w-0">
-          <h1 className="text-xs font-semibold text-slate-900 truncate">
+          <h1 className="text-[11px] font-medium text-slate-800 truncate leading-tight">
             {task.title}
           </h1>
-          <div className="flex items-center gap-2 mt-0.5">
-            <span className="inline-flex items-center gap-1 text-[10px] text-slate-500">
-              <Building2 className="h-3 w-3" />
-              {intel?.company_name || 'Unknown'}
+          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 mt-1 text-[9px] text-slate-400">
+            <span className="inline-flex items-center gap-0.5">
+              <Building2 className="h-2.5 w-2.5 text-slate-400" />
+              <span className="text-slate-500">{intel?.company_name || 'Unknown'}</span>
             </span>
             {task.source === 'email' && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600">
-                <Mail className="h-3 w-3" />
-                Email
-              </span>
+              <>
+                <span className="text-slate-300" aria-hidden>·</span>
+                <span className="inline-flex items-center gap-0.5 text-blue-500/90">
+                  <Mail className="h-2.5 w-2.5" />
+                  Email
+                </span>
+              </>
             )}
             {task.source === 'meeting' && (
-              <span className="inline-flex items-center gap-0.5 text-[10px] text-purple-600">
-                <Video className="h-3 w-3" />
-                Meeting
-              </span>
+              <>
+                <span className="text-slate-300" aria-hidden>·</span>
+                <span className="inline-flex items-center gap-0.5 text-violet-500/90">
+                  <Video className="h-2.5 w-2.5" />
+                  Meeting
+                </span>
+              </>
+            )}
+            {task.intent_category ? (
+              <>
+                <span className="text-slate-300" aria-hidden>·</span>
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-0.5 font-medium',
+                    INTENT_CATEGORY_STYLES[task.intent_category]
+                  )}
+                >
+                  <Tag className="h-2.5 w-2.5 opacity-70" />
+                  {INTENT_CATEGORY_LABELS[task.intent_category]}
+                </span>
+              </>
+            ) : (
+              analyzeIntentMutation.isPending && (
+                <>
+                  <span className="text-slate-300" aria-hidden>·</span>
+                  <span className="inline-flex items-center gap-0.5 text-slate-400">
+                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                    Intent…
+                  </span>
+                </>
+              )
             )}
           </div>
         </div>
       </div>
 
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto scrollbar-blue-thin">
+      {/* Nội dung — không scroll nội bộ, để wrapper bên ngoài scroll cả block */}
+      <div className="shrink-0">
         {sourceLoading ? (
           <div className="flex items-center justify-center py-10 text-slate-500">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -181,12 +249,26 @@ export default function ReplyLab({
         )}
       </div>
 
+      {task?.intent_category === 'do_not_contact' && (
+        <div className="shrink-0 mx-3 mb-2 p-3 rounded-lg bg-red-50 border border-red-200">
+          <p className="text-[11px] font-semibold text-red-800">Do not contact</p>
+          <p className="text-[10px] text-red-700 mt-0.5">
+            Execution is disabled. Block future suggestions and automation.
+          </p>
+        </div>
+      )}
+
       {/* Action buttons */}
       <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-t border-slate-200">
         <button
           type="button"
           onClick={() => task?.id && sendEmailMutation.mutate(task.id)}
-          disabled={!effectiveDraft || sendEmailMutation.isPending || task?.status === 'done'}
+          disabled={
+            !effectiveDraft ||
+            sendEmailMutation.isPending ||
+            task?.status === 'done' ||
+            task?.intent_category === 'do_not_contact'
+          }
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {sendEmailMutation.isPending ? (
@@ -194,7 +276,7 @@ export default function ReplyLab({
           ) : (
             <Send className="h-3 w-3" />
           )}
-          {task?.status === 'done' ? 'Sent' : 'Send'}
+          {task?.status === 'done' ? 'Sent' : task?.intent_category === 'do_not_contact' ? 'Send disabled' : 'Send'}
         </button>
         
         <button

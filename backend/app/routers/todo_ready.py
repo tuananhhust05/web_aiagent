@@ -11,6 +11,7 @@ from typing import Optional, List, Literal
 from datetime import datetime, timedelta
 from bson import ObjectId
 import logging
+import httpx
 
 from app.models.user import UserResponse
 from app.core.auth import get_current_active_user
@@ -18,8 +19,8 @@ from app.core.database import get_database
 from app.core.config import settings
 from app.models.todo_item import (
     TodoItemCreate, TodoItemUpdate, TodoItemResponse, TodoListResponse,
-    TodoSource, TodoStatus, TodoPriority, TodoTaskType,
-    DealIntelligence, PreparedAction,
+    TodoSource, TodoStatus, TodoPriority, TodoTaskType, IntentCategory,
+    DealIntelligence, PreparedAction, TaskStrategy, AlternativeAction, NextStepType,
     MemorySignal, MemorySignalType, MemorySignalsResponse,
     EmailAnalysisState, MeetingAnalysisState,
 )
@@ -61,6 +62,10 @@ def _doc_to_response(doc: dict) -> TodoItemResponse:
     """Convert DB document to TodoItemResponse."""
     deal_intel = doc.get("deal_intelligence")
     prepared = doc.get("prepared_action")
+    intent_raw = doc.get("intent_category")
+    intent_category = None
+    if intent_raw and intent_raw in [c.value for c in IntentCategory]:
+        intent_category = IntentCategory(intent_raw)
     return TodoItemResponse(
         id=str(doc["_id"]),
         user_id=doc["user_id"],
@@ -76,9 +81,235 @@ def _doc_to_response(doc: dict) -> TodoItemResponse:
         deal_intelligence=DealIntelligence(**deal_intel) if deal_intel else None,
         thread_id=doc.get("thread_id"),
         prepared_action=PreparedAction(**prepared) if prepared else None,
+        task_strategy=_doc_to_task_strategy(doc.get("task_strategy")),
+        intent_category=intent_category,
+        reviewed_at=doc.get("reviewed_at"),
         created_at=doc.get("created_at", datetime.utcnow()),
         updated_at=doc.get("updated_at", datetime.utcnow()),
     )
+
+
+def _doc_to_task_strategy(data: Optional[dict]) -> Optional[TaskStrategy]:
+    """Convert DB task_strategy dict to TaskStrategy model."""
+    if not data or not isinstance(data, dict):
+        return None
+    alts = data.get("alternative_actions")
+    if alts and isinstance(alts, list):
+        alts = [AlternativeAction(**a) if isinstance(a, dict) else a for a in alts]
+    else:
+        alts = None
+    return TaskStrategy(
+        recommended_next_step_type=data.get("recommended_next_step_type", "send_email"),
+        recommended_next_step_label=data.get("recommended_next_step_label"),
+        objective=data.get("objective"),
+        key_topics=data.get("key_topics") or None,
+        strategic_reasoning=data.get("strategic_reasoning"),
+        decision_factors=data.get("decision_factors") or None,
+        alternative_actions=alts,
+    )
+
+
+INTENT_CATEGORIES = [
+    "interested", "not_interested", "do_not_contact", "not_now",
+    "forwarded", "meeting_intent", "non_in_target",
+]
+
+
+async def _classify_intent_for_text(text: str) -> Optional[str]:
+    """Use Groq to classify intent category from task/email/meeting text. Returns one of INTENT_CATEGORIES or None."""
+    if not text or not text.strip():
+        return None
+    if not getattr(settings, "GROQ_API_KEY", None) or not settings.GROQ_API_KEY:
+        logger.debug("GROQ_API_KEY not set, skipping intent classification")
+        return None
+    prompt = f"""You are a B2B sales intent classifier. Classify the prospect/customer message into exactly ONE category.
+
+RULES:
+- Use only the exact category key (one word or snake_case).
+- Base your answer on commercial intent and next-step implications, not tone alone.
+
+CATEGORIES (use exact key):
+- interested: High intent. Positive buying signal: "interesting", "send more info", "let's explore", asked for demo/pricing/details.
+- not_interested: Low intent. Clear rejection: "not looking", "no budget", "we're not evaluating", declined.
+- do_not_contact: Hard opt-out. "Stop contacting me", "remove me", "unsubscribe", legal/compliance block.
+- not_now: Interest but wrong timing. "Reach out next quarter", "ping me in 2 months", "not in budget this year".
+- forwarded: Message was forwarded to another person. "Looping in X", "I've forwarded this to...".
+- meeting_intent: Explicit meeting/demo request. "Let's schedule", "are you free next week", "can you demo".
+- non_in_target: Out of ideal customer profile: wrong industry, size, or geography; not a fit.
+
+CONTENT TO CLASSIFY:
+---
+{text[:3000]}
+---
+
+Reply with ONLY the category key. No punctuation, no explanation."""
+    try:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 20,
+        }
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            r = await client.post(url, headers=headers, json=payload)
+            r.raise_for_status()
+            data = r.json()
+        content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        raw = content.strip().lower().replace(".", "").strip()
+        # Map back to snake_case key
+        for cat in INTENT_CATEGORIES:
+            if cat.replace("_", " ") == raw or cat == raw:
+                return cat
+        mapping = {
+            "interested": "interested",
+            "not interested": "not_interested",
+            "do not contact": "do_not_contact",
+            "not now": "not_now",
+            "forwarded": "forwarded",
+            "meeting intent": "meeting_intent",
+            "non in target": "non_in_target",
+            "non-in-target": "non_in_target",
+        }
+        return mapping.get(raw)
+    except Exception as e:
+        logger.warning(f"Intent classification failed: {e}")
+        return None
+
+
+async def _get_full_context_for_task(db, user_id: str, task: dict) -> Optional[str]:
+    """Fetch full email body or meeting summary+transcript for richer AI analysis."""
+    source = task.get("source")
+    source_id = task.get("source_id")
+    if not source_id:
+        return (task.get("title") or "") + " " + (task.get("description") or "")
+    if source == TodoSource.EMAIL.value:
+        try:
+            email_data = await gmail_service.get_email_by_id(user_id, source_id)
+            if email_data:
+                parts = [
+                    email_data.get("subject") or "",
+                    email_data.get("snippet") or "",
+                    (email_data.get("body") or "")[:4000],
+                ]
+                return "\n".join(p for p in parts if p)
+        except Exception as e:
+            logger.warning(f"Failed to fetch email for context: {e}")
+        return (task.get("title") or "") + " " + (task.get("description") or "")
+    if source == TodoSource.MEETING.value:
+        try:
+            meeting = await db.meetings.find_one({"_id": ObjectId(source_id), "user_id": user_id})
+            if meeting:
+                parts = [meeting.get("title") or ""]
+                summary = meeting.get("atlas_summary")
+                if summary:
+                    parts.append(summary if isinstance(summary, str) else str(summary)[:2000])
+                for line in meeting.get("transcript_lines", [])[:50]:
+                    parts.append(line.get("text", ""))
+                return "\n".join(p for p in parts if p)
+        except Exception as e:
+            logger.warning(f"Failed to fetch meeting for context: {e}")
+        return (task.get("title") or "") + " " + (task.get("description") or "")
+    return (task.get("title") or "") + " " + (task.get("description") or "")
+
+
+def _default_task_strategy(doc: dict) -> dict:
+    """Build default strategy from task source/type/intent (no AI)."""
+    source = doc.get("source", "email")
+    task_type = doc.get("task_type", "general_followup")
+    intent = doc.get("intent_category")
+    title = (doc.get("title") or "")[:200]
+    desc = (doc.get("description") or "")[:300]
+    if source == TodoSource.EMAIL.value:
+        next_type = NextStepType.SEND_EMAIL.value
+        label = "Send email addressing key points from their message"
+        objective = "Maintain engagement and move conversation forward"
+        reasoning = "Prospect reached out via email; recommended next step is to reply with clarity on value and next steps."
+        topics = ["Acknowledge their message", "Address main question or concern", "Propose clear next step"]
+        alts = [
+            {"action_type": NextStepType.MAKE_CALL.value, "label": "Schedule follow-up call", "confidence": 65},
+            {"action_type": NextStepType.SHARE_CASE_STUDY.value, "label": "Share case study", "confidence": 45},
+        ]
+    else:
+        next_type = NextStepType.SCHEDULE_FOLLOWUP_CALL.value
+        label = "Follow up on meeting with agreed next steps"
+        objective = "Confirm commitments and schedule next touchpoint"
+        reasoning = "Meeting follow-up; recommended to schedule a call to reinforce outcomes."
+        topics = ["Recap agreed actions", "Confirm timeline", "Offer calendar link"]
+        alts = [
+            {"action_type": NextStepType.SEND_EMAIL.value, "label": "Send recap email", "confidence": 75},
+            {"action_type": NextStepType.SHARE_CASE_STUDY.value, "label": "Share case study", "confidence": 40},
+        ]
+    factors = [f"Source: {source}", f"Task type: {task_type}"]
+    if intent:
+        factors.append(f"Intent: {intent}")
+    return {
+        "recommended_next_step_type": next_type,
+        "recommended_next_step_label": label,
+        "objective": objective,
+        "key_topics": topics,
+        "strategic_reasoning": reasoning,
+        "decision_factors": factors,
+        "alternative_actions": alts,
+    }
+
+
+async def _generate_task_strategy_with_ai(doc: dict, full_context: Optional[str] = None) -> Optional[dict]:
+    """Use Groq to generate strategy (objective, key_topics, reasoning, alternatives with confidence)."""
+    if not getattr(settings, "GROQ_API_KEY", None) or not settings.GROQ_API_KEY:
+        return None
+    title = (doc.get("title") or "")[:200]
+    desc = (doc.get("description") or "")[:500]
+    source = doc.get("source", "email")
+    intent = doc.get("intent_category") or ""
+    context_block = f"\nFull context (email/meeting):\n{full_context[:2500]}" if full_context else ""
+    prompt = f"""You are a B2B sales strategy advisor. For this task, output a JSON object (no markdown, no code block) with:
+
+- recommended_next_step_type: one of send_email, make_call, share_case_study, escalate_technical_validation, schedule_followup_call
+- recommended_next_step_label: short phrase e.g. "Send email addressing pricing and timeline"
+- objective: one clear commercial objective, e.g. "Re-anchor value", "Reduce pricing resistance", "Confirm timeline", "Move to demo"
+- key_topics: array of 2-4 short strings (specific topics to cover in email or call; be concrete)
+- strategic_reasoning: 1-2 sentences explaining why this step and why now
+- decision_factors: array of 2-4 short strings (e.g. "Intent: interested", "Source: email", "Deal stage: negotiation")
+- alternative_actions: array of 2-3 objects, each with action_type (same enum), label (string), confidence (0-100). Give lower confidence to less ideal options.
+
+Consider intent when choosing: do_not_contact → no execution; not_now → schedule follow-up; meeting_intent → prioritize calendar/demo; interested → move deal forward.
+
+Task:
+Title: {title}
+Description: {desc}
+Source: {source}
+Intent: {intent}{context_block}
+
+Output only valid JSON, no other text."""
+    try:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+            "max_tokens": 600,
+        }
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.post(url, headers=headers, json=payload)
+            r.raise_for_status()
+            data = r.json()
+        content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        content = content.strip()
+        if content.startswith("```"):
+            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        import json
+        out = json.loads(content)
+        if not isinstance(out.get("alternative_actions"), list):
+            out["alternative_actions"] = _default_task_strategy(doc).get("alternative_actions", [])
+        return out
+    except Exception as e:
+        logger.warning(f"AI strategy generation failed: {e}")
+        return None
 
 
 @router.get("/items", response_model=TodoListResponse)
@@ -86,6 +317,7 @@ async def list_todo_items(
     status: Optional[TodoStatus] = None,
     source: Optional[TodoSource] = None,
     priority: Optional[TodoPriority] = None,
+    unreviewed_only: bool = Query(False, description="If true, only items with reviewed_at null"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     current_user: UserResponse = Depends(get_current_active_user),
@@ -114,6 +346,8 @@ async def list_todo_items(
         query["source"] = source.value
     if priority:
         query["priority"] = priority.value
+    if unreviewed_only:
+        query["reviewed_at"] = None
     
     total = await db.todo_items.count_documents(query)
     skip = (page - 1) * limit
@@ -170,6 +404,8 @@ async def create_todo_item(
         "source_id": item.source_id,
         "deal_intelligence": item.deal_intelligence.model_dump() if item.deal_intelligence else None,
         "prepared_action": item.prepared_action.model_dump() if item.prepared_action else None,
+        "intent_category": item.intent_category.value if item.intent_category else None,
+        "task_strategy": item.task_strategy.model_dump() if item.task_strategy else None,
         "created_at": now,
         "updated_at": now,
     }
@@ -213,7 +449,13 @@ async def update_todo_item(
         update_data["due_at"] = update.due_at
     if update.prepared_action is not None:
         update_data["prepared_action"] = update.prepared_action.model_dump()
-    
+    if update.intent_category is not None:
+        update_data["intent_category"] = update.intent_category.value
+    if update.reviewed_at is not None:
+        update_data["reviewed_at"] = update.reviewed_at
+    if update.task_strategy is not None:
+        update_data["task_strategy"] = update.task_strategy.model_dump()
+
     await db.todo_items.update_one(query, {"$set": update_data})
     
     updated_doc = await db.todo_items.find_one(query)
@@ -270,6 +512,155 @@ async def complete_todo_item(
     return _doc_to_response(updated_doc)
 
 
+@router.post("/items/{item_id}/generate-strategy", response_model=TodoItemResponse)
+async def generate_strategy_for_item(
+    item_id: str,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """Generate or refresh task strategy (objective, key topics, reasoning, alternative actions)."""
+    db = get_database()
+    user_id = str(current_user.id)
+    try:
+        oid = ObjectId(item_id)
+        query = {"_id": oid, "user_id": user_id}
+    except Exception:
+        query = {"_id": item_id, "user_id": user_id}
+    doc = await db.todo_items.find_one(query)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Todo item not found")
+    full_context = await _get_full_context_for_task(db, user_id, doc)
+    strategy_dict = await _generate_task_strategy_with_ai(doc, full_context)
+    if not strategy_dict:
+        strategy_dict = _default_task_strategy(doc)
+    now = datetime.utcnow()
+    await db.todo_items.update_one(
+        query,
+        {"$set": {"task_strategy": strategy_dict, "updated_at": now}},
+    )
+    updated_doc = await db.todo_items.find_one(query)
+    return _doc_to_response(updated_doc)
+
+
+@router.post("/items/{item_id}/suggest-script", response_model=TodoItemResponse)
+async def suggest_script_for_item(
+    item_id: str,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """Generate draft script from strategy key_topics (or keep existing draft). Updates prepared_action."""
+    db = get_database()
+    user_id = str(current_user.id)
+    try:
+        oid = ObjectId(item_id)
+        query = {"_id": oid, "user_id": user_id}
+    except Exception:
+        query = {"_id": item_id, "user_id": user_id}
+    doc = await db.todo_items.find_one(query)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Todo item not found")
+    strategy = doc.get("task_strategy") or {}
+    key_topics = strategy.get("key_topics") or []
+    objective = strategy.get("objective") or "Follow up"
+    prepared = doc.get("prepared_action") or {}
+    draft = prepared.get("draft_text") or ""
+    if key_topics and getattr(settings, "GROQ_API_KEY", None):
+        prompt = f"""Write a professional B2B reply email (2-5 sentences) that:
+- Achieves this commercial objective: {objective}
+- Addresses these key topics in order: {', '.join(key_topics)}
+- Tone: professional, clear, action-oriented. No fluff.
+- Do not include subject line or greeting if the thread already has one; output only the body paragraphs.
+
+Task: {doc.get('title', '')}
+Context: {doc.get('description', '')[:300]}
+
+Output only the email body text, no subject line."""
+        try:
+            import httpx as _httpx
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
+            payload = {
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": 400,
+            }
+            async with _httpx.AsyncClient(timeout=15.0) as client:
+                r = await client.post(url, headers=headers, json=payload)
+                r.raise_for_status()
+                data = r.json()
+            content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+            draft = content.strip()
+        except Exception as e:
+            logger.warning(f"Suggest script AI failed: {e}")
+    if not draft:
+        draft = f"Thank you for your message. Regarding: {', '.join(key_topics[:3]) if key_topics else 'your inquiry'}. I'll follow up shortly."
+    new_prepared = {
+        **prepared,
+        "strategy_label": strategy.get("recommended_next_step_label") or prepared.get("strategy_label", "Prepared Response"),
+        "explanation": strategy.get("strategic_reasoning") or prepared.get("explanation", "AI-suggested draft from strategy."),
+        "draft_text": draft,
+    }
+    now = datetime.utcnow()
+    await db.todo_items.update_one(
+        query,
+        {"$set": {"prepared_action": new_prepared, "updated_at": now}},
+    )
+    updated_doc = await db.todo_items.find_one(query)
+    return _doc_to_response(updated_doc)
+
+
+@router.post("/items/{item_id}/ensure-analyzed", response_model=TodoItemResponse)
+async def ensure_item_analyzed(
+    item_id: str,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """
+    When user opens an item: run intent classification and/or strategy generation if data is incomplete.
+    Runs intent first (with full email/meeting context), then strategy so strategy can use intent.
+    Returns the updated todo item.
+    """
+    db = get_database()
+    user_id = str(current_user.id)
+    try:
+        oid = ObjectId(item_id)
+        query = {"_id": oid, "user_id": user_id}
+    except Exception:
+        query = {"_id": item_id, "user_id": user_id}
+    doc = await db.todo_items.find_one(query)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Todo item not found")
+    now = datetime.utcnow()
+    full_context = await _get_full_context_for_task(db, user_id, doc)
+    text_for_intent = full_context or (doc.get("title") or "") + " " + (doc.get("description") or "")
+
+    # 1) Missing intent: classify with full context (email body / meeting transcript)
+    if not doc.get("intent_category") and doc.get("source") in (TodoSource.EMAIL.value, TodoSource.MEETING.value):
+        intent = await _classify_intent_for_text(text_for_intent.strip() or doc.get("title") or "")
+        if intent:
+            await db.todo_items.update_one(query, {"$set": {"intent_category": intent, "updated_at": now}})
+            doc["intent_category"] = intent
+            doc["updated_at"] = now
+            logger.info(f"ensure-analyzed: set intent_category={intent} for item {item_id}")
+
+    # 2) Reload so strategy sees latest intent
+    doc = await db.todo_items.find_one(query)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Todo item not found")
+
+    # 3) Missing strategy: generate with full context
+    if not doc.get("task_strategy") or not isinstance(doc.get("task_strategy"), dict):
+        strategy_dict = await _generate_task_strategy_with_ai(doc, full_context)
+        if not strategy_dict:
+            strategy_dict = _default_task_strategy(doc)
+        await db.todo_items.update_one(
+            query,
+            {"$set": {"task_strategy": strategy_dict, "updated_at": datetime.utcnow()}},
+        )
+        doc = await db.todo_items.find_one(query)
+        logger.info(f"ensure-analyzed: set task_strategy for item {item_id}")
+
+    return _doc_to_response(doc)
+
+
 @router.post("/items/{item_id}/send-email")
 async def send_email_for_task(
     item_id: str,
@@ -298,7 +689,11 @@ async def send_email_for_task(
     task = await db.todo_items.find_one(query)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    
+    if task.get("intent_category") == IntentCategory.DO_NOT_CONTACT.value:
+        raise HTTPException(
+            status_code=400,
+            detail="Do not contact: execution is disabled for this contact. Block future suggestions and automation.",
+        )
     # Check if task is an email task
     if task.get("source") != TodoSource.EMAIL.value:
         raise HTTPException(status_code=400, detail="This task is not from an email")
@@ -534,10 +929,9 @@ async def analyze_new_items(
 ):
     """
     Analyze new emails and meetings to extract todo items.
-    - Loads 10 latest emails not yet analyzed
-    - Loads 10 latest meetings not yet analyzed
-    - Extracts action items and creates todos
-    - Tracks analyzed IDs to avoid re-analysis
+    - Only fetches 10 latest emails and 10 latest meetings (no more).
+    - Skips any email/meeting already in analyzed_email_ids / analyzed_meeting_ids (no re-analysis).
+    - Creates todo items only for new items; marks processed IDs so next run skips them.
     """
     db = get_database()
     user_id = str(current_user.id)
@@ -629,6 +1023,11 @@ async def analyze_new_items(
                     "created_at": now,
                     "updated_at": now,
                 }
+                intent = await _classify_intent_for_text(
+                    (todo_doc["title"] or "") + " " + (todo_doc.get("description") or "")
+                )
+                if intent:
+                    todo_doc["intent_category"] = intent
                 new_todos.append(todo_doc)
                 
     except Exception as e:
@@ -696,6 +1095,11 @@ async def analyze_new_items(
                         "created_at": now,
                         "updated_at": now,
                     }
+                    intent = await _classify_intent_for_text(
+                        (todo_doc["title"] or "") + " " + (todo_doc.get("description") or "")
+                    )
+                    if intent:
+                        todo_doc["intent_category"] = intent
                     new_todos.append(todo_doc)
                     
     except Exception as e:
@@ -912,3 +1316,59 @@ async def get_task_source_content(
         "content": None,
         "message": "Unknown source type.",
     }
+
+
+@router.post("/items/{item_id}/analyze-intent", response_model=TodoItemResponse)
+async def analyze_intent_for_item(
+    item_id: str,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """
+    If the item has no intent_category, run AI to classify and save it.
+    Returns the updated todo item.
+    """
+    db = get_database()
+    user_id = str(current_user.id)
+    try:
+        oid = ObjectId(item_id)
+        query = {"_id": oid, "user_id": user_id}
+    except Exception:
+        query = {"_id": item_id, "user_id": user_id}
+    task = await db.todo_items.find_one(query)
+    if not task:
+        raise HTTPException(status_code=404, detail="Todo item not found")
+    if task.get("intent_category"):
+        return _doc_to_response(task)
+    text_parts = [task.get("title") or "", task.get("description") or ""]
+    source = task.get("source")
+    source_id = task.get("source_id")
+    if source == TodoSource.EMAIL.value and source_id:
+        try:
+            email_data = await gmail_service.get_email_by_id(user_id, source_id)
+            if email_data:
+                text_parts.append(email_data.get("subject") or "")
+                text_parts.append(email_data.get("snippet") or "")
+                text_parts.append((email_data.get("body") or "")[:1500])
+        except Exception as e:
+            logger.warning(f"Failed to fetch email for intent: {e}")
+    elif source == TodoSource.MEETING.value and source_id:
+        try:
+            meeting = await db.meetings.find_one({"_id": ObjectId(source_id), "user_id": user_id})
+            if meeting:
+                text_parts.append(meeting.get("title") or "")
+                summary = meeting.get("atlas_summary")
+                if summary:
+                    text_parts.append(summary if isinstance(summary, str) else str(summary)[:1500])
+                for line in meeting.get("transcript_lines", [])[:30]:
+                    text_parts.append(line.get("text", ""))
+        except Exception as e:
+            logger.warning(f"Failed to fetch meeting for intent: {e}")
+    text = " ".join(p for p in text_parts if p).strip()
+    intent = await _classify_intent_for_text(text)
+    now = datetime.utcnow()
+    if intent:
+        await db.todo_items.update_one(query, {"$set": {"intent_category": intent, "updated_at": now}})
+        task["intent_category"] = intent
+        task["updated_at"] = now
+    updated = await db.todo_items.find_one(query)
+    return _doc_to_response(updated)

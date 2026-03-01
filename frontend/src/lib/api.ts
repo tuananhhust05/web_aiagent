@@ -1717,6 +1717,40 @@ export interface PreparedAction {
   variants?: string[] | null
 }
 
+/** Recommended next step type (PRD multi-path). */
+export type NextStepType =
+  | 'send_email'
+  | 'make_call'
+  | 'share_case_study'
+  | 'escalate_technical_validation'
+  | 'schedule_followup_call'
+
+export interface AlternativeAction {
+  action_type: string
+  label: string
+  confidence: number
+}
+
+export interface TaskStrategy {
+  recommended_next_step_type: string
+  recommended_next_step_label?: string | null
+  objective?: string | null
+  key_topics?: string[] | null
+  strategic_reasoning?: string | null
+  decision_factors?: string[] | null
+  alternative_actions?: AlternativeAction[] | null
+}
+
+/** Intent category for a todo (from email/meeting analysis). */
+export type IntentCategory =
+  | 'interested'
+  | 'not_interested'
+  | 'do_not_contact'
+  | 'not_now'
+  | 'forwarded'
+  | 'meeting_intent'
+  | 'non_in_target'
+
 export interface TodoItem {
   id: string
   user_id: string
@@ -1732,6 +1766,9 @@ export interface TodoItem {
   deal_intelligence?: DealIntelligence | null
   thread_id?: string | null
   prepared_action?: PreparedAction | null
+  task_strategy?: TaskStrategy | null
+  intent_category?: IntentCategory | null
+  reviewed_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -1780,7 +1817,7 @@ export interface AnalysisState {
 
 export const todoReadyAPI = {
   /** List todo items with optional filters */
-  listItems: (params?: { status?: TodoStatus; source?: TodoSource; priority?: TodoPriority; page?: number; limit?: number }) =>
+  listItems: (params?: { status?: TodoStatus; source?: TodoSource; priority?: TodoPriority; unreviewed_only?: boolean; page?: number; limit?: number }) =>
     api.get<TodoListResponse>('/api/todo-ready/items', { params }),
 
   /** Get a single todo item by ID */
@@ -1810,7 +1847,26 @@ export const todoReadyAPI = {
     priority?: TodoPriority
     due_at?: string
     prepared_action?: PreparedAction
+    intent_category?: IntentCategory
+    reviewed_at?: string | null
+    task_strategy?: TaskStrategy | null
   }) => api.patch<TodoItem>(`/api/todo-ready/items/${id}`, data),
+
+  /** Run AI to set intent_category if missing; returns updated item */
+  analyzeIntent: (itemId: string) =>
+    api.post<TodoItem>(`/api/todo-ready/items/${itemId}/analyze-intent`),
+
+  /** Generate strategy (objective, key topics, reasoning, alternatives); returns updated item */
+  generateStrategy: (itemId: string) =>
+    api.post<TodoItem>(`/api/todo-ready/items/${itemId}/generate-strategy`),
+
+  /** Ensure item has intent + strategy; runs analysis if incomplete. Call when user opens item. */
+  ensureAnalyzed: (itemId: string) =>
+    api.post<TodoItem>(`/api/todo-ready/items/${itemId}/ensure-analyzed`),
+
+  /** Generate draft script from strategy key_topics; returns updated item */
+  suggestScript: (itemId: string) =>
+    api.post<TodoItem>(`/api/todo-ready/items/${itemId}/suggest-script`),
 
   /** Delete a todo item */
   deleteItem: (id: string) =>

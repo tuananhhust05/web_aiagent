@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { AlertTriangle, Bell, ChevronRight, X } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import type { MemorySignal } from '../../lib/api'
 
 export interface MemorySignalsBarProps {
@@ -7,154 +8,135 @@ export interface MemorySignalsBarProps {
   onSelectTask: (taskId: string) => void
 }
 
+/** Chỉ 1 dòng: số item tối đa hiển thị (phần còn lại vào "Show more"). */
+const MAX_VISIBLE_ITEMS = 4
+/** Giới hạn ký tự mỗi item trên strip. */
+const MAX_LABEL_CHARS = 22
+
+function truncateLabel(label: string, max: number): string {
+  if (label.length <= max) return label
+  return label.slice(0, max).trim() + '…'
+}
+
 export default function MemorySignalsBar({ signals, onSelectTask }: MemorySignalsBarProps) {
   const [showAllPopup, setShowAllPopup] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [visibleCount, setVisibleCount] = useState(signals.length)
+  const anchorRef = useRef<HTMLDivElement>(null)
+  const [popupStyle, setPopupStyle] = useState({ top: 0, left: 0, minWidth: 0 })
 
   useEffect(() => {
-    const checkOverflow = () => {
-      if (containerRef.current) {
-        const containerWidth = containerRef.current.offsetWidth
-        if (containerWidth < 400) {
-          setVisibleCount(2)
-        } else if (containerWidth < 600) {
-          setVisibleCount(3)
-        } else {
-          setVisibleCount(5)
-        }
-      }
-    }
-    checkOverflow()
-    window.addEventListener('resize', checkOverflow)
-    return () => window.removeEventListener('resize', checkOverflow)
-  }, [signals.length])
+    if (!showAllPopup || !anchorRef.current) return
+    const rect = anchorRef.current.getBoundingClientRect()
+    setPopupStyle({
+      top: rect.bottom + 8,
+      left: rect.left,
+      minWidth: Math.max(rect.width, 280),
+    })
+  }, [showAllPopup])
 
   if (signals.length === 0) return null
 
-  const displayedSignals = signals.slice(0, visibleCount)
-  const hiddenCount = signals.length - visibleCount
+  const displayedSignals = signals.slice(0, MAX_VISIBLE_ITEMS)
+  const hiddenCount = signals.length - displayedSignals.length
+  const showMoreButton = hiddenCount > 0
   
   const handleSignalClick = (taskId: string) => {
     onSelectTask(taskId)
     setShowAllPopup(false)
   }
+
+  const popupContent = showAllPopup && (
+    <>
+      <div
+        className="fixed inset-0 z-[9998]"
+        onClick={() => setShowAllPopup(false)}
+        aria-hidden
+      />
+      <div
+        className="fixed z-[9999] bg-white rounded-xl border border-rose-200 shadow-xl max-h-[320px] overflow-hidden"
+        style={{ top: popupStyle.top, left: popupStyle.left, minWidth: popupStyle.minWidth, maxWidth: 'min(400px, calc(100vw - 24px))' }}
+        role="dialog"
+        aria-label="Attention Required - all items"
+      >
+        <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-red-50 to-rose-50 border-b border-rose-200">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-red-600" />
+            <span className="text-sm font-semibold text-red-900">Attention Required</span>
+            <span className="text-xs font-medium bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+              {signals.length}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAllPopup(false)}
+            className="p-1.5 rounded-lg hover:bg-red-100 text-slate-500 hover:text-slate-700"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="overflow-y-auto max-h-[260px] scrollbar-blue-thin">
+          <div className="p-2 space-y-1.5">
+            {signals.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => handleSignalClick(s.task_id)}
+                className="w-full flex items-center gap-3 rounded-xl p-3 text-left bg-red-50/80 hover:bg-red-100/80 border border-rose-200 transition-all"
+              >
+                <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
+                <p className="flex-1 min-w-0 text-[11px] font-medium text-red-900">
+                  {s.label}
+                </p>
+                <ChevronRight className="h-3.5 w-3.5 text-red-400 shrink-0" />
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </>
+  )
   
   return (
     <div
-      ref={containerRef}
-      className="px-3 lg:px-4 py-1.5 relative"
+      ref={anchorRef}
+      className="px-4 lg:px-5 py-3 bg-gradient-to-r from-red-50 to-rose-50 border-b border-rose-200/60 relative overflow-hidden"
       role="region"
-      aria-label="Memory signals and reminders"
+      aria-label="Attention Required"
     >
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 text-amber-600 shrink-0">
-          <Bell className="h-3 w-3" />
-          <span className="text-[9px] font-semibold uppercase tracking-wider">Reminders</span>
-          <span className="text-[9px] font-medium bg-amber-100 text-amber-700 px-1 py-0.5 rounded-full">
-            {signals.length}
-          </span>
+      {/* Row 1: Title ▲ Attention Required */}
+      <div className="flex items-center gap-2 mb-2">
+        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-red-100 shrink-0">
+          <AlertTriangle className="h-3.5 w-3.5 text-red-600" aria-hidden />
         </div>
-        <div className="h-3 w-px bg-slate-200" />
-        <div className="flex items-center gap-1 overflow-hidden">
-          {displayedSignals.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => handleSignalClick(s.task_id)}
-              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-medium transition-all whitespace-nowrap shrink-0 ${
-                s.severity === 'critical'
-                  ? 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                  : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-              }`}
-            >
-              <AlertTriangle className="h-2.5 w-2.5 shrink-0" aria-hidden />
-              <span className="max-w-[120px] truncate">{s.label}</span>
-            </button>
-          ))}
-          
-          {hiddenCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowAllPopup(true)}
-              className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 whitespace-nowrap shrink-0"
-            >
-              +{hiddenCount} more
-              <ChevronRight className="h-2.5 w-2.5" />
-            </button>
-          )}
-        </div>
-        
-        {signals.length > visibleCount && (
+        <span className="text-xs font-semibold text-red-800">Attention Required</span>
+      </div>
+
+      {/* Row 2: Chỉ 1 dòng, không xuống dòng; mỗi item giới hạn ký tự */}
+      <div className="flex flex-nowrap gap-2 items-center overflow-hidden">
+        {displayedSignals.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => handleSignalClick(s.task_id)}
+            title={s.label}
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200/80 hover:border-slate-300 transition-all shrink-0 min-w-0 max-w-[180px]"
+          >
+            <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" aria-hidden />
+            <span className="truncate">{truncateLabel(s.label, MAX_LABEL_CHARS)}</span>
+          </button>
+        ))}
+        {showMoreButton && (
           <button
             type="button"
             onClick={() => setShowAllPopup(true)}
-            className="ml-auto text-[9px] font-medium text-blue-600 hover:text-blue-700 hover:underline shrink-0"
+            className="inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200/80 shrink-0"
           >
-            Show all
+            Show more
+            <ChevronRight className="h-3 w-3" />
           </button>
         )}
       </div>
 
-      {/* All Reminders Popup */}
-      {showAllPopup && (
-        <>
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setShowAllPopup(false)} 
-          />
-          <div className="absolute top-full left-0 right-0 mt-1 mx-3 lg:mx-4 z-50 bg-white rounded-lg border border-slate-200 shadow-xl max-h-[300px] overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <Bell className="h-3.5 w-3.5 text-amber-600" />
-                <span className="text-[10px] font-semibold text-slate-900">All Reminders</span>
-                <span className="text-[9px] font-medium bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">
-                  {signals.length}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAllPopup(false)}
-                className="p-1 rounded hover:bg-slate-200 text-slate-400 hover:text-slate-600"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-            <div className="overflow-y-auto max-h-[240px] scrollbar-blue-thin">
-              <div className="p-2 space-y-1">
-                {signals.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => handleSignalClick(s.task_id)}
-                    className={`w-full flex items-start gap-2 rounded-lg p-2 text-left transition-all ${
-                      s.severity === 'critical'
-                        ? 'bg-red-50 hover:bg-red-100 border border-red-200'
-                        : 'bg-amber-50 hover:bg-amber-100 border border-amber-200'
-                    }`}
-                  >
-                    <AlertTriangle 
-                      className={`h-3.5 w-3.5 shrink-0 mt-0.5 ${
-                        s.severity === 'critical' ? 'text-red-600' : 'text-amber-600'
-                      }`} 
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-[10px] font-medium ${
-                        s.severity === 'critical' ? 'text-red-800' : 'text-amber-800'
-                      }`}>
-                        {s.label}
-                      </p>
-                    </div>
-                    <ChevronRight className={`h-3 w-3 shrink-0 ${
-                      s.severity === 'critical' ? 'text-red-400' : 'text-amber-400'
-                    }`} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      {typeof document !== 'undefined' && createPortal(popupContent, document.body)}
     </div>
   )
 }
