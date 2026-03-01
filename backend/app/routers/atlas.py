@@ -596,15 +596,45 @@ async def get_meeting_history_by_email(
 
 # --- Rolling Q&A Repository (Atlas Q&A CRUD) ---
 
+QNA_ORIGIN_VALUES = ("manual", "ai_call_extracted", "ai_knowledge_derived")
+QNA_CLASSIFICATION_VALUES = ("product", "service", "general")
+QNA_STATUS_VALUES = ("draft", "approved", "archived")
+
+
 class AtlasQnARecord(BaseModel):
     """Single Q&A record for Rolling Q&A Repository."""
     id: str
     question: str
     answer: str
+    classification: Optional[str] = "general"
     topic: Optional[str] = None
+    product_tag: Optional[str] = None
+    service_tag: Optional[str] = None
     usage_count: int = 0
     last_used_at: Optional[datetime] = None
-    status: Optional[str] = None  # e.g. "verified", "needs_review"
+    status: Optional[str] = "draft"
+    # Origin / grounding
+    origin: Optional[str] = "manual"
+    is_grounded: Optional[bool] = False
+    grounding_confidence: Optional[float] = None
+    ai_confidence: Optional[float] = None
+    # Source linking
+    source_call_id: Optional[str] = None
+    source_meeting_id: Optional[str] = None
+    source_meeting_title: Optional[str] = None
+    source_doc_id: Optional[str] = None
+    source_doc_name: Optional[str] = None
+    # Performance
+    growth_percent: Optional[float] = None
+    friction_score: Optional[float] = None
+    recurring_intensity: Optional[float] = None
+    # Organization
+    organization_id: Optional[str] = None
+    created_by_user_id: Optional[str] = None
+    created_by_user_name: Optional[str] = None
+    approved_by_user_id: Optional[str] = None
+    approved_by_user_name: Optional[str] = None
+    approved_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
@@ -612,15 +642,29 @@ class AtlasQnARecord(BaseModel):
 class AtlasQnACreate(BaseModel):
     question: str
     answer: str
+    classification: Optional[str] = "general"
     topic: Optional[str] = None
-    status: Optional[str] = None
+    product_tag: Optional[str] = None
+    service_tag: Optional[str] = None
+    status: Optional[str] = "draft"
+    origin: Optional[str] = "manual"
+    is_grounded: Optional[bool] = False
+    source_call_id: Optional[str] = None
+    source_meeting_id: Optional[str] = None
+    source_doc_id: Optional[str] = None
+    source_doc_name: Optional[str] = None
 
 
 class AtlasQnAUpdate(BaseModel):
     question: Optional[str] = None
     answer: Optional[str] = None
+    classification: Optional[str] = None
     topic: Optional[str] = None
+    product_tag: Optional[str] = None
+    service_tag: Optional[str] = None
     status: Optional[str] = None
+    is_grounded: Optional[bool] = None
+    grounding_confidence: Optional[float] = None
 
 
 class AtlasQnAListResponse(BaseModel):
@@ -633,23 +677,47 @@ class AtlasQnAListResponse(BaseModel):
 @router.get("/qna", response_model=AtlasQnAListResponse)
 async def list_atlas_qna(
     search: Optional[str] = Query(None, description="Search in question and answer text"),
+    classification: Optional[str] = Query(None, description="Filter by classification"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    sort_by: Optional[str] = Query("updated_at", description="Sort field"),
+    sort_order: Optional[str] = Query("desc", description="asc or desc"),
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=100),
     current_user: UserResponse = Depends(get_current_active_user),
 ):
-    """List Q&A records for the current user (Rolling Q&A Repository)."""
+    """List Q&A records for the current organization (Rolling Q&A Repository)."""
     db = get_database()
     coll = db.atlas_qna
+    # Use user_id as org_id to match Q&A created by this user
+    # (Q&A was created with user_id as org_id when company_id was not set)
     user_id = str(current_user.id)
-    filter_query: Any = {"user_id": user_id}
+    company_id = str(current_user.company_id) if current_user.company_id else None
+    
+    # Query for Q&A that belongs to this user OR their company
+    if company_id:
+        filter_query: Any = {"$or": [
+            {"organization_id": user_id},
+            {"organization_id": company_id}
+        ]}
+    else:
+        filter_query: Any = {"organization_id": user_id}
+    
+    logger.info(f"[Q&A List] User {user_id} -> company_id={company_id}, filter={filter_query}")
     if search and search.strip():
         filter_query["$or"] = [
             {"question": {"$regex": search.strip(), "$options": "i"}},
             {"answer": {"$regex": search.strip(), "$options": "i"}},
         ]
+    if classification and classification in QNA_CLASSIFICATION_VALUES:
+        filter_query["classification"] = classification
+    if status and status in QNA_STATUS_VALUES:
+        filter_query["status"] = status
     total = await coll.count_documents(filter_query)
+    logger.info(f"[Q&A List] Query: {filter_query}, Total found: {total}")
     skip = (page - 1) * limit
-    cursor = coll.find(filter_query).sort("updated_at", -1).skip(skip).limit(limit)
+    sort_dir = -1 if sort_order == "desc" else 1
+    sort_field = sort_by if sort_by in ("usage_count", "created_at", "last_used_at", "growth_percent") else "updated_at"
+    cursor = coll.find(filter_query).sort(sort_field, sort_dir).skip(skip).limit(limit)
     docs = await cursor.to_list(length=limit)
     items = []
     for d in docs:
@@ -657,10 +725,31 @@ async def list_atlas_qna(
             id=str(d["_id"]),
             question=d.get("question", ""),
             answer=d.get("answer", ""),
+            classification=d.get("classification", "general"),
             topic=d.get("topic"),
+            product_tag=d.get("product_tag"),
+            service_tag=d.get("service_tag"),
             usage_count=int(d.get("usage_count") or 0),
             last_used_at=d.get("last_used_at"),
-            status=d.get("status"),
+            status=d.get("status", "draft"),
+            origin=d.get("origin", "manual"),
+            is_grounded=d.get("is_grounded", False),
+            grounding_confidence=d.get("grounding_confidence"),
+            ai_confidence=d.get("ai_confidence"),
+            source_call_id=d.get("source_call_id"),
+            source_meeting_id=d.get("source_meeting_id"),
+            source_meeting_title=d.get("source_meeting_title"),
+            source_doc_id=d.get("source_doc_id"),
+            source_doc_name=d.get("source_doc_name"),
+            growth_percent=d.get("growth_percent"),
+            friction_score=d.get("friction_score"),
+            recurring_intensity=d.get("recurring_intensity"),
+            organization_id=d.get("organization_id"),
+            created_by_user_id=d.get("created_by_user_id"),
+            created_by_user_name=d.get("created_by_user_name"),
+            approved_by_user_id=d.get("approved_by_user_id"),
+            approved_by_user_name=d.get("approved_by_user_name"),
+            approved_at=d.get("approved_at"),
             created_at=d.get("created_at") or datetime.utcnow(),
             updated_at=d.get("updated_at") or datetime.utcnow(),
         ))
@@ -672,19 +761,37 @@ async def create_atlas_qna(
     payload: AtlasQnACreate,
     current_user: UserResponse = Depends(get_current_active_user),
 ):
-    """Create a new Q&A record."""
+    """Create a new Q&A record (organization-scoped)."""
     db = get_database()
     coll = db.atlas_qna
     user_id = str(current_user.id)
+    org_id = str(current_user.company_id) if current_user.company_id else user_id
     now = datetime.utcnow()
     doc = {
-        "user_id": user_id,
+        "organization_id": org_id,
+        "created_by_user_id": user_id,
+        "created_by_user_name": f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email,
         "question": (payload.question or "").strip(),
         "answer": (payload.answer or "").strip(),
+        "classification": payload.classification or "general",
         "topic": (payload.topic or "").strip() or None,
-        "status": (payload.status or "").strip() or None,
+        "product_tag": (payload.product_tag or "").strip() or None,
+        "service_tag": (payload.service_tag or "").strip() or None,
+        "status": payload.status or "draft",
+        "origin": payload.origin or "manual",
+        "is_grounded": payload.is_grounded or False,
+        "source_call_id": payload.source_call_id or None,
+        "source_meeting_id": payload.source_meeting_id or None,
+        "source_doc_id": payload.source_doc_id or None,
+        "source_doc_name": payload.source_doc_name or None,
         "usage_count": 0,
         "last_used_at": None,
+        "growth_percent": None,
+        "friction_score": None,
+        "recurring_intensity": None,
+        "approved_by_user_id": None,
+        "approved_by_user_name": None,
+        "approved_at": None,
         "created_at": now,
         "updated_at": now,
     }
@@ -696,13 +803,104 @@ async def create_atlas_qna(
         id=str(doc["_id"]),
         question=doc["question"],
         answer=doc["answer"],
+        classification=doc.get("classification", "general"),
         topic=doc.get("topic"),
+        product_tag=doc.get("product_tag"),
+        service_tag=doc.get("service_tag"),
         usage_count=doc.get("usage_count", 0),
         last_used_at=doc.get("last_used_at"),
-        status=doc.get("status"),
+        status=doc.get("status", "draft"),
+        origin=doc.get("origin", "manual"),
+        is_grounded=doc.get("is_grounded", False),
+        grounding_confidence=doc.get("grounding_confidence"),
+        ai_confidence=doc.get("ai_confidence"),
+        source_call_id=doc.get("source_call_id"),
+        source_meeting_id=doc.get("source_meeting_id"),
+        source_meeting_title=doc.get("source_meeting_title"),
+        source_doc_id=doc.get("source_doc_id"),
+        source_doc_name=doc.get("source_doc_name"),
+        growth_percent=doc.get("growth_percent"),
+        friction_score=doc.get("friction_score"),
+        recurring_intensity=doc.get("recurring_intensity"),
+        organization_id=doc.get("organization_id"),
+        created_by_user_id=doc.get("created_by_user_id"),
+        created_by_user_name=doc.get("created_by_user_name"),
+        approved_by_user_id=doc.get("approved_by_user_id"),
+        approved_by_user_name=doc.get("approved_by_user_name"),
+        approved_at=doc.get("approved_at"),
         created_at=doc["created_at"],
         updated_at=doc["updated_at"],
     )
+
+
+@router.get("/qna/stats", response_model=dict)
+async def get_atlas_qna_stats(
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """Get Q&A statistics for the organization."""
+    db = get_database()
+    coll = db.atlas_qna
+    user_id = str(current_user.id)
+    company_id = str(current_user.company_id) if current_user.company_id else None
+    
+    # Match Q&A for this user OR their company
+    if company_id:
+        match_filter = {"$or": [{"organization_id": user_id}, {"organization_id": company_id}]}
+    else:
+        match_filter = {"organization_id": user_id}
+    
+    pipeline = [
+        {"$match": match_filter},
+        {"$facet": {
+            "total": [{"$count": "count"}],
+            "approved": [{"$match": {"status": "approved"}}, {"$count": "count"}],
+            "draft": [{"$match": {"status": "draft"}}, {"$count": "count"}],
+            "usage_sum": [{"$group": {"_id": None, "total": {"$sum": "$usage_count"}}}],
+            "top_questions": [
+                {"$sort": {"usage_count": -1}},
+                {"$limit": 5},
+                {"$project": {"_id": 0, "id": {"$toString": "$_id"}, "question": 1, "usage_count": 1, "growth_percent": 1}}
+            ],
+            "trending": [
+                {"$match": {"growth_percent": {"$gt": 0}}},
+                {"$sort": {"growth_percent": -1}},
+                {"$limit": 5},
+                {"$project": {"_id": 0, "id": {"$toString": "$_id"}, "question": 1, "usage_count": 1, "growth_percent": 1}}
+            ],
+            "by_classification": [
+                {"$group": {"_id": "$classification", "count": {"$sum": 1}}}
+            ],
+            "friction_by_class": [
+                {"$match": {"friction_score": {"$exists": True, "$ne": None}}},
+                {"$group": {"_id": "$classification", "avg_friction": {"$avg": "$friction_score"}, "count": {"$sum": 1}}}
+            ]
+        }}
+    ]
+    
+    result = await coll.aggregate(pipeline).to_list(length=1)
+    data = result[0] if result else {}
+    
+    # Safe extraction with empty list handling
+    def safe_get_count(arr, key="count"):
+        return arr[0].get(key, 0) if arr else 0
+    
+    return {
+        "total_questions": safe_get_count(data.get("total", [])),
+        "approved_count": safe_get_count(data.get("approved", [])),
+        "draft_count": safe_get_count(data.get("draft", [])),
+        "total_usage": safe_get_count(data.get("usage_sum", []), "total"),
+        "top_questions": data.get("top_questions", []),
+        "trending_questions": data.get("trending", []),
+        "classification_breakdown": {
+            item.get("_id", "general"): item.get("count", 0)
+            for item in data.get("by_classification", [])
+        },
+        "friction_breakdown": [
+            {"classification": item.get("_id", "general"), "avg_friction": item.get("avg_friction", 0), "count": item.get("count", 0)}
+            for item in data.get("friction_by_class", [])
+        ],
+        "recent_trend": [],
+    }
 
 
 @router.get("/qna/{qna_id}", response_model=AtlasQnARecord)
@@ -714,21 +912,50 @@ async def get_atlas_qna(
     db = get_database()
     coll = db.atlas_qna
     user_id = str(current_user.id)
+    company_id = str(current_user.company_id) if current_user.company_id else None
     try:
         oid = ObjectId(qna_id)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid Q&A id")
-    doc = await coll.find_one({"_id": oid, "user_id": user_id})
+    
+    # Query with user_id OR company_id
+    if company_id:
+        filter_query = {"_id": oid, "$or": [{"organization_id": user_id}, {"organization_id": company_id}]}
+    else:
+        filter_query = {"_id": oid, "organization_id": user_id}
+    
+    doc = await coll.find_one(filter_query)
     if not doc:
         raise HTTPException(status_code=404, detail="Q&A not found")
     return AtlasQnARecord(
         id=str(doc["_id"]),
         question=doc.get("question", ""),
         answer=doc.get("answer", ""),
+        classification=doc.get("classification", "general"),
         topic=doc.get("topic"),
+        product_tag=doc.get("product_tag"),
+        service_tag=doc.get("service_tag"),
         usage_count=int(doc.get("usage_count") or 0),
         last_used_at=doc.get("last_used_at"),
-        status=doc.get("status"),
+        status=doc.get("status", "draft"),
+        origin=doc.get("origin", "manual"),
+        is_grounded=doc.get("is_grounded", False),
+        grounding_confidence=doc.get("grounding_confidence"),
+        ai_confidence=doc.get("ai_confidence"),
+        source_call_id=doc.get("source_call_id"),
+        source_meeting_id=doc.get("source_meeting_id"),
+        source_meeting_title=doc.get("source_meeting_title"),
+        source_doc_id=doc.get("source_doc_id"),
+        source_doc_name=doc.get("source_doc_name"),
+        growth_percent=doc.get("growth_percent"),
+        friction_score=doc.get("friction_score"),
+        recurring_intensity=doc.get("recurring_intensity"),
+        organization_id=doc.get("organization_id"),
+        created_by_user_id=doc.get("created_by_user_id"),
+        created_by_user_name=doc.get("created_by_user_name"),
+        approved_by_user_id=doc.get("approved_by_user_id"),
+        approved_by_user_name=doc.get("approved_by_user_name"),
+        approved_at=doc.get("approved_at"),
         created_at=doc.get("created_at") or datetime.utcnow(),
         updated_at=doc.get("updated_at") or datetime.utcnow(),
     )
@@ -740,15 +967,26 @@ async def update_atlas_qna(
     payload: AtlasQnAUpdate,
     current_user: UserResponse = Depends(get_current_active_user),
 ):
-    """Update a Q&A record."""
+    """Update a Q&A record (owner only)."""
     db = get_database()
     coll = db.atlas_qna
     user_id = str(current_user.id)
+    company_id = str(current_user.company_id) if current_user.company_id else None
+    is_owner = current_user.workspace_role == "owner" or current_user.role == "company_admin"
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Only owner can edit Q&A")
     try:
         oid = ObjectId(qna_id)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid Q&A id")
-    doc = await coll.find_one({"_id": oid, "user_id": user_id})
+    
+    # Query with user_id OR company_id
+    if company_id:
+        filter_query = {"_id": oid, "$or": [{"organization_id": user_id}, {"organization_id": company_id}]}
+    else:
+        filter_query = {"_id": oid, "organization_id": user_id}
+    
+    doc = await coll.find_one(filter_query)
     if not doc:
         raise HTTPException(status_code=404, detail="Q&A not found")
     update_data: Any = {"updated_at": datetime.utcnow()}
@@ -756,20 +994,121 @@ async def update_atlas_qna(
         update_data["question"] = (payload.question or "").strip()
     if payload.answer is not None:
         update_data["answer"] = (payload.answer or "").strip()
+    if payload.classification is not None:
+        update_data["classification"] = payload.classification
     if payload.topic is not None:
         update_data["topic"] = (payload.topic or "").strip() or None
+    if payload.product_tag is not None:
+        update_data["product_tag"] = (payload.product_tag or "").strip() or None
+    if payload.service_tag is not None:
+        update_data["service_tag"] = (payload.service_tag or "").strip() or None
     if payload.status is not None:
-        update_data["status"] = (payload.status or "").strip() or None
-    await coll.update_one({"_id": oid, "user_id": user_id}, {"$set": update_data})
-    updated = await coll.find_one({"_id": oid, "user_id": user_id})
+        update_data["status"] = payload.status
+    if payload.is_grounded is not None:
+        update_data["is_grounded"] = payload.is_grounded
+    if payload.grounding_confidence is not None:
+        update_data["grounding_confidence"] = payload.grounding_confidence
+    await coll.update_one({"_id": oid}, {"$set": update_data})
+    updated = await coll.find_one({"_id": oid})
     return AtlasQnARecord(
         id=str(updated["_id"]),
         question=updated.get("question", ""),
         answer=updated.get("answer", ""),
+        classification=updated.get("classification", "general"),
         topic=updated.get("topic"),
+        product_tag=updated.get("product_tag"),
+        service_tag=updated.get("service_tag"),
         usage_count=int(updated.get("usage_count") or 0),
         last_used_at=updated.get("last_used_at"),
-        status=updated.get("status"),
+        status=updated.get("status", "draft"),
+        origin=updated.get("origin", "manual"),
+        is_grounded=updated.get("is_grounded", False),
+        grounding_confidence=updated.get("grounding_confidence"),
+        ai_confidence=updated.get("ai_confidence"),
+        source_call_id=updated.get("source_call_id"),
+        source_meeting_id=updated.get("source_meeting_id"),
+        source_meeting_title=updated.get("source_meeting_title"),
+        source_doc_id=updated.get("source_doc_id"),
+        source_doc_name=updated.get("source_doc_name"),
+        growth_percent=updated.get("growth_percent"),
+        friction_score=updated.get("friction_score"),
+        recurring_intensity=updated.get("recurring_intensity"),
+        organization_id=updated.get("organization_id"),
+        created_by_user_id=updated.get("created_by_user_id"),
+        created_by_user_name=updated.get("created_by_user_name"),
+        approved_by_user_id=updated.get("approved_by_user_id"),
+        approved_by_user_name=updated.get("approved_by_user_name"),
+        approved_at=updated.get("approved_at"),
+        created_at=updated.get("created_at") or datetime.utcnow(),
+        updated_at=updated.get("updated_at") or datetime.utcnow(),
+    )
+
+
+@router.post("/qna/{qna_id}/approve", response_model=AtlasQnARecord)
+async def approve_atlas_qna(
+    qna_id: str,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """Approve a Q&A record (owner only)."""
+    db = get_database()
+    coll = db.atlas_qna
+    user_id = str(current_user.id)
+    company_id = str(current_user.company_id) if current_user.company_id else None
+    is_owner = current_user.workspace_role == "owner" or current_user.role == "company_admin"
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Only owner can approve Q&A")
+    try:
+        oid = ObjectId(qna_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid Q&A id")
+    
+    # Query with user_id OR company_id
+    if company_id:
+        filter_query = {"_id": oid, "$or": [{"organization_id": user_id}, {"organization_id": company_id}]}
+    else:
+        filter_query = {"_id": oid, "organization_id": user_id}
+    
+    doc = await coll.find_one(filter_query)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Q&A not found")
+    now = datetime.utcnow()
+    await coll.update_one({"_id": oid}, {"$set": {
+        "status": "approved",
+        "approved_by_user_id": str(current_user.id),
+        "approved_by_user_name": f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email,
+        "approved_at": now,
+        "updated_at": now,
+    }})
+    updated = await coll.find_one({"_id": oid})
+    return AtlasQnARecord(
+        id=str(updated["_id"]),
+        question=updated.get("question", ""),
+        answer=updated.get("answer", ""),
+        classification=updated.get("classification", "general"),
+        topic=updated.get("topic"),
+        product_tag=updated.get("product_tag"),
+        service_tag=updated.get("service_tag"),
+        usage_count=int(updated.get("usage_count") or 0),
+        last_used_at=updated.get("last_used_at"),
+        status=updated.get("status", "approved"),
+        origin=updated.get("origin", "manual"),
+        is_grounded=updated.get("is_grounded", False),
+        grounding_confidence=updated.get("grounding_confidence"),
+        ai_confidence=updated.get("ai_confidence"),
+        source_call_id=updated.get("source_call_id"),
+        source_meeting_id=updated.get("source_meeting_id"),
+        source_meeting_title=updated.get("source_meeting_title"),
+        source_doc_id=updated.get("source_doc_id"),
+        source_doc_name=updated.get("source_doc_name"),
+        growth_percent=updated.get("growth_percent"),
+        friction_score=updated.get("friction_score"),
+        recurring_intensity=updated.get("recurring_intensity"),
+        organization_id=updated.get("organization_id"),
+        created_by_user_id=updated.get("created_by_user_id"),
+        created_by_user_name=updated.get("created_by_user_name"),
+        approved_by_user_id=updated.get("approved_by_user_id"),
+        approved_by_user_name=updated.get("approved_by_user_name"),
+        approved_at=updated.get("approved_at"),
         created_at=updated.get("created_at") or datetime.utcnow(),
         updated_at=updated.get("updated_at") or datetime.utcnow(),
     )
@@ -780,18 +1119,212 @@ async def delete_atlas_qna(
     qna_id: str,
     current_user: UserResponse = Depends(get_current_active_user),
 ):
-    """Delete a Q&A record."""
+    """Delete a Q&A record (owner only)."""
     db = get_database()
     coll = db.atlas_qna
     user_id = str(current_user.id)
+    company_id = str(current_user.company_id) if current_user.company_id else None
+    is_owner = current_user.workspace_role == "owner" or current_user.role == "company_admin"
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Only owner can delete Q&A")
     try:
         oid = ObjectId(qna_id)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid Q&A id")
-    result = await coll.delete_one({"_id": oid, "user_id": user_id})
+    
+    # Query with user_id OR company_id
+    if company_id:
+        filter_query = {"_id": oid, "$or": [{"organization_id": user_id}, {"organization_id": company_id}]}
+    else:
+        filter_query = {"_id": oid, "organization_id": user_id}
+    
+    result = await coll.delete_one(filter_query)
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Q&A not found")
     return {"ok": True, "message": "Q&A deleted"}
+
+
+# ----- Q&A Engine: Extract Q&A from transcripts -----
+
+class QnAExtractRequest(BaseModel):
+    """Request to extract Q&A from a meeting/call transcript."""
+    meeting_id: Optional[str] = None
+    transcript: Optional[str] = None  # Direct transcript text
+
+
+class QnAExtractResponse(BaseModel):
+    """Response from Q&A extraction."""
+    success: bool
+    message: str
+    extracted_count: int
+    qna_ids: List[str] = Field(default_factory=list)
+
+
+@router.post("/qna/extract", response_model=QnAExtractResponse)
+async def extract_qna_from_source(
+    payload: QnAExtractRequest,
+    background_tasks: BackgroundTasks,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """
+    Extract Q&A from a meeting transcript or direct text.
+    
+    Flow:
+    1. Get transcript (from meeting_id or direct text)
+    2. AI extracts questions/objections
+    3. Knowledge module grounds answers
+    4. If no knowledge, AI generates fallback answer
+    5. Store as draft Q&A (pending review)
+    """
+    from app.services.qna_engine import process_transcript_to_qna, extract_qna_from_meeting
+    
+    user_id = str(current_user.id)
+    user_name = f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email
+    org_id = str(current_user.company_id) if current_user.company_id else user_id
+    
+    if payload.meeting_id:
+        # Extract from meeting
+        created_qnas = await extract_qna_from_meeting(
+            meeting_id=payload.meeting_id,
+            user_id=user_id,
+            user_name=user_name,
+        )
+    elif payload.transcript:
+        # Extract from direct text
+        created_qnas = await process_transcript_to_qna(
+            transcript=payload.transcript,
+            organization_id=org_id,
+            user_id=user_id,
+            user_name=user_name,
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Either meeting_id or transcript required")
+    
+    qna_ids = [str(q.get("_id") or q.get("id")) for q in created_qnas if q]
+    
+    return QnAExtractResponse(
+        success=True,
+        message=f"Extracted {len(created_qnas)} Q&A from transcript",
+        extracted_count=len(created_qnas),
+        qna_ids=qna_ids,
+    )
+
+
+@router.post("/qna/{qna_id}/increment-usage", response_model=AtlasQnARecord)
+async def increment_qna_usage(
+    qna_id: str,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """Increment usage count for a Q&A (called when answer is used in Action Ready)."""
+    db = get_database()
+    coll = db.atlas_qna
+    user_id = str(current_user.id)
+    company_id = str(current_user.company_id) if current_user.company_id else None
+    
+    try:
+        oid = ObjectId(qna_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid Q&A id")
+    
+    # Query with user_id OR company_id
+    if company_id:
+        filter_query = {"_id": oid, "$or": [{"organization_id": user_id}, {"organization_id": company_id}]}
+    else:
+        filter_query = {"_id": oid, "organization_id": user_id}
+    
+    now = datetime.utcnow()
+    result = await coll.update_one(
+        filter_query,
+        {"$inc": {"usage_count": 1}, "$set": {"last_used_at": now, "updated_at": now}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Q&A not found")
+    
+    doc = await coll.find_one({"_id": oid})
+    return AtlasQnARecord(
+        id=str(doc["_id"]),
+        question=doc.get("question", ""),
+        answer=doc.get("answer", ""),
+        classification=doc.get("classification", "general"),
+        topic=doc.get("topic"),
+        product_tag=doc.get("product_tag"),
+        service_tag=doc.get("service_tag"),
+        usage_count=int(doc.get("usage_count") or 0),
+        last_used_at=doc.get("last_used_at"),
+        status=doc.get("status", "draft"),
+        origin=doc.get("origin", "manual"),
+        is_grounded=doc.get("is_grounded", False),
+        grounding_confidence=doc.get("grounding_confidence"),
+        ai_confidence=doc.get("ai_confidence"),
+        source_call_id=doc.get("source_call_id"),
+        source_meeting_id=doc.get("source_meeting_id"),
+        source_meeting_title=doc.get("source_meeting_title"),
+        source_doc_id=doc.get("source_doc_id"),
+        source_doc_name=doc.get("source_doc_name"),
+        growth_percent=doc.get("growth_percent"),
+        friction_score=doc.get("friction_score"),
+        recurring_intensity=doc.get("recurring_intensity"),
+        organization_id=doc.get("organization_id"),
+        created_by_user_id=doc.get("created_by_user_id"),
+        created_by_user_name=doc.get("created_by_user_name"),
+        approved_by_user_id=doc.get("approved_by_user_id"),
+        approved_by_user_name=doc.get("approved_by_user_name"),
+        approved_at=doc.get("approved_at"),
+        created_at=doc.get("created_at") or datetime.utcnow(),
+        updated_at=doc.get("updated_at") or datetime.utcnow(),
+    )
+
+
+@router.post("/qna/search-similar")
+async def search_similar_qna(
+    payload: dict,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """
+    Search for similar approved Q&A to answer a new question (for Action Ready).
+    Returns top matches with similarity scores.
+    """
+    from app.services.qna_engine import search_knowledge_for_answer
+    
+    question = payload.get("question", "")
+    if not question:
+        raise HTTPException(status_code=400, detail="Question required")
+    
+    user_id = str(current_user.id)
+    company_id = str(current_user.company_id) if current_user.company_id else None
+    db = get_database()
+    coll = db.atlas_qna
+    
+    # Build organization filter
+    if company_id:
+        org_filter = {"$or": [{"organization_id": user_id}, {"organization_id": company_id}]}
+    else:
+        org_filter = {"organization_id": user_id}
+    
+    # Simple text search for now (can enhance with vector similarity later)
+    cursor = coll.find({
+        **org_filter,
+        "status": "approved",
+        "$or": [
+            {"question": {"$regex": question[:50], "$options": "i"}},
+            {"answer": {"$regex": question[:50], "$options": "i"}},
+        ]
+    }).limit(5)
+    
+    matches = []
+    async for doc in cursor:
+        matches.append({
+            "id": str(doc["_id"]),
+            "question": doc.get("question", ""),
+            "answer": doc.get("answer", ""),
+            "classification": doc.get("classification", "general"),
+            "is_grounded": doc.get("is_grounded", False),
+            "usage_count": doc.get("usage_count", 0),
+            "similarity": 0.8,  # Placeholder - can compute actual similarity
+        })
+    
+    return {"matches": matches}
 
 
 # ----- Atlas Knowledge: documents per category (MongoDB + Weaviate, same schema for all) -----

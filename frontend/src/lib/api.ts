@@ -1086,6 +1086,7 @@ export interface MeetingEnrichResponse {
 
 export type AtlasQnAClassification = 'product' | 'service' | 'general'
 export type AtlasQnAStatus = 'draft' | 'approved' | 'archived'
+export type AtlasQnAOrigin = 'manual' | 'ai_call_extracted' | 'ai_knowledge_derived'
 
 export type AtlasQnARecord = {
   id: string
@@ -1103,8 +1104,21 @@ export type AtlasQnARecord = {
   approved_by_user_id?: string | null
   approved_by_user_name?: string | null
   approved_at?: string | null
+  // Source linking (Call Insights / Knowledge)
   source_meeting_id?: string | null
   source_meeting_title?: string | null
+  source_call_id?: string | null
+  source_doc_id?: string | null
+  source_doc_name?: string | null
+  // AI / grounding indicators
+  origin: AtlasQnAOrigin
+  is_grounded?: boolean
+  grounding_confidence?: number | null
+  ai_confidence?: number | null
+  // Performance fields
+  growth_percent?: number | null
+  friction_score?: number | null
+  recurring_intensity?: number | null
   organization_id: string
   created_at: string
   updated_at: string
@@ -1115,12 +1129,14 @@ export interface AtlasQnAStats {
   approved_count: number
   draft_count: number
   total_usage: number
-  top_questions: Array<{ id: string; question: string; usage_count: number }>
+  top_questions: Array<{ id: string; question: string; usage_count: number; growth_percent?: number }>
+  trending_questions: Array<{ id: string; question: string; usage_count: number; growth_percent: number }>
   classification_breakdown: {
     product: number
     service: number
     general: number
   }
+  friction_breakdown: Array<{ classification: AtlasQnAClassification; avg_friction: number; count: number }>
   recent_trend: Array<{ date: string; count: number }>
 }
 
@@ -1202,7 +1218,7 @@ export const atlasAPI = {
     limit?: number
     classification?: AtlasQnAClassification
     status?: AtlasQnAStatus
-    sort_by?: 'usage_count' | 'created_at' | 'last_used_at'
+    sort_by?: 'usage_count' | 'created_at' | 'last_used_at' | 'growth_percent'
     sort_order?: 'asc' | 'desc'
   }) =>
     api.get<{ items: AtlasQnARecord[]; total: number; page: number; limit: number }>('/api/atlas/qna', { params }),
@@ -1234,6 +1250,9 @@ export const atlasAPI = {
   getQnaStats: () => api.get<AtlasQnAStats>('/api/atlas/qna/stats'),
   searchSimilarQna: (question: string) => 
     api.post<{ matches: Array<AtlasQnARecord & { similarity: number }> }>('/api/atlas/qna/search-similar', { question }),
+  // Extract Q&A from meeting or transcript
+  extractQna: (data: { meeting_id?: string; transcript?: string }) =>
+    api.post<{ success: boolean; message: string; extracted_count: number; qna_ids: string[] }>('/api/atlas/qna/extract', data),
   // Atlas Knowledge – documents by category (product-info | pricing-plan | objection-handling | competitive-intel | customer-faqs | company-policies)
   getKnowledgeDocuments: (category: string) =>
     api.get<AtlasKnowledgeDocument[]>(`/api/atlas/knowledge/${category}/documents`),
@@ -1453,6 +1472,18 @@ export const meetingsAPI = {
     api.delete(`/api/meetings/${id}/comments/${commentId}`),
   
   deleteMeeting: (id: string) => api.delete(`/api/meetings/${id}`),
+
+  /** Full re-analysis: regenerate insights, feedback, playbook + extract Q&A */
+  reanalyzeMeeting: (id: string) =>
+    api.post<{
+      meeting_id: string;
+      insights_regenerated: boolean;
+      feedback_regenerated: boolean;
+      playbook_regenerated: boolean;
+      qna_extracted_count: number;
+      qna_ids: string[];
+      message: string;
+    }>(`/api/meetings/${id}/reanalyze`),
 
   /** Playbook scores per day for Insights page (last N days). */
   getPlaybookScoresInsights: (params?: { days?: number }) =>

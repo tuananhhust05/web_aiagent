@@ -260,24 +260,27 @@ export default function ReplyLab({
 
       {/* Action buttons */}
       <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-t border-slate-200">
-        <button
-          type="button"
-          onClick={() => task?.id && sendEmailMutation.mutate(task.id)}
-          disabled={
-            !effectiveDraft ||
-            sendEmailMutation.isPending ||
-            task?.status === 'done' ||
-            task?.intent_category === 'do_not_contact'
-          }
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {sendEmailMutation.isPending ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <Send className="h-3 w-3" />
-          )}
-          {task?.status === 'done' ? 'Sent' : task?.intent_category === 'do_not_contact' ? 'Send disabled' : 'Send'}
-        </button>
+        {/* Nút Send chỉ hiển thị khi gợi ý là gửi email */}
+        {task?.task_strategy?.recommended_next_step_type === 'send_email' && (
+          <button
+            type="button"
+            onClick={() => task?.id && sendEmailMutation.mutate(task.id)}
+            disabled={
+              !effectiveDraft ||
+              sendEmailMutation.isPending ||
+              task?.status === 'done' ||
+              task?.intent_category === 'do_not_contact'
+            }
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {sendEmailMutation.isPending ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Send className="h-3 w-3" />
+            )}
+            {task?.status === 'done' ? 'Sent' : task?.intent_category === 'do_not_contact' ? 'Send disabled' : 'Send'}
+          </button>
+        )}
         
         <button
           type="button"

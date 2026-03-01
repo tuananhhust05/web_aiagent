@@ -1032,8 +1032,8 @@ async def analyze_call_against_playbook(
             print("⚠️ [Atlas] GROQ_API_KEY not configured (playbook analysis)")
             return None
 
-        # Protect against overly long transcripts
-        max_input_tokens = getattr(settings, "AI_COPILOT_MAX_INPUT_TOKENS", 8000)
+        # Protect against overly long transcripts - limit to ~3000 tokens to stay under rate limit
+        max_input_tokens = 3000
         safe_transcript = truncate_text_from_start(transcript, max_input_tokens)
 
         # Format rules for the prompt
@@ -1105,7 +1105,7 @@ IMPORTANT:
         }
 
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",  # Use smaller model to avoid rate limits
             "messages": [
                 {
                     "role": "system",
@@ -1114,7 +1114,7 @@ IMPORTANT:
                 {"role": "user", "content": prompt},
             ],
             "temperature": 0.3,
-            "max_tokens": getattr(settings, "AI_COPILOT_MAX_OUTPUT_TOKENS", 2048),
+            "max_tokens": 1500,
             "response_format": {"type": "json_object"},
         }
 

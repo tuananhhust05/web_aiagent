@@ -2209,3 +2209,130 @@ async def get_meeting_playbook_analysis(
         dimension_scores=dimension_scores if dimension_scores else None,
         message=None,
     )
+
+
+class ReanalyzeMeetingResponse(BaseModel):
+    """Response from full meeting reanalysis."""
+    meeting_id: str
+    insights_regenerated: bool = False
+    feedback_regenerated: bool = False
+    playbook_regenerated: bool = False
+    qna_extracted_count: int = 0
+    qna_ids: List[str] = Field(default_factory=list)
+    message: str
+
+
+@router.post("/{meeting_id}/reanalyze", response_model=ReanalyzeMeetingResponse)
+async def reanalyze_meeting(
+    meeting_id: str,
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """
+    Full re-analysis of a meeting:
+    1. Regenerate Atlas Insights (summary, next steps, Q&A) with force_refresh=True
+    2. Regenerate Feedback (metrics, coaching) with force_refresh=True
+    3. Regenerate Playbook analysis with force_refresh=True
+    4. Extract Q&A from transcript and store in Q&A Engine
+    
+    This is triggered by the "Analyze" button in the meeting detail UI.
+    """
+    from app.services.qna_engine import extract_qna_from_meeting
+    
+    collection = db.meetings
+    try:
+        oid = ObjectId(meeting_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid meeting id format")
+    
+    doc = await collection.find_one({"_id": oid, "user_id": current_user.id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    
+    results = {
+        "insights_regenerated": False,
+        "feedback_regenerated": False,
+        "playbook_regenerated": False,
+        "qna_extracted_count": 0,
+        "qna_ids": [],
+    }
+    
+    # 1. Regenerate Atlas Insights
+    try:
+        insights = await get_atlas_meeting_insights(
+            meeting_id=meeting_id,
+            force_refresh=True,
+            current_user=current_user,
+            db=db,
+        )
+        if insights.source in ["llm", "cache"]:
+            results["insights_regenerated"] = True
+            logger.info(f"[REANALYZE] Meeting {meeting_id}: Insights regenerated")
+    except Exception as e:
+        logger.warning(f"[REANALYZE] Meeting {meeting_id}: Failed to regenerate insights: {e}")
+    
+    # 2. Regenerate Feedback
+    try:
+        feedback = await get_meeting_feedback(
+            meeting_id=meeting_id,
+            force_refresh=True,
+            current_user=current_user,
+            db=db,
+        )
+        if feedback.source in ["llm", "cache"]:
+            results["feedback_regenerated"] = True
+            logger.info(f"[REANALYZE] Meeting {meeting_id}: Feedback regenerated")
+    except Exception as e:
+        logger.warning(f"[REANALYZE] Meeting {meeting_id}: Failed to regenerate feedback: {e}")
+    
+    # 3. Regenerate Playbook Analysis
+    try:
+        playbook = await get_meeting_playbook_analysis(
+            meeting_id=meeting_id,
+            force_refresh=True,
+            template_id=None,
+            current_user=current_user,
+            db=db,
+        )
+        if playbook.source in ["llm", "cache"]:
+            results["playbook_regenerated"] = True
+            logger.info(f"[REANALYZE] Meeting {meeting_id}: Playbook analysis regenerated")
+    except Exception as e:
+        logger.warning(f"[REANALYZE] Meeting {meeting_id}: Failed to regenerate playbook: {e}")
+    
+    # 4. Extract Q&A from transcript to Q&A Engine
+    try:
+        user_name = f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email or "Unknown"
+        created_qnas = await extract_qna_from_meeting(
+            meeting_id=meeting_id,
+            user_id=current_user.id,
+            user_name=user_name,
+        )
+        results["qna_extracted_count"] = len(created_qnas)
+        results["qna_ids"] = [str(q.get("_id") or q.get("id")) for q in created_qnas if q]
+        logger.info(f"[REANALYZE] Meeting {meeting_id}: Extracted {len(created_qnas)} Q&A")
+    except Exception as e:
+        logger.warning(f"[REANALYZE] Meeting {meeting_id}: Failed to extract Q&A: {e}")
+    
+    # Build message
+    parts = []
+    if results["insights_regenerated"]:
+        parts.append("insights")
+    if results["feedback_regenerated"]:
+        parts.append("feedback")
+    if results["playbook_regenerated"]:
+        parts.append("playbook")
+    if results["qna_extracted_count"] > 0:
+        parts.append(f"{results['qna_extracted_count']} Q&A")
+    
+    message = f"Re-analyzed: {', '.join(parts)}" if parts else "No data regenerated"
+    
+    return ReanalyzeMeetingResponse(
+        meeting_id=meeting_id,
+        insights_regenerated=results["insights_regenerated"],
+        feedback_regenerated=results["feedback_regenerated"],
+        playbook_regenerated=results["playbook_regenerated"],
+        qna_extracted_count=results["qna_extracted_count"],
+        qna_ids=results["qna_ids"],
+        message=message,
+    )

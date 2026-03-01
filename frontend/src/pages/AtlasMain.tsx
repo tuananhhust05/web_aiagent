@@ -38,6 +38,7 @@ import {
   Radio as RadioIcon,
   Download,
   AlertCircle,
+  Brain,
 } from 'lucide-react'
 import {
   calendarAPI,
@@ -521,6 +522,7 @@ export default function AtlasMain() {
   type PlaybookMetricKey = 'overall' | 'Handled objections' | 'Personalized demo' | 'Intro Banter' | 'Set Agenda' | 'Demo told a story'
   const [playbookMetricKey, setPlaybookMetricKey] = useState<PlaybookMetricKey>('overall')
   const [speakingInsightsLoading, setSpeakingInsightsLoading] = useState(false)
+  const [reanalyzing, setReanalyzing] = useState(false)
   const [speakingInsightsError, setSpeakingInsightsError] = useState<string | null>(null)
   const [objectionInsights, setObjectionInsights] = useState<
     | {
@@ -1044,6 +1046,41 @@ export default function AtlasMain() {
     }
   }
 
+  const handleReanalyzeMeeting = async () => {
+    if (!activeCallId) return
+    setReanalyzing(true)
+    try {
+      const res = await meetingsAPI.reanalyzeMeeting(activeCallId)
+      const data = res.data
+      toast.success(data.message || 'Meeting re-analyzed successfully')
+      
+      // Refresh insights, feedback, playbook data
+      if (data.insights_regenerated) {
+        const insightsRes = await meetingsAPI.getAtlasMeetingInsights(activeCallId)
+        setAtlasInsights({
+          summary: insightsRes.data.summary || {},
+          next_steps: insightsRes.data.next_steps || [],
+          questions_and_objections: insightsRes.data.questions_and_objections || [],
+        })
+      }
+      if (data.feedback_regenerated) {
+        const feedbackRes = await meetingsAPI.getMeetingFeedback(activeCallId)
+        setFeedbackData(feedbackRes.data)
+      }
+      if (data.playbook_regenerated) {
+        const playbookRes = await meetingsAPI.getMeetingPlaybookAnalysis(activeCallId)
+        setPlaybookAnalysis(playbookRes.data)
+      }
+      if (data.qna_extracted_count > 0) {
+        toast.success(`Extracted ${data.qna_extracted_count} Q&A from call`, { duration: 4000 })
+      }
+    } catch (e: any) {
+      toast.error(e.response?.data?.detail || 'Failed to re-analyze meeting')
+    } finally {
+      setReanalyzing(false)
+    }
+  }
+
   useEffect(() => {
     if (section !== 'calls' || !activeCallId) {
       setAtlasInsights(null)
@@ -1421,7 +1458,27 @@ export default function AtlasMain() {
                 </button>
                 {activeCall ? (
                   <>
-                    <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">{activeCall.title || activeCall.id}</h1>
+                    <div className="flex items-center justify-between">
+                      <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">{activeCall.title || activeCall.id}</h1>
+                      <button
+                        type="button"
+                        onClick={handleReanalyzeMeeting}
+                        disabled={reanalyzing}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 text-white text-xs font-semibold hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
+                      >
+                        {reanalyzing ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Analyzing...
+                          </>
+                        ) : (
+                          <>
+                            <Brain className="h-3.5 w-3.5" />
+                            Analyze
+                          </>
+                        )}
+                      </button>
+                    </div>
                     <div className="flex items-center gap-4 mt-3 flex-wrap text-sm text-gray-600">
                       <span className="inline-flex items-center gap-1.5">
                         <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
@@ -1448,7 +1505,7 @@ export default function AtlasMain() {
                       { id: 'summary', label: 'Summary' },
                       { id: 'playbook', label: 'Playbook' },
                       { id: 'feedback', label: 'Feedback' },
-                      { id: 'comments', label: 'Comments' },
+                      // { id: 'comments', label: 'Comments' }, // Temporarily hidden
                     ].map((tab) => (
                       <button
                         key={tab.id}
