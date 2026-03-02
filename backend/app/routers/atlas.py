@@ -338,11 +338,24 @@ async def get_meeting_context(
             crm_missing_message=crm_msg,
         )
 
-    # Meeting preparation placeholders (future: from AI or notes)
+    # Meeting preparation: generate with AI based on context
+    meeting_prep_data = await generate_meeting_preparation_with_ai(
+        company_name=company_name or (contact_summary.company if contact_summary else "") or "",
+        contact_name=f"{contact_summary.first_name} {contact_summary.last_name}".strip() if contact_summary else "",
+        deal_stage=_stage_to_display(stage_name) or deal_summary.stage_name if deal_summary else "",
+        past_events=past_events,
+        last_interaction=last_interaction,
+        company_info={
+            "description": company_display.business_description if company_display else None,
+            "industry": None,
+            "size_revenue": None,
+        } if company_display else None,
+    )
+    
     meeting_preparation = MeetingPreparation(
-        key_points=None,
-        risks_or_questions=None,
-        suggested_angle=None,
+        key_points=meeting_prep_data.get("key_points") or None,
+        risks_or_questions=meeting_prep_data.get("risks_or_questions") or None,
+        suggested_angle=meeting_prep_data.get("suggested_angle") or None,
     )
 
     # Meeting number: count of meeting-type activities
@@ -1774,6 +1787,120 @@ async def search_company_info(
             success=False,
             error=str(e),
         )
+
+
+async def generate_meeting_preparation_with_ai(
+    company_name: str,
+    contact_name: str,
+    deal_stage: str,
+    past_events: List[PastEventItem],
+    last_interaction: Optional[LastInteractionSnapshot],
+    company_info: Optional[dict] = None,
+) -> dict:
+    """Use AI to generate meeting preparation: key_points, risks_or_questions, suggested_angle."""
+    from app.core.config import settings
+
+    if not settings.GROQ_API_KEY:
+        logger.warning("[AI-MEETING-PREP] Missing GROQ_API_KEY")
+        return {}
+
+    past_events_text = ""
+    if past_events:
+        for e in past_events[:10]:
+            past_events_text += f"- {e.date} ({e.type}): {e.subject or e.content or 'No details'}\n"
+
+    last_interaction_text = ""
+    if last_interaction:
+        if last_interaction.summary:
+            last_interaction_text += f"Summary: {last_interaction.summary}\n"
+        if last_interaction.agreed_next_step:
+            last_interaction_text += f"Agreed next step: {last_interaction.agreed_next_step}\n"
+        if last_interaction.open_points:
+            last_interaction_text += f"Open points: {last_interaction.open_points}\n"
+
+    company_info_text = ""
+    if company_info:
+        if company_info.get("description"):
+            company_info_text += f"Description: {company_info['description']}\n"
+        if company_info.get("industry"):
+            company_info_text += f"Industry: {company_info['industry']}\n"
+        if company_info.get("size_revenue"):
+            company_info_text += f"Size/Revenue: {company_info['size_revenue']}\n"
+
+    prompt = f"""You are a sales meeting preparation assistant. Analyze the following information about an upcoming meeting and provide preparation insights.
+
+Company: {company_name or 'Unknown'}
+Contact: {contact_name or 'Unknown'}
+Deal Stage: {deal_stage or 'Unknown'}
+
+Company Information:
+{company_info_text or 'No company info available'}
+
+Past Interactions:
+{past_events_text or 'No past interactions'}
+
+Last Interaction:
+{last_interaction_text or 'No previous meeting data'}
+
+Based on this context, provide a JSON response with:
+1. key_points: array of 2-4 key talking points or preparation items for this meeting
+2. risks_or_questions: array of 1-3 potential risks, objections, or open questions to address
+3. suggested_angle: a single sentence suggesting the best approach/angle for this meeting
+
+Return ONLY valid JSON:
+{{"key_points": [...], "risks_or_questions": [...], "suggested_angle": "..."}}"""
+
+    try:
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [
+                {"role": "system", "content": "You are a helpful sales preparation assistant. Return ONLY valid JSON. No markdown. No extra text."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.4,
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+        content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        content = content.strip()
+
+        if content.startswith("```"):
+            lines = content.split("\n")
+            content = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
+        content = content.strip()
+
+        import json
+        try:
+            result = json.loads(content)
+            return {
+                "key_points": result.get("key_points", []),
+                "risks_or_questions": result.get("risks_or_questions", []),
+                "suggested_angle": result.get("suggested_angle", ""),
+            }
+        except Exception:
+            start = content.find("{")
+            end = content.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                result = json.loads(content[start:end + 1])
+                return {
+                    "key_points": result.get("key_points", []),
+                    "risks_or_questions": result.get("risks_or_questions", []),
+                    "suggested_angle": result.get("suggested_angle", ""),
+                }
+            raise
+
+    except Exception as e:
+        logger.error(f"[AI-MEETING-PREP] Error generating meeting preparation: {e}")
+        return {}
 
 
 async def extract_company_info_with_ai(company_name: str, search_result: str) -> dict:

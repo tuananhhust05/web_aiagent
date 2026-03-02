@@ -112,11 +112,11 @@ export default function AtlasLayout() {
     <div className="flex w-screen h-screen bg-gray-50 overflow-hidden">
       <aside className="w-56 bg-[#0B1220] text-white flex flex-col shrink-0">
         <div className="px-4 py-3 border-b border-white/10">
-          <div className="text-[9px] uppercase tracking-widest text-blue-300 mb-0.5">Atlas</div>
-          <div className="text-[10px] text-blue-100">by ForSkale</div>
+          <div className="text-[14px] uppercase tracking-widest text-blue-300 mb-0.5">Atlas</div>
+          <div className="text-[14px] text-blue-100">by ForSkale</div>
         </div>
 
-        <nav className="flex-1 py-3 space-y-0.5 text-[11px]">
+        <nav className="flex-1 py-3 space-y-0.5 text-[14px]">
           {navItems.map(({ to, icon: Icon, label, sectionId }) => {
             const notVisited = onboarding.firstModalDone && !onboarding.sectionsVisited.includes(sectionId)
             return (
@@ -124,19 +124,19 @@ export default function AtlasLayout() {
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `w-full flex items-center gap-2 px-4 py-2 text-left hover:bg-white/5 ${
+                  `w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-white/5 ${
                     isActive ? 'bg-white/10 text-white' : 'text-gray-300'
                   } ${notVisited ? 'border-l-2 border-blue-400 bg-white/5' : 'border-l-2 border-transparent'}`
                 }
               >
-                <Icon className="h-3.5 w-3.5" />
+                <Icon className="h-5 w-5" />
                 <span className="relative z-0">{label}</span>
               </NavLink>
             )
           })}
         </nav>
 
-        <div className="px-4 py-2 border-t border-white/10 text-[9px] text-gray-400">
+        <div className="px-4 py-2 border-t border-white/10 text-[14px] text-gray-400">
           v2.1.0
         </div>
       </aside>

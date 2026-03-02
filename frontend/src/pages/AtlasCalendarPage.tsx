@@ -1215,16 +1215,41 @@ export default function AtlasCalendarPage() {
               {/* Before you join / Meeting Preparation (collapsed under Company) */}
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Before you join this meeting</h3>
-                <div className="rounded-lg bg-amber-50 border border-amber-100 p-3 text-sm">
+                <div className="rounded-lg bg-amber-50 border border-amber-100 p-3 text-sm space-y-3">
                   {contextLoading ? (
                     <div className="flex items-center gap-2 text-gray-500">
                       <Loader2 className="h-4 w-4 animate-spin" /> Loading...
                     </div>
                   ) : (
                     <>
-                      <p><span className="font-medium text-gray-600">Key points:</span> {meetingContext?.meeting_preparation?.key_points?.length ? meetingContext.meeting_preparation.key_points.join('; ') : '—'}</p>
-                      <p className="mt-1"><span className="font-medium text-gray-600">Risks or open questions:</span> {meetingContext?.meeting_preparation?.risks_or_questions?.length ? meetingContext.meeting_preparation.risks_or_questions.join('; ') : '—'}</p>
-                      <p className="mt-1"><span className="font-medium text-gray-600">Suggested angle:</span> {meetingContext?.meeting_preparation?.suggested_angle || '—'}</p>
+                      <div>
+                        <p className="font-medium text-gray-700 mb-1">Key points:</p>
+                        {meetingContext?.meeting_preparation?.key_points?.length ? (
+                          <ul className="list-disc list-inside space-y-0.5 text-gray-800">
+                            {meetingContext.meeting_preparation.key_points.map((point, idx) => (
+                              <li key={idx}>{point}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-gray-500 italic">—</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-700 mb-1">Risks or open questions:</p>
+                        {meetingContext?.meeting_preparation?.risks_or_questions?.length ? (
+                          <ul className="list-disc list-inside space-y-0.5 text-gray-800">
+                            {meetingContext.meeting_preparation.risks_or_questions.map((risk, idx) => (
+                              <li key={idx}>{risk}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-gray-500 italic">—</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-700 mb-1">Suggested angle:</p>
+                        <p className="text-gray-800">{meetingContext?.meeting_preparation?.suggested_angle || <span className="text-gray-500 italic">—</span>}</p>
+                      </div>
                     </>
                   )}
                 </div>
