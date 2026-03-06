@@ -29,6 +29,8 @@ import {
   ThumbsUp,
   Trash2,
   TrendingUp,
+  TrendingDown,
+  Minus,
   Upload,
   Users,
   Volume2,
@@ -39,13 +41,17 @@ import {
   Download,
   AlertCircle,
   Brain,
+  Eye,
+  Lightbulb,
 } from 'lucide-react'
+import { useAuth } from '../hooks/useAuth'
 import {
   calendarAPI,
   atlasAPI,
   meetingsAPI,
   vexaAPI,
   playbooksAPI,
+  enablementAPI,
   getVexaBotJoinErrorMessage,
   type GoogleCalendarEvent,
   type MeetingPlatform,
@@ -54,6 +60,7 @@ import {
   type MeetingComment,
   type AtlasQnARecord,
   type AtlasKnowledgeDocument,
+  type EnablementFeedbackResponse,
 } from '../lib/api'
 
 const KNOWLEDGE_CATEGORY_API_MAP: Record<string, string> = {
@@ -141,6 +148,7 @@ const SECTION_PATH_MAP: Record<string, AtlasMainSection> = {
 }
 
 export default function AtlasMain() {
+  const { user } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const pathSegment = location.pathname.split('/').pop() || 'calls'
@@ -239,6 +247,12 @@ export default function AtlasMain() {
     questions_and_objections: Array<{ question: string; time?: string | null; answer: string }>
   } | null>(null)
   const [playbookAnalysis, setPlaybookAnalysis] = useState<MeetingPlaybookAnalysis | null>(null)
+  
+  // Enablement feedback state (longitudinal, cross-meeting)
+  const [enablementFeedback, setEnablementFeedback] = useState<EnablementFeedbackResponse | null>(null)
+  const [enablementLoading, setEnablementLoading] = useState(false)
+  const [enablementError, setEnablementError] = useState<string | null>(null)
+  const [enablementCardsExpanded, setEnablementCardsExpanded] = useState<Record<string, boolean>>({})
 
   const formatRecordingTime = (seconds: number) => {
     const m = Math.floor(seconds / 60)
@@ -973,6 +987,36 @@ export default function AtlasMain() {
     transcriptLines,
     transcriptLoading,
   ])
+
+  // Auto-load enablement feedback (longitudinal) when opening Feedback tab
+  useEffect(() => {
+    if (section !== 'calls') return
+    if (activeCallTab !== 'feedback') return
+    if (!user?.id) return
+
+    let cancelled = false
+    setEnablementLoading(true)
+    setEnablementError(null)
+
+    enablementAPI
+      .getFeedback({ days: 30, min_calls: 5, force_refresh: false })
+      .then((res) => {
+        if (cancelled) return
+        setEnablementFeedback(res.data)
+      })
+      .catch((err: any) => {
+        if (cancelled) return
+        const detail = err?.response?.data?.detail
+        setEnablementError(detail || 'Failed to load overall performance feedback')
+      })
+      .finally(() => {
+        if (!cancelled) setEnablementLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [section, activeCallTab, user?.id])
 
   // Auto-load comments when opening Comments tab
   useEffect(() => {
@@ -1999,12 +2043,20 @@ export default function AtlasMain() {
             )}
 
             {activeCallTab === 'feedback' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between gap-2 mb-4">
-                  <div className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-gray-600 shrink-0" />
-                    <h3 className="text-sm font-semibold text-gray-900">Performance Metrics</h3>
+              <div className="space-y-6">
+                {/* Section 1: This Call (Per-call feedback) */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <FileText className="h-5 w-5 text-blue-600 shrink-0" />
+                    <h2 className="text-base font-semibold text-gray-900">This Call</h2>
+                    <span className="text-xs text-gray-500 ml-auto">Per-call analysis</span>
                   </div>
+                  
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-gray-600 shrink-0" />
+                      <h3 className="text-sm font-semibold text-gray-900">Performance Metrics</h3>
+                    </div>
                   <div className="flex items-center gap-3">
                     {typeof feedbackData?.quality_score === 'number' && (
                       <div className="flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-1.5">
@@ -2041,9 +2093,9 @@ export default function AtlasMain() {
                   >
                     {feedbackLoading ? 'Analyzing…' : 'Analyze feedback'}
                   </button>
+                    </div>
                   </div>
-                </div>
-                <div className="rounded-lg border border-gray-200 bg-white overflow-hidden divide-y divide-gray-100">
+                  <div className="rounded-lg border border-gray-200 bg-white overflow-hidden divide-y divide-gray-100">
                   {feedbackLoading && (
                     <div className="px-4 py-3 text-xs text-gray-500">Loading metrics…</div>
                   )}
@@ -2093,105 +2145,359 @@ export default function AtlasMain() {
                         transcript.
                       </div>
                     )}
-                </div>
-                {/* AI Sales Coach feedback */}
-                <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden mt-6">
+                  </div>
+                  {/* AI Sales Coach feedback */}
+                  <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
                   <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
                     <Sparkles className="h-5 w-5 text-gray-600 shrink-0" />
                     <h3 className="text-sm font-semibold text-gray-900">
                       AI Sales Coach feedback
                     </h3>
-                  </div>
-                  <div className="p-4 space-y-5">
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <ThumbsUp className="h-5 w-5 text-amber-500 shrink-0" />
-                        <h4 className="text-sm font-medium text-gray-900">What you did well</h4>
-                      </div>
-                      <ul className="space-y-2">
-                        {(feedbackData?.did_well || []).map((item, i) => (
-                          <li key={i}>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setFeedbackCoachOpen((s) => ({
-                                  ...s,
-                                  [`didWell${i}`]: !s[`didWell${i}` as keyof typeof s],
-                                }))
-                              }
-                              className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-gray-200 bg-white text-left text-sm text-gray-800 hover:bg-gray-50"
-                            >
-                              <span>{item.title}</span>
-                              <ChevronDown
-                                className={`h-4 w-4 text-blue-600 shrink-0 transition-transform ${
-                                  feedbackCoachOpen[`didWell${i}` as keyof typeof feedbackCoachOpen]
-                                    ? 'rotate-180'
-                                    : ''
-                                }`}
-                              />
-                            </button>
-                            {feedbackCoachOpen[`didWell${i}` as keyof typeof feedbackCoachOpen] &&
-                              item.details && (
-                                <div className="mt-1 ml-4 pl-4 border-l-2 border-gray-200 text-xs text-gray-600">
-                                  {item.details}
-                                </div>
-                              )}
-                          </li>
-                        ))}
-                        {!feedbackLoading &&
-                          (!feedbackData || feedbackData.did_well.length === 0) && (
-                            <li className="text-xs text-gray-500 px-1">
-                              Positive coaching points will appear here after feedback is generated.
-                            </li>
-                          )}
-                      </ul>
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Zap className="h-5 w-5 text-orange-500 shrink-0" />
-                        <h4 className="text-sm font-medium text-gray-900">
-                          Where you can improve
-                        </h4>
-                      </div>
-                      <ul className="space-y-2">
-                        {(feedbackData?.improve || []).map((item, i) => (
-                          <li key={i}>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setFeedbackCoachOpen((s) => ({
-                                  ...s,
-                                  [`improve${i}`]: !s[`improve${i}` as keyof typeof s],
-                                }))
-                              }
-                              className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-gray-200 bg-white text-left text-sm text-gray-800 hover:bg-gray-50"
-                            >
-                              <span>{item.title}</span>
-                              <ChevronDown
-                                className={`h-4 w-4 text-blue-600 shrink-0 transition-transform ${
-                                  feedbackCoachOpen[`improve${i}` as keyof typeof feedbackCoachOpen]
-                                    ? 'rotate-180'
-                                    : ''
-                                }`}
-                              />
-                            </button>
-                            {feedbackCoachOpen[`improve${i}` as keyof typeof feedbackCoachOpen] &&
-                              item.details && (
-                                <div className="mt-1 ml-4 pl-4 border-l-2 border-gray-200 text-xs text-gray-600">
-                                  {item.details}
-                                </div>
-                              )}
-                          </li>
-                        ))}
-                        {!feedbackLoading &&
-                          (!feedbackData || feedbackData.improve.length === 0) && (
-                            <li className="text-xs text-gray-500 px-1">
-                              Coaching opportunities will appear here after feedback is generated.
+                    <div className="p-4 space-y-5">
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <ThumbsUp className="h-5 w-5 text-amber-500 shrink-0" />
+                          <h4 className="text-sm font-medium text-gray-900">What you did well</h4>
+                        </div>
+                        <ul className="space-y-2">
+                          {(feedbackData?.did_well || []).map((item, i) => (
+                            <li key={i}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setFeedbackCoachOpen((s) => ({
+                                    ...s,
+                                    [`didWell${i}`]: !s[`didWell${i}` as keyof typeof s],
+                                  }))
+                                }
+                                className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-gray-200 bg-white text-left text-sm text-gray-800 hover:bg-gray-50"
+                              >
+                                <span>{item.title}</span>
+                                <ChevronDown
+                                  className={`h-4 w-4 text-blue-600 shrink-0 transition-transform ${
+                                    feedbackCoachOpen[`didWell${i}` as keyof typeof feedbackCoachOpen]
+                                      ? 'rotate-180'
+                                      : ''
+                                  }`}
+                                />
+                              </button>
+                              {feedbackCoachOpen[`didWell${i}` as keyof typeof feedbackCoachOpen] &&
+                                item.details && (
+                                  <div className="mt-1 ml-4 pl-4 border-l-2 border-gray-200 text-xs text-gray-600">
+                                    {item.details}
+                                  </div>
+                                )}
                             </li>
-                          )}
-                      </ul>
+                          ))}
+                          {!feedbackLoading &&
+                            (!feedbackData || feedbackData.did_well.length === 0) && (
+                              <li className="text-xs text-gray-500 px-1">
+                                Positive coaching points will appear here after feedback is generated.
+                              </li>
+                            )}
+                        </ul>
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <Zap className="h-5 w-5 text-orange-500 shrink-0" />
+                          <h4 className="text-sm font-medium text-gray-900">
+                            Where you can improve
+                          </h4>
+                        </div>
+                        <ul className="space-y-2">
+                          {(feedbackData?.improve || []).map((item, i) => (
+                            <li key={i}>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setFeedbackCoachOpen((s) => ({
+                                    ...s,
+                                    [`improve${i}`]: !s[`improve${i}` as keyof typeof s],
+                                  }))
+                                }
+                                className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-gray-200 bg-white text-left text-sm text-gray-800 hover:bg-gray-50"
+                              >
+                                <span>{item.title}</span>
+                                <ChevronDown
+                                  className={`h-4 w-4 text-blue-600 shrink-0 transition-transform ${
+                                    feedbackCoachOpen[`improve${i}` as keyof typeof feedbackCoachOpen]
+                                      ? 'rotate-180'
+                                      : ''
+                                  }`}
+                                />
+                              </button>
+                              {feedbackCoachOpen[`improve${i}` as keyof typeof feedbackCoachOpen] &&
+                                item.details && (
+                                  <div className="mt-1 ml-4 pl-4 border-l-2 border-gray-200 text-xs text-gray-600">
+                                    {item.details}
+                                  </div>
+                                )}
+                            </li>
+                          ))}
+                          {!feedbackLoading &&
+                            (!feedbackData || feedbackData.improve.length === 0) && (
+                              <li className="text-xs text-gray-500 px-1">
+                                Coaching opportunities will appear here after feedback is generated.
+                              </li>
+                            )}
+                        </ul>
+                      </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Section 2: Overall Performance (Longitudinal, cross-meeting feedback) */}
+                <div className="space-y-4 pt-6 border-t-2 border-gray-200">
+                  <div className="flex items-center gap-2 pb-2">
+                    <Sparkles className="h-5 w-5 text-purple-600 shrink-0" />
+                    <h2 className="text-base font-semibold text-gray-900">Overall Performance</h2>
+                    <span className="text-xs text-gray-500 ml-auto">Last 30 days • Cross-meeting insights</span>
+                  </div>
+
+                  {enablementLoading ? (
+                    <div className="flex flex-col items-center justify-center py-12 px-4">
+                      <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-2" />
+                      <p className="text-sm text-gray-500">Loading performance insights...</p>
+                    </div>
+                  ) : enablementError ? (
+                    <div className="flex flex-col items-center justify-center py-12 px-4 rounded-lg border border-red-200 bg-red-50">
+                      <AlertCircle className="h-8 w-8 text-red-600 mb-2" />
+                      <p className="text-sm text-red-600 mb-2">{enablementError}</p>
+                    </div>
+                  ) : !enablementFeedback || enablementFeedback.total_calls_analyzed === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 px-4 rounded-lg border border-dashed border-gray-300 bg-gray-50">
+                      <Info className="h-8 w-8 text-gray-400 mb-2" />
+                      <p className="text-sm text-gray-600 text-center mb-1">Not enough data yet</p>
+                      <p className="text-xs text-gray-500 text-center max-w-sm">
+                        Complete at least 5 calls to receive personalized coaching insights across your meetings
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Overall Summary */}
+                      {(enablementFeedback.overall_quality_trend || enablementFeedback.top_strength || enablementFeedback.top_opportunity) && (
+                        <div className="rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 p-4">
+                          {enablementFeedback.overall_quality_trend && (
+                            <div className="flex items-center gap-2 mb-2">
+                              {enablementFeedback.overall_quality_trend === 'improving' ? (
+                                <TrendingUp className="h-4 w-4 text-green-600" />
+                              ) : enablementFeedback.overall_quality_trend === 'declining' ? (
+                                <TrendingDown className="h-4 w-4 text-red-600" />
+                              ) : (
+                                <Minus className="h-4 w-4 text-gray-600" />
+                              )}
+                              <span className="text-sm font-medium text-gray-700">
+                                Performance is <span className="capitalize">{enablementFeedback.overall_quality_trend}</span>
+                              </span>
+                            </div>
+                          )}
+                          {enablementFeedback.top_strength && (
+                            <p className="text-sm text-gray-700 mb-1">
+                              <span className="font-medium text-green-700">💪 Strength:</span> {enablementFeedback.top_strength}
+                            </p>
+                          )}
+                          {enablementFeedback.top_opportunity && (
+                            <p className="text-sm text-gray-700">
+                              <span className="font-medium text-amber-700">🎯 Opportunity:</span> {enablementFeedback.top_opportunity}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-600 mt-2">
+                            Based on {enablementFeedback.total_calls_analyzed} calls analyzed
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Risk Signals */}
+                      {enablementFeedback.risk_signals.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                            <AlertTriangle className="h-4 w-4 text-red-600" />
+                            Risk Signals
+                          </h4>
+                          <div className="space-y-2">
+                            {enablementFeedback.risk_signals.map((card) => (
+                              <div key={card.id} className="rounded-lg border border-red-200 bg-white shadow-sm overflow-hidden">
+                                <button
+                                  onClick={() => setEnablementCardsExpanded((prev) => ({ ...prev, [card.id]: !prev[card.id] }))}
+                                  className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-red-50/50 transition-colors"
+                                >
+                                  <div className="p-1.5 rounded-lg text-red-600 bg-red-50 border-red-200 shrink-0 mt-0.5">
+                                    <AlertTriangle className="h-4 w-4" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h5 className="text-sm font-medium text-gray-900">{card.title}</h5>
+                                      <span className="text-xs text-gray-500 px-2 py-0.5 rounded-full bg-gray-100">
+                                        {Math.round(card.confidence * 100)}%
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-600">{card.description}</p>
+                                  </div>
+                                  <ChevronDown className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${enablementCardsExpanded[card.id] ? 'rotate-180' : ''}`} />
+                                </button>
+                                {enablementCardsExpanded[card.id] && (
+                                  <div className="border-t border-red-100 bg-red-50/30 px-4 py-3 space-y-3">
+                                    <div>
+                                      <p className="text-xs font-medium text-gray-700 mb-1.5">Evidence</p>
+                                      <div className="text-xs text-gray-600 space-y-1">
+                                        <div>Calls analyzed: <span className="font-medium">{card.evidence.calls_analyzed}</span></div>
+                                        {card.evidence.calls_above_threshold !== undefined && (
+                                          <div>Pattern appears in: <span className="font-medium">{card.evidence.calls_above_threshold} calls</span></div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {card.suggestions.length > 0 && (
+                                      <div>
+                                        <p className="text-xs font-medium text-gray-700 mb-1.5 flex items-center gap-1">
+                                          <Sparkles className="h-3 w-3 text-amber-500" />
+                                          Suggestions
+                                        </p>
+                                        <ul className="space-y-1.5">
+                                          {card.suggestions.map((suggestion, idx) => (
+                                            <li key={idx} className="text-xs text-gray-700 pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-red-500">
+                                              {suggestion}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Improvement Opportunities */}
+                      {enablementFeedback.improvements.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                            <Lightbulb className="h-4 w-4 text-amber-600" />
+                            Improvement Opportunities
+                          </h4>
+                          <div className="space-y-2">
+                            {enablementFeedback.improvements.map((card) => (
+                              <div key={card.id} className="rounded-lg border border-amber-200 bg-white shadow-sm overflow-hidden">
+                                <button
+                                  onClick={() => setEnablementCardsExpanded((prev) => ({ ...prev, [card.id]: !prev[card.id] }))}
+                                  className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-amber-50/50 transition-colors"
+                                >
+                                  <div className="p-1.5 rounded-lg text-amber-600 bg-amber-50 border-amber-200 shrink-0 mt-0.5">
+                                    <Lightbulb className="h-4 w-4" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h5 className="text-sm font-medium text-gray-900">{card.title}</h5>
+                                      <span className="text-xs text-gray-500 px-2 py-0.5 rounded-full bg-gray-100">
+                                        {Math.round(card.confidence * 100)}%
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-600">{card.description}</p>
+                                  </div>
+                                  <ChevronDown className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${enablementCardsExpanded[card.id] ? 'rotate-180' : ''}`} />
+                                </button>
+                                {enablementCardsExpanded[card.id] && (
+                                  <div className="border-t border-amber-100 bg-amber-50/30 px-4 py-3 space-y-3">
+                                    <div>
+                                      <p className="text-xs font-medium text-gray-700 mb-1.5">Evidence</p>
+                                      <div className="text-xs text-gray-600 space-y-1">
+                                        <div>Calls analyzed: <span className="font-medium">{card.evidence.calls_analyzed}</span></div>
+                                        {card.evidence.calls_above_threshold !== undefined && (
+                                          <div>Pattern appears in: <span className="font-medium">{card.evidence.calls_above_threshold} calls</span></div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {card.suggestions.length > 0 && (
+                                      <div>
+                                        <p className="text-xs font-medium text-gray-700 mb-1.5 flex items-center gap-1">
+                                          <Sparkles className="h-3 w-3 text-amber-500" />
+                                          Suggestions
+                                        </p>
+                                        <ul className="space-y-1.5">
+                                          {card.suggestions.map((suggestion, idx) => (
+                                            <li key={idx} className="text-xs text-gray-700 pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-amber-500">
+                                              {suggestion}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Observations */}
+                      {enablementFeedback.observations.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                            <Eye className="h-4 w-4 text-blue-600" />
+                            Observations
+                          </h4>
+                          <div className="space-y-2">
+                            {enablementFeedback.observations.map((card) => (
+                              <div key={card.id} className="rounded-lg border border-blue-200 bg-white shadow-sm overflow-hidden">
+                                <button
+                                  onClick={() => setEnablementCardsExpanded((prev) => ({ ...prev, [card.id]: !prev[card.id] }))}
+                                  className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-blue-50/50 transition-colors"
+                                >
+                                  <div className="p-1.5 rounded-lg text-blue-600 bg-blue-50 border-blue-200 shrink-0 mt-0.5">
+                                    <Eye className="h-4 w-4" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <h5 className="text-sm font-medium text-gray-900">{card.title}</h5>
+                                      <span className="text-xs text-gray-500 px-2 py-0.5 rounded-full bg-gray-100">
+                                        {Math.round(card.confidence * 100)}%
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-gray-600">{card.description}</p>
+                                  </div>
+                                  <ChevronDown className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${enablementCardsExpanded[card.id] ? 'rotate-180' : ''}`} />
+                                </button>
+                                {enablementCardsExpanded[card.id] && (
+                                  <div className="border-t border-blue-100 bg-blue-50/30 px-4 py-3 space-y-3">
+                                    <div>
+                                      <p className="text-xs font-medium text-gray-700 mb-1.5">Evidence</p>
+                                      <div className="text-xs text-gray-600 space-y-1">
+                                        <div>Calls analyzed: <span className="font-medium">{card.evidence.calls_analyzed}</span></div>
+                                        {card.evidence.calls_above_threshold !== undefined && (
+                                          <div>Pattern appears in: <span className="font-medium">{card.evidence.calls_above_threshold} calls</span></div>
+                                        )}
+                                        {card.evidence.metric_average !== undefined && (
+                                          <div>Average: <span className="font-medium">{typeof card.evidence.metric_average === 'number' ? card.evidence.metric_average.toFixed(2) : card.evidence.metric_average}</span></div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {card.suggestions.length > 0 && (
+                                      <div>
+                                        <p className="text-xs font-medium text-gray-700 mb-1.5 flex items-center gap-1">
+                                          <Sparkles className="h-3 w-3 text-amber-500" />
+                                          Suggestions
+                                        </p>
+                                        <ul className="space-y-1.5">
+                                          {card.suggestions.map((suggestion, idx) => (
+                                            <li key={idx} className="text-xs text-gray-700 pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-blue-500">
+                                              {suggestion}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             )}

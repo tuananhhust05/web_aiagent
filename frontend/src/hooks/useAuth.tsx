@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { authAPI } from '../lib/api'
+import { setCookie, deleteCookie } from '../lib/cookies'
 
 interface User {
   _id: string
@@ -60,11 +61,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           userData.id = userData._id
         }
         setUser(userData)
+        // Set is_login cookie if user is authenticated
+        setCookie('is_login', '1', 365)
       } catch (error) {
         console.error('Error parsing stored user data:', error)
         localStorage.removeItem('token')
         localStorage.removeItem('user')
+        deleteCookie('is_login')
       }
+    } else {
+      // No valid authentication, ensure cookie is deleted
+      deleteCookie('is_login')
     }
     
     setLoading(false)
@@ -78,6 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('token', access_token)
       localStorage.setItem('user', JSON.stringify(userData))
       setUser(userData)
+      // Set is_login cookie on successful login
+      setCookie('is_login', '1', 365)
       return { error: null }
     } catch (error: any) {
       return { error }
@@ -92,6 +101,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('token', access_token)
       localStorage.setItem('user', JSON.stringify(newUser))
       setUser(newUser)
+      // Set is_login cookie on successful registration
+      setCookie('is_login', '1', 365)
       return { error: null }
     } catch (error: any) {
       return { error }
@@ -100,7 +111,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = () => {
     localStorage.clear()
-    // Clear all cookies
+    // Delete is_login cookie
+    deleteCookie('is_login')
+    // Clear all other cookies
     document.cookie.split(';').forEach((c) => {
       const name = c.trim().split('=')[0]
       document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`
@@ -135,6 +148,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('token', token)
     localStorage.setItem('user', JSON.stringify(userData))
     setUser(userData)
+    // Set is_login cookie on login
+    setCookie('is_login', '1', 365)
   }
 
   const refreshUser = () => {
@@ -149,13 +164,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           userData.id = userData._id
         }
         setUser(userData)
+        // Set is_login cookie when refreshing user
+        setCookie('is_login', '1', 365)
       } catch (error) {
         console.error('Error parsing stored user data:', error)
         localStorage.removeItem('token')
         localStorage.removeItem('user')
+        deleteCookie('is_login')
         setUser(null)
       }
     } else {
+      deleteCookie('is_login')
       setUser(null)
     }
   }

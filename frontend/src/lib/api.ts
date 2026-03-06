@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { deleteCookie } from './cookies'
 
 // const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com'
 // const API_URL = (import.meta as any).env?.VITE_API_URL || 'https://forskale.com:8000'
@@ -85,6 +86,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
+      // Delete is_login cookie when token expires
+      deleteCookie('is_login')
       window.location.href = '/login'
     }
     return Promise.reject(error)
@@ -1980,4 +1983,70 @@ export interface TaskSourceContent {
   type: 'email' | 'meeting' | 'manual'
   content: EmailSourceContent | MeetingSourceContent | null
   message?: string
+}
+
+// ============================================================================
+// Enablement Feedback API (Cross-meeting, longitudinal feedback)
+// ============================================================================
+
+export type FeedbackType = 'observation' | 'risk_signal' | 'improvement'
+export type FeedbackTheme = 'communication' | 'discovery' | 'objection_handling' | 'closing' | 'pacing' | 'engagement'
+
+export interface FeedbackEvidence {
+  calls_analyzed: number
+  calls_below_threshold?: number
+  calls_above_threshold?: number
+  metric_average?: number
+  metric_median?: number
+}
+
+export interface EnablementFeedbackCard {
+  id: string
+  type: FeedbackType
+  theme: FeedbackTheme
+  title: string
+  description: string
+  evidence: FeedbackEvidence
+  confidence: number
+  suggestions: string[]
+  priority: number
+}
+
+export interface EnablementFeedbackResponse {
+  user_id: string
+  analyzed_from: string
+  analyzed_to: string
+  total_calls_analyzed: number
+  analysis_window_days: number
+  observations: EnablementFeedbackCard[]
+  risk_signals: EnablementFeedbackCard[]
+  improvements: EnablementFeedbackCard[]
+  overall_quality_trend?: 'improving' | 'stable' | 'declining' | null
+  top_strength?: string | null
+  top_opportunity?: string | null
+  generated_at: string
+}
+
+export const enablementAPI = {
+  /** Get enablement feedback (cross-meeting, longitudinal insights) */
+  getFeedback: (params?: {
+    days?: number
+    min_calls?: number
+    force_refresh?: boolean
+  }) =>
+    api.get<EnablementFeedbackResponse>('/api/enablement/enablement-feedback', { params }),
+
+  /** Extract metrics for a specific meeting */
+  extractMetrics: (meetingId: string) =>
+    api.post<{ message: string; meeting_id: string; metrics: any }>(
+      `/api/enablement/enablement-feedback/extract-metrics/${meetingId}`
+    ),
+
+  /** Backfill metrics for all meetings in time window */
+  backfillMetrics: (params?: { days?: number }) =>
+    api.post<{ message: string; success_count: number; error_count: number; errors: any[] }>(
+      '/api/enablement/enablement-feedback/backfill',
+      null,
+      { params }
+    ),
 }
