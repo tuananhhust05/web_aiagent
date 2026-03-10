@@ -17,6 +17,7 @@ import {
   Settings,
   Plus,
   Tag,
+  Mail,
 } from 'lucide-react'
 import {
   todoReadyAPI,
@@ -25,6 +26,7 @@ import {
   type TodoListResponse,
   type MemorySignalsResponse,
   type IntentCategory,
+  type GmailStatusResponse,
 } from '../lib/api'
 import { useToDoStore, type TodoViewTab, type TodoCategoryFilter, type DateRangeOption } from '../stores/useToDoStore'
 import { toast } from 'react-hot-toast'
@@ -35,6 +37,7 @@ import StrategyPanel from '../components/atlas/StrategyPanel'
 import PasteEmailModal from '../components/atlas/PasteEmailModal'
 import CustomDateRangePopover from '../components/atlas/CustomDateRangePopover'
 import GmailConnectPrompt from '../components/atlas/GmailConnectPrompt'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
 
 const DATE_RANGE_OPTIONS: { id: DateRangeOption; label: string }[] = [
   { id: 'today', label: 'Today' },
@@ -140,6 +143,29 @@ export default function ToDoReadyPage() {
   })
 
   const [reauthorizing, setReauthorizing] = useState(false)
+  const [showGmailPopup, setShowGmailPopup] = useState(false)
+
+  const isGmailConnected = (s: GmailStatusResponse | null | undefined): boolean =>
+    !!(s?.configured && s?.has_gmail_scope && !s?.needs_reauthorization)
+
+  // Check Gmail connection immediately on mount — show popup dialog if not connected
+  useEffect(() => {
+    if (gmailStatusLoading) return
+    if (!isGmailConnected(gmailStatus)) {
+      setShowGmailPopup(true)
+    }
+  }, [gmailStatusLoading, gmailStatus])
+
+  const revalidateGmailConnection = async () => {
+    try {
+      const { data } = await gmailAPI.getStatus()
+      if (!isGmailConnected(data)) {
+        setShowGmailPopup(true)
+      }
+    } catch {
+      setShowGmailPopup(true)
+    }
+  }
 
   const handleGmailReauthorize = async () => {
     setReauthorizing(true)
@@ -152,13 +178,14 @@ export default function ToDoReadyPage() {
     }
   }
 
-  const gmailConnected = gmailStatus?.configured && gmailStatus?.has_gmail_scope && !gmailStatus?.needs_reauthorization
+  const gmailConnected = isGmailConnected(gmailStatus)
 
   // Handle gmail_connected query param from OAuth callback
   const [searchParams, setSearchParams] = useSearchParams()
   useEffect(() => {
     const gmailParam = searchParams.get('gmail_connected')
     if (gmailParam === 'success') {
+      setShowGmailPopup(false)
       queryClient.invalidateQueries({ queryKey: ['gmail', 'status'] })
       refetchGmailStatus()
       toast.success('Gmail connected successfully. You can now use email intelligence.')
@@ -189,6 +216,7 @@ export default function ToDoReadyPage() {
     },
     onError: (err: unknown) => {
       toast.error(err instanceof Error ? err.message : 'Analysis failed')
+      revalidateGmailConnection()
     },
   })
 
@@ -865,6 +893,27 @@ export default function ToDoReadyPage() {
         onClose={() => setPasteModalOpen(false)}
         onSubmit={handlePasteSubmit}
       />
+
+      <Dialog open={showGmailPopup} onOpenChange={(v) => !v && setShowGmailPopup(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
+              <Mail className="h-6 w-6 text-blue-600" />
+            </div>
+            <DialogTitle className="text-center">Connect your Gmail</DialogTitle>
+            <DialogDescription className="text-center">
+              To-Do Ready needs Gmail access to detect prospect replies and prepare AI-powered responses.
+            </DialogDescription>
+          </DialogHeader>
+          <GmailConnectPrompt
+            status={gmailStatus ?? null}
+            loading={gmailStatusLoading}
+            onReauthorize={handleGmailReauthorize}
+            onRefresh={() => refetchGmailStatus()}
+            reauthorizing={reauthorizing}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

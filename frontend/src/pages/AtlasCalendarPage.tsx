@@ -28,14 +28,29 @@ const AtlasCalendarPage = () => {
       if (!connected) {
         setShowRegistration(true);
       } else {
-        // Load this week's meetings from Google Calendar (bypass state race)
-        void loadCalendarEvents(true);
+        await loadCalendarEvents(true);
+        // After loading events, re-verify connection status.
+        // The backend revokes the flag when the Google token is expired/invalid,
+        // so a second status check catches stale "connected=true" from the first call.
+        await revalidateConnectionStatus();
       }
     } catch (error) {
       console.error("Failed to check calendar connection:", error);
       setShowRegistration(true);
-    } finally {
-      // no-op
+    }
+  };
+
+  const revalidateConnectionStatus = async () => {
+    try {
+      const resp = await calendarAPI.getStatus();
+      const stillConnected = resp.data?.connected ?? false;
+      if (!stillConnected) {
+        setCalendarConnected(false);
+        setShowRegistration(true);
+      }
+    } catch {
+      setCalendarConnected(false);
+      setShowRegistration(true);
     }
   };
 
@@ -146,9 +161,7 @@ const AtlasCalendarPage = () => {
       }
     } catch (error) {
       console.error("Failed to load calendar events:", error);
-      toast.error("Failed to load calendar events");
-    } finally {
-      // no-op
+      await revalidateConnectionStatus();
     }
   };
 
