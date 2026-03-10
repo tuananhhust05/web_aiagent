@@ -95,9 +95,9 @@ export default function GmailConnectPrompt({
               <strong className="font-semibold"> Please re-connect to fully utilize To-Do Ready's email intelligence features</strong> — 
               including automatic prospect reply detection, AI-prepared responses, and communication thread analysis.
             </p>
-            {status.token_scopes && status.token_scopes.length > 0 && (
+            {status.token_scopes && status.token_scopes.trim().length > 0 && (
               <p className="text-xs text-amber-600 mb-3">
-                Current scopes: {status.token_scopes.join(', ')}
+                Current scopes: {status.token_scopes}
               </p>
             )}
             <button

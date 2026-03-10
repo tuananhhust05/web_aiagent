@@ -19,6 +19,7 @@ from app.models.user import UserResponse
 from app.models.rag_document import RAGDocumentStatus
 from app.services.pdf_processor import process_file_to_chunks
 from app.services.vectorization import vectorize_texts
+from app.services.serpapi_service import get_serpapi_service
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
@@ -1671,7 +1672,8 @@ async def transcribe_audio(
 # MEETING AUTO-ENRICH: Extract company info from attendee email
 # ============================================================
 
-COMPANY_SEARCH_API_URL = os.getenv("COMPANY_SEARCH_API_URL", "http://207.180.227.97:5001/search")
+# Legacy API URL (deprecated, now using SerpAPI)
+# COMPANY_SEARCH_API_URL = os.getenv("COMPANY_SEARCH_API_URL", "http://207.180.227.97:5001/search")
 
 # Common email domains to skip (personal emails)
 PERSONAL_EMAIL_DOMAINS = {
@@ -1736,8 +1738,8 @@ async def search_company_info(
     current_user: UserResponse = Depends(get_current_active_user),
 ):
     """
-    Proxy endpoint to search company information from external API.
-    This API can take a long time (30-60s), so we set a high timeout.
+    Search company information using SerpAPI (Google search).
+    Replaced slow 207.180.227.97 API with faster SerpAPI.
     """
     company_name = request.company_name.strip()
     if not company_name:
@@ -1746,39 +1748,17 @@ async def search_company_info(
     logger.info(f"[COMPANY-SEARCH] Searching for company: {company_name}")
     
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                COMPANY_SEARCH_API_URL,
-                json={"company_name": company_name},
-                headers={"Content-Type": "application/json"},
-            )
-            
-            if response.status_code != 200:
-                logger.warning(f"[COMPANY-SEARCH] API returned {response.status_code}: {response.text}")
-                return CompanySearchResponse(
-                    company=company_name,
-                    result="",
-                    success=False,
-                    error=f"Search API returned {response.status_code}",
-                )
-            
-            data = response.json()
-            logger.info(f"[COMPANY-SEARCH] Found info for {company_name}: {len(data.get('result', ''))} chars")
-            
-            return CompanySearchResponse(
-                company=data.get("company", company_name),
-                result=data.get("result", ""),
-                success=True,
-            )
-            
-    except httpx.TimeoutException:
-        logger.error(f"[COMPANY-SEARCH] Timeout searching for {company_name}")
+        serpapi = get_serpapi_service()
+        data = await serpapi.search_company_info(company_name)
+        
+        logger.info(f"[COMPANY-SEARCH] Found info for {company_name}: {len(data.get('result', ''))} chars")
+        
         return CompanySearchResponse(
-            company=company_name,
-            result="",
-            success=False,
-            error="Search timed out. Please try again.",
+            company=data.get("company", company_name),
+            result=data.get("result", ""),
+            success=True,
         )
+            
     except Exception as e:
         logger.error(f"[COMPANY-SEARCH] Error: {str(e)}")
         return CompanySearchResponse(
@@ -2057,22 +2037,12 @@ async def enrich_meeting_from_attendee(
     company_name = extract_company_from_email(attendee_email)
     logger.info(f"[MEETING-ENRICH] Found attendee {attendee_email}, company: {company_name}")
     
-    # Search company info
+    # Search company info using SerpAPI
+    search_result = ""
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                COMPANY_SEARCH_API_URL,
-                json={"company_name": company_name},
-                headers={"Content-Type": "application/json"},
-            )
-            
-            if response.status_code == 200:
-                search_data = response.json()
-                search_result = search_data.get("result", "")
-            else:
-                search_result = ""
-                logger.warning(f"[MEETING-ENRICH] Company search failed: {response.status_code}")
-                
+        serpapi = get_serpapi_service()
+        search_data = await serpapi.search_company_info(company_name)
+        search_result = search_data.get("result", "")
     except Exception as e:
         logger.error(f"[MEETING-ENRICH] Company search error: {e}")
         search_result = ""

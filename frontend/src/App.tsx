@@ -152,6 +152,7 @@ function App() {
         <Route path="calendar" element={<AtlasCalendarPage />} />
         <Route path="calls" element={<AtlasMain />} />
         <Route path="insights" element={<AtlasMain />} />
+        <Route path="performance" element={<AtlasMain />} />
         <Route path="todo" element={<ToDoReadyPage />} />
         <Route path="qna" element={<AtlasQnAPage />} />
         <Route path="playbooks" element={<AtlasPlaybookTemplates />} />

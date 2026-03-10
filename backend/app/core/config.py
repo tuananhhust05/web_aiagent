@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     VEXA_API_KEY: str = "cbEsQmSHkRvCx1Frnou8liElUn9dkaVtBlLs0Gla"
     VEXA_API_BASE: str = "https://api.cloud.vexa.ai"
     
+    # SerpAPI Configuration (for company information search)
+    SERPAPI_API_KEY: str = ""
+    
     # AI Sales Copilot Configuration
     AI_COPILOT_MAX_OUTPUT_TOKENS: int = 2000  # Maximum tokens for AI output responses
     AI_COPILOT_MAX_INPUT_TOKENS: int = 30000  # Maximum tokens for input (conversation + context)

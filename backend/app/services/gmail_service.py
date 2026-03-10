@@ -74,31 +74,56 @@ class GmailService:
                         "client_id": settings.GOOGLE_CLIENT_ID,
                         "client_secret": settings.GOOGLE_CLIENT_SECRET,
                         "refresh_token": refresh_token,
-                        "grant_type": "refresh_token"
-                    }
+                        "grant_type": "refresh_token",
+                    },
+                    timeout=30.0,
                 )
-                
+
                 if response.status_code == 200:
                     token_data = response.json()
                     new_access_token = token_data.get("access_token")
                     expires_in = token_data.get("expires_in", 3600)
-                    
+
                     # Update access token in database - use the actual user _id
                     await db.users.update_one(
                         {"_id": user["_id"]},
                         {
                             "$set": {
                                 "google_access_token": new_access_token,
-                                "google_token_expiry": datetime.utcnow() + timedelta(seconds=expires_in)
+                                "google_token_expiry": datetime.utcnow()
+                                + timedelta(seconds=expires_in),
+                                "google_gmail_connected": True,
                             }
-                        }
+                        },
                     )
-                    
+
                     logger.info(f"✅ Refreshed access token for user {user_id}")
                     return new_access_token
-                else:
-                    logger.error(f"❌ Failed to refresh token: {response.status_code} - {response.text}")
-                    return None
+
+                # Non-200: log and, if invalid_grant, mark Gmail as needing re-authorization
+                logger.error(
+                    f"❌ Failed to refresh token: {response.status_code} - {response.text}"
+                )
+                try:
+                    data = response.json()
+                except Exception:
+                    data = {}
+                error_code = (data or {}).get("error", "")
+                if error_code == "invalid_grant":
+                    logger.warning(
+                        f"⚠️ Gmail refresh token invalid for user {user_id}; marking gmail_connected=False"
+                    )
+                    await db.users.update_one(
+                        {"_id": user["_id"]},
+                        {
+                            "$set": {
+                                "google_gmail_connected": False,
+                                "google_access_token": None,
+                                "google_token_expiry": None,
+                            }
+                        },
+                    )
+                return None
                     
         except Exception as e:
             logger.error(f"❌ Error refreshing access token: {str(e)}")

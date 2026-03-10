@@ -33,4 +33,4 @@ def serp_search(query):
 
 
 if __name__ == "__main__":
-    serp_search("Apple")
+    serp_search("Find information about company Apple")

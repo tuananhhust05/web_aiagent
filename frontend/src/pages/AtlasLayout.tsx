@@ -1,20 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
-import {
-  CalendarDays,
-  PhoneCall,
-  BarChart3,
-  ClipboardCheck,
-  BookOpen,
-  Radio as RadioIcon,
-  HelpCircle,
-  User,
-  ChevronDown,
-  LogOut,
-  FileText,
-  Calendar,
-  Mail,
-} from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import {
   getAtlasOnboardingState,
@@ -25,32 +10,12 @@ import {
 } from '../lib/atlasOnboarding'
 import AtlasWelcomeModal from '../components/AtlasWelcomeModal'
 import AtlasSectionGuide from '../components/AtlasSectionGuide'
-
-/** Settings menu items in the avatar dropdown */
-const settingsMenuItems = [
-  { label: 'Gmail', href: '/gmail', icon: Mail },
-  { label: 'Profile', href: '/profile', icon: User },
-  { label: 'Edit Sales Playbook', href: '/atlas/playbooks', icon: FileText },
-  { label: 'Meetings', href: '/meetings', icon: Calendar },
-  { label: 'Dashboard', href: '/', icon: BarChart3 },
-] as const
-
-const navItems: { to: string; icon: typeof CalendarDays; label: string; sectionId: AtlasSectionId }[] = [
-  { to: '/atlas/calendar', icon: CalendarDays, label: 'Meeting Intelligence', sectionId: 'calendar' },
-  { to: '/atlas/calls', icon: PhoneCall, label: 'Call Insights', sectionId: 'calls' },
-  { to: '/atlas/insights', icon: BarChart3, label: 'Performance', sectionId: 'insights' },
-  { to: '/atlas/todo', icon: ClipboardCheck, label: 'Action Ready', sectionId: 'todo' },
-  { to: '/atlas/qna', icon: HelpCircle, label: 'Q&A Engine', sectionId: 'qna' },
-  { to: '/atlas/knowledge', icon: BookOpen, label: 'Knowledge', sectionId: 'knowledge' },
-  { to: '/atlas/record', icon: RadioIcon, label: 'Record', sectionId: 'record' },
-]
+import { AtlasSidebar } from '../components/mockflow-atlas/Sidebar'
 
 export default function AtlasLayout() {
-  const { user, signOut } = useAuth()
+  const { user } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const userId = user?.id ?? user?._id
   const onboarding = getAtlasOnboardingState(userId)
@@ -89,118 +54,12 @@ export default function AtlasLayout() {
 
   const welcomeRole = user?.role === 'company_admin' ? 'sales_manager' : user?.workspace_role === 'owner' ? 'sales_manager' : 'sales_employee'
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false)
-      }
-    }
-    if (dropdownOpen) document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [dropdownOpen])
-
-  const handleSignOut = () => {
-    setDropdownOpen(false)
-    signOut()
-    navigate('/login')
-  }
-
-  const displayName = [user?.first_name, user?.last_name].filter(Boolean).join(' ') || 'User'
-  const initial = (user?.first_name?.[0] || user?.email?.[0] || 'U').toUpperCase()
-
   return (
-    <div className="flex w-screen h-screen bg-gray-50 overflow-hidden">
-      <aside className="w-56 bg-[#0B1220] text-white flex flex-col shrink-0">
-        <div className="px-4 py-3 border-b border-white/10">
-          <div className="text-[14px] uppercase tracking-widest text-blue-300 mb-0.5">Atlas</div>
-          <div className="text-[14px] text-blue-100">by ForSkale</div>
-        </div>
+    <div className="flex h-screen overflow-hidden">
+      <AtlasSidebar />
 
-        <nav className="flex-1 py-3 space-y-0.5 text-[14px]">
-          {navItems.map(({ to, icon: Icon, label, sectionId }) => {
-            const notVisited = onboarding.firstModalDone && !onboarding.sectionsVisited.includes(sectionId)
-            return (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  `w-full flex items-center gap-2.5 px-4 py-2.5 text-left hover:bg-white/5 ${
-                    isActive ? 'bg-white/10 text-white' : 'text-gray-300'
-                  } ${notVisited ? 'border-l-2 border-blue-400 bg-white/5' : 'border-l-2 border-transparent'}`
-                }
-              >
-                <Icon className="h-5 w-5" />
-                <span className="relative z-0">{label}</span>
-              </NavLink>
-            )
-          })}
-        </nav>
-
-        <div className="px-4 py-2 border-t border-white/10 text-[14px] text-gray-400">
-          v2.1.0
-        </div>
-      </aside>
-
-      <div className="flex-1 bg-[#f5f5f7] overflow-hidden min-w-0 flex flex-col">
-        <header className="shrink-0 h-10 px-4 flex items-center justify-end border-b border-gray-200 bg-white/80">
-          <div className="relative" ref={dropdownRef}>
-            <button
-              type="button"
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center gap-1.5 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
-            >
-              {user?.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt=""
-                  className="h-6 w-6 rounded-full object-cover"
-                />
-              ) : (
-                <div className="h-6 w-6 rounded-full bg-[#0B1220] flex items-center justify-center text-white text-xs font-medium">
-                  {initial}
-                </div>
-              )}
-              <ChevronDown className={`h-3.5 w-3.5 text-gray-500 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {dropdownOpen && (
-              <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="text-sm font-medium text-gray-900 truncate">{displayName}</p>
-                  <p className="text-xs text-gray-500 truncate">{user?.email}</p>
-                </div>
-                <div className="py-1">
-                  <p className="px-4 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Settings</p>
-                  {settingsMenuItems.map(({ label, href, icon: Icon }) => (
-                    <Link
-                      key={label}
-                      to={href}
-                      className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                      onClick={() => setDropdownOpen(false)}
-                    >
-                      <Icon className="h-4 w-4 text-gray-400 shrink-0" />
-                      {label}
-                    </Link>
-                  ))}
-                </div>
-                <div className="border-t border-gray-100 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleSignOut}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    <LogOut className="h-4 w-4 text-gray-400 shrink-0" />
-                    Sign out
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </header>
-
-        <div className="flex-1 overflow-hidden min-w-0">
-          <Outlet />
-        </div>
+      <div className="flex-1 overflow-hidden min-w-0">
+        <Outlet />
       </div>
 
       {showFirstModalOpen && (

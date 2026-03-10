@@ -1652,7 +1652,8 @@ export interface GmailStatusResponse {
   configured: boolean
   has_access_token: boolean
   has_gmail_scope: boolean
-  token_scopes: string[] | null
+  /** Backend returns a single space-separated scope string or null */
+  token_scopes: string | null
   token_expiry: string | null
   email: string
   needs_reauthorization: boolean
