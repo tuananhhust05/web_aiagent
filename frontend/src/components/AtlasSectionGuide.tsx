@@ -62,7 +62,7 @@ export default function AtlasSectionGuide({ sectionId, onClose }: AtlasSectionGu
 
   return (
     <div
-      className="fixed inset-0 z-[99] flex items-end justify-center sm:items-center p-4 pb-8 sm:pb-4"
+      className="fixed inset-0 z-40 flex items-end justify-center sm:items-center p-4 pb-8 sm:pb-4"
       role="dialog"
       aria-modal="true"
       aria-label={`${copy.title} – quick guide`}

@@ -69,7 +69,7 @@ export default function AtlasWelcomeModal({ onClose, userName, role: propRole }:
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-label="Welcome to Atlas"

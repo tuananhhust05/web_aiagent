@@ -6,51 +6,32 @@ import {
   ChevronRight,
   Loader2,
   Sparkles,
-  ClipboardList,
-  Filter,
-  RefreshCw,
-  Calendar,
-  Inbox,
   AlertCircle,
-  Clock,
   CheckCircle2,
-  Settings,
-  Plus,
-  Tag,
   Mail,
+  Search,
+  SlidersHorizontal,
+  PanelLeftClose,
+  PanelLeft,
+  Circle,
+  AlertTriangle,
 } from 'lucide-react'
 import {
   todoReadyAPI,
   gmailAPI,
-  type MemorySignal,
   type TodoListResponse,
-  type MemorySignalsResponse,
   type IntentCategory,
   type GmailStatusResponse,
 } from '../lib/api'
-import { useToDoStore, type TodoViewTab, type TodoCategoryFilter, type DateRangeOption } from '../stores/useToDoStore'
+import { useToDoStore, type TodoViewTab, type TodoCategoryFilter } from '../stores/useToDoStore'
 import { toast } from 'react-hot-toast'
-import MemorySignalsBar from '../components/atlas/MemorySignalsBar'
-import TaskFeed from '../components/atlas/TaskFeed'
 import ReplyLab from '../components/atlas/ReplyLab'
 import StrategyPanel from '../components/atlas/StrategyPanel'
 import PasteEmailModal from '../components/atlas/PasteEmailModal'
-import CustomDateRangePopover from '../components/atlas/CustomDateRangePopover'
+
 import GmailConnectPrompt from '../components/atlas/GmailConnectPrompt'
+import ActionCard from '../components/atlas/action-card/ActionCard'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
-
-const DATE_RANGE_OPTIONS: { id: DateRangeOption; label: string }[] = [
-  { id: 'today', label: 'Today' },
-  { id: 'week', label: 'This Week' },
-  { id: 'custom', label: 'Custom' },
-]
-
-const VIEW_TABS: { id: TodoViewTab; label: string; icon: typeof Inbox }[] = [
-  { id: 'inbox', label: 'Inbox', icon: Inbox },
-  { id: 'needs_input', label: 'Needs Input', icon: AlertCircle },
-  { id: 'overdue', label: 'Overdue', icon: Clock },
-  { id: 'completed', label: 'Complete', icon: CheckCircle2 },
-]
 
 const INTENT_CATEGORIES: { id: TodoCategoryFilter; label: string; color: string }[] = [
   { id: 'all', label: 'All', color: 'bg-sky-100 text-sky-700' },
@@ -64,44 +45,6 @@ const INTENT_CATEGORIES: { id: TodoCategoryFilter; label: string; color: string 
   { id: 'non_in_target', label: 'Non in target', color: 'bg-pink-100 text-pink-700' },
 ]
 
-/** PRD: Commercial interpretation, should trigger, priority (for tooltips) */
-const INTENT_CATEGORY_PRD: Record<string, { interpretation: string; shouldTrigger: string; priority: string }> = {
-  interested: {
-    interpretation: 'High intent. Prospect shows positive buying signal (e.g. "This looks interesting", "Send more info", "Let\'s explore").',
-    shouldTrigger: 'Recommended next step, follow-up within 24h, possibly suggest demo.',
-    priority: 'Medium–High',
-  },
-  not_interested: {
-    interpretation: 'Low intent. Clear rejection ("Not looking", "No budget"). Closed-lost (soft).',
-    shouldTrigger: 'Remove from active queue; possibly trigger nurture flow.',
-    priority: 'Low',
-  },
-  do_not_contact: {
-    interpretation: 'Hard opt-out. "Stop contacting me", unsubscribe. Compliance state.',
-    shouldTrigger: 'Block future suggestions, prevent automation, disable execution.',
-    priority: 'None (hard stop)',
-  },
-  not_now: {
-    interpretation: 'Interest exists but timing mismatch ("Reach out next quarter", "Ping me in 2 months").',
-    shouldTrigger: 'Create future reminder, scheduled follow-up; remove from current urgency.',
-    priority: 'Scheduled',
-  },
-  forwarded: {
-    interpretation: 'Prospect passed message to another stakeholder. Buying committee expansion.',
-    shouldTrigger: 'Multi-thread tracking; follow-up to new contact.',
-    priority: 'Strategic',
-  },
-  meeting_intent: {
-    interpretation: 'Explicit request for meeting or demo. High buying intent.',
-    shouldTrigger: 'Suggest calendar link, specific slots; fast execution mode.',
-    priority: 'High',
-  },
-  non_in_target: {
-    interpretation: 'Contact outside ICP (wrong industry, size, geography).',
-    shouldTrigger: 'Lower priority; suggest re-route to partner or disqualify.',
-    priority: 'None',
-  },
-}
 
 export default function ToDoReadyPage() {
   const queryClient = useQueryClient()
@@ -109,14 +52,9 @@ export default function ToDoReadyPage() {
     selectedTaskId,
     activeTab,
     categoryFilter,
-    dateRange,
-    customDateFrom,
-    customDateTo,
     setSelectedTaskId,
     setActiveTab,
     setCategoryFilter,
-    setDateRange,
-    setCustomDates,
     filters,
     setFilters,
   } = useToDoStore()
@@ -126,7 +64,8 @@ export default function ToDoReadyPage() {
   const [channelDropdownOpen, setChannelDropdownOpen] = useState(false)
   const [channelFilter, setChannelFilter] = useState<'all' | 'email' | 'meeting'>('all')
   const [categoriesCollapsed, setCategoriesCollapsed] = useState(false)
-  const [customDatePopoverOpen, setCustomDatePopoverOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   /** Task ID for which user clicked "Suggest Script" — then we show execution (ReplyLab) below strategy. */
   const [scriptGeneratedForTaskId, setScriptGeneratedForTaskId] = useState<string | null>(null)
 
@@ -209,7 +148,6 @@ export default function ToDoReadyPage() {
     mutationFn: () => todoReadyAPI.analyze().then((r) => r.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['todo-ready', 'items'] })
-      queryClient.invalidateQueries({ queryKey: ['todo-ready', 'memory-signals'] })
       if (data.new_todos_created > 0) {
         toast.success(`Created ${data.new_todos_created} new tasks from ${data.emails_analyzed} emails and ${data.meetings_analyzed} meetings`)
       }
@@ -239,19 +177,11 @@ export default function ToDoReadyPage() {
     staleTime: 60 * 1000,
   })
 
-  // Fetch memory signals
-  const { data: memorySignalsData } = useQuery<MemorySignalsResponse>({
-    queryKey: ['todo-ready', 'memory-signals'],
-    queryFn: () => todoReadyAPI.getMemorySignals().then((r) => r.data),
-    staleTime: 2 * 60 * 1000,
-  })
-
   // Complete mutation
   const completeMutation = useMutation({
     mutationFn: (taskId: string) => todoReadyAPI.completeItem(taskId).then((r) => r.data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todo-ready', 'items'] })
-      queryClient.invalidateQueries({ queryKey: ['todo-ready', 'memory-signals'] })
       setSelectedTaskId(null)
       toast.success('Marked as done')
     },
@@ -290,16 +220,25 @@ export default function ToDoReadyPage() {
 
   const tasks = todoData?.items ?? []
 
-  // Filter by view: Inbox = all non-done; Needs Input / Overdue / Complete = by status
+  const OVERDUE_DAYS = 5
+  const isTaskOverdue = (t: typeof tasks[number]) => {
+    if (t.status === 'done') return false
+    if (t.status === 'overdue') return true
+    const ref = t.due_at ?? t.created_at
+    if (!ref) return false
+    const age = Date.now() - new Date(ref).getTime()
+    return age > OVERDUE_DAYS * 24 * 60 * 60 * 1000
+  }
+
+  // Filter by view: Inbox = all non-done; Overdue = 5+ days old; Complete = done
   const displayTasks = useMemo(() => {
     let list = tasks
-    // View filter (status)
     if (activeTab === 'inbox') {
       list = list.filter((t) => t.status !== 'done')
     } else if (activeTab === 'needs_input') {
       list = list.filter((t) => t.status === 'needs_input')
     } else if (activeTab === 'overdue') {
-      list = list.filter((t) => t.status === 'overdue')
+      list = list.filter(isTaskOverdue)
     } else if (activeTab === 'completed') {
       list = list.filter((t) => t.status === 'done')
     }
@@ -310,6 +249,17 @@ export default function ToDoReadyPage() {
       list = list.filter((t) => !t.intent_category)
     } else {
       list = list.filter((t) => t.intent_category === categoryFilter)
+    }
+    // Search filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      list = list.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          (t.deal_intelligence?.company_name ?? '').toLowerCase().includes(q) ||
+          (t.description ?? '').toLowerCase().includes(q) ||
+          (t.interaction_summary ?? '').toLowerCase().includes(q)
+      )
     }
     // Channel filter (All channels dropdown)
     if (channelFilter === 'email') {
@@ -324,14 +274,13 @@ export default function ToDoReadyPage() {
       )
     }
     return list
-  }, [tasks, activeTab, categoryFilter, channelFilter, filters.prospect])
+  }, [tasks, activeTab, categoryFilter, channelFilter, filters.prospect, searchQuery])
 
-  // Counts: Inbox = chưa review (non-done); others by status
   const tabCounts = useMemo(
     () => ({
       inbox: tasks.filter((t) => t.status !== 'done' && !t.reviewed_at).length,
       needs_input: tasks.filter((t) => t.status === 'needs_input').length,
-      overdue: tasks.filter((t) => t.status === 'overdue').length,
+      overdue: tasks.filter(isTaskOverdue).length,
       completed: tasks.filter((t) => t.status === 'done').length,
     }),
     [tasks]
@@ -408,11 +357,6 @@ export default function ToDoReadyPage() {
     }
   }, [selectedTaskId, selectedTask?.id, selectedTask?.prepared_action?.draft_text])
 
-  // Convert API memory signals to component format
-  const memorySignals: MemorySignal[] = useMemo(() => {
-    return memorySignalsData?.signals ?? []
-  }, [memorySignalsData])
-
   const handlePasteSubmit = async (data: {
     company: string
     contact: string
@@ -422,23 +366,33 @@ export default function ToDoReadyPage() {
     date: string
   }) => {
     try {
-      const res = await todoReadyAPI.createItem({
-        title: `Reply to ${data.contact} at ${data.company}`,
-        description: data.text.slice(0, 500),
-        task_type: 'respond_to_email',
-        source: 'manual',
-        deal_intelligence: {
-          company_name: data.company,
-        },
-        prepared_action: {
-          strategy_label: 'Manual Email Response',
-          explanation: 'Email pasted manually for follow-up',
-          draft_text: `Thank you for your message. I'll review and respond shortly.`,
-        },
-      })
+      let res
+      try {
+        res = await todoReadyAPI.ingestEmail({
+          subject: `${data.direction === 'prospect' ? 'From' : 'To'} ${data.contact} at ${data.company}`,
+          body: data.text,
+          from: data.direction === 'prospect' ? data.contact : undefined,
+          to: data.direction === 'sales' ? data.contact : undefined,
+        })
+      } catch {
+        res = await todoReadyAPI.createItem({
+          title: `Reply to ${data.contact} at ${data.company}`,
+          description: data.text.slice(0, 500),
+          task_type: 'respond_to_email',
+          source: 'manual',
+          deal_intelligence: {
+            company_name: data.company,
+          },
+          prepared_action: {
+            strategy_label: 'Manual Email Response',
+            explanation: 'Email pasted manually for follow-up',
+            draft_text: `Thank you for your message. I'll review and respond shortly.`,
+          },
+        })
+      }
       queryClient.invalidateQueries({ queryKey: ['todo-ready', 'items'] })
       if (res?.data?.id) setSelectedTaskId(res.data.id)
-      toast.success('Email added. Task will appear in the list.')
+      toast.success('Email ingested. AI will analyze and create an action card.')
     } catch (e) {
       const msg =
         (e as { response?: { status?: number } })?.response?.status === 404
@@ -458,137 +412,182 @@ export default function ToDoReadyPage() {
     return Array.from(names)
   }, [tasks])
 
+  const statusFilters: { label: string; count: number; countSuffix: string; icon: JSX.Element; tab: TodoViewTab; colorClass: string }[] = [
+    { label: 'Needs Review', count: tabCounts.inbox, countSuffix: ' Actions', icon: <Circle size={16} />, tab: 'inbox', colorClass: 'bg-primary/10 text-primary' },
+    { label: 'Overdue', count: tabCounts.overdue, countSuffix: ' min', icon: <AlertTriangle size={16} />, tab: 'overdue', colorClass: 'bg-forskale-cyan/10 text-forskale-cyan' },
+    { label: 'Completed', count: tabCounts.completed, countSuffix: ' tasks', icon: <CheckCircle2 size={16} />, tab: 'completed', colorClass: 'bg-forskale-green/10 text-forskale-green' },
+  ]
+
+  const isCompleted = activeTab === 'completed'
+  const isOverdue = activeTab === 'overdue'
+  const queueConfig = isOverdue
+    ? { eyebrow: 'OVERDUE', title: 'Overdue tasks need quick intervention', Icon: AlertTriangle }
+    : isCompleted
+    ? { eyebrow: 'COMPLETED', title: 'Recently shipped actions', Icon: CheckCircle2 }
+    : { eyebrow: 'EXECUTION QUEUE', title: 'One task. One action. Next card.', Icon: Circle }
+
   return (
-    <div className="h-full flex flex-col bg-slate-50 overflow-hidden">
-      {/* Page Header - Compact */}
-      <header className="shrink-0 bg-white border-b border-slate-200">
-        <div className="px-3 lg:px-4 py-2">
-          <div className="flex items-center justify-between gap-3">
-            {/* Title section */}
-            <div className="min-w-0">
-              <h1 className="text-sm font-semibold text-slate-900">Action Ready</h1>
-              <p className="text-[10px] text-slate-500 mt-0.5 hidden sm:block">
-                AI-prepared next actions from calls and email intelligence
-              </p>
+    <div className="h-full flex flex-col bg-background overflow-hidden">
+      {/* ── Header (action-ready-main style) ── */}
+      <header className="shrink-0 border-b border-border bg-card px-5 py-3.5 lg:px-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0 flex-1">
+            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-forskale-blue">
+              Action Ready
+            </span>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground">
+              Execution flashcards for sales follow-up
+            </h1>
+            <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
+              Review one AI-prepared action at a time, expand the card, refine the draft, and move straight to the next task.
+            </p>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-10 w-[180px] rounded-lg border border-border bg-card pl-9 pr-3 text-sm text-foreground transition-all placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10"
+              />
             </div>
-            
-            {/* Actions section */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {/* Date range selector */}
-              <div className="relative">
-                <div className="inline-flex items-center rounded border border-slate-200 bg-white">
-                  <Calendar className="h-3 w-3 text-slate-400 ml-2" />
-                  {DATE_RANGE_OPTIONS.map((opt, idx) => (
+
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setFilterDropdownOpen((o) => !o)}
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-3.5 text-sm font-semibold text-muted-foreground transition-all hover:border-primary hover:text-foreground"
+              >
+                <SlidersHorizontal size={16} />
+                <span className="hidden sm:inline">{filters.prospect || 'Filters'}</span>
+              </button>
+              {filterDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setFilterDropdownOpen(false)} />
+                  <div className="absolute right-0 mt-1 w-48 rounded-lg border border-border bg-card py-1 shadow-lg z-20">
+                    <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                      Filter by Company
+                    </div>
                     <button
-                      key={opt.id}
                       type="button"
-                      onClick={() => {
-                        if (opt.id === 'custom') {
-                          setCustomDatePopoverOpen(true)
-                        } else {
-                          setDateRange(opt.id)
-                          setCustomDatePopoverOpen(false)
-                        }
-                      }}
-                      className={`px-2 py-1 text-[10px] font-medium transition-colors ${
-                        idx === 0 ? 'rounded-l' : ''
-                      } ${idx === DATE_RANGE_OPTIONS.length - 1 ? 'rounded-r' : ''} ${
-                        dateRange === opt.id
-                          ? 'bg-blue-50 text-blue-700'
-                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                      }`}
+                      onClick={() => { setFilters({ prospect: undefined }); setFilterDropdownOpen(false) }}
+                      className={`w-full text-left px-3 py-2 text-sm ${!filters.prospect ? 'bg-primary/5 text-primary font-semibold' : 'text-foreground hover:bg-muted'}`}
                     >
-                      {opt.label}
+                      All companies
                     </button>
-                  ))}
-                </div>
-                {customDatePopoverOpen && (
-                  <CustomDateRangePopover
-                    fromDate={customDateFrom}
-                    toDate={customDateTo}
-                    onApply={(from, to) => {
-                      setCustomDates(from, to)
-                      setDateRange('custom')
-                      setCustomDatePopoverOpen(false)
-                    }}
-                    onClose={() => setCustomDatePopoverOpen(false)}
-                  />
-                )}
+                    {companyNames.map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => { setFilters({ prospect: name }); setFilterDropdownOpen(false) }}
+                        className={`w-full text-left px-3 py-2 text-sm ${filters.prospect === name ? 'bg-primary/5 text-primary font-semibold' : 'text-foreground hover:bg-muted'}`}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => analyzeMutation.mutate()}
+              disabled={analyzeMutation.isPending}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-3.5 text-sm font-semibold text-muted-foreground transition-all hover:border-primary hover:text-foreground disabled:opacity-50"
+            >
+              {analyzeMutation.isPending ? <Loader2 size={16} className="animate-spin text-forskale-blue" /> : <Sparkles size={16} />}
+              <span className="hidden sm:inline">Analyze New</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPasteModalOpen(true)}
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue px-4 text-sm font-semibold text-white shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.4)]"
+            >
+              <Mail size={16} />
+              <span>Paste Email</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* ── Body: Filter Sidebar + Main Content ── */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+
+        {/* ── Left Filter Sidebar (action-ready-main style) ── */}
+        {sidebarCollapsed ? (
+          <aside className="hidden w-[60px] shrink-0 border-r border-border bg-card lg:flex lg:flex-col lg:items-center lg:py-4">
+            <button
+              onClick={() => setSidebarCollapsed(false)}
+              className="mb-4 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title="Expand sidebar"
+            >
+              <PanelLeft size={16} />
+            </button>
+            <div className="flex flex-col items-center gap-2.5">
+              {statusFilters.map((f) => {
+                const isActive = activeTab === f.tab
+                return (
+                  <button
+                    key={f.label}
+                    onClick={() => setActiveTab(f.tab)}
+                    className={`relative flex h-10 w-10 items-center justify-center rounded-xl border transition-all hover:shadow-md ${
+                      isActive
+                        ? 'border-primary bg-gradient-to-r from-forskale-green/[0.06] to-primary/[0.06] shadow-md'
+                        : 'border-border bg-card hover:border-primary'
+                    }`}
+                    title={`${f.label} (${f.count}${f.countSuffix})`}
+                  >
+                    <div className={`flex h-6 w-6 items-center justify-center rounded-full ${f.colorClass}`}>
+                      {f.icon}
+                    </div>
+                    {isActive && (
+                      <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary shadow-[0_0_0_3px_hsl(var(--primary)/0.2)]" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </aside>
+        ) : (
+          <aside className="w-full border-b border-border bg-card p-4 lg:w-[240px] lg:shrink-0 lg:border-b-0 lg:border-r lg:p-4 transition-all duration-200">
+            <div className="space-y-4 lg:sticky lg:top-0">
+              <div className="hidden lg:flex lg:justify-end">
+                <button
+                  onClick={() => setSidebarCollapsed(true)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  title="Collapse sidebar"
+                >
+                  <PanelLeftClose size={16} />
+                </button>
               </div>
 
-              <div className="h-4 w-px bg-slate-200" />
-
-              {/* Action buttons */}
-              <button
-                type="button"
-                onClick={() => analyzeMutation.mutate()}
-                disabled={analyzeMutation.isPending}
-                className="inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                {analyzeMutation.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin text-blue-600" />
-                ) : (
-                  <Sparkles className="h-3 w-3 text-blue-600" />
-                )}
-                Analyze New
-              </button>
-
-              <button
-                type="button"
-                onClick={() => queryClient.invalidateQueries({ queryKey: ['todo-ready'] })}
-                className="inline-flex items-center justify-center w-6 h-6 rounded border border-slate-200 bg-white text-slate-500 hover:text-slate-700 hover:bg-slate-50"
-                aria-label="Refresh"
-              >
-                <RefreshCw className="h-3 w-3" />
-              </button>
-
-              {/* Filter dropdown */}
+              {/* Channel filter dropdown */}
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setFilterDropdownOpen((o) => !o)}
-                  className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium border ${
-                    filters.prospect
-                      ? 'bg-blue-50 border-blue-200 text-blue-700'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
+                  onClick={() => setChannelDropdownOpen((o) => !o)}
+                  className="w-full flex items-center justify-between rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-sm text-foreground hover:bg-muted"
                 >
-                  <Filter className="h-3 w-3" />
-                  {filters.prospect || 'Filter'}
-                  <ChevronDown className="h-3 w-3" />
+                  <span>{channelFilter === 'all' ? 'All channels' : channelFilter === 'email' ? 'Email' : 'Meeting'}</span>
+                  <ChevronDown size={14} className={`text-muted-foreground transition-transform ${channelDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
-                {filterDropdownOpen && (
+                {channelDropdownOpen && (
                   <>
-                    <div className="fixed inset-0 z-10" onClick={() => setFilterDropdownOpen(false)} />
-                    <div className="absolute right-0 mt-1 w-44 rounded border border-slate-200 bg-white py-1 shadow-lg z-20">
-                      <div className="px-2 py-1 text-[9px] font-semibold text-slate-400 uppercase">
-                        Filter by Company
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFilters({ prospect: undefined })
-                          setFilterDropdownOpen(false)
-                        }}
-                        className={`w-full text-left px-2 py-1.5 text-[10px] ${
-                          !filters.prospect ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'
-                        }`}
-                      >
-                        All companies
-                      </button>
-                      {companyNames.map((name) => (
+                    <div className="fixed inset-0 z-[100]" onClick={() => setChannelDropdownOpen(false)} />
+                    <div className="absolute left-0 right-0 mt-1 z-[101] rounded-xl border border-border bg-card shadow-lg py-1">
+                      {(['all', 'email', 'meeting'] as const).map((ch) => (
                         <button
-                          key={name}
+                          key={ch}
                           type="button"
-                          onClick={() => {
-                            setFilters({ prospect: name })
-                            setFilterDropdownOpen(false)
-                          }}
-                          className={`w-full text-left px-2 py-1.5 text-[10px] ${
-                            filters.prospect === name ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'
-                          }`}
+                          onClick={() => { setChannelFilter(ch); setChannelDropdownOpen(false) }}
+                          className={`w-full text-left px-3 py-2 text-sm font-medium ${channelFilter === ch ? 'bg-primary/5 text-primary' : 'text-foreground hover:bg-muted'}`}
                         >
-                          {name}
+                          {ch === 'all' ? 'All channels' : ch === 'email' ? 'Email' : 'Meeting'}
                         </button>
                       ))}
                     </div>
@@ -596,200 +595,165 @@ export default function ToDoReadyPage() {
                 )}
               </div>
 
-              {/* Primary action */}
-              <button
-                type="button"
-                onClick={() => setPasteModalOpen(true)}
-                className="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-[10px] font-medium text-white hover:bg-blue-700"
-              >
-                <ClipboardList className="h-3 w-3" />
-                Paste Email
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Gmail connection prompt */}
-      {!gmailConnected && (
-        <div className="shrink-0 bg-white border-b border-slate-200 px-3 lg:px-4 py-1.5">
-          <GmailConnectPrompt
-            status={gmailStatus ?? null}
-            loading={gmailStatusLoading}
-            onReauthorize={handleGmailReauthorize}
-            onRefresh={() => refetchGmailStatus()}
-            reauthorizing={reauthorizing}
-          />
-        </div>
-      )}
-
-      {/* Main: Left sidebar (nav + categories) | Right (Attention strip + task list or detail) */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* Left Sidebar - All channels, Inbox/Unread/AI draft, Categories */}
-        <aside className="shrink-0 w-[220px] lg:w-[240px] flex flex-col bg-white border-r border-slate-200 overflow-hidden">
-          <div className="p-3 border-b border-slate-100 relative">
-            <button
-              type="button"
-              onClick={() => setChannelDropdownOpen((o) => !o)}
-              className="w-full flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50/50 px-2.5 py-2 text-[11px] text-slate-600 hover:bg-slate-100"
-            >
-              <span>
-                {channelFilter === 'all' ? 'All channels' : channelFilter === 'email' ? 'Email' : 'Meeting'}
-              </span>
-              <ChevronDown
-                className={`h-3.5 w-3.5 text-slate-400 transition-transform ${channelDropdownOpen ? 'rotate-180' : ''}`}
-                aria-hidden
-              />
-            </button>
-            {channelDropdownOpen && (
-              <>
-                <div
-                  className="fixed inset-0 z-[100]"
-                  onClick={() => setChannelDropdownOpen(false)}
-                  aria-hidden
-                />
-                <div
-                  className="absolute top-full left-3 right-3 mt-1 z-[101] rounded-lg border border-slate-200 bg-white shadow-lg py-1 min-w-[120px]"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    onClick={() => { setChannelFilter('all'); setChannelDropdownOpen(false) }}
-                    className={`w-full text-left px-3 py-2 text-[11px] font-medium ${channelFilter === 'all' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
-                  >
-                    All channels
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setChannelFilter('email'); setChannelDropdownOpen(false) }}
-                    className={`w-full text-left px-3 py-2 text-[11px] font-medium ${channelFilter === 'email' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
-                  >
-                    Email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setChannelFilter('meeting'); setChannelDropdownOpen(false) }}
-                    className={`w-full text-left px-3 py-2 text-[11px] font-medium ${channelFilter === 'meeting' ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'}`}
-                  >
-                    Meeting
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-          <nav className="p-2 space-y-0.5" aria-label="View">
-            {VIEW_TABS.map((tab) => {
-              const Icon = tab.icon
-              const count = tabCounts[tab.id]
-              const isActive = activeTab === tab.id
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] font-medium transition-colors ${
-                    isActive ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-blue-600' : 'text-slate-400'}`} />
-                  {tab.label}
-                  {count > 0 && (
-                    <span className={`ml-auto min-w-[18px] h-[18px] flex items-center justify-center rounded-full text-[10px] ${
-                      isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'
-                    }`}>
-                      {count}
-                    </span>
-                  )}
-                </button>
-              )
-            })}
-          </nav>
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col border-t border-slate-100">
-            <button
-              type="button"
-              onClick={() => setCategoriesCollapsed((c) => !c)}
-              className="flex items-center justify-between w-full px-3 py-2 text-left hover:bg-slate-50"
-            >
-              <div className="flex items-center gap-2">
-                <Tag className="h-3.5 w-3.5 text-slate-500" />
-                <span className="text-[11px] font-semibold text-slate-700">Categories</span>
-                <Settings className="h-3 w-3 text-slate-400" />
-                <Plus className="h-3 w-3 text-slate-400" />
-              </div>
-              <ChevronDown
-                className={`h-3.5 w-3.5 text-slate-400 transition-transform ${categoriesCollapsed ? '' : 'rotate-180'}`}
-                aria-hidden
-              />
-            </button>
-            {!categoriesCollapsed && (
-              <div className="flex-1 overflow-y-auto scrollbar-blue-thin px-2 pt-2 pb-2 space-y-0.5 mt-1">
-                {INTENT_CATEGORIES.map((cat) => {
-                  const count = categoryCounts[cat.id] ?? 0
-                  const isActive = categoryFilter === cat.id
-                  const prd = cat.id !== 'all' && cat.id !== 'no_categories' ? INTENT_CATEGORY_PRD[cat.id] : null
-                  const tooltip = prd
-                    ? `${prd.interpretation} Should: ${prd.shouldTrigger} Priority: ${prd.priority}`
-                    : undefined
+              {/* Status filters */}
+              <div className="space-y-2">
+                {statusFilters.map((f) => {
+                  const isActive = activeTab === f.tab
                   return (
                     <button
-                      key={cat.id}
-                      type="button"
-                      title={tooltip}
-                      onClick={() => setCategoryFilter(cat.id)}
-                      className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] font-medium transition-colors ${
-                        isActive ? 'ring-1 ring-slate-300 bg-slate-50 ' + cat.color : cat.color + ' hover:opacity-90'
+                      key={f.label}
+                      onClick={() => setActiveTab(f.tab)}
+                      className={`relative flex w-full items-center gap-2.5 rounded-xl border p-2.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md ${
+                        isActive
+                          ? 'border-primary bg-gradient-to-r from-forskale-green/[0.06] to-primary/[0.06] shadow-md'
+                          : 'border-border bg-card hover:border-primary'
                       }`}
                     >
-                      <Tag className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                      <span className="flex-1 truncate">{cat.label}</span>
-                      {count > 0 && <span className="text-[10px] opacity-80">{count}</span>}
+                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${f.colorClass}`}>
+                        {f.icon}
+                      </div>
+                      <div className="flex flex-1 flex-col">
+                        <span className="text-sm font-semibold text-foreground">{f.label}</span>
+                        <span className="text-xs text-muted-foreground">{f.count}{f.countSuffix}</span>
+                      </div>
+                      {isActive ? (
+                        <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.2)]" />
+                      ) : (
+                        <ChevronRight size={14} className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                      )}
                     </button>
                   )
                 })}
               </div>
-            )}
-          </div>
-        </aside>
 
-        {/* Right Main - Attention Required strip + Task list or Detail */}
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col bg-slate-50 overflow-hidden">
-          {/* Attention Required strip */}
-          {memorySignals.length > 0 && (
-            <div className="shrink-0 bg-white border-b border-slate-200">
-              <MemorySignalsBar
-                signals={memorySignals}
-                onSelectTask={(taskId) => {
-                  setActiveTab('inbox')
-                  setSelectedTaskId(taskId)
-                }}
+              {/* Categories */}
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCategoriesCollapsed((c) => !c)}
+                  className="mb-3 flex w-full items-center justify-between"
+                >
+                  <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">Categories</h3>
+                  <ChevronDown size={14} className={`text-muted-foreground transition-transform ${categoriesCollapsed ? '' : 'rotate-180'}`} />
+                </button>
+                {!categoriesCollapsed && (
+                  <div className="flex flex-col gap-2">
+                    {INTENT_CATEGORIES.map((cat) => {
+                      const count = categoryCounts[cat.id] ?? 0
+                      const isActive = categoryFilter === cat.id
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setCategoryFilter(cat.id)}
+                          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-all ${
+                            isActive
+                              ? 'border-foreground bg-foreground text-card'
+                              : 'border-border bg-muted/40 text-muted-foreground hover:border-primary hover:text-foreground'
+                          }`}
+                        >
+                          {count > 0 ? `${count} ` : ''}{cat.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </aside>
+        )}
+
+        {/* ── Main Content ── */}
+        <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
+          {/* Gmail connection prompt (inline) */}
+          {!gmailConnected && (
+            <div className="shrink-0 mx-4 mt-4 lg:mx-6">
+              <GmailConnectPrompt
+                status={gmailStatus ?? null}
+                loading={gmailStatusLoading}
+                onReauthorize={handleGmailReauthorize}
+                onRefresh={() => refetchGmailStatus()}
+                reauthorizing={reauthorizing}
               />
             </div>
           )}
 
-          {/* Task list or Detail */}
+          {/* Content area */}
           {!selectedTaskId ? (
-            <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
-              <div className="flex-1 overflow-y-auto scrollbar-blue-thin p-4">
-                <TaskFeed
-                  key={`feed-${channelFilter}`}
-                  tasks={displayTasks}
-                  activeTab={activeTab}
-                  loading={todoLoading}
-                  onOpenTask={(task) => setSelectedTaskId(task.id)}
-                  onMarkDone={(task) => completeMutation.mutate(task.id)}
-                  onRegenerate={(task) => {
-                    setSelectedTaskId(task.id)
-                    toast('Regenerate draft will be available when the AI is connected.')
-                  }}
-                  onSnooze={() => toast('Snooze will be available in a future update.')}
-                />
+            <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6">
+              <div className="mx-auto max-w-7xl space-y-4">
+                <section className="space-y-3">
+                  {/* Queue header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                        isOverdue ? 'bg-forskale-cyan/10 text-forskale-cyan' : isCompleted ? 'bg-forskale-green/10 text-forskale-green' : 'bg-primary/10 text-primary'
+                      }`}>
+                        <queueConfig.Icon size={16} />
+                      </div>
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{queueConfig.eyebrow}</span>
+                        <h2 className="text-lg font-bold tracking-tight text-foreground">{queueConfig.title}</h2>
+                      </div>
+                    </div>
+                    <span className="rounded-md border border-border bg-card px-2.5 py-1 text-[10px] font-semibold text-primary">
+                      {displayTasks.length} cards
+                    </span>
+                  </div>
+
+                  {isOverdue && (
+                    <p className="text-xs text-muted-foreground">Tasks older than 5 days stay visible here for quick intervention.</p>
+                  )}
+
+                  {/* Loading state */}
+                  {todoLoading && (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 size={24} className="animate-spin text-primary" />
+                    </div>
+                  )}
+
+                  {/* Action Card Grid */}
+                  {!todoLoading && displayTasks.length > 0 && (
+                    <div className="grid gap-4 lg:grid-cols-2">
+                      {displayTasks.map((task) => (
+                        <ActionCard
+                          key={task.id}
+                          task={task}
+                          onOpen={(t) => {
+                            /* trigger background analysis without switching to detail view */
+                            if (!t.intent_category || !t.task_strategy?.recommended_next_step_type) {
+                              ensureAnalyzedMutation.mutate(t.id)
+                            }
+                            if (!t.reviewed_at) {
+                              markReviewedMutation.mutate(t.id)
+                            }
+                          }}
+                          onResolve={!isCompleted ? (id) => completeMutation.mutate(id) : undefined}
+                          resolved={isCompleted}
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Empty state */}
+                  {!todoLoading && displayTasks.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-border bg-card px-5 py-8 text-center">
+                      <p className="text-sm font-bold text-foreground">
+                        {isCompleted ? 'No completed cards yet.' : isOverdue ? 'No overdue cards right now.' : 'Execution queue is clear.'}
+                      </p>
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        {isCompleted ? 'Completed work will appear here once reps finish tasks.' : isOverdue ? 'Cards older than 5 days will appear here automatically.' : 'When a new action is ready, it will drop straight into this flow.'}
+                      </p>
+                    </div>
+                  )}
+                </section>
               </div>
             </div>
           ) : (
-            <div className="flex-1 min-h-0 overflow-y-auto bg-slate-100 p-3 lg:p-4 scrollbar-blue-thin">
-              <div className="flex flex-col gap-3">
-                {/* Strategic next step: hiển thị full, không scroll */}
-                <div className="shrink-0 rounded-lg bg-white border border-slate-200 shadow-sm overflow-visible">
+            /* Detail view: StrategyPanel + ReplyLab */
+            <div className="flex-1 min-h-0 overflow-y-auto bg-secondary px-4 py-4 lg:px-6">
+              <div className="mx-auto max-w-4xl flex flex-col gap-3">
+                <div className="shrink-0 rounded-2xl bg-card border border-border shadow-md overflow-visible">
                   <StrategyPanel
                     key={`strategy-${selectedTask?.id ?? 'empty'}`}
                     task={selectedTask}
@@ -798,25 +762,18 @@ export default function ToDoReadyPage() {
                       queryClient.invalidateQueries({ queryKey: ['todo-ready', 'items'] })
                     }}
                     onSuggestScriptDone={() => selectedTask?.id && setScriptGeneratedForTaskId(selectedTask.id)}
-                    onBack={() => {
-                      setSelectedTaskId(null)
-                      setScriptGeneratedForTaskId(null)
-                    }}
+                    onBack={() => { setSelectedTaskId(null); setScriptGeneratedForTaskId(null) }}
                     showExecution={scriptGeneratedForTaskId === selectedTaskId}
                     onShowExecution={() => selectedTask?.id && setScriptGeneratedForTaskId(selectedTask.id)}
                   />
                 </div>
-                {/* Box chi tiết task: hiển thị full, scroll cùng với Strategy */}
                 {scriptGeneratedForTaskId === selectedTaskId && selectedTask && (
-                  <div className="rounded-lg bg-white border border-slate-200 shadow-sm">
+                  <div className="rounded-2xl bg-card border border-border shadow-md">
                     <ReplyLab
                       key={selectedTask.id}
                       task={selectedTask}
                       onApproveCopy={() => toast.success('Copied to clipboard')}
-                      onTaskSent={() => {
-                        setSelectedTaskId(null)
-                        setScriptGeneratedForTaskId(null)
-                      }}
+                      onTaskSent={() => { setSelectedTaskId(null); setScriptGeneratedForTaskId(null) }}
                       onBack={() => setSelectedTaskId(null)}
                     />
                   </div>
@@ -824,29 +781,25 @@ export default function ToDoReadyPage() {
               </div>
             </div>
           )}
-        </div>
+        </main>
       </div>
 
-      {/* Mobile drawer: Strategy + Execution (same flow as desktop) */}
+      {/* Mobile drawer */}
       {selectedTaskId && (
-        <div
-          className="md:hidden fixed inset-0 z-40 flex flex-col bg-white"
-          role="dialog"
-          aria-label="Task detail"
-        >
-          <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-slate-200 bg-white">
+        <div className="md:hidden fixed inset-0 z-40 flex flex-col bg-card" role="dialog" aria-label="Task detail">
+          <div className="shrink-0 flex items-center gap-3 px-4 py-3 border-b border-border bg-card">
             <button
               type="button"
               onClick={() => { setSelectedTaskId(null); setScriptGeneratedForTaskId(null) }}
-              className="p-2 -ml-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+              className="p-2 -ml-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
               aria-label="Back to list"
             >
               <ChevronRight className="h-5 w-5 rotate-180" />
             </button>
-            <span className="text-base font-semibold text-slate-900">Task</span>
+            <span className="text-base font-semibold text-foreground">Task</span>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto bg-slate-100 p-3 flex flex-col gap-3">
-            <div className="shrink-0 rounded-lg bg-white border border-slate-200 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto bg-secondary p-3 flex flex-col gap-3">
+            <div className="shrink-0 rounded-2xl bg-card border border-border overflow-hidden">
               <StrategyPanel
                 key={`strategy-mob-${selectedTask?.id ?? 'empty'}`}
                 task={selectedTask}
@@ -859,7 +812,7 @@ export default function ToDoReadyPage() {
               />
             </div>
             {scriptGeneratedForTaskId === selectedTaskId && selectedTask && (
-              <div className="shrink-0 rounded-lg bg-white border border-slate-200 overflow-hidden">
+              <div className="shrink-0 rounded-2xl bg-card border border-border overflow-hidden">
                 <ReplyLab
                   key={selectedTask.id}
                   task={selectedTask}
@@ -875,12 +828,12 @@ export default function ToDoReadyPage() {
 
       {/* Error state */}
       {todoError && (
-        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-red-50 border border-red-200 rounded-xl p-4 shadow-lg" role="alert">
+        <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-4 md:w-96 bg-atlas-urgent-light border border-atlas-urgent-border rounded-xl p-4 shadow-lg" role="alert">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+            <AlertCircle className="h-5 w-5 text-atlas-urgent shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-red-800">Failed to load tasks</p>
-              <p className="text-sm text-red-600 mt-1">
+              <p className="text-sm font-medium text-foreground">Failed to load tasks</p>
+              <p className="text-sm text-muted-foreground mt-1">
                 {todoError instanceof Error ? todoError.message : 'Please try again'}
               </p>
             </div>
@@ -897,8 +850,8 @@ export default function ToDoReadyPage() {
       <Dialog open={showGmailPopup} onOpenChange={(v) => !v && setShowGmailPopup(false)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50">
-              <Mail className="h-6 w-6 text-blue-600" />
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-forskale-blue/10">
+              <Mail className="h-6 w-6 text-forskale-blue" />
             </div>
             <DialogTitle className="text-center">Connect your Gmail</DialogTitle>
             <DialogDescription className="text-center">

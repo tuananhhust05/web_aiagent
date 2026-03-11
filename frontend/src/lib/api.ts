@@ -7,8 +7,8 @@ import { deleteCookie } from './cookies'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://app.forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://app.forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -1745,11 +1745,26 @@ export interface ThreadMessage {
   timestamp: string
 }
 
+export interface InteractionHistoryItem {
+  type: 'email' | 'call' | 'meeting'
+  time_ago: string
+  summary: string
+}
+
+export type DraftTone = 'professional' | 'warm' | 'direct'
+
+export interface ToneDrafts {
+  professional?: string | null
+  warm?: string | null
+  direct?: string | null
+}
+
 export interface PreparedAction {
   strategy_label: string
   explanation: string
   draft_text: string
   variants?: string[] | null
+  tone_drafts?: ToneDrafts | null
 }
 
 /** Recommended next step type (PRD multi-path). */
@@ -1774,6 +1789,7 @@ export interface TaskStrategy {
   strategic_reasoning?: string | null
   decision_factors?: string[] | null
   alternative_actions?: AlternativeAction[] | null
+  confidence?: number | null
 }
 
 /** Intent category for a todo (from email/meeting analysis). */
@@ -1804,6 +1820,11 @@ export interface TodoItem {
   task_strategy?: TaskStrategy | null
   intent_category?: IntentCategory | null
   reviewed_at?: string | null
+  interaction_summary?: string | null
+  interaction_history?: InteractionHistoryItem[] | null
+  triggered_from?: string | null
+  attention_required?: boolean
+  risk_label?: string | null
   created_at: string
   updated_at: string
 }
@@ -1852,7 +1873,7 @@ export interface AnalysisState {
 
 export const todoReadyAPI = {
   /** List todo items with optional filters */
-  listItems: (params?: { status?: TodoStatus; source?: TodoSource; priority?: TodoPriority; unreviewed_only?: boolean; page?: number; limit?: number }) =>
+  listItems: (params?: { status?: TodoStatus; source?: TodoSource; priority?: TodoPriority; unreviewed_only?: boolean; search?: string; sentiment?: IntentCategory; page?: number; limit?: number }) =>
     api.get<TodoListResponse>('/api/todo-ready/items', { params }),
 
   /** Get a single todo item by ID */
@@ -1938,6 +1959,22 @@ export const todoReadyAPI = {
   /** Check if Gmail has send permission */
   checkGmailSendStatus: () =>
     api.get<GmailSendStatusResponse>('/api/todo-ready/gmail-send-status'),
+
+  /** Resolve/complete an action (PRD: PATCH /api/actions/:id/resolve) */
+  resolveItem: (id: string) =>
+    api.patch<TodoItem>(`/api/todo-ready/items/${id}/resolve`),
+
+  /** Get AI draft for a specific tone */
+  getDraft: (id: string, tone?: DraftTone) =>
+    api.get<{ draft: string; tone: string }>(`/api/todo-ready/items/${id}/draft`, { params: { tone } }),
+
+  /** Ingest raw email for signal extraction */
+  ingestEmail: (data: { subject?: string; body: string; from?: string; to?: string }) =>
+    api.post<TodoItem>('/api/todo-ready/ingest/email', data),
+
+  /** Schedule action (meeting/call) */
+  scheduleAction: (id: string, data?: { proposed_times?: string[] }) =>
+    api.post<TodoItem>(`/api/todo-ready/items/${id}/schedule`, data),
 }
 
 // Send email response

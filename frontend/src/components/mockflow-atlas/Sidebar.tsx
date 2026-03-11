@@ -13,6 +13,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { useAuth } from "../../hooks/useAuth";
 
 interface NavLink {
   type: "link";
@@ -26,8 +27,8 @@ type NavItem = NavLink;
 const navItems: NavItem[] = [
   { type: "link", icon: Radio, label: "Record", href: "/atlas/record" },
   { type: "link", icon: CalendarDays, label: "Meeting Intelligence", href: "/atlas/calendar" },
-  { type: "link", icon: Video, label: "Meeting Insights", href: "/atlas/insights" },
-  { type: "link", icon: BarChart3, label: "Performance", href: "/atlas/performance" },
+  { type: "link", icon: Video, label: "Meeting Insights", href: "/atlas/performance" },
+  { type: "link", icon: BarChart3, label: "Performance", href: "/atlas/insights" },
   { type: "link", icon: ClipboardCheck, label: "Action Ready", href: "/atlas/todo" },
   { type: "link", icon: HelpCircle, label: "Q&A Engine", href: "/atlas/qna" },
   { type: "link", icon: BookOpen, label: "Knowledge", href: "/atlas/knowledge" },
@@ -37,6 +38,15 @@ export function AtlasSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+
+  const initials = user
+    ? `${user.first_name?.[0] ?? ""}${user.last_name?.[0] ?? ""}`.toUpperCase() || user.email?.[0]?.toUpperCase() || "?"
+    : "?";
+  const displayName = user
+    ? [user.first_name, user.last_name].filter(Boolean).join(" ") || user.username || "User"
+    : "User";
+  const displayEmail = user?.email ?? "";
 
   return (
     <aside
@@ -121,13 +131,22 @@ export function AtlasSidebar() {
             collapsed && "justify-center px-0"
           )}
         >
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[hsl(var(--forskale-green))] to-[hsl(var(--forskale-teal))] text-xs font-bold text-white">
-            U
-          </div>
+          {user?.avatar_url ? (
+            <img
+              src={user.avatar_url}
+              alt={displayName}
+              className="h-8 w-8 flex-shrink-0 rounded-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[hsl(var(--forskale-green))] to-[hsl(var(--forskale-teal))] text-xs font-bold text-white">
+              {initials}
+            </div>
+          )}
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-white">User</p>
-              <p className="truncate text-[10px] text-sidebar-foreground/50">user@example.com</p>
+              <p className="truncate text-sm font-medium text-white">{displayName}</p>
+              <p className="truncate text-[10px] text-sidebar-foreground/50">{displayEmail}</p>
             </div>
           )}
         </div>
