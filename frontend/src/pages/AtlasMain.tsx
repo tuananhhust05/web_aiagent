@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import {
   AlertTriangle,
   Calendar,
@@ -10,16 +10,13 @@ import {
   CheckCircle2,
   CheckSquare,
   ChevronLeft,
-  Droplet,
   FileText,
   HelpCircle,
   Info,
-  List,
   Loader2,
   MessageCircle,
   Mic,
   Monitor,
-  MoreVertical,
   Pencil,
   Play,
   Plus,
@@ -43,7 +40,15 @@ import {
   Brain,
   Eye,
   Lightbulb,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  ListChecks,
+  Filter,
 } from 'lucide-react'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts'
+import { cn } from '../lib/utils'
 import { useAuth } from '../hooks/useAuth'
 import {
   calendarAPI,
@@ -61,6 +66,7 @@ import {
   type AtlasQnARecord,
   type AtlasKnowledgeDocument,
   type EnablementFeedbackResponse,
+  type PlaybookTemplateRule,
 } from '../lib/api'
 
 const KNOWLEDGE_CATEGORY_API_MAP: Record<string, string> = {
@@ -140,7 +146,8 @@ function extractTeamsInfo(link: string): { meetingId: string | null; passcode: s
 
 const SECTION_PATH_MAP: Record<string, AtlasMainSection> = {
   calls: 'calls',
-  insights: 'insights',
+  insights: 'calls',
+  performance: 'insights',
   todo: 'todo',
   qna: 'qna',
   knowledge: 'knowledge',
@@ -150,16 +157,17 @@ const SECTION_PATH_MAP: Record<string, AtlasMainSection> = {
 export default function AtlasMain() {
   const { user } = useAuth()
   const location = useLocation()
-  const navigate = useNavigate()
   const pathSegment = location.pathname.split('/').pop() || 'calls'
   const section: AtlasMainSection = SECTION_PATH_MAP[pathSegment] ?? 'calls'
 
+  const [callListCollapsed, setCallListCollapsed] = useState(false)
+  const [transcriptCollapsed, setTranscriptCollapsed] = useState(false)
   const [callsList, setCallsList] = useState<CallListItem[]>([])
   const [callsLoading, setCallsLoading] = useState(false)
   const [activeCallId, setActiveCallId] = useState<string | null>(null)
   const [activeCallTab, setActiveCallTab] = useState<
-    'summary' | 'playbook' | 'feedback' | 'comments'
-  >('summary')
+    'summary' | 'playbook' | 'feedback' | 'comments' | 'templates'
+  >('feedback')
   const [summarySubOpen, setSummarySubOpen] = useState(true)
   const [summaryAccordionOpen, setSummaryAccordionOpen] = useState<Record<string, boolean>>({
     keyTakeaways: true,
@@ -177,14 +185,18 @@ export default function AtlasMain() {
   const [selectedPlaybookId, setSelectedPlaybookId] = useState<string | null>(null)
   const [selectedPlaybookName, setSelectedPlaybookName] = useState<string>('Standard Sales Playbook')
   const [playbookDropdownOpen, setPlaybookDropdownOpen] = useState(false)
-  const [feedbackCoachOpen, setFeedbackCoachOpen] = useState<Record<string, boolean>>({
-    didWell0: false,
-    didWell1: false,
-    didWell2: false,
-    improve0: false,
-    improve1: false,
-    improve2: false,
-  })
+  // Template detail editing state
+  const [templateDetailRules, setTemplateDetailRules] = useState<PlaybookTemplateRule[]>([])
+  const [templateDetailLoading, setTemplateDetailLoading] = useState(false)
+  const [templateDetailSaving, setTemplateDetailSaving] = useState(false)
+  const [templateEditingName, setTemplateEditingName] = useState(false)
+  const [templateNameDraft, setTemplateNameDraft] = useState('')
+  const [editingRuleIndex, setEditingRuleIndex] = useState<number | null>(null)
+  const [editingRuleLabel, setEditingRuleLabel] = useState('')
+  const [editingRuleDescription, setEditingRuleDescription] = useState('')
+  const [addingNewRule, setAddingNewRule] = useState(false)
+  const [newRuleLabel, setNewRuleLabel] = useState('')
+  const [newRuleDescription, setNewRuleDescription] = useState('')
   const [_playbookTimeframe, _setPlaybookTimeframe] = useState<Timeframe>('Last week')
   const [_speakingTimeframe, _setSpeakingTimeframe] = useState<Timeframe>('Last week')
   const [_objectionTimeframe, _setObjectionTimeframe] = useState<Timeframe>('Last week')
@@ -880,6 +892,97 @@ export default function AtlasMain() {
     setPlaybookRuleOpen({})
   }, [activeCallId])
 
+  // Load full template detail (with rules) when a template is selected in Templates tab
+  useEffect(() => {
+    if (!selectedPlaybookId || activeCallTab !== 'templates') return
+    let cancelled = false
+    setTemplateDetailLoading(true)
+    setEditingRuleIndex(null)
+    setAddingNewRule(false)
+    setTemplateEditingName(false)
+    playbooksAPI
+      .get(selectedPlaybookId)
+      .then((res) => {
+        if (!cancelled) {
+          setTemplateDetailRules(res.data.rules || [])
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setTemplateDetailRules([])
+      })
+      .finally(() => {
+        if (!cancelled) setTemplateDetailLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [selectedPlaybookId, activeCallTab])
+
+  // Helper: refresh templates list after mutations
+  const refreshPlaybookTemplates = async () => {
+    try {
+      const res = await playbooksAPI.list({ limit: 200 })
+      const templates = (res.data.templates || []).map((t: any) => ({
+        id: t.id,
+        name: t.name,
+        items: (t.rules || []).length,
+        is_default: t.is_default,
+      }))
+      setPlaybookTemplates(templates)
+      return templates
+    } catch {
+      return playbookTemplates
+    }
+  }
+
+  // Save rules to backend
+  const handleSaveTemplateRules = async (rules: PlaybookTemplateRule[]) => {
+    if (!selectedPlaybookId) return
+    setTemplateDetailSaving(true)
+    try {
+      await playbooksAPI.update(selectedPlaybookId, { rules })
+      setTemplateDetailRules(rules)
+      await refreshPlaybookTemplates()
+      toast.success('Rules saved')
+    } catch {
+      toast.error('Failed to save rules')
+    } finally {
+      setTemplateDetailSaving(false)
+    }
+  }
+
+  // Rename template
+  const handleRenameTemplate = async () => {
+    if (!selectedPlaybookId || !templateNameDraft.trim()) return
+    setTemplateDetailSaving(true)
+    try {
+      await playbooksAPI.update(selectedPlaybookId, { name: templateNameDraft.trim() })
+      setSelectedPlaybookName(templateNameDraft.trim())
+      await refreshPlaybookTemplates()
+      setTemplateEditingName(false)
+      toast.success('Template renamed')
+    } catch {
+      toast.error('Failed to rename template')
+    } finally {
+      setTemplateDetailSaving(false)
+    }
+  }
+
+  // Delete template
+  const handleDeleteTemplate = async (templateId: string) => {
+    try {
+      await playbooksAPI.delete(templateId)
+      const updated = await refreshPlaybookTemplates()
+      if (selectedPlaybookId === templateId) {
+        const first = updated[0]
+        setSelectedPlaybookId(first?.id || null)
+        setSelectedPlaybookName(first?.name || '')
+        setTemplateDetailRules([])
+      }
+      toast.success('Template deleted')
+    } catch {
+      toast.error('Failed to delete template')
+    }
+  }
+
   const handleAnalyzePlaybook = async () => {
     if (section !== 'calls' || !activeCallId) return
     try {
@@ -1456,328 +1559,392 @@ export default function AtlasMain() {
   if (section === 'calls') {
     return (
       <>
-        <div className="flex h-full bg-[#f5f5f7]">
-          <div className="w-52 border-r border-gray-100 bg-white/80 backdrop-blur-sm p-4 space-y-3 overflow-y-auto shrink-0">
-            <h2 className="text-[13px] font-semibold text-gray-900 mb-3 tracking-tight">Call Insights</h2>
-            {callsLoading ? (
-              <p className="text-xs text-gray-500 py-2">Loading meetings…</p>
-            ) : callsList.length === 0 ? (
-              <p className="text-xs text-gray-500 py-2 leading-relaxed">
-                No meetings yet. Join a meeting from Record (paste link) or create one in Meetings.
-              </p>
-            ) : (
-              callsList.map((call) => (
-                <button
-                  key={call.id}
-                  onClick={() => setActiveCallId(call.id)}
-                  className={`w-full text-left rounded-xl px-3 py-2.5 mb-1.5 flex flex-col gap-1 transition-all duration-200 ${
-                    activeCallId === call.id
-                      ? 'bg-white shadow-sm ring-1 ring-gray-200/80 text-gray-900'
-                      : 'hover:bg-white/60 text-gray-700'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-900 truncate">{call.title || call.id}</span>
-                    <ChevronRight className="h-3.5 w-3.5 text-gray-400 shrink-0" />
-                  </div>
-                  <div className="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
-                    <span>{call.date}</span>
-                    <span>• {call.duration}</span>
-                  </div>
-                </button>
-              ))
-            )}
-          </div>
+        <div className="flex flex-1 overflow-hidden bg-background">
 
-          <div className="flex-1 flex min-h-0">
-            {/* Left: call analysis */}
-            <div className="flex-1 min-w-0 p-8 space-y-5 overflow-y-auto scrollbar-hide flex flex-col">
-              <div>
-                <button
-                  onClick={() => navigate('/atlas/calls')}
-                  className="text-[13px] text-gray-500 mb-2 flex items-center gap-1 hover:text-gray-700 transition-colors"
-                >
-                  <ChevronRight className="h-3.5 w-3.5 rotate-180" />
-                  <span>Calls</span>
+        {/* Call List Sidebar */}
+        <div
+          className={`h-screen border-r border-border bg-card overflow-hidden transition-all duration-300 ease-in-out flex flex-col ${
+            callListCollapsed ? 'w-[56px] min-w-[56px]' : 'w-[240px] min-w-[240px]'
+          }`}
+        >
+          {callListCollapsed ? (
+            <>
+              <div className="flex justify-center p-3 border-b border-border">
+                <button onClick={() => setCallListCollapsed(false)} className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                  <PanelLeftOpen className="h-4 w-4" />
                 </button>
+              </div>
+              <div className="flex-1 flex flex-col items-center gap-1.5 py-3 px-1.5 overflow-y-auto atlas-scrollbar">
+                {callsLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mt-2" />
+                ) : (
+                  callsList.map((call, idx) => (
+                    <button
+                      key={call.id}
+                      onClick={() => setActiveCallId(call.id)}
+                      className={`flex h-10 w-10 items-center justify-center rounded-lg transition-colors text-[13px] font-semibold ${
+                        activeCallId === call.id
+                          ? 'bg-forskale-teal/10 text-forskale-teal border border-forskale-teal/30'
+                          : 'text-foreground hover:bg-accent'
+                      }`}
+                      title={call.title}
+                    >
+                      {idx + 1}
+                    </button>
+                  ))
+                )}
+              </div>
+              <div className="flex justify-center pb-3">
+                <ChevronLeft className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center justify-between p-4 border-b border-border">
+                <h2 className="text-sm font-heading font-bold text-foreground tracking-tight">Call History</h2>
+                <button onClick={() => setCallListCollapsed(true)} className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                  <PanelLeftClose className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto atlas-scrollbar px-2 py-3 space-y-1">
+                {callsLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  </div>
+                ) : callsList.length === 0 ? (
+                  <p className="text-xs text-muted-foreground px-3 py-2 leading-relaxed">
+                    No meetings yet. Join a meeting from Record or create one in Meetings.
+                  </p>
+                ) : (
+                  callsList.map((call) => (
+                    <button
+                      key={call.id}
+                      onClick={() => setActiveCallId(call.id)}
+                      className={`w-full relative flex items-center justify-between px-3 py-3 rounded-lg text-left transition-all group ${
+                        activeCallId === call.id
+                          ? 'forskale-gradient-subtle border border-forskale-teal shadow-card'
+                          : 'border border-transparent hover:bg-accent hover:border-border'
+                      }`}
+                    >
+                      {activeCallId === call.id && (
+                        <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-forskale-teal" />
+                      )}
+                      <div className="min-w-0 flex-1 pl-1">
+                        <div className="text-[13px] font-semibold text-foreground truncate">{call.title || call.id}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">{call.date}</div>
+                      </div>
+                      <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Left: call analysis */}
+        <div className="flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ease-in-out">
+              {/* Header */}
+              <div className="px-8 pt-6 pb-0 border-b border-border bg-card">
+                <button
+                  onClick={() => setCallListCollapsed((prev) => !prev)}
+                  className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors mb-4"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" /> Calls
+                </button>
+
                 {activeCall ? (
                   <>
-                    <div className="flex items-center justify-between">
-                      <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">{activeCall.title || activeCall.id}</h1>
+                    <div className="flex items-center justify-between mb-4 gap-4">
+                      <h1 className="text-2xl font-heading font-bold text-foreground tracking-tight leading-tight">{activeCall.title || activeCall.id}</h1>
                       <button
                         type="button"
                         onClick={handleReanalyzeMeeting}
                         disabled={reanalyzing}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-600 to-purple-600 text-white text-xs font-semibold hover:from-violet-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-sm transition-all"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white text-sm font-semibold rounded-lg shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 transition-all shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {reanalyzing ? (
                           <>
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                             Analyzing...
                           </>
                         ) : (
                           <>
-                            <Brain className="h-3.5 w-3.5" />
+                            <Sparkles className="h-4 w-4" />
                             Analyze
                           </>
                         )}
                       </button>
                     </div>
-                    <div className="flex items-center gap-4 mt-3 flex-wrap text-sm text-gray-600">
-                      <span className="inline-flex items-center gap-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                        71% of sales playbook executed
-                      </span>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+                      {typeof playbookAnalysis?.overall_score === 'number' && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[hsl(var(--forskale-green)/0.08)] border border-[hsl(var(--forskale-green)/0.2)] text-status-great font-semibold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-status-great" />
+                          {playbookAnalysis.overall_score}% of sales playbook executed
+                        </span>
+                      )}
                       <span>{activeCall.date}</span>
-                      <span>{activeCall.duration}</span>
                       <span className="inline-flex items-center gap-1.5">
-                        <Users className="h-4 w-4 text-gray-400 shrink-0" />
-                        2 speakers
+                        <Users className="h-3.5 w-3.5" /> 2 speakers
                       </span>
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm text-gray-500 mt-1">Select a meeting from the list.</p>
+                  <p className="text-sm text-muted-foreground mt-1 mb-4">Select a meeting from the list.</p>
                 )}
-              </div>
 
-            {activeCall && (
-              <>
-                <div className="border-b border-gray-100">
-                  <nav className="flex gap-8 text-[13px]">
+                {activeCall && (
+                  <div className="flex gap-8">
                     {[
-                      { id: 'summary', label: 'Summary' },
-                      { id: 'playbook', label: 'Playbook' },
                       { id: 'feedback', label: 'Feedback' },
-                      // { id: 'comments', label: 'Comments' }, // Temporarily hidden
+                      { id: 'playbook', label: 'Playbook' },
+                      { id: 'summary', label: 'Summary' },
+                      { id: 'templates', label: 'Templates' },
                     ].map((tab) => (
                       <button
                         key={tab.id}
                         onClick={() => setActiveCallTab(tab.id as typeof activeCallTab)}
-                        className={`pb-3 border-b-2 -mb-px transition-colors ${
+                        className={`relative pb-3 text-sm font-semibold transition-colors ${
                           activeCallTab === tab.id
-                            ? 'border-gray-900 text-gray-900 font-medium'
-                            : 'border-transparent text-gray-500 hover:text-gray-700'
+                            ? 'text-foreground'
+                            : 'text-muted-foreground hover:text-foreground'
                         }`}
                       >
                         {tab.label}
+                        {activeCallTab === tab.id && (
+                          <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue rounded-full" />
+                        )}
                       </button>
                     ))}
-                  </nav>
-                </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 overflow-y-auto atlas-scrollbar p-8 bg-background transition-all duration-300 ease-in-out">
+
+            {activeCall && (
+              <>
 
                 {activeCallTab === 'summary' && (
-                  <div className="space-y-2">
-                    <p className="text-xs text-gray-500 mb-3">
+                  <div className="space-y-3">
+                    <div className="text-xs text-muted-foreground mb-3">
                       {activeCall.date} • {activeCall.duration} with client
-                    </p>
-                    {/* Summary (mục con) – chứa 4 mục bên trong */}
-                    <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+                    </div>
+
+                    {/* Summary */}
+                    <div className="border border-border rounded-xl bg-card shadow-card transition-all hover:shadow-card-md">
                       <button
                         type="button"
                         onClick={() => setSummarySubOpen((o) => !o)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                        className="w-full flex items-center gap-2.5 px-4 py-3.5 text-left"
                       >
-                        <FileText className="h-5 w-5 text-gray-600 shrink-0" />
-                        <span className="flex-1 font-medium text-gray-800">Summary</span>
-                        <ChevronDown
-                          className={`h-5 w-5 text-gray-600 shrink-0 transition-transform ${
-                            summarySubOpen ? 'rotate-180' : ''
-                          }`}
-                        />
+                        <FileText className="h-4 w-4 text-forskale-teal" />
+                        <span className="text-sm font-semibold text-foreground flex-1">Summary</span>
+                        {summarySubOpen ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
                       </button>
                       {summarySubOpen && (
-                        <div className="border-t border-gray-100 bg-white px-4 pb-4 pt-3 space-y-2">
+                        <div className="px-4 pb-4 border-t border-border pt-3 space-y-3 animate-fade-in">
                           {/* Key Takeaways */}
-                          <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+                          <div className="border border-border rounded-xl bg-card shadow-card transition-all hover:shadow-card-md">
                             <button
                               type="button"
                               onClick={() =>
                                 setSummaryAccordionOpen((s) => ({ ...s, keyTakeaways: !s.keyTakeaways }))
                               }
-                              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                              className="w-full flex items-center gap-2.5 px-4 py-3.5 text-left"
                             >
-                              <FileText className="h-5 w-5 text-gray-600 shrink-0" />
-                              <span className="flex-1 font-medium text-gray-800">Key Takeaways</span>
-                              <ChevronDown
-                                className={`h-5 w-5 text-gray-600 shrink-0 transition-transform ${
-                                  summaryAccordionOpen.keyTakeaways ? 'rotate-180' : ''
-                                }`}
-                              />
+                              <Lightbulb className="h-4 w-4 text-forskale-teal" />
+                              <span className="text-sm font-semibold text-foreground flex-1">Key Takeaways</span>
+                              {summaryAccordionOpen.keyTakeaways ? (
+                                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                              )}
                             </button>
                             {summaryAccordionOpen.keyTakeaways && (
-                              <div className="px-4 pb-4 pt-0 text-sm text-gray-700 border-t border-gray-100 bg-white">
+                              <div className="px-4 pb-4 border-t border-border pt-3 animate-fade-in">
                                 {!transcriptLines || transcriptLines.length === 0 ? null : atlasInsightsLoading ? (
-                                  <p className="text-xs text-gray-500 pt-3">Generating summary…</p>
+                                  <p className="text-xs text-muted-foreground">Generating summary…</p>
                                 ) : atlasInsightsError ? (
-                                  <p className="text-xs text-red-600 pt-3">{atlasInsightsError}</p>
+                                  <p className="text-xs text-destructive">{atlasInsightsError}</p>
                                 ) : (
-                                  <ul className="list-disc list-inside space-y-1 pt-3">
+                                  <ul className="space-y-1.5">
                                     {(atlasInsights?.summary?.key_takeaways || []).map((t, idx) => (
-                                      <li key={idx}>{t}</li>
+                                      <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-forskale-green shrink-0" />
+                                        {t}
+                                      </li>
                                     ))}
                                   </ul>
                                 )}
                               </div>
                             )}
                           </div>
-                          {/* Discussion Topics: Introduction and overview */}
-                          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mt-3 mb-1">
-                            Discussion Topics
-                          </p>
-                          <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSummaryAccordionOpen((s) => ({
-                                  ...s,
-                                  introductionOverview: !s.introductionOverview,
-                                }))
-                              }
-                              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                            >
-                              <FileText className="h-5 w-5 text-gray-600 shrink-0" />
-                              <span className="flex-1 font-medium text-gray-800">
-                                Introduction and overview
-                              </span>
-                              <ChevronDown
-                                className={`h-5 w-5 text-gray-600 shrink-0 transition-transform ${
-                                  summaryAccordionOpen.introductionOverview ? 'rotate-180' : ''
-                                }`}
-                              />
-                            </button>
-                            {summaryAccordionOpen.introductionOverview && (
-                              <div className="px-4 pb-4 pt-0 text-sm text-gray-700 border-t border-gray-100 bg-white">
-                                <ul className="list-disc list-inside space-y-1 pt-3">
-                                  {(atlasInsights?.summary?.introduction_and_overview || []).map((t, idx) => (
-                                    <li key={idx}>{t}</li>
-                                  ))}
-                                </ul>
+
+                          {/* Discussion Topics */}
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium px-1 py-2">
+                              Discussion Topics
+                            </div>
+                            <div className="space-y-2">
+                              {/* Introduction and overview */}
+                              <div className="border border-border rounded-xl bg-card shadow-card transition-all hover:shadow-card-md">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSummaryAccordionOpen((s) => ({
+                                      ...s,
+                                      introductionOverview: !s.introductionOverview,
+                                    }))
+                                  }
+                                  className="w-full flex items-center gap-2.5 px-4 py-3.5 text-left"
+                                >
+                                  <FileText className="h-4 w-4 text-forskale-teal" />
+                                  <span className="text-sm font-semibold text-foreground flex-1">
+                                    Introduction and overview
+                                  </span>
+                                  {summaryAccordionOpen.introductionOverview ? (
+                                    <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  )}
+                                </button>
+                                {summaryAccordionOpen.introductionOverview && (
+                                  <div className="px-4 pb-4 border-t border-border pt-3 animate-fade-in">
+                                    <ul className="space-y-1.5">
+                                      {(atlasInsights?.summary?.introduction_and_overview || []).map((t, idx) => (
+                                        <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                                          <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-forskale-green shrink-0" />
+                                          {t}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                          {/* Current Challenges */}
-                          <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSummaryAccordionOpen((s) => ({
-                                  ...s,
-                                  currentChallenges: !s.currentChallenges,
-                                }))
-                              }
-                              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                            >
-                              <FileText className="h-5 w-5 text-gray-600 shrink-0" />
-                              <span className="flex-1 font-medium text-gray-800">Current Challenges</span>
-                              <ChevronDown
-                                className={`h-5 w-5 text-gray-600 shrink-0 transition-transform ${
-                                  summaryAccordionOpen.currentChallenges ? 'rotate-180' : ''
-                                }`}
-                              />
-                            </button>
-                            {summaryAccordionOpen.currentChallenges && (
-                              <div className="px-4 pb-4 pt-0 text-sm text-gray-700 border-t border-gray-100 bg-white">
-                                <ul className="list-disc list-inside space-y-1 pt-3">
-                                  {(atlasInsights?.summary?.current_challenges || []).map((t, idx) => (
-                                    <li key={idx}>{t}</li>
-                                  ))}
-                                </ul>
+                              {/* Current Challenges */}
+                              <div className="border border-border rounded-xl bg-card shadow-card transition-all hover:shadow-card-md">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSummaryAccordionOpen((s) => ({
+                                      ...s,
+                                      currentChallenges: !s.currentChallenges,
+                                    }))
+                                  }
+                                  className="w-full flex items-center gap-2.5 px-4 py-3.5 text-left"
+                                >
+                                  <FileText className="h-4 w-4 text-forskale-teal" />
+                                  <span className="text-sm font-semibold text-foreground flex-1">Current Challenges</span>
+                                  {summaryAccordionOpen.currentChallenges ? (
+                                    <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  )}
+                                </button>
+                                {summaryAccordionOpen.currentChallenges && (
+                                  <div className="px-4 pb-4 border-t border-border pt-3 animate-fade-in">
+                                    <ul className="space-y-1.5">
+                                      {(atlasInsights?.summary?.current_challenges || []).map((t, idx) => (
+                                        <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                                          <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-forskale-green shrink-0" />
+                                          {t}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
-                          {/* Product Fit & Capabilities */}
-                          <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSummaryAccordionOpen((s) => ({ ...s, productFit: !s.productFit }))
-                              }
-                              className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                            >
-                              <FileText className="h-5 w-5 text-gray-600 shrink-0" />
-                              <span className="flex-1 font-medium text-gray-800">
-                                Product Fit &amp; Capabilities
-                              </span>
-                              <ChevronDown
-                                className={`h-5 w-5 text-gray-600 shrink-0 transition-transform ${
-                                  summaryAccordionOpen.productFit ? 'rotate-180' : ''
-                                }`}
-                              />
-                            </button>
-                            {summaryAccordionOpen.productFit && (
-                              <div className="px-4 pb-4 pt-0 text-sm text-gray-700 border-t border-gray-100 bg-white">
-                                <ul className="list-disc list-inside space-y-1 pt-3">
-                                  {(atlasInsights?.summary?.product_fit_and_capabilities || []).map((t, idx) => (
-                                    <li key={idx}>{t}</li>
-                                  ))}
-                                </ul>
+                              {/* Product Fit & Capabilities */}
+                              <div className="border border-border rounded-xl bg-card shadow-card transition-all hover:shadow-card-md">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSummaryAccordionOpen((s) => ({ ...s, productFit: !s.productFit }))
+                                  }
+                                  className="w-full flex items-center gap-2.5 px-4 py-3.5 text-left"
+                                >
+                                  <FileText className="h-4 w-4 text-forskale-teal" />
+                                  <span className="text-sm font-semibold text-foreground flex-1">
+                                    Product Fit &amp; Capabilities
+                                  </span>
+                                  {summaryAccordionOpen.productFit ? (
+                                    <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  ) : (
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  )}
+                                </button>
+                                {summaryAccordionOpen.productFit && (
+                                  <div className="px-4 pb-4 border-t border-border pt-3 animate-fade-in">
+                                    <ul className="space-y-1.5">
+                                      {(atlasInsights?.summary?.product_fit_and_capabilities || []).map((t, idx) => (
+                                        <li key={idx} className="text-sm text-muted-foreground flex items-start gap-2">
+                                          <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-forskale-green shrink-0" />
+                                          {t}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            </div>
                           </div>
                         </div>
                       )}
                     </div>
-                    {/* Next Steps accordion */}
-                    <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+
+                    {/* Next Steps */}
+                    <div className="border border-border rounded-xl bg-card shadow-card transition-all hover:shadow-card-md">
                       <button
                         type="button"
                         onClick={() =>
                           setSummaryAccordionOpen((s) => ({ ...s, nextSteps: !s.nextSteps }))
                         }
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                        className="w-full flex items-center gap-2.5 px-4 py-3.5 text-left"
                       >
-                        <CheckSquare className="h-5 w-5 text-gray-600 shrink-0" />
-                        <span className="flex-1 font-medium text-gray-800">Next Steps</span>
-                        <ChevronDown
-                          className={`h-5 w-5 text-gray-600 shrink-0 transition-transform ${
-                            summaryAccordionOpen.nextSteps ? 'rotate-180' : ''
-                          }`}
-                        />
+                        <CheckSquare className="h-4 w-4 text-forskale-teal" />
+                        <span className="text-sm font-semibold text-foreground flex-1">Next Steps</span>
+                        {summaryAccordionOpen.nextSteps ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
                       </button>
                       {summaryAccordionOpen.nextSteps && (
-                        <div className="px-4 pb-4 pt-3 space-y-2 border-t border-gray-100 bg-white">
+                        <div className="px-4 pb-4 pt-3 border-t border-border space-y-2 animate-fade-in">
                           {(atlasInsights?.next_steps || []).map((item, index) => (
-                            <div
-                              key={index}
-                              className="flex items-start gap-3 rounded-lg bg-gray-100 border border-gray-200/80 px-4 py-3"
-                            >
-                              <button
-                                type="button"
-                                onClick={() =>
+                            <div key={index} className="flex items-start gap-3 py-1.5">
+                              <input
+                                type="checkbox"
+                                checked={!!nextStepChecked[index]}
+                                onChange={() =>
                                   setNextStepChecked((prev) => ({
                                     ...prev,
                                     [index]: !prev[index],
                                   }))
                                 }
-                                className="mt-0.5 shrink-0 rounded border border-gray-400 w-4 h-4 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                              >
-                                {nextStepChecked[index] && (
-                                  <Check className="h-3 w-3 text-gray-700 stroke-[2.5]" />
-                                )}
-                              </button>
-                              <div className="flex-1 min-w-0">
-                                <span
-                                  className={
-                                    item.assignee === 'Anna'
-                                      ? 'text-blue-600 font-medium'
-                                      : 'text-amber-700 font-medium'
-                                  }
-                                >
-                                  {item.assignee}
-                                </span>
-                                <span className="text-gray-700"> {item.description}</span>
+                                className="mt-1 rounded border-border accent-forskale-teal"
+                              />
+                              <div className="flex-1">
+                                <span className="text-sm text-forskale-green font-medium">{item.assignee}</span>
+                                <span className="text-sm text-foreground ml-1">{item.description}</span>
                               </div>
-                              <span className="text-xs text-gray-500 shrink-0 mt-0.5">
-                                {item.time || '—'}
-                              </span>
+                              {item.time && (
+                                <span className="text-xs text-muted-foreground shrink-0">{item.time}</span>
+                              )}
                             </div>
                           ))}
                         </div>
                       )}
                     </div>
-                    {/* Questions and Objections accordion */}
-                    <div className="rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+
+                    {/* Questions and Objections */}
+                    <div className="border border-border rounded-xl bg-card shadow-card transition-all hover:shadow-card-md">
                       <button
                         type="button"
                         onClick={() =>
@@ -1786,25 +1953,22 @@ export default function AtlasMain() {
                             questionsObjections: !s.questionsObjections,
                           }))
                         }
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                        className="w-full flex items-center gap-2.5 px-4 py-3.5 text-left"
                       >
-                        <HelpCircle className="h-5 w-5 text-gray-600 shrink-0" />
-                        <span className="flex-1 font-medium text-gray-800">
+                        <HelpCircle className="h-4 w-4 text-forskale-teal" />
+                        <span className="text-sm font-semibold text-foreground flex-1">
                           Questions and Objections
                         </span>
-                        <ChevronDown
-                          className={`h-5 w-5 text-gray-600 shrink-0 transition-transform ${
-                            summaryAccordionOpen.questionsObjections ? 'rotate-180' : ''
-                          }`}
-                        />
+                        {summaryAccordionOpen.questionsObjections ? (
+                          <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                        )}
                       </button>
                       {summaryAccordionOpen.questionsObjections && (
-                        <div className="px-4 pb-4 pt-3 space-y-2 border-t border-gray-100">
+                        <div className="px-4 pb-4 pt-3 border-t border-border space-y-2 animate-fade-in">
                           {(atlasInsights?.questions_and_objections || []).map((item, index) => (
-                            <div
-                              key={index}
-                              className="rounded-lg bg-gray-100 border border-gray-200/80 overflow-hidden"
-                            >
+                            <div key={index} className="bg-secondary rounded-lg">
                               <button
                                 type="button"
                                 onClick={() =>
@@ -1813,23 +1977,21 @@ export default function AtlasMain() {
                                     [index]: !prev[index],
                                   }))
                                 }
-                                className="w-full flex items-center gap-2 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                                className="w-full flex items-center justify-between px-3 py-2.5 text-left"
                               >
-                                <span className="flex-1 font-medium text-gray-800 text-sm">
-                                  {item.question}
-                                </span>
-                                <ChevronDown
-                                  className={`h-5 w-5 text-gray-600 shrink-0 transition-transform ${
-                                    questionCardsOpen[index] ? 'rotate-180' : ''
-                                  }`}
-                                />
+                                <span className="text-sm text-foreground">{item.question}</span>
+                                {questionCardsOpen[index] ? (
+                                  <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-2" />
+                                ) : (
+                                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-2" />
+                                )}
                               </button>
                               {questionCardsOpen[index] && (
-                                <div className="px-4 pb-4 pt-0 text-sm text-gray-700 border-t border-gray-100">
-                                  <p className="text-blue-600 text-xs font-medium pt-3 mb-1">
+                                <div className="px-3 pb-3 space-y-1 animate-fade-in">
+                                  <div className="text-xs text-forskale-green font-medium">
                                     Your answer{item.time ? ` at ${item.time}` : ''}
-                                  </p>
-                                  <p className="text-gray-700 leading-relaxed">{item.answer}</p>
+                                  </div>
+                                  <div className="text-sm text-muted-foreground">{item.answer}</div>
                                 </div>
                               )}
                             </div>
@@ -1841,31 +2003,23 @@ export default function AtlasMain() {
                 )}
 
             {activeCallTab === 'playbook' && (
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="space-y-5">
+                {/* Playbook header card */}
+                <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+                  <div className="flex items-center gap-3 p-4 flex-wrap">
                   <div className="relative">
                     <button
                       type="button"
                       onClick={() => setPlaybookDropdownOpen((o) => !o)}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-800 hover:bg-gray-50 w-full sm:w-auto"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-accent w-[180px]"
                     >
-                      <List className="h-4 w-4 text-gray-500 shrink-0" />
-                      <span className="flex-1 text-left">
+                      <span className="flex-1 text-left truncate">
                         {playbookAnalysis?.template_name || selectedPlaybookName}
                       </span>
-                      {playbookDropdownOpen ? (
-                        <ChevronUp className="h-4 w-4 text-gray-500 shrink-0" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4 text-gray-500 shrink-0" />
-                      )}
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     </button>
                     {playbookDropdownOpen && (
-                      <div className="absolute top-full left-0 mt-1 min-w-[280px] rounded-lg border border-gray-200 bg-white shadow-lg z-20 overflow-hidden">
-                        <div className="px-4 py-2.5 border-b border-gray-100">
-                          <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-                            Sales Playbook Templates
-                          </p>
-                        </div>
+                      <div className="absolute top-full left-0 mt-1 min-w-[240px] rounded-lg border border-border bg-card shadow-card-md z-20 overflow-hidden">
                         <div className="py-1">
                           {playbookTemplates.map((opt) => (
                             <button
@@ -1876,87 +2030,59 @@ export default function AtlasMain() {
                                 setSelectedPlaybookName(opt.name)
                                 setPlaybookDropdownOpen(false)
                               }}
-                              className="w-full text-left px-4 py-2.5 text-sm flex items-center justify-between gap-2 hover:bg-gray-50"
+                              className="w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-accent"
                             >
-                              <span
-                                className={
-                                  (playbookAnalysis?.template_name || selectedPlaybookName) ===
-                                  opt.name
-                                    ? 'font-medium text-blue-600'
-                                    : 'text-gray-700'
-                                }
-                              >
+                              <span className={(playbookAnalysis?.template_name || selectedPlaybookName) === opt.name ? 'font-medium text-forskale-teal' : 'text-foreground'}>
                                 {opt.name}
                               </span>
-                              <span className="text-xs text-gray-500 shrink-0">
-                                {opt.items} items
-                              </span>
+                              <span className="text-[11px] text-muted-foreground shrink-0">{opt.items} items</span>
                             </button>
                           ))}
                         </div>
-                        <div className="border-t border-gray-100">
-                          <button
-                            type="button"
-                            className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            <List className="h-4 w-4 text-gray-500 shrink-0" />
-                            Edit Templates
+                        <div className="border-t border-border">
+                          <button type="button" onClick={() => { setPlaybookDropdownOpen(false); setActiveCallTab('templates'); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-accent">
+                            <ListChecks className="h-3.5 w-3.5" /> Edit Templates
                           </button>
                         </div>
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center gap-3">
                     {typeof playbookAnalysis?.overall_score === 'number' && (
-                      <div className="hidden sm:flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-1.5">
-                        <CheckCircle2 className="h-4 w-4 text-blue-600" />
-                        <div className="text-xs text-blue-900">
-                          <span className="font-semibold">
-                            {playbookAnalysis.overall_score}% playbook executed
-                          </span>
-                          {playbookAnalysis.coaching_summary && (
-                            <span className="ml-1 text-[10px]">
-                              — {playbookAnalysis.coaching_summary}
-                            </span>
-                          )}
-                        </div>
-                      </div>
+                      <span className="flex items-center gap-1.5 shrink-0">
+                        <Check className="h-4 w-4 text-status-great" />
+                        <span className="text-sm font-semibold text-status-great">{playbookAnalysis.overall_score}% playbook executed</span>
+                      </span>
                     )}
-                    <button
-                      type="button"
-                      onClick={handleAnalyzePlaybook}
-                      disabled={playbookLoading}
-                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {playbookLoading ? 'Analyzing…' : 'Analyze this meeting'}
-                    </button>
+                    <div className="ml-auto flex shrink-0 gap-2">
+                      <button type="button" onClick={handleAnalyzePlaybook} disabled={playbookLoading}
+                        className="px-3 py-1.5 bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white text-xs font-semibold rounded-lg shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 transition-all disabled:opacity-60">
+                        {playbookLoading ? 'Analyzing…' : 'Analyze this meeting'}
+                      </button>
+                      <button className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium text-foreground hover:bg-accent transition-colors h-7">
+                        <Download className="h-3.5 w-3.5" /> Download playbook
+                      </button>
+                    </div>
                   </div>
+                  {playbookAnalysis?.coaching_summary && (
+                    <div className="px-4 pb-4 border-t border-border pt-3 animate-fade-in">
+                      <span className="text-xs text-muted-foreground">— {playbookAnalysis.coaching_summary}</span>
+                    </div>
+                  )}
                 </div>
 
                 {playbookError && (
-                  <div className="text-xs text-red-600">{playbookError}</div>
+                  <div className="text-xs text-destructive">{playbookError}</div>
                 )}
 
                 {playbookAnalysis?.dimension_scores && Object.keys(playbookAnalysis.dimension_scores).length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 mb-4">
-                    {[
-                      'Handled objections',
-                      'Personalized demo',
-                      'Intro Banter',
-                      'Set Agenda',
-                      'Demo told a story',
-                    ].map((dim) => {
+                  <div className="flex gap-3 flex-wrap">
+                    {['Handled objections', 'Personalized demo', 'Intro Banter', 'Set Agenda', 'Demo told a story'].map((dim) => {
                       const pct = playbookAnalysis.dimension_scores?.[dim]
                       if (pct == null) return null
                       return (
-                        <div
-                          key={dim}
-                          className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-center"
-                        >
-                          <p className="text-[11px] text-gray-600 truncate" title={dim}>
-                            {dim}
-                          </p>
-                          <p className="text-sm font-semibold text-blue-600">{pct}%</p>
+                        <div key={dim} className={`rounded-xl border px-4 py-2.5 text-center min-w-[120px] bg-card shadow-card transition-all hover:-translate-y-0.5 hover:shadow-card-md ${pct >= 80 ? 'border-[hsl(var(--forskale-green)/0.2)]' : pct >= 20 ? 'border-[hsl(var(--forskale-cyan)/0.2)]' : 'border-border'}`}>
+                          <div className="text-[11px] text-muted-foreground">{dim}</div>
+                          <div className={`text-lg font-bold font-heading ${pct >= 80 ? 'text-status-great' : pct >= 20 ? 'text-status-okay' : 'text-muted-foreground'}`}>{pct}%</div>
                         </div>
                       )
                     })}
@@ -1964,11 +2090,11 @@ export default function AtlasMain() {
                 )}
 
                 {playbookAnalysis && playbookAnalysis.rules.length > 0 ? (
-                  <ul className="space-y-2">
+                  <div className="space-y-2">
                     {playbookAnalysis.rules.map((rule, index) => (
-                      <li
+                      <div
                         key={rule.rule_id || rule.label || index}
-                        className="rounded-lg border border-gray-200 bg-white"
+                        className="border border-border rounded-xl overflow-hidden bg-card shadow-card transition-all hover:shadow-card-md"
                       >
                         <button
                           type="button"
@@ -1981,48 +2107,41 @@ export default function AtlasMain() {
                           className="w-full flex items-center gap-3 px-4 py-3 text-left"
                         >
                           {rule.passed ? (
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-600">
-                              <Check className="h-4 w-4 stroke-[2.5]" />
-                            </span>
+                            <Check className="h-4 w-4 text-status-great shrink-0" />
                           ) : (
-                            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
-                              <X className="h-4 w-4 stroke-[2.5]" />
-                            </span>
+                            <X className="h-4 w-4 text-status-needs-work shrink-0" />
                           )}
                           <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
-                            <span className="text-sm text-gray-800">{rule.label}</span>
+                            <span className="text-sm text-foreground flex-1 font-medium">{rule.label}</span>
                             {!rule.passed && (
-                              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">
+                              <span className="inline-flex items-center rounded-full text-[10px] h-5 px-2 border border-[hsl(var(--forskale-green)/0.3)] text-status-great bg-[hsl(var(--badge-green-bg))]">
                                 Key Driver
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 shrink-0 text-xs text-blue-600">
-                            <span>See how</span>
-                            <ChevronDown
-                              className={`h-4 w-4 transition-transform ${
-                                playbookRuleOpen[index] ? 'rotate-180' : ''
-                              }`}
-                            />
-                          </div>
+                          {playbookRuleOpen[index] ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                          )}
                         </button>
                         {playbookRuleOpen[index] && (
-                          <div className="border-t border-gray-100 px-4 py-3 text-xs space-y-2 bg-gray-50/60">
+                          <div className="border-t border-border px-4 py-3 text-xs space-y-3 animate-fade-in">
                             <div>
-                              <div className="font-medium text-gray-700 mb-1">
+                              <div className="font-medium text-muted-foreground mb-1.5">
                                 What you said
                               </div>
-                              <div className="rounded-md border border-gray-200 bg-white px-3 py-2 min-h-[34px] text-gray-700">
+                              <div className="bg-secondary rounded-lg p-3 text-xs text-foreground leading-relaxed">
                                 {rule.what_you_said && rule.what_you_said.trim()
                                   ? rule.what_you_said
                                   : 'No relevant quote found in transcript.'}
                               </div>
                             </div>
                             <div>
-                              <div className="font-medium text-gray-700 mb-1">
+                              <div className="font-medium text-muted-foreground mb-1.5">
                                 What you should say
                               </div>
-                              <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 min-h-[34px] text-gray-800">
+                              <div className="bg-[hsl(var(--badge-green-bg))] rounded-lg p-3 text-xs text-foreground leading-relaxed border border-[hsl(var(--forskale-green)/0.2)]">
                                 {rule.what_you_should_say && rule.what_you_should_say.trim()
                                   ? rule.what_you_should_say
                                   : '—'}
@@ -2030,11 +2149,11 @@ export default function AtlasMain() {
                             </div>
                           </div>
                         )}
-                      </li>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 ) : (
-                  <div className="rounded-lg border border-dashed border-gray-300 bg-white px-4 py-6 text-sm text-gray-500">
+                  <div className="rounded-xl border border-dashed border-border bg-secondary/50 px-4 py-6 text-sm text-muted-foreground">
                     Click <span className="font-medium">“Analyze this meeting”</span> to compare the
                     transcript with your Sales Playbook and mark which rules were followed.
                   </div>
@@ -2043,233 +2162,194 @@ export default function AtlasMain() {
             )}
 
             {activeCallTab === 'feedback' && (
-              <div className="space-y-6">
-                {/* Section 1: This Call (Per-call feedback) */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-gray-200">
-                    <FileText className="h-5 w-5 text-blue-600 shrink-0" />
-                    <h2 className="text-base font-semibold text-gray-900">This Call</h2>
-                    <span className="text-xs text-gray-500 ml-auto">Per-call analysis</span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-gray-600 shrink-0" />
-                      <h3 className="text-sm font-semibold text-gray-900">Performance Metrics</h3>
+              <div className="space-y-8">
+                {/* Performance Metrics */}
+                <section>
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-2.5">
+                      <TrendingUp className="h-4 w-4 text-forskale-teal" />
+                      <h2 className="text-lg font-heading font-bold text-foreground">Performance Metrics</h2>
                     </div>
-                  <div className="flex items-center gap-3">
-                    {typeof feedbackData?.quality_score === 'number' && (
-                      <div className="flex items-center gap-2 rounded-md border border-blue-100 bg-blue-50 px-3 py-1.5">
-                        <TrendingUp className="h-4 w-4 text-blue-600 shrink-0" />
-                        <span className="text-xs font-semibold text-blue-900">
+                    <div className="flex items-center gap-3">
+                      {typeof feedbackData?.quality_score === 'number' && (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg forskale-gradient-subtle border border-[hsl(var(--forskale-teal)/0.2)] text-xs font-semibold text-forskale-teal">
+                          <Sparkles className="h-3.5 w-3.5" />
                           {feedbackData.quality_score}% call quality
                         </span>
-                      </div>
-                    )}
-                    <button
-                    type="button"
-                    onClick={async () => {
-                      if (!activeCallId || !transcriptLines || transcriptLines.length === 0) {
-                        toast.error('Transcript is required before analyzing feedback.')
-                        return
-                      }
-                      try {
-                        setFeedbackLoading(true)
-                        setFeedbackError(null)
-                        const res = await meetingsAPI.getMeetingFeedback(activeCallId, {
-                          force_refresh: true,
-                        })
-                        setFeedbackData(res.data)
-                        toast.success('Feedback analysis updated')
-                      } catch (e: any) {
-                        setFeedbackError(e.response?.data?.detail || 'Failed to analyze feedback')
-                        toast.error(e.response?.data?.detail || 'Failed to analyze feedback')
-                      } finally {
-                        setFeedbackLoading(false)
-                      }
-                    }}
-                    disabled={feedbackLoading}
-                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {feedbackLoading ? 'Analyzing…' : 'Analyze feedback'}
-                  </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!activeCallId || !transcriptLines || transcriptLines.length === 0) {
+                            toast.error('Transcript is required before analyzing feedback.')
+                            return
+                          }
+                          try {
+                            setFeedbackLoading(true)
+                            setFeedbackError(null)
+                            const res = await meetingsAPI.getMeetingFeedback(activeCallId, {
+                              force_refresh: true,
+                            })
+                            setFeedbackData(res.data)
+                            toast.success('Feedback analysis updated')
+                          } catch (e: any) {
+                            setFeedbackError(e.response?.data?.detail || 'Failed to analyze feedback')
+                            toast.error(e.response?.data?.detail || 'Failed to analyze feedback')
+                          } finally {
+                            setFeedbackLoading(false)
+                          }
+                        }}
+                        disabled={feedbackLoading}
+                        className="px-3 py-1.5 bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white text-xs font-semibold rounded-lg shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 transition-all disabled:opacity-60"
+                      >
+                        {feedbackLoading ? 'Analyzing…' : 'Analyze feedback'}
+                      </button>
                     </div>
                   </div>
-                  <div className="rounded-lg border border-gray-200 bg-white overflow-hidden divide-y divide-gray-100">
                   {feedbackLoading && (
-                    <div className="px-4 py-3 text-xs text-gray-500">Loading metrics…</div>
+                    <div className="text-xs text-muted-foreground">Loading metrics…</div>
                   )}
                   {!feedbackLoading && feedbackError && (
-                    <div className="px-4 py-3 text-xs text-red-600">{feedbackError}</div>
+                    <div className="text-xs text-destructive">{feedbackError}</div>
                   )}
                   {!feedbackLoading &&
                     !feedbackError &&
-                    (feedbackData?.metrics || []).map((metric, index) => {
-                      const color =
-                        metric.status_level === 'great'
-                          ? 'text-green-600'
-                          : metric.status_level === 'poor'
-                            ? 'text-red-600'
-                            : 'text-amber-600'
-                      return (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between gap-4 px-4 py-3 bg-gray-50/80"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <span className="text-sm text-gray-700">{metric.label}: </span>
-                            <span className={`text-sm font-medium ${color}`}>{metric.status}</span>
-                          </div>
-                          <div className="shrink-0">
-                            {metric.has_link && metric.link_url ? (
-                              <a
-                                href={metric.link_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm text-blue-600 underline hover:text-blue-700"
-                              >
-                                {metric.value}
-                              </a>
-                            ) : (
-                              <span className="text-sm text-gray-700">{metric.value}</span>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
+                    (feedbackData?.metrics || []).length > 0 && (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {(feedbackData?.metrics || []).map((metric, index) => {
+                          const rating =
+                            metric.status_level === 'great'
+                              ? 'Great!'
+                              : metric.status_level === 'poor'
+                                ? 'Needs work'
+                                : 'Okay'
+                          const ratingColor =
+                            metric.status_level === 'great'
+                              ? 'text-status-great'
+                              : metric.status_level === 'poor'
+                                ? 'text-status-needs-work'
+                                : 'text-status-okay'
+                          return (
+                            <div
+                              key={index}
+                              className="bg-card border border-border rounded-xl p-5 cursor-pointer transition-all duration-300 shadow-card hover:border-forskale-teal hover:shadow-card-md hover:-translate-y-0.5"
+                            >
+                              <div className="flex flex-col items-center justify-center text-center gap-2 min-h-[80px]">
+                                <span className="text-sm font-semibold text-foreground leading-tight">{metric.label}</span>
+                                <span className={`text-base font-bold font-heading ${ratingColor}`}>{rating}</span>
+                              </div>
+                              {metric.value && (
+                                <div className="mt-3 pt-3 border-t border-border">
+                                  <p className="text-xs text-muted-foreground text-center leading-relaxed">
+                                    {metric.has_link && metric.link_url ? (
+                                      <a href={metric.link_url} target="_blank" rel="noopener noreferrer" className="text-forskale-teal underline hover:text-forskale-green">
+                                        {metric.value}
+                                      </a>
+                                    ) : (
+                                      metric.value
+                                    )}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   {!feedbackLoading &&
                     !feedbackError &&
                     (!feedbackData || feedbackData.metrics.length === 0) && (
-                      <div className="px-4 py-3 text-xs text-gray-500">
+                      <div className="text-xs text-muted-foreground">
                         Metrics will appear here once feedback has been generated from the
                         transcript.
                       </div>
                     )}
+                </section>
+                {/* AI Sales Coach feedback */}
+                <section>
+                  <div className="flex items-center gap-2.5 mb-5">
+                    <Sparkles className="h-4 w-4 text-forskale-teal" />
+                    <h2 className="text-lg font-heading font-bold text-foreground">AI Sales Coach feedback</h2>
                   </div>
-                  {/* AI Sales Coach feedback */}
-                  <div className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-                  <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
-                    <Sparkles className="h-5 w-5 text-gray-600 shrink-0" />
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      AI Sales Coach feedback
-                    </h3>
+
+                  <div className="mb-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <ThumbsUp className="h-3.5 w-3.5 text-forskale-green" />
+                      <span className="text-[15px] font-semibold text-foreground">What you did well</span>
                     </div>
-                    <div className="p-4 space-y-5">
-                      <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <ThumbsUp className="h-5 w-5 text-amber-500 shrink-0" />
-                          <h4 className="text-sm font-medium text-gray-900">What you did well</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {(feedbackData?.did_well || []).map((item, i) => (
+                        <div key={i} className="bg-card border border-border rounded-xl p-5 transition-all duration-300 shadow-card hover:border-forskale-teal hover:shadow-card-md hover:-translate-y-0.5">
+                          <div className="flex gap-3">
+                            <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-forskale-green" />
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-semibold text-foreground leading-tight mb-1.5">{item.title}</h4>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{item.details || ''}</p>
+                            </div>
+                          </div>
                         </div>
-                        <ul className="space-y-2">
-                          {(feedbackData?.did_well || []).map((item, i) => (
-                            <li key={i}>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setFeedbackCoachOpen((s) => ({
-                                    ...s,
-                                    [`didWell${i}`]: !s[`didWell${i}` as keyof typeof s],
-                                  }))
-                                }
-                                className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-gray-200 bg-white text-left text-sm text-gray-800 hover:bg-gray-50"
-                              >
-                                <span>{item.title}</span>
-                                <ChevronDown
-                                  className={`h-4 w-4 text-blue-600 shrink-0 transition-transform ${
-                                    feedbackCoachOpen[`didWell${i}` as keyof typeof feedbackCoachOpen]
-                                      ? 'rotate-180'
-                                      : ''
-                                  }`}
-                                />
-                              </button>
-                              {feedbackCoachOpen[`didWell${i}` as keyof typeof feedbackCoachOpen] &&
-                                item.details && (
-                                  <div className="mt-1 ml-4 pl-4 border-l-2 border-gray-200 text-xs text-gray-600">
-                                    {item.details}
-                                  </div>
-                                )}
-                            </li>
-                          ))}
-                          {!feedbackLoading &&
-                            (!feedbackData || feedbackData.did_well.length === 0) && (
-                              <li className="text-xs text-gray-500 px-1">
-                                Positive coaching points will appear here after feedback is generated.
-                              </li>
-                            )}
-                        </ul>
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 mb-3">
-                          <Zap className="h-5 w-5 text-orange-500 shrink-0" />
-                          <h4 className="text-sm font-medium text-gray-900">
-                            Where you can improve
-                          </h4>
-                        </div>
-                        <ul className="space-y-2">
-                          {(feedbackData?.improve || []).map((item, i) => (
-                            <li key={i}>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setFeedbackCoachOpen((s) => ({
-                                    ...s,
-                                    [`improve${i}`]: !s[`improve${i}` as keyof typeof s],
-                                  }))
-                                }
-                                className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-gray-200 bg-white text-left text-sm text-gray-800 hover:bg-gray-50"
-                              >
-                                <span>{item.title}</span>
-                                <ChevronDown
-                                  className={`h-4 w-4 text-blue-600 shrink-0 transition-transform ${
-                                    feedbackCoachOpen[`improve${i}` as keyof typeof feedbackCoachOpen]
-                                      ? 'rotate-180'
-                                      : ''
-                                  }`}
-                                />
-                              </button>
-                              {feedbackCoachOpen[`improve${i}` as keyof typeof feedbackCoachOpen] &&
-                                item.details && (
-                                  <div className="mt-1 ml-4 pl-4 border-l-2 border-gray-200 text-xs text-gray-600">
-                                    {item.details}
-                                  </div>
-                                )}
-                            </li>
-                          ))}
-                          {!feedbackLoading &&
-                            (!feedbackData || feedbackData.improve.length === 0) && (
-                              <li className="text-xs text-gray-500 px-1">
-                                Coaching opportunities will appear here after feedback is generated.
-                              </li>
-                            )}
-                        </ul>
-                      </div>
+                      ))}
+                      {!feedbackLoading &&
+                        (!feedbackData || feedbackData.did_well.length === 0) && (
+                          <div className="text-xs text-muted-foreground px-1">
+                            Positive coaching points will appear here after feedback is generated.
+                          </div>
+                        )}
                     </div>
                   </div>
-                </div>
+
+                  <div>
+                    <div className="flex items-center gap-2 mb-3">
+                      <Zap className="h-3.5 w-3.5 text-forskale-cyan" />
+                      <span className="text-[15px] font-semibold text-foreground">Where you can improve</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {(feedbackData?.improve || []).map((item, i) => (
+                        <div key={i} className="bg-card border border-border rounded-xl p-5 transition-all duration-300 shadow-card hover:border-forskale-teal hover:shadow-card-md hover:-translate-y-0.5">
+                          <div className="flex gap-3">
+                            <span className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 bg-forskale-cyan" />
+                            <div className="min-w-0">
+                              <h4 className="text-sm font-semibold text-foreground leading-tight mb-1.5">{item.title}</h4>
+                              <p className="text-xs text-muted-foreground leading-relaxed">{item.details || ''}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {!feedbackLoading &&
+                        (!feedbackData || feedbackData.improve.length === 0) && (
+                          <div className="text-xs text-muted-foreground px-1">
+                            Coaching opportunities will appear here after feedback is generated.
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                </section>
 
                 {/* Section 2: Overall Performance (Longitudinal, cross-meeting feedback) */}
-                <div className="space-y-4 pt-6 border-t-2 border-gray-200">
-                  <div className="flex items-center gap-2 pb-2">
-                    <Sparkles className="h-5 w-5 text-purple-600 shrink-0" />
-                    <h2 className="text-base font-semibold text-gray-900">Overall Performance</h2>
-                    <span className="text-xs text-gray-500 ml-auto">Last 30 days • Cross-meeting insights</span>
+                <section className="space-y-4 pt-6 border-t border-border">
+                  <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-2.5">
+                      <Brain className="h-4 w-4 text-forskale-teal" />
+                      <h2 className="text-lg font-heading font-bold text-foreground">Overall Performance</h2>
+                    </div>
+                    <span className="text-xs text-muted-foreground">Last 30 days • Cross-meeting insights</span>
                   </div>
 
                   {enablementLoading ? (
                     <div className="flex flex-col items-center justify-center py-12 px-4">
-                      <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-2" />
-                      <p className="text-sm text-gray-500">Loading performance insights...</p>
+                      <Loader2 className="h-8 w-8 animate-spin text-forskale-teal mb-2" />
+                      <p className="text-sm text-muted-foreground">Loading performance insights...</p>
                     </div>
                   ) : enablementError ? (
-                    <div className="flex flex-col items-center justify-center py-12 px-4 rounded-lg border border-red-200 bg-red-50">
-                      <AlertCircle className="h-8 w-8 text-red-600 mb-2" />
-                      <p className="text-sm text-red-600 mb-2">{enablementError}</p>
+                    <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-destructive/30 bg-destructive/5">
+                      <AlertCircle className="h-8 w-8 text-destructive mb-2" />
+                      <p className="text-sm text-destructive mb-2">{enablementError}</p>
                     </div>
                   ) : !enablementFeedback || enablementFeedback.total_calls_analyzed === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 px-4 rounded-lg border border-dashed border-gray-300 bg-gray-50">
-                      <Info className="h-8 w-8 text-gray-400 mb-2" />
-                      <p className="text-sm text-gray-600 text-center mb-1">Not enough data yet</p>
-                      <p className="text-xs text-gray-500 text-center max-w-sm">
+                    <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed border-border bg-secondary/50">
+                      <Info className="h-8 w-8 text-muted-foreground mb-2" />
+                      <p className="text-sm text-foreground text-center mb-1">Not enough data yet</p>
+                      <p className="text-xs text-muted-foreground text-center max-w-sm">
                         Complete at least 5 calls to receive personalized coaching insights across your meetings
                       </p>
                     </div>
@@ -2277,32 +2357,32 @@ export default function AtlasMain() {
                     <>
                       {/* Overall Summary */}
                       {(enablementFeedback.overall_quality_trend || enablementFeedback.top_strength || enablementFeedback.top_opportunity) && (
-                        <div className="rounded-lg bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-100 p-4">
+                        <div className="rounded-xl forskale-gradient-subtle border border-[hsl(var(--forskale-teal)/0.2)] p-5">
                           {enablementFeedback.overall_quality_trend && (
                             <div className="flex items-center gap-2 mb-2">
                               {enablementFeedback.overall_quality_trend === 'improving' ? (
-                                <TrendingUp className="h-4 w-4 text-green-600" />
+                                <TrendingUp className="h-4 w-4 text-status-great" />
                               ) : enablementFeedback.overall_quality_trend === 'declining' ? (
-                                <TrendingDown className="h-4 w-4 text-red-600" />
+                                <TrendingDown className="h-4 w-4 text-destructive" />
                               ) : (
-                                <Minus className="h-4 w-4 text-gray-600" />
+                                <Minus className="h-4 w-4 text-muted-foreground" />
                               )}
-                              <span className="text-sm font-medium text-gray-700">
+                              <span className="text-sm font-medium text-foreground">
                                 Performance is <span className="capitalize">{enablementFeedback.overall_quality_trend}</span>
                               </span>
                             </div>
                           )}
                           {enablementFeedback.top_strength && (
-                            <p className="text-sm text-gray-700 mb-1">
-                              <span className="font-medium text-green-700">💪 Strength:</span> {enablementFeedback.top_strength}
+                            <p className="text-sm text-foreground mb-1">
+                              <span className="font-medium text-status-great">Strength:</span> {enablementFeedback.top_strength}
                             </p>
                           )}
                           {enablementFeedback.top_opportunity && (
-                            <p className="text-sm text-gray-700">
-                              <span className="font-medium text-amber-700">🎯 Opportunity:</span> {enablementFeedback.top_opportunity}
+                            <p className="text-sm text-foreground">
+                              <span className="font-medium text-forskale-cyan">Opportunity:</span> {enablementFeedback.top_opportunity}
                             </p>
                           )}
-                          <p className="text-xs text-gray-600 mt-2">
+                          <p className="text-xs text-muted-foreground mt-2">
                             Based on {enablementFeedback.total_calls_analyzed} calls analyzed
                           </p>
                         </div>
@@ -2311,51 +2391,51 @@ export default function AtlasMain() {
                       {/* Risk Signals */}
                       {enablementFeedback.risk_signals.length > 0 && (
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                            <AlertTriangle className="h-4 w-4 text-red-600" />
+                          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium px-1 py-2 flex items-center gap-1.5">
+                            <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
                             Risk Signals
                           </h4>
                           <div className="space-y-2">
                             {enablementFeedback.risk_signals.map((card) => (
-                              <div key={card.id} className="rounded-lg border border-red-200 bg-white shadow-sm overflow-hidden">
+                              <div key={card.id} className="border border-border rounded-xl overflow-hidden bg-card shadow-card transition-all hover:shadow-card-md">
                                 <button
                                   onClick={() => setEnablementCardsExpanded((prev) => ({ ...prev, [card.id]: !prev[card.id] }))}
-                                  className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-red-50/50 transition-colors"
+                                  className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-accent/50 transition-colors"
                                 >
-                                  <div className="p-1.5 rounded-lg text-red-600 bg-red-50 border-red-200 shrink-0 mt-0.5">
+                                  <div className="p-1.5 rounded-lg text-destructive bg-destructive/10 shrink-0 mt-0.5">
                                     <AlertTriangle className="h-4 w-4" />
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                      <h5 className="text-sm font-medium text-gray-900">{card.title}</h5>
-                                      <span className="text-xs text-gray-500 px-2 py-0.5 rounded-full bg-gray-100">
+                                      <h5 className="text-sm font-medium text-foreground">{card.title}</h5>
+                                      <span className="text-[10px] text-muted-foreground px-2 py-0.5 rounded-full bg-secondary">
                                         {Math.round(card.confidence * 100)}%
                                       </span>
                                     </div>
-                                    <p className="text-xs text-gray-600">{card.description}</p>
+                                    <p className="text-xs text-muted-foreground">{card.description}</p>
                                   </div>
-                                  <ChevronDown className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${enablementCardsExpanded[card.id] ? 'rotate-180' : ''}`} />
+                                  <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${enablementCardsExpanded[card.id] ? 'rotate-180' : ''}`} />
                                 </button>
                                 {enablementCardsExpanded[card.id] && (
-                                  <div className="border-t border-red-100 bg-red-50/30 px-4 py-3 space-y-3">
+                                  <div className="border-t border-border bg-secondary/30 px-4 py-3 space-y-3 animate-fade-in">
                                     <div>
-                                      <p className="text-xs font-medium text-gray-700 mb-1.5">Evidence</p>
-                                      <div className="text-xs text-gray-600 space-y-1">
-                                        <div>Calls analyzed: <span className="font-medium">{card.evidence.calls_analyzed}</span></div>
+                                      <p className="text-xs font-medium text-foreground mb-1.5">Evidence</p>
+                                      <div className="text-xs text-muted-foreground space-y-1">
+                                        <div>Calls analyzed: <span className="font-medium text-foreground">{card.evidence.calls_analyzed}</span></div>
                                         {card.evidence.calls_above_threshold !== undefined && (
-                                          <div>Pattern appears in: <span className="font-medium">{card.evidence.calls_above_threshold} calls</span></div>
+                                          <div>Pattern appears in: <span className="font-medium text-foreground">{card.evidence.calls_above_threshold} calls</span></div>
                                         )}
                                       </div>
                                     </div>
                                     {card.suggestions.length > 0 && (
                                       <div>
-                                        <p className="text-xs font-medium text-gray-700 mb-1.5 flex items-center gap-1">
-                                          <Sparkles className="h-3 w-3 text-amber-500" />
+                                        <p className="text-xs font-medium text-foreground mb-1.5 flex items-center gap-1">
+                                          <Sparkles className="h-3 w-3 text-forskale-teal" />
                                           Suggestions
                                         </p>
                                         <ul className="space-y-1.5">
                                           {card.suggestions.map((suggestion, idx) => (
-                                            <li key={idx} className="text-xs text-gray-700 pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-red-500">
+                                            <li key={idx} className="text-xs text-muted-foreground pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-destructive">
                                               {suggestion}
                                             </li>
                                           ))}
@@ -2373,51 +2453,51 @@ export default function AtlasMain() {
                       {/* Improvement Opportunities */}
                       {enablementFeedback.improvements.length > 0 && (
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                            <Lightbulb className="h-4 w-4 text-amber-600" />
+                          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium px-1 py-2 flex items-center gap-1.5">
+                            <Lightbulb className="h-3.5 w-3.5 text-forskale-cyan" />
                             Improvement Opportunities
                           </h4>
                           <div className="space-y-2">
                             {enablementFeedback.improvements.map((card) => (
-                              <div key={card.id} className="rounded-lg border border-amber-200 bg-white shadow-sm overflow-hidden">
+                              <div key={card.id} className="border border-border rounded-xl overflow-hidden bg-card shadow-card transition-all hover:shadow-card-md">
                                 <button
                                   onClick={() => setEnablementCardsExpanded((prev) => ({ ...prev, [card.id]: !prev[card.id] }))}
-                                  className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-amber-50/50 transition-colors"
+                                  className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-accent/50 transition-colors"
                                 >
-                                  <div className="p-1.5 rounded-lg text-amber-600 bg-amber-50 border-amber-200 shrink-0 mt-0.5">
+                                  <div className="p-1.5 rounded-lg text-forskale-cyan bg-[hsl(var(--forskale-cyan)/0.1)] shrink-0 mt-0.5">
                                     <Lightbulb className="h-4 w-4" />
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                      <h5 className="text-sm font-medium text-gray-900">{card.title}</h5>
-                                      <span className="text-xs text-gray-500 px-2 py-0.5 rounded-full bg-gray-100">
+                                      <h5 className="text-sm font-medium text-foreground">{card.title}</h5>
+                                      <span className="text-[10px] text-muted-foreground px-2 py-0.5 rounded-full bg-secondary">
                                         {Math.round(card.confidence * 100)}%
                                       </span>
                                     </div>
-                                    <p className="text-xs text-gray-600">{card.description}</p>
+                                    <p className="text-xs text-muted-foreground">{card.description}</p>
                                   </div>
-                                  <ChevronDown className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${enablementCardsExpanded[card.id] ? 'rotate-180' : ''}`} />
+                                  <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${enablementCardsExpanded[card.id] ? 'rotate-180' : ''}`} />
                                 </button>
                                 {enablementCardsExpanded[card.id] && (
-                                  <div className="border-t border-amber-100 bg-amber-50/30 px-4 py-3 space-y-3">
+                                  <div className="border-t border-border bg-secondary/30 px-4 py-3 space-y-3 animate-fade-in">
                                     <div>
-                                      <p className="text-xs font-medium text-gray-700 mb-1.5">Evidence</p>
-                                      <div className="text-xs text-gray-600 space-y-1">
-                                        <div>Calls analyzed: <span className="font-medium">{card.evidence.calls_analyzed}</span></div>
+                                      <p className="text-xs font-medium text-foreground mb-1.5">Evidence</p>
+                                      <div className="text-xs text-muted-foreground space-y-1">
+                                        <div>Calls analyzed: <span className="font-medium text-foreground">{card.evidence.calls_analyzed}</span></div>
                                         {card.evidence.calls_above_threshold !== undefined && (
-                                          <div>Pattern appears in: <span className="font-medium">{card.evidence.calls_above_threshold} calls</span></div>
+                                          <div>Pattern appears in: <span className="font-medium text-foreground">{card.evidence.calls_above_threshold} calls</span></div>
                                         )}
                                       </div>
                                     </div>
                                     {card.suggestions.length > 0 && (
                                       <div>
-                                        <p className="text-xs font-medium text-gray-700 mb-1.5 flex items-center gap-1">
-                                          <Sparkles className="h-3 w-3 text-amber-500" />
+                                        <p className="text-xs font-medium text-foreground mb-1.5 flex items-center gap-1">
+                                          <Sparkles className="h-3 w-3 text-forskale-teal" />
                                           Suggestions
                                         </p>
                                         <ul className="space-y-1.5">
                                           {card.suggestions.map((suggestion, idx) => (
-                                            <li key={idx} className="text-xs text-gray-700 pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-amber-500">
+                                            <li key={idx} className="text-xs text-muted-foreground pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-forskale-cyan">
                                               {suggestion}
                                             </li>
                                           ))}
@@ -2435,54 +2515,54 @@ export default function AtlasMain() {
                       {/* Observations */}
                       {enablementFeedback.observations.length > 0 && (
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                            <Eye className="h-4 w-4 text-blue-600" />
+                          <h4 className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium px-1 py-2 flex items-center gap-1.5">
+                            <Eye className="h-3.5 w-3.5 text-forskale-teal" />
                             Observations
                           </h4>
                           <div className="space-y-2">
                             {enablementFeedback.observations.map((card) => (
-                              <div key={card.id} className="rounded-lg border border-blue-200 bg-white shadow-sm overflow-hidden">
+                              <div key={card.id} className="border border-border rounded-xl overflow-hidden bg-card shadow-card transition-all hover:shadow-card-md">
                                 <button
                                   onClick={() => setEnablementCardsExpanded((prev) => ({ ...prev, [card.id]: !prev[card.id] }))}
-                                  className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-blue-50/50 transition-colors"
+                                  className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-accent/50 transition-colors"
                                 >
-                                  <div className="p-1.5 rounded-lg text-blue-600 bg-blue-50 border-blue-200 shrink-0 mt-0.5">
+                                  <div className="p-1.5 rounded-lg text-forskale-teal bg-[hsl(var(--forskale-teal)/0.1)] shrink-0 mt-0.5">
                                     <Eye className="h-4 w-4" />
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-2 mb-1">
-                                      <h5 className="text-sm font-medium text-gray-900">{card.title}</h5>
-                                      <span className="text-xs text-gray-500 px-2 py-0.5 rounded-full bg-gray-100">
+                                      <h5 className="text-sm font-medium text-foreground">{card.title}</h5>
+                                      <span className="text-[10px] text-muted-foreground px-2 py-0.5 rounded-full bg-secondary">
                                         {Math.round(card.confidence * 100)}%
                                       </span>
                                     </div>
-                                    <p className="text-xs text-gray-600">{card.description}</p>
+                                    <p className="text-xs text-muted-foreground">{card.description}</p>
                                   </div>
-                                  <ChevronDown className={`h-4 w-4 text-gray-400 shrink-0 transition-transform ${enablementCardsExpanded[card.id] ? 'rotate-180' : ''}`} />
+                                  <ChevronDown className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${enablementCardsExpanded[card.id] ? 'rotate-180' : ''}`} />
                                 </button>
                                 {enablementCardsExpanded[card.id] && (
-                                  <div className="border-t border-blue-100 bg-blue-50/30 px-4 py-3 space-y-3">
+                                  <div className="border-t border-border bg-secondary/30 px-4 py-3 space-y-3 animate-fade-in">
                                     <div>
-                                      <p className="text-xs font-medium text-gray-700 mb-1.5">Evidence</p>
-                                      <div className="text-xs text-gray-600 space-y-1">
-                                        <div>Calls analyzed: <span className="font-medium">{card.evidence.calls_analyzed}</span></div>
+                                      <p className="text-xs font-medium text-foreground mb-1.5">Evidence</p>
+                                      <div className="text-xs text-muted-foreground space-y-1">
+                                        <div>Calls analyzed: <span className="font-medium text-foreground">{card.evidence.calls_analyzed}</span></div>
                                         {card.evidence.calls_above_threshold !== undefined && (
-                                          <div>Pattern appears in: <span className="font-medium">{card.evidence.calls_above_threshold} calls</span></div>
+                                          <div>Pattern appears in: <span className="font-medium text-foreground">{card.evidence.calls_above_threshold} calls</span></div>
                                         )}
                                         {card.evidence.metric_average !== undefined && (
-                                          <div>Average: <span className="font-medium">{typeof card.evidence.metric_average === 'number' ? card.evidence.metric_average.toFixed(2) : card.evidence.metric_average}</span></div>
+                                          <div>Average: <span className="font-medium text-foreground">{typeof card.evidence.metric_average === 'number' ? card.evidence.metric_average.toFixed(2) : card.evidence.metric_average}</span></div>
                                         )}
                                       </div>
                                     </div>
                                     {card.suggestions.length > 0 && (
                                       <div>
-                                        <p className="text-xs font-medium text-gray-700 mb-1.5 flex items-center gap-1">
-                                          <Sparkles className="h-3 w-3 text-amber-500" />
+                                        <p className="text-xs font-medium text-foreground mb-1.5 flex items-center gap-1">
+                                          <Sparkles className="h-3 w-3 text-forskale-teal" />
                                           Suggestions
                                         </p>
                                         <ul className="space-y-1.5">
                                           {card.suggestions.map((suggestion, idx) => (
-                                            <li key={idx} className="text-xs text-gray-700 pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-blue-500">
+                                            <li key={idx} className="text-xs text-muted-foreground pl-3 relative before:content-['•'] before:absolute before:left-0 before:text-forskale-teal">
                                               {suggestion}
                                             </li>
                                           ))}
@@ -2498,43 +2578,43 @@ export default function AtlasMain() {
                       )}
                     </>
                   )}
-                </div>
+                </section>
               </div>
             )}
 
             {activeCallTab === 'comments' && (
               <div className="flex flex-col gap-4 py-4">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <MessageCircle className="h-5 w-5 text-blue-600" />
-                    <h3 className="text-sm font-semibold text-gray-900">Comments</h3>
+                  <div className="flex items-center gap-2.5">
+                    <MessageCircle className="h-4 w-4 text-forskale-teal" />
+                    <h3 className="text-lg font-heading font-bold text-foreground">Comments</h3>
                   </div>
                 </div>
                 <div className="space-y-3">
                   {commentsLoading && (
-                    <div className="text-xs text-gray-500 px-1">Loading comments…</div>
+                    <div className="text-xs text-muted-foreground px-1">Loading comments…</div>
                   )}
                   {commentsError && (
-                    <div className="text-xs text-red-600 px-1">{commentsError}</div>
+                    <div className="text-xs text-destructive px-1">{commentsError}</div>
                   )}
                   {!commentsLoading && comments.length === 0 && !commentsError && (
-                    <div className="flex flex-col items-center justify-center py-6 px-4 border border-dashed border-gray-300 rounded-lg bg-white">
+                    <div className="flex flex-col items-center justify-center py-6 px-4 border border-dashed border-border rounded-xl bg-secondary/50">
                       <div className="relative flex items-center justify-center mb-3">
                         <MessageCircle
-                          className="h-10 w-10 text-blue-200 stroke-[1.5]"
+                          className="h-10 w-10 text-forskale-teal/20 stroke-[1.5]"
                           strokeWidth={1.5}
                           aria-hidden
                         />
                         <MessageCircle
-                          className="absolute h-6 w-6 text-blue-500 stroke-[1.5]"
+                          className="absolute h-6 w-6 text-forskale-teal stroke-[1.5]"
                           strokeWidth={1.5}
                           aria-hidden
                         />
                       </div>
-                      <p className="text-sm font-semibold text-gray-800 mb-1 text-center">
+                      <p className="text-sm font-semibold text-foreground mb-1 text-center">
                         No comments yet
                       </p>
-                      <p className="text-xs text-gray-500 text-center max-w-xs">
+                      <p className="text-xs text-muted-foreground text-center max-w-xs">
                         Use the box below to leave internal notes or coaching feedback for this
                         meeting.
                       </p>
@@ -2543,11 +2623,11 @@ export default function AtlasMain() {
                   {comments.map((c) => (
                     <div
                       key={c.id}
-                      className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm flex flex-col gap-1"
+                      className="rounded-xl border border-border bg-card px-4 py-3 text-sm flex flex-col gap-1 shadow-card"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="text-xs text-gray-500">
-                          <span className="font-medium text-gray-800">{c.author}</span>{' '}
+                        <div className="text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">{c.author}</span>{' '}
                           <span className="mx-1">•</span>
                           <span>
                             {new Date(c.created_at).toLocaleString('en-US', {
@@ -2560,14 +2640,14 @@ export default function AtlasMain() {
                           <button
                             type="button"
                             onClick={() => handleStartEditComment(c)}
-                            className="text-xs text-gray-400 hover:text-gray-700 px-1"
+                            className="text-xs text-muted-foreground hover:text-foreground px-1 transition-colors"
                           >
                             Edit
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDeleteComment(c.id)}
-                            className="text-xs text-red-400 hover:text-red-600 px-1"
+                            className="text-xs text-destructive/60 hover:text-destructive px-1 transition-colors"
                           >
                             Delete
                           </button>
@@ -2579,7 +2659,7 @@ export default function AtlasMain() {
                             value={editingCommentText}
                             onChange={(e) => setEditingCommentText(e.target.value)}
                             rows={2}
-                            className="w-full text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full text-sm border border-border rounded-lg px-2 py-1 bg-secondary focus:outline-none focus:ring-1 focus:ring-forskale-teal/30 focus:border-forskale-teal"
                           />
                           <div className="flex items-center justify-end gap-2 text-xs">
                             <button
@@ -2588,27 +2668,27 @@ export default function AtlasMain() {
                                 setEditingCommentId(null)
                                 setEditingCommentText('')
                               }}
-                              className="px-2 py-0.5 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50"
+                              className="px-2 py-0.5 rounded-lg border border-border text-muted-foreground hover:bg-accent transition-colors"
                             >
                               Cancel
                             </button>
                             <button
                               type="button"
                               onClick={handleSaveEditComment}
-                              className="px-2 py-0.5 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+                              className="px-2 py-0.5 rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white hover:-translate-y-0.5 transition-all"
                             >
                               Save
                             </button>
                           </div>
                         </div>
                       ) : (
-                        <div className="text-gray-800 text-sm mt-0.5">{c.text}</div>
+                        <div className="text-foreground text-sm mt-0.5">{c.text}</div>
                       )}
                     </div>
                   ))}
                 </div>
-                <div className="mt-2 border-t border-gray-200 pt-3">
-                  <label className="block text-xs font-medium text-gray-700 mb-1">
+                <div className="mt-2 border-t border-border pt-3">
+                  <label className="block text-xs font-medium text-foreground mb-1">
                     Add a comment
                   </label>
                   <div className="flex items-end gap-2">
@@ -2617,13 +2697,13 @@ export default function AtlasMain() {
                       onChange={(e) => setNewComment(e.target.value)}
                       rows={2}
                       placeholder="Write an internal note or coaching suggestion for this meeting..."
-                      className="flex-1 text-sm border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="flex-1 text-sm border border-border rounded-lg px-3 py-2 bg-secondary focus:outline-none focus:ring-1 focus:ring-forskale-teal/30 focus:border-forskale-teal"
                     />
                     <button
                       type="button"
                       onClick={handleAddComment}
                       disabled={!newComment.trim()}
-                      className="px-3 py-2 rounded-md bg-blue-600 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                      className="px-3 py-2 rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-xs font-semibold text-white hover:-translate-y-0.5 transition-all disabled:opacity-60"
                     >
                       Post
                     </button>
@@ -2631,109 +2711,444 @@ export default function AtlasMain() {
                 </div>
               </div>
             )}
-              </>
-            )}
-            </div>
 
-            {/* Right: transcript & media */}
-            {activeCall && (
-              <div className="w-[420px] border-l border-gray-100 bg-white/80 backdrop-blur-sm flex flex-col shrink-0 overflow-hidden shadow-sm">
-                <div className="flex items-center justify-end p-3 border-b border-gray-100">
+            {activeCallTab === 'templates' && (
+              <div className="space-y-5">
+                <div className="flex items-center gap-3">
+                  <div className="flex-1" />
                   <button
                     type="button"
-                    className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-                    aria-label="More options"
+                    onClick={async () => {
+                      try {
+                        const res = await playbooksAPI.create({ name: `Custom Template ${playbookTemplates.length + 1}`, rules: [] })
+                        await refreshPlaybookTemplates()
+                        // Auto-select the new template
+                        const newId = res.data?.id
+                        if (newId) {
+                          setSelectedPlaybookId(newId)
+                          setSelectedPlaybookName(`Custom Template ${playbookTemplates.length + 1}`)
+                        }
+                        toast.success('Template created!')
+                      } catch {
+                        toast.error('Failed to create template')
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white text-xs font-semibold rounded-lg shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 transition-all"
                   >
-                    <MoreVertical className="h-5 w-5" />
+                    <Plus className="h-3.5 w-3.5" />
+                    Create template
                   </button>
                 </div>
-                <div className="p-4 border-b border-gray-200 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200"
-                      aria-label="Play"
-                    >
-                      <Play className="h-4 w-4 ml-0.5" />
-                    </button>
-                    <span className="text-sm text-gray-500 tabular-nums">00:00</span>
-                    <span className="text-sm text-gray-400">/</span>
-                    <span className="text-sm text-gray-600 tabular-nums">{activeCall.duration.replace(/\s/g, '')}</span>
-                    <div className="flex-1" />
-                    <button type="button" className="p-2 text-gray-500 hover:text-gray-700 rounded" aria-label="Screen share">
-                      <Monitor className="h-4 w-4" />
-                    </button>
-                    <button type="button" className="p-2 text-gray-500 hover:text-gray-700 rounded" aria-label="Volume">
-                      <Volume2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <button type="button" className="text-xs text-blue-600 hover:text-blue-700">
-                    Show video
-                  </button>
-                </div>
-                <div className="px-4 py-2 border-b border-gray-200">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Search transcript"
-                      value={transcriptSearch}
-                      onChange={(e) => setTranscriptSearch(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 relative">
-                  {transcriptLoading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <Loader2 className="h-8 w-8 animate-spin text-[#007AFF]" />
-                    </div>
-                  ) : transcriptError ? (
-                    <div className="py-8 text-center">
-                      <p className="text-sm text-red-600">{transcriptError}</p>
-                      <p className="text-xs text-gray-500 mt-1">Transcription will be fetched when available.</p>
-                    </div>
-                  ) : transcriptLines && transcriptLines.length > 0 ? (
-                    <ul className="space-y-4">
-                      {transcriptLines
-                        .filter(
-                          (line) =>
-                            !transcriptSearch.trim() ||
-                            line.speaker.toLowerCase().includes(transcriptSearch.trim().toLowerCase()) ||
-                            line.text.toLowerCase().includes(transcriptSearch.trim().toLowerCase())
-                        )
-                        .map((line, i) => (
-                          <li key={i} className="flex gap-3">
-                            <span
-                              className={`shrink-0 mt-1.5 h-2 w-2 rounded-full ${
-                                line.color === 'blue' ? 'bg-blue-500' : 'bg-red-500'
+
+                <div className="flex gap-6">
+                  <div className="w-1/2 space-y-2">
+                    {playbookTemplates.map((t) => {
+                      const isSelected = selectedPlaybookId === t.id
+                      const isDefault = t.is_default
+                      return (
+                        <div
+                          key={t.id}
+                          onClick={() => {
+                            setSelectedPlaybookId(t.id)
+                            setSelectedPlaybookName(t.name)
+                          }}
+                          className={`flex items-center justify-between rounded-xl border px-5 py-4 cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-[hsl(var(--forskale-teal)/0.3)] bg-[hsl(var(--forskale-teal)/0.04)] shadow-sm'
+                              : 'border-border bg-card hover:border-[hsl(var(--forskale-teal)/0.15)] hover:bg-accent/50'
+                          }`}
+                        >
+                          <div className="space-y-0.5 flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-foreground truncate">{t.name}</div>
+                            <div className="text-xs text-muted-foreground">{t.items} rule{t.items !== 1 ? 's' : ''}</div>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation()
+                                try {
+                                  await playbooksAPI.setDefault(t.id)
+                                  await refreshPlaybookTemplates()
+                                  toast.success('Default template updated')
+                                } catch {
+                                  toast.error('Failed to set default')
+                                }
+                              }}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap border ${
+                                isDefault
+                                  ? 'bg-[hsl(var(--badge-green-bg))] text-status-great border-[hsl(var(--forskale-green)/0.3)]'
+                                  : 'text-muted-foreground hover:text-foreground border-border hover:border-foreground/20 hover:bg-accent'
                               }`}
-                              aria-hidden
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm text-gray-800">
-                                <span className="font-medium">
-                                  {line.speaker}
-                                  {line.role && (
-                                    <span className="font-normal text-gray-500"> ({line.role})</span>
-                                  )}
-                                </span>
-                                <span className="text-gray-500 tabular-nums ml-1">{line.time}</span>
-                              </p>
-                              <p className="text-sm text-gray-700 mt-0.5">{line.text}</p>
+                            >
+                              {isDefault && <CheckCircle2 className="h-3.5 w-3.5" />}
+                              {isDefault ? 'Default' : 'Set Default'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (window.confirm(`Delete "${t.name}"?`)) {
+                                  handleDeleteTemplate(t.id)
+                                }
+                              }}
+                              className="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                              title="Delete template"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {playbookTemplates.length === 0 && (
+                      <div className="rounded-xl bg-secondary/50 flex items-center justify-center min-h-[320px]">
+                        <div className="text-center space-y-2 px-6">
+                          <h3 className="text-lg font-heading font-semibold text-foreground">
+                            No playbook templates yet
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            Create a template to start organizing your sales playbook rules.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedPlaybookId && playbookTemplates.find((t) => t.id === selectedPlaybookId) && (
+                    <div className="w-1/2 rounded-xl border border-border bg-card p-5 space-y-4 shadow-card h-fit sticky top-0">
+                      {/* Template name header - editable */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          {templateEditingName ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={templateNameDraft}
+                                onChange={(e) => setTemplateNameDraft(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Enter') handleRenameTemplate(); if (e.key === 'Escape') setTemplateEditingName(false) }}
+                                autoFocus
+                                className="flex-1 text-lg font-heading font-bold text-foreground bg-secondary border border-border rounded-md px-2 py-1 outline-none focus:border-forskale-teal"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleRenameTemplate}
+                                disabled={templateDetailSaving || !templateNameDraft.trim()}
+                                className="h-7 w-7 inline-flex items-center justify-center rounded-md text-status-great hover:bg-accent transition-colors disabled:opacity-50"
+                              >
+                                <Check className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setTemplateEditingName(false)}
+                                className="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent transition-colors"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
                             </div>
-                          </li>
-                        ))}
-                    </ul>
-                  ) : (
-                    <div className="py-8 text-center text-sm text-gray-500">
-                      No transcript yet. Transcription is loaded when you open this call.
+                          ) : (
+                            <div className="flex items-center gap-2 group">
+                              <h3 className="text-lg font-heading font-bold text-foreground truncate">
+                                {playbookTemplates.find((t) => t.id === selectedPlaybookId)?.name}
+                              </h3>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setTemplateNameDraft(playbookTemplates.find((t) => t.id === selectedPlaybookId)?.name || '')
+                                  setTemplateEditingName(true)
+                                }}
+                                className="h-6 w-6 inline-flex items-center justify-center rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-accent transition-all"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {templateDetailRules.length} rule{templateDetailRules.length !== 1 ? 's' : ''} configured
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm('Delete this template? This cannot be undone.')) {
+                              handleDeleteTemplate(selectedPlaybookId!)
+                            }
+                          }}
+                          className="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Delete template"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {/* Rules list */}
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Rules</div>
+                          {templateDetailSaving && (
+                            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+                            </span>
+                          )}
+                        </div>
+
+                        {templateDetailLoading ? (
+                          <div className="flex items-center justify-center py-8">
+                            <Loader2 className="h-5 w-5 animate-spin text-forskale-teal" />
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {templateDetailRules.map((rule, idx) => (
+                              <div
+                                key={rule.id || idx}
+                                className="rounded-lg border border-border bg-secondary/30 overflow-hidden transition-all hover:border-[hsl(var(--forskale-teal)/0.2)]"
+                              >
+                                {editingRuleIndex === idx ? (
+                                  /* Editing mode */
+                                  <div className="p-3 space-y-2">
+                                    <input
+                                      type="text"
+                                      value={editingRuleLabel}
+                                      onChange={(e) => setEditingRuleLabel(e.target.value)}
+                                      placeholder="Rule label"
+                                      autoFocus
+                                      className="w-full text-sm font-medium text-foreground bg-card border border-border rounded-md px-2.5 py-1.5 outline-none focus:border-forskale-teal"
+                                    />
+                                    <textarea
+                                      value={editingRuleDescription}
+                                      onChange={(e) => setEditingRuleDescription(e.target.value)}
+                                      placeholder="Description (optional)"
+                                      rows={2}
+                                      className="w-full text-xs text-muted-foreground bg-card border border-border rounded-md px-2.5 py-1.5 outline-none focus:border-forskale-teal resize-none"
+                                    />
+                                    <div className="flex items-center gap-2 justify-end">
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingRuleIndex(null)}
+                                        className="px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-accent transition-colors"
+                                      >
+                                        Cancel
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={!editingRuleLabel.trim() || templateDetailSaving}
+                                        onClick={() => {
+                                          const updated = [...templateDetailRules]
+                                          updated[idx] = {
+                                            ...updated[idx],
+                                            label: editingRuleLabel.trim(),
+                                            description: editingRuleDescription.trim(),
+                                          }
+                                          handleSaveTemplateRules(updated)
+                                          setEditingRuleIndex(null)
+                                        }}
+                                        className="px-3 py-1 text-xs font-semibold bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white rounded-md disabled:opacity-50 transition-all"
+                                      >
+                                        Save
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* View mode */
+                                  <div className="flex items-start gap-3 px-3 py-2.5 group">
+                                    <div className="mt-0.5 shrink-0 w-5 h-5 rounded-full bg-[hsl(var(--forskale-teal)/0.1)] flex items-center justify-center text-[10px] font-bold text-forskale-teal">
+                                      {idx + 1}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="text-sm font-medium text-foreground">{rule.label}</div>
+                                      {rule.description && (
+                                        <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{rule.description}</div>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setEditingRuleIndex(idx)
+                                          setEditingRuleLabel(rule.label)
+                                          setEditingRuleDescription(rule.description || '')
+                                        }}
+                                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                                        title="Edit rule"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = templateDetailRules.filter((_, i) => i !== idx)
+                                          handleSaveTemplateRules(updated)
+                                        }}
+                                        className="h-7 w-7 inline-flex items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                        title="Delete rule"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+
+                            {/* Empty state */}
+                            {templateDetailRules.length === 0 && !addingNewRule && (
+                              <div className="rounded-lg border border-dashed border-border bg-secondary/30 px-4 py-6 text-center">
+                                <p className="text-sm text-muted-foreground">No rules yet. Add your first rule below.</p>
+                              </div>
+                            )}
+
+                            {/* Add new rule form */}
+                            {addingNewRule ? (
+                              <div className="rounded-lg border border-[hsl(var(--forskale-teal)/0.3)] bg-[hsl(var(--forskale-teal)/0.03)] p-3 space-y-2">
+                                <input
+                                  type="text"
+                                  value={newRuleLabel}
+                                  onChange={(e) => setNewRuleLabel(e.target.value)}
+                                  placeholder="Rule label (e.g. Set a clear agenda)"
+                                  autoFocus
+                                  className="w-full text-sm font-medium text-foreground bg-card border border-border rounded-md px-2.5 py-1.5 outline-none focus:border-forskale-teal"
+                                />
+                                <textarea
+                                  value={newRuleDescription}
+                                  onChange={(e) => setNewRuleDescription(e.target.value)}
+                                  placeholder="Description (optional)"
+                                  rows={2}
+                                  className="w-full text-xs text-muted-foreground bg-card border border-border rounded-md px-2.5 py-1.5 outline-none focus:border-forskale-teal resize-none"
+                                />
+                                <div className="flex items-center gap-2 justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setAddingNewRule(false); setNewRuleLabel(''); setNewRuleDescription('') }}
+                                    className="px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground rounded-md hover:bg-accent transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={!newRuleLabel.trim() || templateDetailSaving}
+                                    onClick={() => {
+                                      const newRule: PlaybookTemplateRule = {
+                                        id: `rule_${Date.now()}`,
+                                        label: newRuleLabel.trim(),
+                                        description: newRuleDescription.trim(),
+                                      }
+                                      handleSaveTemplateRules([...templateDetailRules, newRule])
+                                      setAddingNewRule(false)
+                                      setNewRuleLabel('')
+                                      setNewRuleDescription('')
+                                    }}
+                                    className="px-3 py-1 text-xs font-semibold bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white rounded-md disabled:opacity-50 transition-all"
+                                  >
+                                    Add Rule
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setAddingNewRule(true)}
+                                className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-[hsl(var(--forskale-teal)/0.3)] hover:bg-accent/50 transition-all"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                Add rule
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
             )}
-          </div>
+              </>
+            )}
+            </div>
+            </div>
+
+            {/* Right: transcript panel */}
+            {activeCall && (
+              <div className={`h-screen border-l border-border bg-card flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${transcriptCollapsed ? 'w-[56px] min-w-[56px]' : 'w-[340px] min-w-[340px]'}`}>
+                {transcriptCollapsed ? (
+                  <>
+                    <div className="flex justify-center p-3">
+                      <button onClick={() => setTranscriptCollapsed(false)} className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                        <PanelRightOpen className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="flex-1 flex flex-col items-center justify-center gap-5 text-muted-foreground">
+                      <Monitor className="h-4 w-4" />
+                      <Volume2 className="h-4 w-4" />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-4 border-b border-border">
+                      <div className="flex items-center gap-3">
+                        <button onClick={() => setTranscriptCollapsed(true)} className="h-8 w-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+                          <PanelRightClose className="h-4 w-4" />
+                        </button>
+                        <Play className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
+                        <span className="text-xs text-muted-foreground font-mono">00:00 / {activeCall.duration.replace(/\s/g, '')}</span>
+                        <div className="flex-1" />
+                        <Monitor className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
+                        <Volume2 className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
+                      </div>
+                    </div>
+                    <div className="px-4 py-3">
+                      <button className="w-full py-2 text-xs font-semibold text-forskale-teal border border-forskale-teal rounded-lg hover:forskale-gradient-subtle transition-colors">
+                        Show video
+                      </button>
+                    </div>
+                    <div className="px-4 pb-3 border-b border-border">
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="Search transcript"
+                          value={transcriptSearch}
+                          onChange={(e) => setTranscriptSearch(e.target.value)}
+                          className="w-full pl-8 h-8 text-xs bg-secondary border border-border rounded-md px-3 py-1 focus:border-forskale-teal focus:ring-1 focus:ring-forskale-teal/10 outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-y-auto atlas-scrollbar p-4 space-y-5">
+                      {transcriptLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 className="h-8 w-8 animate-spin text-forskale-teal" />
+                        </div>
+                      ) : transcriptError ? (
+                        <div className="py-8 text-center">
+                          <p className="text-sm text-destructive">{transcriptError}</p>
+                          <p className="text-xs text-muted-foreground mt-1">Transcription will be fetched when available.</p>
+                        </div>
+                      ) : transcriptLines && transcriptLines.length > 0 ? (
+                        transcriptLines
+                          .filter((line) => !transcriptSearch.trim() || line.speaker.toLowerCase().includes(transcriptSearch.trim().toLowerCase()) || line.text.toLowerCase().includes(transcriptSearch.trim().toLowerCase()))
+                          .map((line, i) => (
+                            <div key={i} className="flex gap-3">
+                              <div className="mt-1.5 shrink-0">
+                                <div className={`w-2 h-2 rounded-full ${line.color === 'blue' ? 'bg-forskale-green' : 'bg-forskale-cyan'}`} />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-baseline gap-2">
+                                  <span className="text-xs font-semibold text-foreground">{line.speaker}{line.role && <span className="font-normal text-muted-foreground"> ({line.role})</span>}</span>
+                                  <span className="text-[10px] text-muted-foreground font-mono">{line.time}</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{line.text}</p>
+                              </div>
+                            </div>
+                          ))
+                      ) : (
+                        <div className="py-8 text-center text-sm text-muted-foreground">
+                          No transcript yet. Transcription is loaded when you open this call.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
         </div>
       </>
     )
@@ -2955,526 +3370,337 @@ export default function AtlasMain() {
           : insightsActiveTab === 'speaking' && speakingHasData
             ? speakingMetricsWithData
             : metricsByTab
-    const valueColorClass = (c: string) =>
-      c === 'blue'
-        ? 'text-blue-600'
-        : c === 'green'
-          ? 'text-emerald-600'
-          : c === 'yellow'
-            ? 'text-amber-500'
-            : c === 'orange'
-              ? 'text-orange-500'
-              : c === 'red'
-                ? 'text-red-600'
-                : 'text-gray-700'
+    const insightsChartTitles: Record<string, string> = {
+      playbook: 'Average % of playbook completed across calls (last 5 days)',
+      speaking: currentSpeakingConfig.title,
+    }
 
     return (
-      <div className="p-8 h-full overflow-y-auto relative bg-[#f5f5f7]">
-        <div className="flex items-start justify-between gap-6 mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Performance across calls</h1>
-            <p className="text-[13px] text-gray-600 mt-1.5 leading-relaxed max-w-xl">
-              {insightsSubtitle[insightsActiveTab]}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => {}}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200/80 bg-white text-[13px] text-gray-700 hover:bg-gray-50 shrink-0 shadow-sm transition-colors"
-          >
-            <Calendar className="h-4 w-4 text-gray-500" />
-            {insightsDateRange}
-            <ChevronDown className="h-4 w-4 text-gray-500" />
-          </button>
-        </div>
-
-        <nav className="flex gap-8 border-b border-gray-100 mb-6">
-          {insightsTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setInsightsActiveTab(tab.id)}
-              className={`pb-3 border-b-2 -mb-px text-[13px] transition-colors ${
-                insightsActiveTab === tab.id
-                  ? 'border-gray-900 text-gray-900 font-medium'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-
-        {insightsActiveTab === 'objection' ? (
-          <>
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] font-medium text-gray-500 uppercase tracking-wider">
-                % of calls in which prospects raised questions about each topic
+      <div className="flex-1 h-full overflow-y-auto bg-background text-foreground">
+        <div className="absolute inset-0 bg-forskale-blue/[0.02] pointer-events-none" />
+        
+        <div className="relative z-10 p-8 max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="flex items-start justify-between gap-6 mb-8">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground mb-2">
+                Performance across calls
+              </h1>
+              <p className="text-sm text-muted-foreground max-w-xl leading-relaxed">
+                {insightsSubtitle[insightsActiveTab]}
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  // Khi bấm Analyze: xoá snapshot cũ trên UI, reset lỗi và chạy phân tích lại
-                  setObjectionAnalyzing(true)
-                  setObjectionInsightsError(null)
-                  setObjectionInsights(null)
-                  meetingsAPI
-                    .analyzeObjectionInsights({ days: 5 })
-                    .then((res) => {
-                      setObjectionInsights(res.data)
-                    })
-                    .catch((err) => {
-                      setObjectionInsightsError(
-                        err.response?.data?.detail || err.message || 'Failed to analyze objections',
-                      )
-                    })
-                    .finally(() => setObjectionAnalyzing(false))
-                }}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-[12px] text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
-              >
-                {objectionAnalyzing ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#007AFF]" />
-                ) : (
-                  <Sparkles className="h-3.5 w-3.5 text-[#007AFF]" />
-                )}
-                Analyze last 5 days
-              </button>
             </div>
-            {objectionInsightsError && (
-              <p className="text-[13px] text-red-600 mb-2">{objectionInsightsError}</p>
-            )}
-            {objectionInsightsLoading && !objectionInsights && (
-              <div className="flex items-center justify-center h-40 text-[13px] text-gray-500">
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Loading objection insights…
+            <button
+              type="button"
+              onClick={() => {}}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border/30 bg-secondary/30 text-sm text-muted-foreground hover:bg-secondary/50 hover:border-primary hover:text-foreground transition-all backdrop-blur-sm"
+            >
+              <Calendar className="h-4 w-4 text-primary" />
+              {insightsDateRange}
+              <ChevronDown className="h-4 w-4 text-muted-foreground/60" />
+            </button>
+          </div>
+
+          {/* Tabs */}
+          <nav className="flex gap-8 border-b border-border/30 mb-8">
+            {insightsTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setInsightsActiveTab(tab.id)}
+                className={cn(
+                  "pb-3 text-sm font-medium transition-all relative",
+                  insightsActiveTab === tab.id ? "text-foreground" : "text-muted-foreground/60 hover:text-muted-foreground"
+                )}
+              >
+                {tab.label}
+                {insightsActiveTab === tab.id && (
+                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-forskale-green to-forskale-teal shadow-[0_0_8px_hsl(var(--forskale-teal))]" />
+                )}
+              </button>
+            ))}
+          </nav>
+
+          {insightsActiveTab === 'objection' ? (
+            /* Objection Handling View */
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  % of calls in which prospects raised questions about each topic
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setObjectionAnalyzing(true)
+                    setObjectionInsightsError(null)
+                    setObjectionInsights(null)
+                    meetingsAPI
+                      .analyzeObjectionInsights({ days: 5 })
+                      .then((res) => {
+                        setObjectionInsights(res.data)
+                      })
+                      .catch((err) => {
+                        setObjectionInsightsError(
+                          err.response?.data?.detail || err.message || 'Failed to analyze objections',
+                        )
+                      })
+                      .finally(() => setObjectionAnalyzing(false))
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border/30 bg-background text-sm text-muted-foreground hover:bg-secondary/50 transition-all"
+                >
+                  {objectionAnalyzing ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  ) : (
+                    <span className="text-primary">✦</span>
+                  )}
+                  Analyze last 5 days
+                </button>
               </div>
-            )}
-            {!objectionInsightsLoading &&
-              objectionInsights &&
-              objectionInsights.topics &&
-              objectionInsights.topics.length === 0 && (
-                <div className="flex items-center justify-center h-40 text-[13px] text-gray-500">
-                  No objections found in the last 5 days. Analyze more calls to see patterns here.
+
+              {objectionInsightsError && (
+                <p className="text-sm text-destructive mb-3">{objectionInsightsError}</p>
+              )}
+              {objectionInsightsLoading && !objectionInsights && (
+                <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Loading objection insights…
                 </div>
               )}
-            {!objectionInsightsLoading &&
-              objectionInsights &&
-              objectionInsights.topics &&
-              objectionInsights.topics.length > 0 && (
-                <ul className="space-y-3">
-                  {objectionInsights.topics.map((topic) => (
-                    <li key={topic.topic} className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-                      <details open className="group">
-                        <summary className="list-none flex items-center gap-3 px-4 py-3.5 cursor-pointer hover:bg-gray-50">
-                          <span
-                            className={`shrink-0 rounded-full px-2.5 py-1 text-[13px] font-medium ${
-                              topic.pct_calls >= 75
-                                ? 'bg-emerald-50 text-emerald-600'
-                                : topic.pct_calls >= 50
-                                  ? 'bg-amber-50 text-amber-600'
-                                  : 'bg-sky-50 text-sky-600'
-                            }`}
-                          >
-                            {Math.round(topic.pct_calls)}%
-                          </span>
-                          <span className="flex-1 text-[13px] font-medium text-gray-900">{topic.topic}</span>
-                          <span className="text-[11px] text-gray-500">
-                            {topic.calls_count} calls · {topic.questions_count} questions
-                          </span>
-                          <ChevronDown className="h-4 w-4 text-gray-400 shrink-0 transition-transform group-open:rotate-180" />
-                        </summary>
-                        <div className="border-t border-gray-100 bg-gray-50/70">
-                          <ul className="divide-y divide-gray-100">
-                            {topic.questions.map((q) => (
-                              <li key={`${q.meeting_id}-${q.question.slice(0, 40)}`} className="px-4 py-3.5">
-                                <p className="text-[12px] text-gray-500 mb-1">
-                                  <span className="font-medium text-gray-700">
-                                    {q.meeting_title || 'Call'}
-                                  </span>
-                                  {q.time && (
-                                    <span>
-                                      {' '}
-                                      at{' '}
-                                      <span className="text-[#007AFF] font-medium">
-                                        {q.time}
-                                      </span>
-                                    </span>
-                                  )}
-                                </p>
-                                <p className="text-[13px] text-gray-900 mb-1">{q.question}</p>
-                                {q.answer && (
-                                  <p className="text-[12px] text-gray-600">
-                                    Suggested answer:&nbsp;
-                                    <span className="text-gray-800">{q.answer}</span>
-                                  </p>
-                                )}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </details>
-                    </li>
-                  ))}
-                </ul>
-              )}
-          </>
-        ) : (
-          <>
-            {insightsActiveTab === 'playbook' && (playbookInsightsLoading || playbookInsightsError) && (
-              <div className="mb-3 flex items-center gap-2 text-[13px]">
-                {playbookInsightsLoading && (
-                  <span className="flex items-center gap-1.5 text-gray-500">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading 5-day averages…
-                  </span>
-                )}
-                {playbookInsightsError && !playbookInsightsLoading && (
-                  <span className="text-red-600">{playbookInsightsError}</span>
-                )}
-              </div>
-            )}
-            {/* Thông số: cùng layout grid thẻ như Speaking Skills cho cả Sales Playbook và Speaking */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-              {displayMetrics.map((m) => {
-                const metricKey = (m as any).metricKey as
-                  | SpeakingMetricKey
-                  | PlaybookMetricKey
-                  | undefined
-                const isSpeakingMetric = insightsActiveTab === 'speaking' && !!metricKey && (['speech_pace_wpm','talk_ratio_pct','longest_customer_monologue_sec','questions_asked_avg','filler_words_avg'] as SpeakingMetricKey[]).includes(metricKey as SpeakingMetricKey)
-                const isPlaybookMetric = insightsActiveTab === 'playbook' && !!metricKey && (['overall','Handled objections','Personalized demo','Intro Banter','Set Agenda','Demo told a story'] as PlaybookMetricKey[]).includes(metricKey as PlaybookMetricKey)
-                return (
-                  <div
-                    key={m.name}
-                    className={`flex flex-col rounded-xl border bg-white shadow-sm py-4 px-4 transition-colors border-gray-100 hover:border-gray-200 ${
-                      isSpeakingMetric || isPlaybookMetric ? 'cursor-pointer' : ''
-                    }`}
-                    onClick={() => {
-                      if (isSpeakingMetric && metricKey) {
-                        setSpeakingMetricKey(metricKey as SpeakingMetricKey)
-                      } else if (isPlaybookMetric && metricKey) {
-                        setPlaybookMetricKey(metricKey as PlaybookMetricKey)
-                      }
-                    }}
-                  >
-                  <div className="flex items-center justify-center gap-1 mb-2">
-                    <span className="text-[12px] font-medium text-gray-800 truncate text-center">{m.name}</span>
-                    <button type="button" className="p-0.5 text-gray-400 hover:text-gray-600 rounded-full shrink-0" aria-label="Info">
-                      <Info className="h-3.5 w-3.5" />
-                    </button>
+              {!objectionInsightsLoading &&
+                objectionInsights &&
+                objectionInsights.topics &&
+                objectionInsights.topics.length === 0 && (
+                  <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+                    No objections found in the last 5 days. Analyze more calls to see patterns here.
                   </div>
-                  <p className={`text-xl font-semibold tabular-nums text-center ${valueColorClass((m as { valueColor?: string }).valueColor ?? 'gray')}`}>
-                    {(insightsActiveTab === 'playbook' && playbookInsightsLoading) || (insightsActiveTab === 'speaking' && speakingInsightsLoading) ? '—' : m.value}
-                  </p>
-                  <p className="text-[11px] text-gray-600 mt-0.5 text-center">{m.unit}</p>
-                  {m.blueUnderline && (
-                    <div className="mt-3 h-0.5 bg-[#007AFF] rounded-full w-full shrink-0 mx-auto" />
+                )}
+              {!objectionInsightsLoading &&
+                objectionInsights &&
+                objectionInsights.topics &&
+                objectionInsights.topics.length > 0 && (
+                  <div className="flex flex-col gap-3">
+                    {objectionInsights.topics.map((topic) => {
+                      return (
+                        <div key={topic.topic} className="rounded-xl border border-border/20 overflow-hidden">
+                          <details open className="group">
+                            <summary className={cn(
+                              "list-none flex items-center justify-between px-5 py-4 bg-secondary/30 hover:bg-secondary/50 transition-all cursor-pointer"
+                            )}>
+                              <div className="flex items-center gap-4">
+                                <span className="text-sm font-bold text-forskale-green">{Math.round(topic.pct_calls)}%</span>
+                                <span className="text-sm font-medium text-foreground">{topic.topic}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <span>{topic.calls_count} calls · {topic.questions_count} questions</span>
+                                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+                              </div>
+                            </summary>
+                            <div className="border-t border-border/20 bg-background divide-y divide-border/10">
+                              {topic.questions.map((q, i) => (
+                                <div key={`${q.meeting_id}-${i}`} className="px-6 py-4">
+                                  <p className="text-sm text-muted-foreground">
+                                    <span className="font-medium text-foreground">{q.meeting_title || 'Call'}</span>
+                                    {q.time && (
+                                      <span> at <span className="text-primary font-medium">{q.time}</span></span>
+                                    )}
+                                  </p>
+                                  <p className="text-sm font-semibold text-foreground mt-1">{q.question}</p>
+                                  {q.answer && (
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                      <span className="text-primary/80">Suggested answer:</span> {q.answer}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+            </div>
+          ) : (
+            <div className="flex gap-6">
+              {/* Metric Cards - Vertical on left */}
+              <div className="flex flex-col gap-2 w-36 shrink-0">
+                {displayMetrics.map((m) => {
+                  const metricKey = (m as any).metricKey as
+                    | SpeakingMetricKey
+                    | PlaybookMetricKey
+                    | undefined
+                  const isSpeakingMetric = insightsActiveTab === 'speaking' && !!metricKey && (['speech_pace_wpm','talk_ratio_pct','longest_customer_monologue_sec','questions_asked_avg','filler_words_avg'] as SpeakingMetricKey[]).includes(metricKey as SpeakingMetricKey)
+                  const isPlaybookMetric = insightsActiveTab === 'playbook' && !!metricKey && (['overall','Handled objections','Personalized demo','Intro Banter','Set Agenda','Demo told a story'] as PlaybookMetricKey[]).includes(metricKey as PlaybookMetricKey)
+                  const isActive = m.blueUnderline
+                  return (
+                    <div
+                      key={m.name}
+                      onClick={() => {
+                        if (isSpeakingMetric && metricKey) {
+                          setSpeakingMetricKey(metricKey as SpeakingMetricKey)
+                        } else if (isPlaybookMetric && metricKey) {
+                          setPlaybookMetricKey(metricKey as PlaybookMetricKey)
+                        }
+                      }}
+                      className={cn(
+                        "flex flex-col rounded-xl border bg-secondary/30 backdrop-blur-sm px-4 py-3 transition-all duration-300 cursor-pointer group relative overflow-hidden",
+                        isActive ? "border-primary shadow-[0_0_20px_hsl(var(--forskale-teal)/0.2)]" : "border-border/30 hover:border-border/60",
+                        "hover:bg-secondary/50 hover:shadow-[0_8px_32px_rgba(0,0,0,0.3)]"
+                      )}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-br from-forskale-green/5 to-forskale-blue/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                      <div className="flex items-center justify-center gap-1.5 mb-1.5 relative z-10">
+                        <span className="text-[11px] font-semibold text-muted-foreground text-center truncate">{m.name}</span>
+                        <Info className="h-2.5 w-2.5 text-muted-foreground/60 hover:text-primary transition-colors shrink-0" />
+                      </div>
+                      <div className="relative z-10 text-center mb-2">
+                        <p className={cn(
+                          "text-sm font-bold tabular-nums transition-all duration-300",
+                          isActive
+                            ? "text-transparent bg-clip-text bg-gradient-to-r from-forskale-green to-forskale-teal"
+                            : "text-muted-foreground group-hover:text-foreground"
+                        )}>
+                          {(insightsActiveTab === 'playbook' && playbookInsightsLoading) || (insightsActiveTab === 'speaking' && speakingInsightsLoading) ? '—' : m.value}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-0.5">{m.unit}</p>
+                      </div>
+                      <div className="mt-auto h-0.5 w-full bg-border/30 rounded-full overflow-hidden relative z-10">
+                        <div className={cn(
+                          "h-full transition-all duration-500 rounded-full",
+                          isActive
+                            ? "w-full bg-gradient-to-r from-forskale-green to-forskale-teal"
+                            : "w-0 group-hover:w-1/4 bg-muted-foreground/30"
+                        )} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Chart on right */}
+              <div className="flex-1 rounded-3xl border border-border/30 bg-secondary/20 backdrop-blur-xl shadow-2xl overflow-hidden">
+                <div className="px-6 pt-5 pb-2 flex items-center gap-3">
+                  <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-gradient-to-r from-forskale-green to-forskale-teal text-primary-foreground">
+                    <Check className="h-2.5 w-2.5 stroke-[3]" />
+                  </span>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {insightsChartTitles[insightsActiveTab] || 'Performance'}
+                  </h3>
+                </div>
+                
+                <div className="px-6 pb-6">
+                  {/* Loading states */}
+                  {insightsActiveTab === 'playbook' && playbookInsightsLoading && (
+                    <div className="h-[400px] w-full flex items-center justify-center">
+                      <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading playbook scores…
+                      </span>
+                    </div>
+                  )}
+                  {insightsActiveTab === 'playbook' && !playbookInsightsLoading && playbookInsightsError && (
+                    <div className="h-[400px] w-full flex items-center justify-center text-sm text-destructive">
+                      {playbookInsightsError}
+                    </div>
+                  )}
+                  {insightsActiveTab === 'speaking' && speakingInsightsLoading && (
+                    <div className="h-[400px] w-full flex items-center justify-center">
+                      <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading speaking scores…
+                      </span>
+                    </div>
+                  )}
+                  {insightsActiveTab === 'speaking' && !speakingInsightsLoading && speakingInsightsError && (
+                    <div className="h-[400px] w-full flex items-center justify-center text-sm text-destructive">
+                      {speakingInsightsError}
+                    </div>
+                  )}
+
+                  {/* Speaking - No data empty state */}
+                  {insightsActiveTab === 'speaking' && !speakingInsightsLoading && !speakingInsightsError && !speakingHasData && (
+                    <div className="h-[400px] w-full flex items-center justify-center">
+                      <div className="flex flex-col items-center gap-3 text-center max-w-xs">
+                        <TrendingUp className="h-10 w-10 text-primary" />
+                        <p className="text-base font-semibold text-foreground">No speaking metrics yet</p>
+                        <p className="text-sm text-muted-foreground">
+                          Analyze feedback in Calls to see Speech pace, Talk ratio, and more here.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Playbook chart with recharts */}
+                  {insightsActiveTab === 'playbook' && !playbookInsightsLoading && !playbookInsightsError && (
+                    <>
+                      <div className="h-[400px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={playbookChartData.map(d => ({ name: d.label, value: d.y }))} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="chartFillPlaybook" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="hsl(174, 56%, 55%)" stopOpacity={0.2} />
+                                <stop offset="100%" stopColor="hsl(174, 56%, 55%)" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="4 3" stroke="hsl(224, 30%, 20%)" vertical={false} />
+                            <XAxis dataKey="name" stroke="hsl(215, 20%, 65%)" fontSize={11} axisLine={false} tickLine={false} />
+                            <YAxis stroke="hsl(215, 20%, 65%)" fontSize={11} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
+                            <Area type="monotone" dataKey="value" stroke="hsl(174, 56%, 55%)" strokeWidth={2} fill="url(#chartFillPlaybook)" strokeLinecap="round" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                      
+                      <div className="flex justify-end gap-2 mt-4">
+                        <button className="p-2 rounded-lg bg-secondary/30 border border-border/30 text-muted-foreground hover:text-primary hover:border-primary transition-all">
+                          <Filter className="h-4 w-4" />
+                        </button>
+                        <button className="p-2 rounded-lg bg-secondary/30 border border-border/30 text-muted-foreground hover:text-primary hover:border-primary transition-all">
+                          <Download className="h-4 w-4" />
+                        </button>
+                        <button className="p-2 rounded-lg bg-gradient-to-r from-forskale-green to-forskale-teal text-primary-foreground hover:opacity-90 transition-all">
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Speaking chart with recharts */}
+                  {insightsActiveTab === 'speaking' && !speakingInsightsLoading && !speakingInsightsError && speakingHasData && (
+                    <>
+                      <div className="h-[400px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={speakingChartData.map(d => ({ name: d.label, value: d.y }))} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="chartFillSpeaking" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="hsl(174, 56%, 55%)" stopOpacity={0.2} />
+                                <stop offset="100%" stopColor="hsl(174, 56%, 55%)" stopOpacity={0} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="4 3" stroke="hsl(224, 30%, 20%)" vertical={false} />
+                            <XAxis dataKey="name" stroke="hsl(215, 20%, 65%)" fontSize={11} axisLine={false} tickLine={false} />
+                            <YAxis stroke="hsl(215, 20%, 65%)" fontSize={11} axisLine={false} tickLine={false} domain={[0, currentSpeakingConfig.maxY]} ticks={currentSpeakingConfig.ticks} />
+                            <Area type="monotone" dataKey="value" stroke="hsl(174, 56%, 55%)" strokeWidth={2} fill="url(#chartFillSpeaking)" strokeLinecap="round" />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                      
+                      <div className="flex justify-end gap-2 mt-4">
+                        <button className="p-2 rounded-lg bg-secondary/30 border border-border/30 text-muted-foreground hover:text-primary hover:border-primary transition-all">
+                          <Filter className="h-4 w-4" />
+                        </button>
+                        <button className="p-2 rounded-lg bg-secondary/30 border border-border/30 text-muted-foreground hover:text-primary hover:border-primary transition-all">
+                          <Download className="h-4 w-4" />
+                        </button>
+                        <button className="p-2 rounded-lg bg-gradient-to-r from-forskale-green to-forskale-teal text-primary-foreground hover:opacity-90 transition-all">
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
-                )
-              })}
+              </div>
             </div>
-
-            <div className="relative min-h-[620px] rounded-2xl border border-gray-100 bg-white shadow-sm flex flex-col overflow-hidden">
-              {insightsActiveTab === 'playbook' ? (
-                <>
-                  <div className="px-5 pt-4 pb-2 flex items-center gap-2">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-[#007AFF] text-white">
-                      <Check className="h-2.5 w-2.5 stroke-[3]" />
-                    </span>
-                    <h3 className="text-[13px] font-medium text-gray-900">
-                      Average % of playbook completed across calls (last 5 days)
-                    </h3>
-                  </div>
-                  <div className="flex px-5 pb-5 pt-1">
-                    {playbookInsightsLoading && (
-                      <div className="flex-1 flex items-center justify-center h-[400px] text-[13px] text-gray-500">
-                        <span className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Loading playbook scores…
-                        </span>
-                      </div>
-                    )}
-                    {!playbookInsightsLoading && playbookInsightsError && (
-                      <div className="flex-1 flex items-center justify-center h-[400px] text-[13px] text-red-600">
-                        {playbookInsightsError}
-                      </div>
-                    )}
-                    {!playbookInsightsLoading && !playbookInsightsError && (
-                      <>
-                        <div className="flex flex-col justify-between h-[400px] text-[11px] text-gray-400 mr-3 shrink-0 tabular-nums font-medium">
-                          <span>100%</span>
-                          <span>75%</span>
-                          <span>50%</span>
-                          <span>25%</span>
-                          <span>0%</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="h-[400px] w-full">
-                            <svg viewBox="0 0 640 240" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
-                              <defs>
-                                <linearGradient id="chartFillPlaybook" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="rgb(0 122 255 / 0.08)" />
-                                  <stop offset="100%" stopColor="rgb(0 122 255 / 0)" />
-                                </linearGradient>
-                              </defs>
-                              {playbookChartData.length === 0 ? (
-                                <g>
-                                  <text x="320" y="120" textAnchor="middle" className="text-sm fill-gray-400">
-                                    No playbook scores for the last 5 days. Analyze meetings in Calls to see scores here.
-                                  </text>
-                                </g>
-                              ) : (
-                                (() => {
-                                  const pts = playbookChartData
-                                  const w = 600
-                                  const viewH = 240
-                                  const padLeft = 20
-                                  const padTop = 15
-                                  const padBottom = 25
-                                  const chartH = viewH - padTop - padBottom
-                                  const xScale = (i: number) => padLeft + (i / Math.max(pts.length - 1, 1)) * w
-                                  const yScale = (v: number) => padTop + chartH - (v / 100) * chartH
-                                  const x = (i: number) => xScale(i)
-                                  const y = (i: number) => yScale(pts[i].y)
-                                  let smoothD = `M ${x(0)} ${y(0)}`
-                                  for (let i = 0; i < pts.length - 1; i++) {
-                                    const dx = x(i + 1) - x(i)
-                                    const cp1x = x(i) + dx / 3
-                                    const cp2x = x(i + 1) - dx / 3
-                                    smoothD += ` C ${cp1x} ${y(i)} ${cp2x} ${y(i + 1)} ${x(i + 1)} ${y(i + 1)}`
-                                  }
-                                  const areaD = `${smoothD} L ${x(pts.length - 1)} ${padTop + chartH} L ${x(0)} ${padTop + chartH} Z`
-                                  return (
-                                    <g>
-                                      {[0, 25, 50, 75, 100].map((pct) => {
-                                        const yPos = padTop + chartH - (pct / 100) * chartH
-                                        return (
-                                          <line
-                                            key={pct}
-                                            x1={padLeft}
-                                            y1={yPos}
-                                            x2={padLeft + w}
-                                            y2={yPos}
-                                            stroke="#e5e7eb"
-                                            strokeWidth="0.6"
-                                            strokeDasharray="4 3"
-                                          />
-                                        )
-                                      })}
-                                      <path d={areaD} fill="url(#chartFillPlaybook)" />
-                                      <path
-                                        d={smoothD}
-                                        fill="none"
-                                        stroke="#007AFF"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      />
-                                      {pts.map((p, i) => (
-                                        <circle
-                                          key={i}
-                                          cx={xScale(i)}
-                                          cy={yScale(p.y)}
-                                          r="3"
-                                          fill="#007AFF"
-                                          stroke="white"
-                                          strokeWidth="1.5"
-                                        />
-                                      ))}
-                                    </g>
-                                  )
-                                })()
-                              )}
-                            </svg>
-                          </div>
-                          <div className="flex justify-between mt-2 text-[11px] text-gray-500 tabular-nums font-medium">
-                            {playbookChartData.map((p, i) => (
-                              <span key={i}>{p.label}</span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="flex flex-col gap-1 shrink-0 ml-2 self-center">
-                          <button type="button" className="p-1.5 rounded-lg text-gray-400 hover:text-[#007AFF] hover:bg-gray-50" aria-label="Filter">
-                            <Droplet className="h-3.5 w-3.5" />
-                          </button>
-                          <button type="button" className="p-1.5 rounded-lg text-gray-400 hover:text-[#007AFF] hover:bg-gray-50" aria-label="Export">
-                            <Droplet className="h-3.5 w-3.5" />
-                          </button>
-                          <button type="button" className="p-1.5 rounded-lg text-gray-400 hover:text-[#007AFF] hover:bg-gray-50" aria-label="Add">
-                            <Plus className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </>
-              ) : insightsActiveTab === 'speaking' ? (
-                <>
-                  <div className="px-5 pt-4 pb-2 flex items-center gap-2">
-                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-[#007AFF] text-white">
-                      <Check className="h-2.5 w-2.5 stroke-[3]" />
-                    </span>
-                    <h3 className="text-[13px] font-medium text-gray-900">
-                      {currentSpeakingConfig.title}
-                    </h3>
-                  </div>
-                  <div className="flex px-5 pb-5 pt-1">
-                    {speakingInsightsLoading && (
-                      <div className="flex-1 flex items-center justify-center h-[400px] text-[13px] text-gray-500">
-                        <span className="flex items-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Loading speaking scores…
-                        </span>
-                      </div>
-                    )}
-                    {!speakingInsightsLoading && speakingInsightsError && (
-                      <div className="flex-1 flex items-center justify-center h-[400px] text-[13px] text-red-600">
-                        {speakingInsightsError}
-                      </div>
-                    )}
-                    {!speakingInsightsLoading && !speakingInsightsError && !speakingHasData && (
-                      <div className="flex-1 flex items-center justify-center h-[400px]">
-                        <div className="rounded-2xl border border-gray-100 bg-white p-10 text-center shadow-sm max-w-sm">
-                          <TrendingUp className="h-12 w-12 text-[#007AFF] mx-auto mb-4" />
-                          <p className="text-base font-semibold text-gray-900 mb-2 tracking-tight">No speaking metrics yet</p>
-                          <p className="text-sm text-gray-500 mb-4">Analyze feedback in Calls to see Speech pace, Talk ratio, and more here.</p>
-                        </div>
-                      </div>
-                    )}
-                    {!speakingInsightsLoading && !speakingInsightsError && speakingHasData && (
-                    <>
-                    <div className="flex flex-col justify-between h-[400px] text-[11px] text-gray-400 mr-3 shrink-0 tabular-nums font-medium">
-                      {[...currentSpeakingConfig.ticks].sort((a, b) => b - a).map((val) => (
-                        <span key={val}>{val}</span>
-                      ))}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="h-[400px] w-full">
-                        <svg viewBox="0 0 640 240" className="w-full h-full" preserveAspectRatio="xMidYMid meet">
-                          <defs>
-                            <linearGradient id="chartFillSpeaking" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="rgb(0 122 255 / 0.08)" />
-                              <stop offset="100%" stopColor="rgb(0 122 255 / 0)" />
-                            </linearGradient>
-                          </defs>
-                          {speakingChartData.length === 0 ? (
-                            <g>
-                              <text x="320" y="120" textAnchor="middle" className="text-sm fill-gray-400">
-                                No speaking scores for the last 5 days. Analyze feedback in Calls to see scores here.
-                              </text>
-                            </g>
-                          ) : (
-                            (() => {
-                              const pts = speakingChartData
-                              const minY = 0
-                              const maxY = 200
-                              const w = 600
-                              const viewH = 240
-                              const padLeft = 20
-                              const padTop = 15
-                              const padBottom = 25
-                              const chartH = viewH - padTop - padBottom
-                              const clamp = (v: number) => Math.min(Math.max(v, minY), maxY)
-                              const xScale = (i: number) => padLeft + (i / Math.max(pts.length - 1, 1)) * w
-                              const yScale = (v: number) => padTop + chartH - (clamp(v) / maxY) * chartH
-                              const x = (i: number) => xScale(i)
-                              const y = (i: number) => yScale(pts[i].y)
-                              let smoothD = `M ${x(0)} ${y(0)}`
-                              for (let i = 0; i < pts.length - 1; i++) {
-                                const dx = x(i + 1) - x(i)
-                                const cp1x = x(i) + dx / 3
-                                const cp2x = x(i + 1) - dx / 3
-                                smoothD += ` C ${cp1x} ${y(i)} ${cp2x} ${y(i + 1)} ${x(i + 1)} ${y(i + 1)}`
-                              }
-                              const areaD = `${smoothD} L ${x(pts.length - 1)} ${padTop + chartH} L ${x(0)} ${padTop + chartH} Z`
-                              return (
-                                <g>
-                                  {[0, 50, 100, 150, 200].map((val) => {
-                                    const yPos = yScale(val)
-                                    return (
-                                      <line
-                                        key={val}
-                                        x1={padLeft}
-                                        y1={yPos}
-                                        x2={padLeft + w}
-                                        y2={yPos}
-                                        stroke="#e5e7eb"
-                                        strokeWidth="0.6"
-                                        strokeDasharray="4 3"
-                                      />
-                                    )
-                                  })}
-                                  <path d={areaD} fill="url(#chartFillSpeaking)" />
-                                  <path
-                                    d={smoothD}
-                                    fill="none"
-                                    stroke="#007AFF"
-                                    strokeWidth="2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  />
-                                  {pts.map((p, i) => (
-                                    <circle
-                                      key={i}
-                                      cx={xScale(i)}
-                                      cy={yScale(p.y)}
-                                      r="3"
-                                      fill="#007AFF"
-                                      stroke="white"
-                                      strokeWidth="1.5"
-                                    />
-                                  ))}
-                                </g>
-                              )
-                            })()
-                          )}
-                        </svg>
-                      </div>
-                      <div className="flex justify-between mt-2 text-[11px] text-gray-500 tabular-nums font-medium">
-                        {speakingChartData.map((p, i) => (
-                          <span key={i}>{p.label}</span>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-1 shrink-0 ml-2 self-center">
-                      <button type="button" className="p-1.5 rounded-lg text-gray-400 hover:text-[#007AFF] hover:bg-gray-50" aria-label="Filter">
-                        <Droplet className="h-3.5 w-3.5" />
-                      </button>
-                      <button type="button" className="p-1.5 rounded-lg text-gray-400 hover:text-[#007AFF] hover:bg-gray-50" aria-label="Export">
-                        <Droplet className="h-3.5 w-3.5" />
-                      </button>
-                      <button type="button" className="p-1.5 rounded-lg text-gray-400 hover:text-[#007AFF] hover:bg-gray-50" aria-label="Add">
-                        <Plus className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    </>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="absolute left-8 top-8 bottom-8 flex flex-col justify-between text-xs text-gray-400">
-                    <span>100%</span>
-                    <span>75%</span>
-                    <span>50%</span>
-                  </div>
-                  <div className="flex-1 flex items-center justify-center ml-12 mr-12">
-                    <div className="rounded-2xl border border-gray-100 bg-white p-10 text-center shadow-sm max-w-sm">
-                      <TrendingUp className="h-12 w-12 text-[#007AFF] mx-auto mb-4" />
-                      <p className="text-base font-semibold text-gray-900 mb-4 tracking-tight">Not ready to add calls yet?</p>
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#007AFF] text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
-                      >
-                        Try demo mode
-                        <ChevronRight className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
     )
   }
@@ -3537,12 +3763,12 @@ export default function AtlasMain() {
                       setTodoAnalyzing(false)
                     })
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 disabled:opacity-60"
               >
                 {todoAnalyzing ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-[#3B82F6]" />
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
                 ) : (
-                  <Sparkles className="h-4 w-4 text-[#3B82F6]" />
+                  <Sparkles className="h-4 w-4 text-white" />
                 )}
                 Analyze
               </button>
@@ -3932,286 +4158,389 @@ export default function AtlasMain() {
       { id: 'faqs' as const, label: 'Customer FAQs' },
       { id: 'policies' as const, label: 'Company Policies' },
     ]
+    const selectedCategoryName = knowledgeCategories.find((c) => c.id === knowledgeCategory)?.label ?? knowledgeCategory
     return (
-      <div className="h-full overflow-y-auto bg-[#f5f5f7]">
-        <div className="px-8 pt-6 pb-5">
-          <div className="flex items-center justify-between gap-4 mb-6">
+      <div className="flex-1 h-screen overflow-y-auto bg-white">
+        {/* Sticky Header */}
+        <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-8 py-5">
+          <div className="flex items-center justify-between gap-4">
             <div>
-              <h1 className="text-xl font-semibold tracking-tight text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
                 Knowledge Configuration
               </h1>
-              <p className="mt-1 text-sm text-gray-500 max-w-xl">
-                Train Atlas AI with your company information to provide intelligent assistance during calls.
+              <p className="mt-1 text-sm text-gray-500">
+                Train Atlas AI with YOUR company information to provide intelligent assistance during calls.
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-3 shrink-0">
               <button
                 type="button"
                 onClick={() => setKnowledgeUploadModal(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-[#007AFF] px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:opacity-90"
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
               >
                 <Upload className="h-4 w-4" />
                 Upload Document
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3.5 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
               >
                 <RefreshCw className="h-4 w-4" />
                 Sync CRM
               </button>
             </div>
           </div>
+        </header>
 
-          <div className="flex gap-6 min-h-[420px]">
-            <aside className="w-[200px] shrink-0 rounded-xl border border-gray-100 bg-white shadow-sm overflow-hidden">
-              <nav className="p-2">
-                {knowledgeCategories.map((cat) => (
-                  <button
-                    key={cat.id}
-                    type="button"
-                    onClick={() => setKnowledgeCategory(cat.id)}
-                    className={`w-full flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
-                      knowledgeCategory === cat.id
-                        ? 'bg-blue-50 text-[#007AFF] border-l-2 border-[#007AFF] -ml-0.5 pl-3.5'
-                        : 'text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <span className="flex-1">{cat.label}</span>
-                  </button>
-                ))}
-              </nav>
-            </aside>
-
-            <div className="flex-1 min-w-0 space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative flex-1 min-w-[200px] max-w-md">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search Documents"
-                    className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-800 shadow-sm placeholder:text-gray-400 focus:border-[#007AFF] focus:outline-none focus:ring-1 focus:ring-[#007AFF]"
-                  />
+        {/* Content */}
+        <div className="p-8 space-y-10">
+          {/* Knowledge Section */}
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Your Company Knowledge</h2>
+            <div className="flex gap-5">
+              {/* Category Sidebar */}
+              <div className="w-[220px] shrink-0">
+                <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+                  <nav className="p-2">
+                    {knowledgeCategories.map((cat) => {
+                      const isActive = knowledgeCategory === cat.id
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => setKnowledgeCategory(cat.id)}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-blue-50 text-forskale-teal border-l-2 border-forskale-teal'
+                              : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      )
+                    })}
+                  </nav>
                 </div>
               </div>
-              {knowledgeDocumentsLoading === knowledgeCategory ? (
-                <div className="rounded-xl border border-gray-100 bg-white p-12 text-center">
-                  <Loader2 className="h-10 w-10 text-[#007AFF] animate-spin mx-auto mb-3" />
-                  <p className="text-sm text-gray-500">Loading documents...</p>
-                </div>
-              ) : currentKnowledgeDocuments.length === 0 ? (
-                <div className="rounded-xl border-2 border-dashed border-gray-200 bg-white p-12 text-center">
-                  <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-sm font-medium text-gray-700 mb-1">
-                    No {knowledgeCategories.find((c) => c.id === knowledgeCategory)?.label ?? knowledgeCategory} documents yet
-                  </p>
-                  <p className="text-xs text-gray-500 mb-4">Upload PDFs to train Atlas for this knowledge category.</p>
-                  <button
-                    type="button"
-                    onClick={() => setKnowledgeUploadModal(true)}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#007AFF] px-4 py-2.5 text-sm font-medium text-white hover:opacity-90"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Upload Document
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {currentKnowledgeDocuments.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm flex items-center justify-between gap-4"
-                    >
-                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <div className="h-10 w-10 shrink-0 rounded-lg bg-gray-100 flex items-center justify-center">
-                          <FileText className="h-5 w-5 text-gray-600" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium text-gray-900 truncate">{doc.name}</span>
-                            {doc.status === 'processed' && <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
-                            {doc.status === 'processing' && <Loader2 className="h-4 w-4 text-[#007AFF] animate-spin shrink-0" />}
-                            {doc.status === 'failed' && <AlertCircle className="h-4 w-4 text-red-500 shrink-0" />}
-                          </div>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {new Date(doc.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            {doc.total_chunks != null && doc.total_chunks > 0 && ` · ${doc.total_chunks} chunks`}
-                            {doc.size ? ` · ${doc.size < 1024 ? doc.size + ' B' : doc.size < 1024 * 1024 ? (doc.size / 1024).toFixed(1) + ' KB' : (doc.size / (1024 * 1024)).toFixed(2) + ' MB'}` : ''}
-                            {doc.status === 'failed' && doc.error_message && ` · ${doc.error_message}`}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            const apiCat = KNOWLEDGE_CATEGORY_API_MAP[knowledgeCategory]
-                            if (!apiCat) return
-                            try {
-                              const res = await atlasAPI.downloadKnowledgeDocument(apiCat, doc.id)
-                              const url = window.URL.createObjectURL(new Blob([res.data]))
-                              const a = document.createElement('a')
-                              a.href = url
-                              a.download = doc.name || 'document.pdf'
-                              a.click()
-                              window.URL.revokeObjectURL(url)
-                            } catch (e: any) {
-                              toast.error(e.response?.data?.detail || 'Download failed')
-                            }
-                          }}
-                          className="p-2 rounded-lg text-gray-500 hover:text-[#007AFF] hover:bg-blue-50"
-                          title="Download"
-                        >
-                          <Download className="h-5 w-5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!confirm('Delete this document? Chunks will be removed from knowledge base.')) return
-                            const apiCat = KNOWLEDGE_CATEGORY_API_MAP[knowledgeCategory]
-                            if (!apiCat) return
-                            try {
-                              await atlasAPI.deleteKnowledgeDocument(apiCat, doc.id)
-                              toast.success('Document deleted')
-                              loadKnowledgeDocuments(knowledgeCategory)
-                            } catch (e: any) {
-                              toast.error(e.response?.data?.detail || 'Delete failed')
-                            }
-                          }}
-                          className="p-2 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50"
-                          title="Delete"
-                        >
-                          <Trash2 className="h-5 w-5" />
-                        </button>
-                      </div>
+
+              {/* Documents Table */}
+              <div className="flex-1 min-w-0">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  {/* Search bar */}
+                  <div className="px-5 py-3 border-b border-gray-200">
+                    <div className="relative max-w-sm">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search Documents"
+                        className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-forskale-teal/40 focus:border-forskale-teal"
+                      />
                     </div>
-                  ))}
+                  </div>
+
+                  {/* Table Header */}
+                  <div className="grid grid-cols-[1fr_160px_120px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <div>Document Name</div>
+                    <div>Status</div>
+                    <div className="text-right">Actions</div>
+                  </div>
+
+                  {/* Table Body */}
+                  {knowledgeDocumentsLoading === knowledgeCategory ? (
+                    <div className="px-5 py-12 text-center">
+                      <Loader2 className="h-10 w-10 text-gray-300 animate-spin mx-auto mb-3" />
+                      <p className="text-sm text-gray-500">Loading documents...</p>
+                    </div>
+                  ) : currentKnowledgeDocuments.length === 0 ? (
+                    <div className="px-5 py-12 text-center">
+                      <FileText className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                      <p className="text-sm text-gray-500">No documents in this category yet.</p>
+                      <button
+                        type="button"
+                        onClick={() => setKnowledgeUploadModal(true)}
+                        className="mt-3 inline-flex items-center gap-2 text-sm text-forskale-teal hover:underline"
+                      >
+                        <Upload className="h-4 w-4" />
+                        Upload Document
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {currentKnowledgeDocuments.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="grid grid-cols-[1fr_160px_120px] gap-4 items-center px-5 py-3.5 hover:bg-gray-50/60 transition-colors"
+                        >
+                          {/* Document Name */}
+                          <div className="flex items-center gap-3 min-w-0">
+                            <FileText className="h-5 w-5 text-gray-400 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-sm text-gray-900 truncate block">{doc.name}</span>
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {new Date(doc.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                {doc.total_chunks != null && doc.total_chunks > 0 && ` · ${doc.total_chunks} chunks`}
+                                {doc.size ? ` · ${doc.size < 1024 ? doc.size + ' B' : doc.size < 1024 * 1024 ? (doc.size / 1024).toFixed(1) + ' KB' : (doc.size / (1024 * 1024)).toFixed(2) + ' MB'}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                          {/* Status */}
+                          <div>
+                            {doc.status === 'processed' && (
+                              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700">
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Processed
+                              </span>
+                            )}
+                            {doc.status === 'processing' && (
+                              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                Processing
+                              </span>
+                            )}
+                            {doc.status === 'failed' && (
+                              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-red-600" title={doc.error_message || ''}>
+                                <AlertCircle className="h-3.5 w-3.5" />
+                                Failed
+                              </span>
+                            )}
+                          </div>
+                          {/* Actions */}
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const apiCat = KNOWLEDGE_CATEGORY_API_MAP[knowledgeCategory]
+                                if (!apiCat) return
+                                try {
+                                  const res = await atlasAPI.downloadKnowledgeDocument(apiCat, doc.id)
+                                  const url = window.URL.createObjectURL(new Blob([res.data]))
+                                  const a = document.createElement('a')
+                                  a.href = url
+                                  a.download = doc.name || 'document.pdf'
+                                  a.click()
+                                  window.URL.revokeObjectURL(url)
+                                } catch (e: any) {
+                                  toast.error(e.response?.data?.detail || 'Download failed')
+                                }
+                              }}
+                              className="px-3 py-1.5 text-sm font-medium text-forskale-teal border border-forskale-teal rounded-lg hover:bg-blue-50 transition-colors"
+                            >
+                              Download
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!confirm('Delete this document? Chunks will be removed from knowledge base.')) return
+                                const apiCat = KNOWLEDGE_CATEGORY_API_MAP[knowledgeCategory]
+                                if (!apiCat) return
+                                try {
+                                  await atlasAPI.deleteKnowledgeDocument(apiCat, doc.id)
+                                  toast.success('Document deleted')
+                                  loadKnowledgeDocuments(knowledgeCategory)
+                                } catch (e: any) {
+                                  toast.error(e.response?.data?.detail || 'Delete failed')
+                                }
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-              <div className="flex items-center justify-between border-t border-gray-200 pt-4 text-sm text-gray-500">
-                <span>
-                  {currentKnowledgeDocuments.length} {knowledgeCategories.find((c) => c.id === knowledgeCategory)?.label ?? knowledgeCategory} document{currentKnowledgeDocuments.length !== 1 ? 's' : ''}
-                </span>
+                <p className="mt-2 text-sm text-gray-500">
+                  {currentKnowledgeDocuments.length} {selectedCategoryName} document{currentKnowledgeDocuments.length !== 1 ? 's' : ''}
+                </p>
               </div>
             </div>
           </div>
 
-          {knowledgeUploadModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-              <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    Upload {knowledgeCategories.find((c) => c.id === knowledgeCategory)?.label ?? knowledgeCategory} Document
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setKnowledgeUploadModal(false)
-                      setKnowledgeUploadFile(null)
-                      if (knowledgeFileInputRef.current) knowledgeFileInputRef.current.value = ''
-                    }}
-                    className="p-2 rounded-lg text-gray-500 hover:bg-gray-100"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                <div className="p-6">
-                  <div
-                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
-                    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation() }}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      const f = e.dataTransfer.files?.[0]
-                      const name = f?.name?.toLowerCase() ?? ''
-                      if (name.endsWith('.pdf') || name.endsWith('.docx')) setKnowledgeUploadFile(f!)
-                      else toast.error('Only PDF and DOCX files are supported')
-                    }}
-                    className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center"
-                  >
-                    {!knowledgeUploadFile ? (
-                      <>
-                        <p className="text-sm text-gray-600 mb-3">Drag & drop a PDF or DOCX, or click to choose</p>
-                        <input
-                          ref={knowledgeFileInputRef}
-                          type="file"
-                          accept=".pdf,.docx"
-                          className="hidden"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0]
-                            if (!f) return
-                            const name = f.name.toLowerCase()
-                            if (name.endsWith('.pdf') || name.endsWith('.docx')) setKnowledgeUploadFile(f)
-                            else toast.error('Only PDF and DOCX files are supported')
-                          }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => knowledgeFileInputRef.current?.click()}
-                          className="rounded-xl bg-[#007AFF] px-4 py-2 text-sm font-medium text-white hover:opacity-90"
-                        >
-                          Choose File
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-sm font-medium text-gray-900 truncate">{knowledgeUploadFile.name}</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {(knowledgeUploadFile.size / 1024).toFixed(1)} KB
-                        </p>
-                        <div className="flex items-center justify-center gap-2 mt-4">
-                          <button
-                            type="button"
-                            disabled={knowledgeUploading}
-                            onClick={async () => {
-                              const apiCat = KNOWLEDGE_CATEGORY_API_MAP[knowledgeCategory]
-                              if (!apiCat) return
-                              setKnowledgeUploading(true)
-                              try {
-                                await atlasAPI.uploadKnowledgeDocument(apiCat, knowledgeUploadFile)
-                                toast.success('Document uploaded. Processing in background.')
-                                setKnowledgeUploadModal(false)
-                                setKnowledgeUploadFile(null)
-                                if (knowledgeFileInputRef.current) knowledgeFileInputRef.current.value = ''
-                                loadKnowledgeDocuments(knowledgeCategory)
-                              } catch (e: any) {
-                                toast.error(e.response?.data?.detail || 'Upload failed')
-                              } finally {
-                                setKnowledgeUploading(false)
-                              }
-                            }}
-                            className="rounded-xl bg-[#007AFF] px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-                          >
-                            {knowledgeUploading ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
-                                Uploading...
-                              </>
-                            ) : (
-                              'Upload'
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            disabled={knowledgeUploading}
-                            onClick={() => {
-                              setKnowledgeUploadFile(null)
-                              if (knowledgeFileInputRef.current) knowledgeFileInputRef.current.value = ''
-                            }}
-                            className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-3">PDF or DOCX. Content will be chunked and stored in Atlas {knowledgeCategories.find((c) => c.id === knowledgeCategory)?.label ?? knowledgeCategory} knowledge base.</p>
+          {/* Client Company Knowledge Section */}
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">Client Company Knowledge</h2>
+            <div className="flex gap-5">
+              {/* Category Sidebar */}
+              <div className="w-[220px] shrink-0">
+                <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
+                  <nav className="p-2">
+                    {[
+                      { id: 'client-product-info', name: 'Client Product Info' },
+                      { id: 'client-pricing-plans', name: 'Client Pricing & Plans' },
+                      { id: 'client-objection-handling', name: 'Client Objection Handling' },
+                      { id: 'client-competitive-intel', name: 'Client Competitive Intel' },
+                      { id: 'client-company-policies', name: 'Client Company Policies' },
+                    ].map((cat, idx) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          idx === 0
+                            ? 'bg-blue-50 text-forskale-teal border-l-2 border-forskale-teal'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {cat.name}
+                      </button>
+                    ))}
+                  </nav>
                 </div>
               </div>
+
+              {/* Documents Table */}
+              <div className="flex-1 min-w-0">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                  {/* Search bar */}
+                  <div className="px-5 py-3 border-b border-gray-200">
+                    <div className="relative max-w-sm">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search Documents"
+                        className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-forskale-teal/40 focus:border-forskale-teal"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Table Header */}
+                  <div className="grid grid-cols-[1fr_160px_120px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                    <div>Document Name</div>
+                    <div>Sample</div>
+                    <div className="text-right">Actions</div>
+                  </div>
+
+                  {/* Empty state */}
+                  <div className="px-5 py-12 text-center">
+                    <FileText className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                    <p className="text-sm text-gray-500">No documents in this category yet.</p>
+                  </div>
+                </div>
+                <p className="mt-2 text-sm text-gray-500">
+                  0 Client Product Info documents
+                </p>
+              </div>
             </div>
-          )}
+          </div>
         </div>
+
+        {/* Upload Modal */}
+        {knowledgeUploadModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Upload {selectedCategoryName} Document
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKnowledgeUploadModal(false)
+                    setKnowledgeUploadFile(null)
+                    if (knowledgeFileInputRef.current) knowledgeFileInputRef.current.value = ''
+                  }}
+                  className="p-2 rounded-lg text-gray-500 hover:bg-gray-100"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="p-6">
+                <div
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation() }}
+                  onDragLeave={(e) => { e.preventDefault(); e.stopPropagation() }}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    const f = e.dataTransfer.files?.[0]
+                    const name = f?.name?.toLowerCase() ?? ''
+                    if (name.endsWith('.pdf') || name.endsWith('.docx')) setKnowledgeUploadFile(f!)
+                    else toast.error('Only PDF and DOCX files are supported')
+                  }}
+                  className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center"
+                >
+                  {!knowledgeUploadFile ? (
+                    <>
+                      <p className="text-sm text-gray-600 mb-3">Drag & drop a PDF or DOCX, or click to choose</p>
+                      <input
+                        ref={knowledgeFileInputRef}
+                        type="file"
+                        accept=".pdf,.docx"
+                        className="hidden"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0]
+                          if (!f) return
+                          const name = f.name.toLowerCase()
+                          if (name.endsWith('.pdf') || name.endsWith('.docx')) setKnowledgeUploadFile(f)
+                          else toast.error('Only PDF and DOCX files are supported')
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => knowledgeFileInputRef.current?.click()}
+                        className="rounded-xl bg-forskale-teal px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+                      >
+                        Choose File
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium text-gray-900 truncate">{knowledgeUploadFile.name}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {(knowledgeUploadFile.size / 1024).toFixed(1)} KB
+                      </p>
+                      <div className="flex items-center justify-center gap-2 mt-4">
+                        <button
+                          type="button"
+                          disabled={knowledgeUploading}
+                          onClick={async () => {
+                            const apiCat = KNOWLEDGE_CATEGORY_API_MAP[knowledgeCategory]
+                            if (!apiCat) return
+                            setKnowledgeUploading(true)
+                            try {
+                              await atlasAPI.uploadKnowledgeDocument(apiCat, knowledgeUploadFile)
+                              toast.success('Document uploaded. Processing in background.')
+                              setKnowledgeUploadModal(false)
+                              setKnowledgeUploadFile(null)
+                              if (knowledgeFileInputRef.current) knowledgeFileInputRef.current.value = ''
+                              loadKnowledgeDocuments(knowledgeCategory)
+                            } catch (e: any) {
+                              toast.error(e.response?.data?.detail || 'Upload failed')
+                            } finally {
+                              setKnowledgeUploading(false)
+                            }
+                          }}
+                          className="rounded-xl bg-forskale-teal px-4 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                        >
+                          {knowledgeUploading ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin inline mr-2" />
+                              Uploading...
+                            </>
+                          ) : (
+                            'Upload'
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={knowledgeUploading}
+                          onClick={() => {
+                            setKnowledgeUploadFile(null)
+                            if (knowledgeFileInputRef.current) knowledgeFileInputRef.current.value = ''
+                          }}
+                          className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-3">PDF or DOCX. Content will be chunked and stored in Atlas {selectedCategoryName} knowledge base.</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

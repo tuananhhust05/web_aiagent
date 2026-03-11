@@ -354,6 +354,7 @@ export type MeetingFeedbackMetric = {
   value: string
   has_link?: boolean
   link_url?: string | null
+  detail?: string
 }
 
 export type MeetingFeedbackBullet = {
@@ -400,6 +401,25 @@ export const callsAPI = {
   /** Analyze a call transcript against the user's Sales Playbook template (Atlas /calls). */
   getPlaybookAnalysis: (id: string, params?: { force_refresh?: boolean }) =>
     api.get<CallPlaybookAnalysis>(`/api/calls/${id}/playbook-analysis`, { params }),
+  /** Trigger full analysis (insights + feedback + playbook) for a call. */
+  fullAnalysis: async (callId: string): Promise<{ success: boolean; message: string }> => {
+    const response = await api.post(`/api/calls/${callId}/full-analysis`)
+    return response.data
+  },
+  /** Download playbook analysis report for a call as a JSON file. */
+  downloadPlaybookReport: async (callId: string): Promise<void> => {
+    const response = await api.get(`/api/calls/${callId}/playbook-report`, {
+      responseType: 'blob',
+    })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `playbook-report-${callId}.json`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
 }
 
 // Campaigns API
@@ -1620,18 +1640,87 @@ export const meetingsAPI = {
       }>
       generated_at: string
     }>('/api/meetings/insights/objections/analyze', null, { params: params ?? { days: 5 } }),
+
+  /** Toggle a next-step item's checked state by index. */
+  toggleNextStep: async (meetingId: string, index: number): Promise<{ success: boolean; checked: boolean }> => {
+    const response = await api.post(`/api/meetings/${meetingId}/next-steps/${index}/toggle`)
+    return response.data
+  },
+
+  /** Download playbook analysis report for a meeting as a JSON file. */
+  downloadPlaybookReport: async (meetingId: string): Promise<void> => {
+    const response = await api.get(`/api/meetings/${meetingId}/playbook-report`, {
+      responseType: 'blob',
+    })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `playbook-report-${meetingId}.json`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  },
+
+  /** Update media URLs (video / audio) for a meeting. */
+  updateMediaUrls: async (meetingId: string, videoUrl?: string, audioUrl?: string): Promise<any> => {
+    const params: any = {}
+    if (videoUrl) params.video_url = videoUrl
+    if (audioUrl) params.audio_url = audioUrl
+    const response = await api.patch(`/api/meetings/${meetingId}/media-urls`, null, { params })
+    return response.data
+  },
+}
+
+// Playbook template types
+export type PlaybookTemplateRule = { id?: string; label: string; description: string }
+
+export type PlaybookTemplate = {
+  id: string
+  user_id: string
+  name: string
+  rules: PlaybookTemplateRule[]
+  is_default: boolean
+  template_type: string
+  prompt?: string
+  meeting_type: string
+  title_keyword?: string
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export type PlaybookTemplateCreate = {
+  name: string
+  rules: PlaybookTemplateRule[]
+  template_type?: 'personal' | 'team' | 'suggested'
+  prompt?: string
+  meeting_type?: 'external' | 'internal' | 'all'
+  title_keyword?: string
+  active?: boolean
+}
+
+export type PlaybookTemplateUpdate = {
+  name?: string
+  rules?: PlaybookTemplateRule[]
+  is_default?: boolean
+  template_type?: 'personal' | 'team' | 'suggested'
+  prompt?: string
+  meeting_type?: 'external' | 'internal' | 'all'
+  title_keyword?: string
+  active?: boolean
 }
 
 // Playbooks API (Sales playbook templates / rules)
 export const playbooksAPI = {
-  list: (params?: { limit?: number }) => api.get<{ templates: Array<{ id: string; name: string; rules: Array<{ id?: string; label: string; description?: string }>; is_default: boolean; created_at: string; updated_at: string }>; total: number }>(
+  list: (params?: { limit?: number; template_type?: string }) => api.get<{ templates: PlaybookTemplate[]; total: number }>(
     '/api/playbooks',
     { params }
   ),
-  create: (data: { name: string; rules: Array<{ id?: string; label: string; description?: string }> }) =>
+  create: (data: PlaybookTemplateCreate) =>
     api.post('/api/playbooks', data),
-  get: (id: string) => api.get(`/api/playbooks/${id}`),
-  update: (id: string, data: { name?: string; rules?: Array<{ id?: string; label: string; description?: string }>; is_default?: boolean }) =>
+  get: (id: string) => api.get<PlaybookTemplate>(`/api/playbooks/${id}`),
+  update: (id: string, data: PlaybookTemplateUpdate) =>
     api.put(`/api/playbooks/${id}`, data),
   setDefault: (id: string) => api.post(`/api/playbooks/${id}/set-default`),
   delete: (id: string) => api.delete(`/api/playbooks/${id}`),

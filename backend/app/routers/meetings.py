@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi.responses import Response
 from typing import Optional, List, Any, Literal, Dict
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -46,6 +47,7 @@ class AtlasNextStepItem(BaseModel):
     assignee: str
     description: str
     time: Optional[str] = None
+    checked: Optional[bool] = False
 
 
 class AtlasQnAItem(BaseModel):
@@ -163,6 +165,7 @@ class PerformanceMetric(BaseModel):
     status: str
     status_level: Literal["great", "ok", "poor"] = "ok"
     value: str
+    detail: Optional[str] = None
     has_link: bool = False
     link_url: Optional[str] = None
 
@@ -430,6 +433,7 @@ def _sanitize_next_steps(items: Any) -> List[dict]:
                 "assignee": str(assignee),
                 "description": str(desc),
                 "time": (str(it.get("time")) if it.get("time") is not None else None),
+                "checked": bool(it.get("checked", False)),
             }
         )
     return out
@@ -1470,6 +1474,52 @@ async def update_meeting(
         print(f"Error in update_meeting: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
+@router.patch("/{meeting_id}/media-urls", response_model=MeetingResponse)
+async def update_meeting_media_urls(
+    meeting_id: str,
+    video_url: Optional[str] = None,
+    audio_url: Optional[str] = None,
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """Update media (video/audio) URLs for a meeting."""
+    try:
+        collection = db.meetings
+        oid = ObjectId(meeting_id)
+
+        existing = await collection.find_one({
+            "_id": oid,
+            "user_id": current_user.id,
+        })
+        if not existing:
+            raise HTTPException(status_code=404, detail="Meeting not found")
+
+        update_fields: dict = {}
+        if video_url is not None:
+            update_fields["video_url"] = video_url
+        if audio_url is not None:
+            update_fields["audio_url"] = audio_url
+
+        if not update_fields:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one of video_url or audio_url must be provided",
+            )
+
+        update_fields["updated_at"] = datetime.utcnow()
+        await collection.update_one({"_id": oid}, {"$set": update_fields})
+
+        updated = await collection.find_one({"_id": oid})
+        if updated and "_id" in updated:
+            updated["id"] = str(updated["_id"])
+            del updated["_id"]
+        return updated
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in update_meeting_media_urls: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
 @router.delete("/{meeting_id}")
 async def delete_meeting(
     meeting_id: str,
@@ -1879,6 +1929,7 @@ You are an AI sales coach. Based ONLY on the call transcript below, produce JSON
       "status": "Great!" | "Okay" | "Needs work",
       "status_level": "great" | "ok" | "poor",
       "value": "120 words per minute",
+      "detail": "Optimal pace for clarity and engagement",
       "has_link": false,
       "link_url": null
     }}
@@ -1901,6 +1952,7 @@ Rules:
 - Output ONLY valid JSON.
 - quality_score: integer 0–100 representing overall call quality (rapport, clarity, objection handling, closing, etc.). Be consistent with metrics and did_well/improve.
 - 4–6 metrics is enough.
+- For each metric, include a "detail" field with a brief explanation (5-10 words) of why the metric value is good, okay, or needs improvement, e.g. "Optimal pace for clarity and engagement" or "Good balance between speaking and listening".
 - 2–4 bullets for "did_well" and 2–4 for "improve".
 - Be specific and actionable but concise.
 
@@ -2335,4 +2387,91 @@ async def reanalyze_meeting(
         qna_extracted_count=results["qna_extracted_count"],
         qna_ids=results["qna_ids"],
         message=message,
+    )
+
+
+@router.post("/{meeting_id}/next-steps/{index}/toggle")
+async def toggle_next_step(
+    meeting_id: str,
+    index: int,
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """
+    Toggle the checked state of a specific next-step item in atlas_insights.
+    """
+    collection = db.meetings
+    try:
+        oid = ObjectId(meeting_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid meeting id")
+
+    doc = await collection.find_one({"_id": oid, "user_id": current_user.id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    next_steps = doc.get("atlas_next_steps") or []
+    if index < 0 or index >= len(next_steps):
+        raise HTTPException(status_code=400, detail="Next step index out of range")
+
+    current_checked = bool(next_steps[index].get("checked", False))
+    new_checked = not current_checked
+
+    await collection.update_one(
+        {"_id": oid, "user_id": current_user.id},
+        {"$set": {f"atlas_next_steps.{index}.checked": new_checked, "updated_at": datetime.utcnow()}},
+    )
+
+    return {"success": True, "checked": new_checked}
+
+
+@router.get("/{meeting_id}/playbook-report")
+async def download_playbook_report(
+    meeting_id: str,
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """
+    Download the cached playbook analysis as a structured JSON report file.
+    """
+    collection = db.meetings
+    try:
+        oid = ObjectId(meeting_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid meeting id")
+
+    doc = await collection.find_one({"_id": oid, "user_id": current_user.id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    playbook_analysis = doc.get("playbook_analysis")
+    if not playbook_analysis:
+        raise HTTPException(status_code=404, detail="No playbook analysis found. Run analysis first.")
+
+    report = {
+        "report_title": "Playbook Analysis Report",
+        "meeting_title": doc.get("title") or doc.get("meeting_title") or "Untitled Meeting",
+        "generated_at": datetime.utcnow().isoformat(),
+        "template_name": playbook_analysis.get("template_name"),
+        "overall_score": playbook_analysis.get("overall_score"),
+        "coaching_summary": playbook_analysis.get("coaching_summary"),
+        "rules": [
+            {
+                "label": r.get("label", ""),
+                "passed": bool(r.get("passed")),
+                "what_you_said": r.get("what_you_said"),
+                "what_you_should_say": r.get("what_you_should_say"),
+            }
+            for r in (playbook_analysis.get("rules") or [])
+        ],
+        "dimension_scores": playbook_analysis.get("dimension_scores"),
+    }
+
+    report_json = json.dumps(report, indent=2, ensure_ascii=False)
+    return Response(
+        content=report_json,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="playbook-report-{meeting_id}.json"'
+        },
     )

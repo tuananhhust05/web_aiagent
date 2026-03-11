@@ -637,7 +637,7 @@ export default function ToDoReadyPage() {
                   <ChevronDown size={14} className={`text-muted-foreground transition-transform ${categoriesCollapsed ? '' : 'rotate-180'}`} />
                 </button>
                 {!categoriesCollapsed && (
-                  <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-2 max-h-[min(50vh,320px)] overflow-y-auto overflow-x-hidden pr-1 scrollbar-thin">
                     {INTENT_CATEGORIES.map((cat) => {
                       const count = categoryCounts[cat.id] ?? 0
                       const isActive = categoryFilter === cat.id

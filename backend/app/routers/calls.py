@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
+from fastapi.responses import Response
 from datetime import datetime, timedelta
 from typing import List, Optional
 from bson import ObjectId
@@ -7,6 +8,7 @@ from twilio.rest import Client
 import requests
 import asyncio
 import aiohttp
+import json
 from app.core.database import get_database
 from app.core.auth import get_current_active_user
 from app.core.config import settings
@@ -719,4 +721,81 @@ async def get_call_playbook_analysis(
         message=None,
     )
 
+
+@router.post("/{call_id}/full-analysis")
+async def full_analysis_call(
+    call_id: str,
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """
+    Clear cached analysis for a call so the next fetch will regenerate it.
+    This is the calls equivalent of the meetings reanalyze endpoint.
+    """
+    call_doc = await db.calls.find_one({"_id": call_id, "user_id": current_user.id})
+    if not call_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Call not found"
+        )
+
+    # Clear cached playbook analysis so next fetch regenerates
+    await db.calls.update_one(
+        {"_id": call_id, "user_id": current_user.id},
+        {
+            "$unset": {"playbook_analysis": ""},
+            "$set": {"updated_at": datetime.utcnow()},
+        },
+    )
+
+    return {"success": True, "message": "Analysis cache cleared. Refresh to regenerate."}
+
+
+@router.get("/{call_id}/playbook-report")
+async def download_call_playbook_report(
+    call_id: str,
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """
+    Download the cached playbook analysis for a call as a structured JSON report file.
+    """
+    call_doc = await db.calls.find_one({"_id": call_id, "user_id": current_user.id})
+    if not call_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Call not found"
+        )
+
+    playbook_analysis = call_doc.get("playbook_analysis")
+    if not playbook_analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No playbook analysis found. Run analysis first.",
+        )
+
+    report = {
+        "report_title": "Playbook Analysis Report",
+        "call_title": call_doc.get("title") or call_doc.get("contact_name") or "Untitled Call",
+        "generated_at": datetime.utcnow().isoformat(),
+        "template_name": playbook_analysis.get("template_name"),
+        "overall_score": playbook_analysis.get("overall_score"),
+        "coaching_summary": playbook_analysis.get("coaching_summary"),
+        "rules": [
+            {
+                "label": r.get("label", ""),
+                "passed": bool(r.get("passed")),
+                "what_you_said": r.get("what_you_said"),
+                "what_you_should_say": r.get("what_you_should_say"),
+            }
+            for r in (playbook_analysis.get("rules") or [])
+        ],
+    }
+
+    report_json = json.dumps(report, indent=2, ensure_ascii=False)
+    return Response(
+        content=report_json,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="playbook-report-{call_id}.json"'
+        },
+    )
 

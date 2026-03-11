@@ -27,8 +27,8 @@ type NavItem = NavLink;
 const navItems: NavItem[] = [
   { type: "link", icon: Radio, label: "Record", href: "/atlas/record" },
   { type: "link", icon: CalendarDays, label: "Meeting Intelligence", href: "/atlas/calendar" },
-  { type: "link", icon: Video, label: "Meeting Insights", href: "/atlas/performance" },
-  { type: "link", icon: BarChart3, label: "Performance", href: "/atlas/insights" },
+  { type: "link", icon: Video, label: "Meeting Insights", href: "/atlas/insights" },
+  { type: "link", icon: BarChart3, label: "Performance", href: "/atlas/performance" },
   { type: "link", icon: ClipboardCheck, label: "Action Ready", href: "/atlas/todo" },
   { type: "link", icon: HelpCircle, label: "Q&A Engine", href: "/atlas/qna" },
   { type: "link", icon: BookOpen, label: "Knowledge", href: "/atlas/knowledge" },

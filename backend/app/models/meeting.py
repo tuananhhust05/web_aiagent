@@ -22,6 +22,8 @@ class MeetingCreate(BaseModel):
     description: Optional[str] = Field(None, description="Meeting description")
     platform: MeetingPlatform = Field(..., description="Meeting platform")
     link: str = Field(..., description="Meeting link")
+    video_url: Optional[str] = Field(None, description="Video recording URL")
+    audio_url: Optional[str] = Field(None, description="Audio recording URL")
 
 class MeetingUpdate(BaseModel):
     title: Optional[str] = Field(None, description="Meeting title")
@@ -29,6 +31,8 @@ class MeetingUpdate(BaseModel):
     platform: Optional[MeetingPlatform] = Field(None, description="Meeting platform")
     link: Optional[str] = Field(None, description="Meeting link")
     transcript_lines: Optional[List[TranscriptLine]] = Field(None, description="Transcription segments")
+    video_url: Optional[str] = Field(None, description="Video recording URL")
+    audio_url: Optional[str] = Field(None, description="Audio recording URL")
 
 class MeetingResponse(BaseModel):
     id: str
@@ -40,6 +44,8 @@ class MeetingResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     transcript_lines: Optional[List[TranscriptLine]] = None
+    video_url: Optional[str] = None
+    audio_url: Optional[str] = None
 
     class Config:
         from_attributes = True

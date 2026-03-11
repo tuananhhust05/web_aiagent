@@ -20,12 +20,16 @@ router = APIRouter()
 @router.get("", response_model=PlaybookTemplateListResponse)
 async def list_playbooks(
     limit: int = Query(100, ge=1, le=200),
+    template_type: Optional[str] = Query(None, description="Filter by template type: personal, team, suggested"),
     current_user: UserResponse = Depends(get_current_active_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ):
     collection = db.playbook_templates
+    query_filter = {"user_id": current_user.id}
+    if template_type is not None:
+        query_filter["template_type"] = template_type
     cursor = (
-        collection.find({"user_id": current_user.id})
+        collection.find(query_filter)
         .sort("is_default", -1)
         .sort("created_at", -1)
         .limit(limit)
@@ -36,7 +40,7 @@ async def list_playbooks(
         r["id"] = str(r["_id"])
         r.pop("_id", None)
         out.append(r)
-    total = await collection.count_documents({"user_id": current_user.id})
+    total = await collection.count_documents(query_filter)
     return PlaybookTemplateListResponse(templates=out, total=total)
 
 
@@ -53,6 +57,11 @@ async def create_playbook(
         "name": payload.name,
         "rules": [r.dict() for r in payload.rules],
         "is_default": False,
+        "template_type": payload.template_type.value if payload.template_type else "personal",
+        "prompt": payload.prompt,
+        "meeting_type": payload.meeting_type.value if payload.meeting_type else "all",
+        "title_keyword": payload.title_keyword,
+        "active": payload.active if payload.active is not None else True,
         "created_at": now,
         "updated_at": now,
     }
@@ -105,6 +114,16 @@ async def update_playbook(
         update_doc["rules"] = [r.dict() for r in payload.rules]
     if payload.is_default is not None:
         update_doc["is_default"] = payload.is_default
+    if payload.template_type is not None:
+        update_doc["template_type"] = payload.template_type.value
+    if payload.prompt is not None:
+        update_doc["prompt"] = payload.prompt
+    if payload.meeting_type is not None:
+        update_doc["meeting_type"] = payload.meeting_type.value
+    if payload.title_keyword is not None:
+        update_doc["title_keyword"] = payload.title_keyword
+    if payload.active is not None:
+        update_doc["active"] = payload.active
 
     # If setting default true, clear other defaults
     if payload.is_default is True:
