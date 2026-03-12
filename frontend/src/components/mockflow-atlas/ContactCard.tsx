@@ -5,11 +5,11 @@ import { Badge } from "../ui/badge";
 import { Separator } from "../ui/separator";
 import { cn } from "../../lib/utils";
 import { EnrichmentLoadingModal } from "./EnrichmentLoadingModal";
-import { EnrichedProfileCard, getEnrichedProfile } from "./EnrichedProfileCard";
+import { EnrichedProfileCard } from "./EnrichedProfileCard";
 import { AddProfileDialog } from "./AddProfileDialog";
 import toast from "react-hot-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
-import { atlasAPI, type MeetingParticipantsResponse, type AtlasMeetingContext } from "../../lib/api";
+import { atlasAPI, type MeetingParticipantsResponse, type AtlasMeetingContext, type EnrichedProfileData } from "../../lib/api";
 
 interface ContactCardProps {
   meeting: {
@@ -176,6 +176,7 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
   const [addProfileTarget, setAddProfileTarget] = useState<string | null>(null);
   const [enrichingCompanyName, setEnrichingCompanyName] = useState<string | null>(null);
+  const [enrichApiDone, setEnrichApiDone] = useState(false);
 
   const fetchAndBuildCard = useCallback(
     async (forceEnrich = false) => {
@@ -235,44 +236,142 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
     fetchAndBuildCard(true).then(() => toast.success("Card updated", { id: "regen" })).catch(() => toast.error("Regenerate failed", { id: "regen" }));
   };
 
+  // Store enriched profile data from API
+  const [enrichedProfilesData, setEnrichedProfilesData] = useState<Record<string, EnrichedProfileData>>({});
+  const enrichApiRef = useRef<AbortController | null>(null);
+
   const handleEnrichClick = async (name: string, email: string) => {
     // Extract company name from email domain
     const domain = email.split('@')[1];
     const companyName = domain ? domain.split('.')[0] : '';
     
-    if (!companyName) {
-      toast.error("Cannot extract company from email");
-      return;
-    }
-    
-    setEnrichingCompanyName(companyName);
+    setEnrichingCompanyName(companyName || null);
     setEnrichingParticipant(name);
+    setEnrichApiDone(false);
+
+    // Call the real API in the background
+    enrichApiRef.current?.abort();
+    const controller = new AbortController();
+    enrichApiRef.current = controller;
+
+    try {
+      const res = await atlasAPI.enrichParticipant({
+        event_id: meeting.id,
+        email,
+        name,
+      });
+
+      if (controller.signal.aborted) return;
+
+      const result = res.data;
+      if (result.enriched && result.profile_data) {
+        setEnrichedProfilesData((prev) => ({ ...prev, [name]: result.profile_data! }));
+        setEnrichedProfiles((prev) => new Set(prev).add(name));
+        setEnrichApiDone(true);
+      } else if (result.error === "no_linkedin_url") {
+        // LinkedIn URL not found automatically, ask user
+        toast.error("LinkedIn profile not found. Please add it manually.");
+        setEnrichingParticipant(null);
+        setEnrichApiDone(false);
+        setAddProfileTarget(name);
+        return;
+      } else if (result.error) {
+        toast.error(result.error);
+        setEnrichingParticipant(null);
+        setEnrichApiDone(false);
+        return;
+      }
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        console.error("Enrich error:", err);
+        toast.error("Failed to enrich profile");
+        setEnrichingParticipant(null);
+        setEnrichApiDone(false);
+      }
+    }
   };
 
   const handleEnrichComplete = useCallback(() => {
     if (enrichingParticipant) {
-      setEnrichedProfiles((prev) => new Set(prev).add(enrichingParticipant));
       setEnrichingParticipant(null);
       setEnrichingCompanyName(null);
-      setViewingProfile(enrichingParticipant);
+      // Only open profile if data was already loaded
+      if (enrichedProfilesData[enrichingParticipant]) {
+        setViewingProfile(enrichingParticipant);
+      }
       void fetchAndBuildCard(false);
     }
-  }, [enrichingParticipant, fetchAndBuildCard]);
+  }, [enrichingParticipant, enrichedProfilesData, fetchAndBuildCard]);
 
   const handleEnrichClose = () => {
+    enrichApiRef.current?.abort();
     setEnrichingParticipant(null);
+    setEnrichApiDone(false);
   };
 
-  const handleAddProfile = (_linkedinUrl: string) => {
+  const handleAddProfile = (linkedinUrl: string) => {
     if (addProfileTarget) {
-      toast.success(`LinkedIn profile linked for ${addProfileTarget}`);
-      // After adding profile, trigger enrichment
+      const targetName = addProfileTarget;
+      const targetEmail = data.participants.find((p) => p.name === targetName)?.email || "";
       setAddProfileTarget(null);
-      setEnrichingParticipant(addProfileTarget);
+
+      // Trigger enrichment with the provided LinkedIn URL
+      setEnrichingCompanyName(targetEmail.split("@")[1]?.split(".")[0] || null);
+      setEnrichingParticipant(targetName);
+      setEnrichApiDone(false);
+
+      // Call API with provided linkedin_url
+      (async () => {
+        try {
+          const res = await atlasAPI.enrichParticipant({
+            event_id: meeting.id,
+            email: targetEmail,
+            name: targetName,
+            linkedin_url: linkedinUrl,
+          });
+          const result = res.data;
+          if (result.enriched && result.profile_data) {
+            setEnrichedProfilesData((prev) => ({ ...prev, [targetName]: result.profile_data! }));
+            setEnrichedProfiles((prev) => new Set(prev).add(targetName));
+            setEnrichApiDone(true);
+          } else if (result.error) {
+            toast.error(result.error);
+            setEnrichingParticipant(null);
+            setEnrichApiDone(false);
+          }
+        } catch (err) {
+          console.error("Enrich with LinkedIn URL error:", err);
+          toast.error("Failed to enrich profile");
+          setEnrichingParticipant(null);
+          setEnrichApiDone(false);
+        }
+      })();
     }
   };
 
-  const profileData = viewingProfile ? getEnrichedProfile(viewingProfile) : null;
+  // Load existing enriched profiles on mount
+  useEffect(() => {
+    const loadExistingProfiles = async () => {
+      for (const p of data.participants) {
+        if (p.email && p.email !== "—") {
+          try {
+            const res = await atlasAPI.getParticipantProfile(p.email);
+            if (res.data?.profile_data) {
+              setEnrichedProfilesData((prev) => ({ ...prev, [p.name]: res.data.profile_data }));
+              setEnrichedProfiles((prev) => new Set(prev).add(p.name));
+            }
+          } catch {
+            // Not enriched yet, skip
+          }
+        }
+      }
+    };
+    if (!loading && data.participants.length > 0) {
+      void loadExistingProfiles();
+    }
+  }, [loading, data.participants]);
+
+  const profileData = viewingProfile ? enrichedProfilesData[viewingProfile] : null;
 
   return (
     <>
@@ -577,6 +676,7 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
         onClose={handleEnrichClose}
         participantName={enrichingParticipant || ""}
         companyName={enrichingCompanyName || ""}
+        apiDone={enrichApiDone}
       />
 
       {/* Add Profile dialog for Gmail participants */}

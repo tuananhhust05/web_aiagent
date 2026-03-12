@@ -1,171 +1,17 @@
 import { useState } from "react";
-import { X, MapPin, Building2, Globe, Heart, Linkedin, Lock, Check, XCircle, MessageSquare, Brain, Sparkles } from "lucide-react";
+import { X, MapPin, Building2, Globe, Heart, Linkedin, Lock, Check, XCircle, MessageSquare, Brain, Sparkles, FileText } from "lucide-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Separator } from "../ui/separator";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
 import { cn } from "../../lib/utils";
-
-interface EnrichedProfileData {
-  name: string;
-  title: string;
-  company: string;
-  tenure: string;
-  location: string;
-  linkedinUrl: string;
-  languages: string[];
-  interests: string[];
-  disc: {
-    type: string;
-    label: string;
-    color: string;
-    traits: string[];
-  };
-  compatibility: {
-    level: string;
-    percentage: number;
-  };
-  communicationStrategy: {
-    dos: { action: string; example: string }[];
-    donts: { action: string; example: string }[];
-  };
-  personalityTraits: {
-    archetype: string;
-    traits: { name: string; description: string }[];
-  };
-}
+import type { EnrichedProfileData } from "../../lib/api";
 
 interface EnrichedProfileCardProps {
   data: EnrichedProfileData;
   onClose: () => void;
 }
 
-const MOCK_PROFILES: Record<string, EnrichedProfileData> = {
-  "Luca Bianchi": {
-    name: "Luca Bianchi",
-    title: "CTIO @ MESA | AWS Serverless Hero | Cursor Ambassador | 10+ yrs Scaling AI & Cloud Platforms | International Speaker | Technologist",
-    company: "MESA",
-    tenure: "1 year",
-    location: "Pavia, IT",
-    linkedinUrl: "#",
-    languages: ["English", "Italian"],
-    interests: ["Serverless Technologies", "Teaching", "Podcasting", "Community Building", "Blockchain Technologies"],
-    disc: {
-      type: "GO-GETTER",
-      label: "Id",
-      color: "bg-amber-500",
-      traits: ["Energetic", "Expressive", "Visionary", "Confident", "Fast-Moving"],
-    },
-    compatibility: { level: "High", percentage: 75 },
-    communicationStrategy: {
-      dos: [
-        { action: "Propose next steps while excitement is high", example: '"While this is fresh, should we book a working session?"' },
-        { action: "Actively steer the conversation back when it drifts", example: '"That\'s a great idea! Let\'s tie it back to next steps."' },
-        { action: "Use expressive language that still points to outcomes", example: '"This helps teams move faster without added friction."' },
-      ],
-      donts: [
-        { action: "Delay momentum to follow up later", example: '"I\'ll send a recap and we\'ll decide."' },
-        { action: "Let enthusiasm derail progress", example: '"Totally!"' },
-        { action: "Use purely technical or dry language", example: '"This optimizes operational throughput."' },
-      ],
-    },
-    personalityTraits: {
-      archetype: "Influential-Dominant",
-      traits: [
-        { name: "Energetic", description: "radiates intensity and drive" },
-        { name: "Expressive", description: "openly shares thoughts and feelings" },
-        { name: "Visionary", description: "sees the big picture" },
-        { name: "Confident", description: "shows self-belief in speech" },
-        { name: "Fast-Moving", description: "moves quickly in decision-making" },
-        { name: "Persuasive", description: "influences others by combining vision and confidence" },
-      ],
-    },
-  },
-  "Maria Rossi": {
-    name: "Maria Rossi",
-    title: 'Account Executive | Driving Revenue Growth and Building Lasting Client Relationships',
-    company: "CPP Associates, Inc.",
-    tenure: "2 years, 7 months",
-    location: "Clinton, New Jersey, US",
-    linkedinUrl: "#",
-    languages: ["English"],
-    interests: ["Networking With Local Organizations", "Wine Expertise", "Sustainable Business Practices", "Culinary Management", "Cloud Technology"],
-    disc: {
-      type: "ENTHUSIAST",
-      label: "I",
-      color: "bg-green-500",
-      traits: ["Optimistic", "Social", "Outgoing", "Talkative", "People-Centric"],
-    },
-    compatibility: { level: "Medium", percentage: 65 },
-    communicationStrategy: {
-      dos: [
-        { action: "Use one clear example to prove a point.", example: '"This is how one team rolled this out."' },
-        { action: "Confirm commitment explicitly when enthusiasm is high.", example: '"This sounds exciting – what would you need to say yes to this?"' },
-        { action: "Reference other customers to reinforce trust.", example: '"Teams similar to yours moved fast with this."' },
-      ],
-      donts: [
-        { action: "Stack multiple examples to convince.", example: '"Let me show you three different cases."' },
-        { action: "Assume excitement means the deal is moving.", example: '"Sounds like you\'re sold."' },
-        { action: "Rely only on logic or specs.", example: '"Here\'s the detailed technical breakdown."' },
-      ],
-    },
-    personalityTraits: {
-      archetype: "Influential",
-      traits: [
-        { name: "Optimistic", description: "maintains a positive outlook" },
-        { name: "Social", description: "enjoys being around others" },
-        { name: "Outgoing", description: "naturally connects with people" },
-        { name: "Talkative", description: "comfortable in ongoing dialogue" },
-        { name: "People-Centric", description: "focused on relationships" },
-        { name: "Inspiring", description: "energizes others through enthusiasm and encouragement" },
-      ],
-    },
-  },
-  "Marco Verdi": {
-    name: "Marco Verdi",
-    title: "Freelance Product Designer | UX Strategy & Design Systems | Helping Startups Ship Faster",
-    company: "Self-employed",
-    tenure: "3 years",
-    location: "Rome, IT",
-    linkedinUrl: "#",
-    languages: ["English", "Italian", "Spanish"],
-    interests: ["Design Systems", "Figma Plugins", "Remote Work Culture", "Startup Ecosystems", "Photography"],
-    disc: {
-      type: "COUNSELOR",
-      label: "Si",
-      color: "bg-blue-500",
-      traits: ["Patient", "Empathetic", "Reliable", "Thoughtful", "Supportive"],
-    },
-    compatibility: { level: "High", percentage: 80 },
-    communicationStrategy: {
-      dos: [
-        { action: "Give them time to process before asking for decisions.", example: '"Take your time — happy to revisit this next week."' },
-        { action: "Show genuine interest in their perspective.", example: '"I\'d love to hear how you\'ve approached this before."' },
-        { action: "Provide clear structure and next steps.", example: '"Here\'s a simple roadmap so we stay aligned."' },
-      ],
-      donts: [
-        { action: "Rush them into snap decisions.", example: '"We need an answer today."' },
-        { action: "Overwhelm with aggressive sales tactics.", example: '"This deal expires in 24 hours."' },
-        { action: "Dismiss their need for consensus.", example: '"You don\'t need anyone else\'s input."' },
-      ],
-    },
-    personalityTraits: {
-      archetype: "Steady-Influential",
-      traits: [
-        { name: "Patient", description: "takes time to evaluate before acting" },
-        { name: "Empathetic", description: "deeply understands others' needs" },
-        { name: "Reliable", description: "follows through on commitments" },
-        { name: "Thoughtful", description: "considers impacts before speaking" },
-        { name: "Supportive", description: "prioritizes harmony and collaboration" },
-        { name: "Diplomatic", description: "navigates conflict with grace and tact" },
-      ],
-    },
-  },
-};
-
-export function getEnrichedProfile(name: string): EnrichedProfileData | undefined {
-  return MOCK_PROFILES[name];
-}
 
 export function EnrichedProfileCard({ data, onClose }: EnrichedProfileCardProps) {
   const [openSection, setOpenSection] = useState<string>("communication");
@@ -186,9 +32,17 @@ export function EnrichedProfileCard({ data, onClose }: EnrichedProfileCardProps)
       <div className="flex-1 overflow-auto p-4 scrollbar-thin space-y-5">
         {/* Profile Header */}
         <div className="flex flex-col items-center text-center">
-          {/* Avatar placeholder with ring */}
+          {/* Avatar with ring */}
           <div className="relative mb-3">
-            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border-2 border-primary/30 flex items-center justify-center">
+            {data.profilePic ? (
+              <img
+                src={data.profilePic}
+                alt={data.name}
+                className="h-20 w-20 rounded-full border-2 border-primary/30 object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+              />
+            ) : null}
+            <div className={cn("h-20 w-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border-2 border-primary/30 flex items-center justify-center", data.profilePic ? "hidden" : "")}>
               <span className="text-xl font-bold text-primary">
                 {data.name.split(" ").map(n => n[0]).join("")}
               </span>
@@ -228,6 +82,17 @@ export function EnrichedProfileCard({ data, onClose }: EnrichedProfileCardProps)
             </div>
           )}
         </div>
+
+        {/* About */}
+        {data.about && (
+          <div>
+            <div className="mb-1.5 flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-medium text-muted-foreground">About</span>
+            </div>
+            <p className="text-xs text-foreground leading-relaxed whitespace-pre-line">{data.about}</p>
+          </div>
+        )}
 
         {/* Interests */}
         <div>

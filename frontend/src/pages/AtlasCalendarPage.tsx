@@ -5,7 +5,7 @@ import { RegistrationWizard } from "../components/mockflow-atlas/RegistrationWiz
 import { RecordingConsent } from "../components/mockflow-atlas/RecordingConsent";
 import { CalendarRefreshPopup } from "../components/mockflow-atlas/CalendarRefreshPopup";
 import toast from "react-hot-toast";
-import { calendarAPI, atlasAPI, type GoogleCalendarEvent } from "../lib/api";
+import { calendarAPI, atlasAPI, vexaAPI, getVexaBotJoinErrorMessage, type GoogleCalendarEvent } from "../lib/api";
 
 const AtlasCalendarPage = () => {
   const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
@@ -122,6 +122,14 @@ const AtlasCalendarPage = () => {
           return `${format(start!)} - ${format(end!)}`;
         })();
 
+        // Extract Google Meet link from hangoutLink or conferenceData
+        const meetLink =
+          event.hangoutLink ||
+          event.conferenceData?.entryPoints?.find(
+            (ep) => ep.entryPointType === "video",
+          )?.uri ||
+          undefined;
+
         return {
           id: event.id,
           title: event.summary || "Untitled meeting",
@@ -129,7 +137,8 @@ const AtlasCalendarPage = () => {
           startHour,
           duration,
           dayIndex,
-        } satisfies Meeting;
+          ...(meetLink ? { meetLink } : {}),
+        } as Meeting;
       })
       .filter((m): m is Meeting => m !== null);
   };
@@ -187,7 +196,40 @@ const AtlasCalendarPage = () => {
   };
 
   const handleBotJoin = () => {
+    if (!selectedMeeting?.meetLink) {
+      toast.error("No Google Meet link found for this meeting");
+      return;
+    }
     setShowConsent(true);
+  };
+
+  const handleConsentAccept = async () => {
+    setShowConsent(false);
+    if (!selectedMeeting?.meetLink) {
+      toast.error("No meeting link available");
+      return;
+    }
+
+    // Extract the native Google Meet ID from the link
+    // e.g. https://meet.google.com/abc-defg-hij => abc-defg-hij
+    const meetId = selectedMeeting.meetLink.split("/").pop();
+    if (!meetId) {
+      toast.error("Could not extract meeting ID from link");
+      return;
+    }
+
+    try {
+      toast.loading("Bot is joining the meeting…", { id: "bot-join" });
+      await vexaAPI.joinGoogleMeet(meetId);
+      toast.success("Bot joined the meeting successfully!", { id: "bot-join" });
+    } catch (err) {
+      const message = getVexaBotJoinErrorMessage(err);
+      toast.error(message, { id: "bot-join" });
+    }
+  };
+
+  const handleConsentDecline = () => {
+    setShowConsent(false);
   };
 
   const handleConnectCalendar = async () => {
@@ -234,8 +276,8 @@ const AtlasCalendarPage = () => {
       />
       <RecordingConsent
         open={showConsent}
-        onAccept={() => { setShowConsent(false); toast.success("Recording consent acknowledged"); }}
-        onLeave={() => { setShowConsent(false); toast("Left meeting"); }}
+        onAccept={handleConsentAccept}
+        onLeave={handleConsentDecline}
       />
     </>
   );

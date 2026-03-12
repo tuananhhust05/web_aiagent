@@ -92,6 +92,89 @@ class SerpAPIService:
             logger.error(f"[SERPAPI] Error searching for {company_name}: {str(e)}")
             raise
     
+    async def search_linkedin_url(self, email: str) -> Optional[str]:
+        """
+        Search for a LinkedIn profile URL by email using SerpAPI.
+        Query: "linkedin {email}"
+        Returns the first result URL if it matches linkedin.com/in/{username}, else None.
+        """
+        logger.info(f"[SERPAPI-LINKEDIN] >>> search_linkedin_url called with email={email}")
+        logger.info(f"[SERPAPI-LINKEDIN] api_key configured = {bool(self.api_key)}, "
+                     f"key_prefix = {self.api_key[:8] + '...' if self.api_key else 'EMPTY'}")
+
+        if not self.api_key:
+            logger.warning("[SERPAPI-LINKEDIN] SERPAPI_API_KEY not configured, cannot search LinkedIn")
+            return None
+
+        if not email or not email.strip():
+            logger.warning("[SERPAPI-LINKEDIN] Empty email provided, returning None")
+            return None
+
+        search_query = f"linkedin {email.strip()}"
+        logger.info(f"[SERPAPI-LINKEDIN] Search query: '{search_query}'")
+        logger.info(f"[SERPAPI-LINKEDIN] Base URL: {self.base_url}")
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                params = {
+                    "engine": "google",
+                    "q": search_query,
+                    "api_key": self.api_key,
+                    "num": 5,
+                }
+                logger.info(f"[SERPAPI-LINKEDIN] Sending GET request to {self.base_url} ...")
+                response = await client.get(self.base_url, params=params)
+                logger.info(f"[SERPAPI-LINKEDIN] Response status: {response.status_code}")
+
+                if response.status_code != 200:
+                    logger.error(f"[SERPAPI-LINKEDIN] LinkedIn search returned {response.status_code}, "
+                                 f"body={response.text[:500]}")
+                    return None
+
+                data = response.json()
+                organic_results = data.get("organic_results", [])
+                search_info = data.get("search_information", {})
+                logger.info(f"[SERPAPI-LINKEDIN] Response: organic_results={len(organic_results)}, "
+                            f"total_results={search_info.get('total_results', 'N/A')}, "
+                            f"time_taken={search_info.get('time_taken_displayed', 'N/A')}")
+
+                if not organic_results:
+                    logger.warning(f"[SERPAPI-LINKEDIN] No organic results for '{search_query}'")
+                    # Log what keys the response has for debugging
+                    logger.debug(f"[SERPAPI-LINKEDIN] Response keys: {list(data.keys())}")
+                    return None
+
+                # Log all result links for debugging
+                for i, result in enumerate(organic_results[:5]):
+                    link = result.get("link", "")
+                    title = result.get("title", "")[:60]
+                    logger.info(f"[SERPAPI-LINKEDIN] Result #{i+1}: link={link} | title={title}")
+
+                # Check the first result link
+                # Support country-code subdomains like it.linkedin.com, uk.linkedin.com, etc.
+                import re
+                linkedin_profile_pattern = re.compile(
+                    r"https?://(?:[a-z]{2,3}\.)?linkedin\.com/in/[^/?#\s]+", re.IGNORECASE
+                )
+
+                for result in organic_results:
+                    link = result.get("link", "")
+                    match = linkedin_profile_pattern.match(link)
+                    if match:
+                        linkedin_url = match.group(0)
+                        logger.info(f"[SERPAPI-LINKEDIN] ✅ Found LinkedIn URL for {email}: {linkedin_url}")
+                        return linkedin_url
+
+                logger.info(f"[SERPAPI-LINKEDIN] ❌ No LinkedIn profile URL matched pattern in results for {email}")
+                return None
+
+        except httpx.TimeoutException:
+            logger.error(f"[SERPAPI-LINKEDIN] Timeout searching LinkedIn for {email}")
+            return None
+        except Exception as e:
+            logger.error(f"[SERPAPI-LINKEDIN] Error searching LinkedIn for {email}: {e}", exc_info=True)
+            return None
+
     def _format_results(self, organic_results: list, company_name: str) -> str:
         """
         Format organic search results into a readable text format.

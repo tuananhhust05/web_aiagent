@@ -20,6 +20,7 @@ from app.models.rag_document import RAGDocumentStatus
 from app.services.pdf_processor import process_file_to_chunks
 from app.services.vectorization import vectorize_texts
 from app.services.serpapi_service import get_serpapi_service
+from app.services.linkedin_enrichment_service import get_linkedin_enrichment_service
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
@@ -2047,6 +2048,16 @@ async def enrich_meeting_from_attendee(
         logger.error(f"[MEETING-ENRICH] Company search error: {e}")
         search_result = ""
     
+    # Search LinkedIn URL for attendee via SerpAPI
+    linkedin_url = None
+    try:
+        serpapi = get_serpapi_service()
+        linkedin_url = await serpapi.search_linkedin_url(attendee_email)
+        if linkedin_url:
+            logger.info(f"[MEETING-ENRICH] Found LinkedIn URL for {attendee_email}: {linkedin_url}")
+    except Exception as e:
+        logger.error(f"[MEETING-ENRICH] LinkedIn search error: {e}")
+    
     # Extract structured info with AI
     company_info = {}
     if search_result:
@@ -2057,6 +2068,8 @@ async def enrich_meeting_from_attendee(
         "name": attendee_name,
         "email": attendee_email,
     }
+    if linkedin_url:
+        main_contact["linkedin_url"] = linkedin_url
     
     # Add key people info if available
     if company_info.get("key_people"):
@@ -2097,3 +2110,249 @@ async def enrich_meeting_from_attendee(
         company_info=company_info,
         main_contact=main_contact,
     )
+
+
+# ---------------------------------------------------------------------------
+# Participant LinkedIn enrichment  (Apify scrape → AI prospect intelligence)
+# ---------------------------------------------------------------------------
+
+ENRICHED_PROFILES_COLLECTION = "enriched_linkedin_profiles"
+# Shared cache of raw LinkedIn profiles (by linkedin_url, not user-specific)
+# Avoids re-scraping the same LinkedIn profile via Apify for different users
+LINKEDIN_PROFILES_CACHE = "linkedin_profiles_cache"
+
+
+class ParticipantEnrichRequest(BaseModel):
+    event_id: str
+    email: str
+    name: Optional[str] = None
+    linkedin_url: Optional[str] = None  # if user provided manually
+
+
+class ParticipantEnrichResponse(BaseModel):
+    email: str
+    enriched: bool
+    linkedin_url: Optional[str] = None
+    profile_data: Optional[dict] = None
+    error: Optional[str] = None
+    already_enriched: bool = False
+
+
+@router.post("/participant-enrich", response_model=ParticipantEnrichResponse)
+async def enrich_participant_linkedin(
+    request: ParticipantEnrichRequest,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """
+    Enrich a single participant via LinkedIn:
+    1. If linkedin_url not provided, search it via SerpAPI ("linkedin {email}")
+    2. If found (or provided), scrape profile via Apify
+    3. Generate prospect intelligence with AI
+    4. Save to enriched_linkedin_profiles collection
+    """
+    db = get_database()
+    user_id = str(current_user.id)
+    email = request.email.strip().lower()
+
+    logger.info(f"[PARTICIPANT-ENRICH] Enriching {email} for event {request.event_id}")
+
+    # Check if already enriched
+    existing = await db[ENRICHED_PROFILES_COLLECTION].find_one({
+        "user_id": user_id,
+        "email": email,
+    })
+    if existing and existing.get("profile_data"):
+        logger.info(f"[PARTICIPANT-ENRICH] Already enriched: {email}")
+        return ParticipantEnrichResponse(
+            email=email,
+            enriched=True,
+            already_enriched=True,
+            linkedin_url=existing.get("linkedin_url"),
+            profile_data=existing.get("profile_data"),
+        )
+
+    # Step 1: Get LinkedIn URL
+    linkedin_url = request.linkedin_url
+    logger.info(f"[PARTICIPANT-ENRICH] Step 1: linkedin_url from request = {linkedin_url}")
+    if not linkedin_url:
+        try:
+            serpapi = get_serpapi_service()
+            logger.info(f"[PARTICIPANT-ENRICH] Step 1: Searching LinkedIn URL via SerpAPI for {email}")
+            linkedin_url = await serpapi.search_linkedin_url(email)
+            logger.info(f"[PARTICIPANT-ENRICH] Step 1: SerpAPI result = {linkedin_url}")
+        except Exception as e:
+            logger.error(f"[PARTICIPANT-ENRICH] Step 1: LinkedIn URL search failed: {e}", exc_info=True)
+
+    if not linkedin_url:
+        logger.warning(f"[PARTICIPANT-ENRICH] Step 1: No LinkedIn URL found for {email}, returning no_linkedin_url")
+        return ParticipantEnrichResponse(
+            email=email,
+            enriched=False,
+            error="no_linkedin_url",
+        )
+
+    # Step 2: Scrape LinkedIn profile via Apify (with shared cache)
+    li_service = get_linkedin_enrichment_service()
+
+    # Normalize linkedin_url for cache lookup
+    cache_key_url = linkedin_url.strip().rstrip("/").lower()
+
+    # Check shared cache first (not user-specific)
+    cached_profile = await db[LINKEDIN_PROFILES_CACHE].find_one({"linkedin_url": cache_key_url})
+    raw_profile = None
+    if cached_profile and cached_profile.get("raw_profile"):
+        raw_profile = cached_profile["raw_profile"]
+        logger.info(f"[PARTICIPANT-ENRICH] Step 2: ✅ Cache HIT for {linkedin_url} "
+                    f"(name={raw_profile.get('fullName', 'unknown')})")
+    else:
+        logger.info(f"[PARTICIPANT-ENRICH] Step 2: Cache MISS for {linkedin_url}, calling Apify...")
+        logger.info(f"[PARTICIPANT-ENRICH] Step 2: Apify configured={li_service.configured}, "
+                    f"token={'***' + li_service.api_token[-6:] if li_service.api_token else 'EMPTY'}, "
+                    f"actor_id={li_service.actor_id or 'EMPTY'}")
+        if not li_service.configured:
+            logger.error(f"[PARTICIPANT-ENRICH] Step 2: Apify not configured")
+            return ParticipantEnrichResponse(
+                email=email,
+                enriched=False,
+                linkedin_url=linkedin_url,
+                error="Apify not configured (APIFY_API_TOKEN / APIFY_ACTOR_ID missing)",
+            )
+
+        raw_profile = await li_service.scrape_linkedin_profile(linkedin_url)
+        if not raw_profile:
+            logger.error(f"[PARTICIPANT-ENRICH] Step 2: Apify returned no profile data for {linkedin_url}")
+            return ParticipantEnrichResponse(
+                email=email,
+                enriched=False,
+                linkedin_url=linkedin_url,
+                error="Failed to scrape LinkedIn profile. The profile may be private or the URL incorrect.",
+            )
+        logger.info(f"[PARTICIPANT-ENRICH] Step 2: Apify returned profile for {raw_profile.get('fullName', 'unknown')}, "
+                    f"keys={list(raw_profile.keys())[:10]}")
+
+        # Save to shared cache (no user_id, shared across all users)
+        try:
+            await db[LINKEDIN_PROFILES_CACHE].update_one(
+                {"linkedin_url": cache_key_url},
+                {
+                    "$set": {
+                        "linkedin_url": cache_key_url,
+                        "original_url": linkedin_url,
+                        "raw_profile": raw_profile,
+                        "full_name": raw_profile.get("fullName", ""),
+                        "scraped_at": datetime.utcnow(),
+                    }
+                },
+                upsert=True,
+            )
+            logger.info(f"[PARTICIPANT-ENRICH] Step 2: Saved to shared cache: {cache_key_url}")
+        except Exception as cache_err:
+            logger.warning(f"[PARTICIPANT-ENRICH] Step 2: Failed to save to cache: {cache_err}")
+
+    # Step 3: Extract key fields
+    linkedin_data = li_service.extract_key_fields(raw_profile)
+    logger.info(f"[PARTICIPANT-ENRICH] Step 3: Extracted fields: name={linkedin_data.get('fullName')}, "
+                f"title={linkedin_data.get('jobTitle')}, company={linkedin_data.get('companyName')}, "
+                f"skills_count={len(linkedin_data.get('skills', []))}")
+
+    # Step 4: Get existing company info for richer AI context
+    company_info = None
+    event_doc = await db[PARTICIPANTS_COLLECTION].find_one({
+        "user_id": user_id,
+        "event_id": request.event_id,
+    })
+    if event_doc:
+        company_info = event_doc.get("company_info")
+    logger.info(f"[PARTICIPANT-ENRICH] Step 4: company_info available = {bool(company_info)}")
+
+    # Step 5: Generate AI prospect intelligence
+    logger.info(f"[PARTICIPANT-ENRICH] Step 5: Generating AI prospect intelligence...")
+    profile_data = await li_service.generate_prospect_intelligence(linkedin_data, company_info)
+    logger.info(f"[PARTICIPANT-ENRICH] Step 5: AI result keys={list(profile_data.keys()) if profile_data else 'None'}, "
+                f"disc_type={profile_data.get('disc', {}).get('type', 'N/A') if profile_data else 'N/A'}")
+
+    # Step 6: Save to database
+    now = datetime.utcnow()
+    logger.info(f"[PARTICIPANT-ENRICH] Step 6: Saving to DB collection={ENRICHED_PROFILES_COLLECTION}")
+    await db[ENRICHED_PROFILES_COLLECTION].update_one(
+        {"user_id": user_id, "email": email},
+        {
+            "$set": {
+                "user_id": user_id,
+                "email": email,
+                "name": request.name or linkedin_data.get("fullName", ""),
+                "event_id": request.event_id,
+                "linkedin_url": linkedin_url,
+                "linkedin_data": linkedin_data,
+                "profile_data": profile_data,
+                "enriched_at": now,
+                "updated_at": now,
+            }
+        },
+        upsert=True,
+    )
+
+    # Also update participant's linkedin_url in the event doc
+    if event_doc:
+        participants = event_doc.get("participants") or []
+        updated = False
+        for p in participants:
+            if (p.get("email") or "").lower() == email:
+                p["linkedin_url"] = linkedin_url
+                updated = True
+                break
+        if updated:
+            await db[PARTICIPANTS_COLLECTION].update_one(
+                {"user_id": user_id, "event_id": request.event_id},
+                {"$set": {"participants": participants, "updated_at": now}},
+            )
+            logger.info(f"[PARTICIPANT-ENRICH] Step 6: Updated linkedin_url in event participants")
+
+    logger.info(f"[PARTICIPANT-ENRICH] ✅ Successfully enriched {email} | linkedin={linkedin_url}")
+
+    return ParticipantEnrichResponse(
+        email=email,
+        enriched=True,
+        linkedin_url=linkedin_url,
+        profile_data=profile_data,
+    )
+
+
+@router.get("/participant-profile")
+async def get_participant_profile(
+    email: str = Query(..., description="Participant email"),
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """Get previously enriched LinkedIn profile for a participant.
+    Returns 200 with profile_data=null if not yet enriched (avoids noisy 404s).
+    """
+    db = get_database()
+    user_id = str(current_user.id)
+    normalized_email = email.strip().lower()
+
+    logger.info(f"[PARTICIPANT-PROFILE] Lookup: email={normalized_email}, user_id={user_id}, "
+                f"collection={ENRICHED_PROFILES_COLLECTION}")
+
+    doc = await db[ENRICHED_PROFILES_COLLECTION].find_one({
+        "user_id": user_id,
+        "email": normalized_email,
+    })
+
+    if not doc or not doc.get("profile_data"):
+        logger.info(f"[PARTICIPANT-PROFILE] Not found / no profile_data for {normalized_email} "
+                     f"(doc exists={doc is not None})")
+        return {
+            "email": normalized_email,
+            "linkedin_url": None,
+            "profile_data": None,
+        }
+
+    logger.info(f"[PARTICIPANT-PROFILE] ✅ Found enriched profile for {normalized_email}, "
+                f"linkedin_url={doc.get('linkedin_url')}, "
+                f"profile keys={list(doc['profile_data'].keys())[:5]}")
+
+    return {
+        "email": doc["email"],
+        "linkedin_url": doc.get("linkedin_url"),
+        "profile_data": doc["profile_data"],
+    }

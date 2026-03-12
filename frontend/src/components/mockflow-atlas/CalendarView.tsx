@@ -10,6 +10,8 @@ export interface Meeting {
   duration: number;
   dayIndex: number;
   type?: "discovery" | "renewal" | "internal";
+  /** Google Meet link (hangoutLink or conferenceData entry) */
+  meetLink?: string;
 }
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

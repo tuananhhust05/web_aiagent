@@ -1107,6 +1107,46 @@ export interface MeetingEnrichResponse {
   already_enriched?: boolean
 }
 
+export interface ParticipantEnrichResponse {
+  email: string
+  enriched: boolean
+  linkedin_url?: string | null
+  profile_data?: EnrichedProfileData | null
+  error?: string | null
+  already_enriched?: boolean
+}
+
+export interface EnrichedProfileData {
+  name: string
+  title: string
+  company: string
+  tenure: string
+  location: string
+  linkedinUrl: string
+  profilePic?: string
+  about?: string
+  languages: string[]
+  interests: string[]
+  disc: {
+    type: string
+    label: string
+    color: string
+    traits: string[]
+  }
+  compatibility: {
+    level: string
+    percentage: number
+  }
+  communicationStrategy: {
+    dos: { action: string; example: string }[]
+    donts: { action: string; example: string }[]
+  }
+  personalityTraits: {
+    archetype: string
+    traits: { name: string; description: string }[]
+  }
+}
+
 export type AtlasQnAClassification = 'product' | 'service' | 'general'
 export type AtlasQnAStatus = 'draft' | 'approved' | 'archived'
 export type AtlasQnAOrigin = 'manual' | 'ai_call_extracted' | 'ai_knowledge_derived'
@@ -1233,6 +1273,19 @@ export const atlasAPI = {
       event_id: eventId,
       force_refresh: forceRefresh,
     }, { timeout: 180000 }),  // 3 minute timeout for slow company search API
+
+  /** Enrich a single participant via LinkedIn (Apify + AI) */
+  enrichParticipant: (params: {
+    event_id: string
+    email: string
+    name?: string
+    linkedin_url?: string
+  }) =>
+    api.post<ParticipantEnrichResponse>('/api/atlas/participant-enrich', params, { timeout: 240000 }),
+
+  /** Get previously enriched LinkedIn profile for a participant */
+  getParticipantProfile: (email: string) =>
+    api.get<{ email: string; linkedin_url?: string; profile_data: EnrichedProfileData }>('/api/atlas/participant-profile', { params: { email } }),
 
   /** Rolling Q&A Repository CRUD */
   listQna: (params?: { 

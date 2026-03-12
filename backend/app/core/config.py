@@ -86,6 +86,10 @@ class Settings(BaseSettings):
     # SerpAPI Configuration (for company information search)
     SERPAPI_API_KEY: str = ""
     
+    # Apify Configuration (for LinkedIn profile scraping)
+    APIFY_API_TOKEN: str = ""
+    APIFY_ACTOR_ID: str = ""
+    
     # AI Sales Copilot Configuration
     AI_COPILOT_MAX_OUTPUT_TOKENS: int = 2000  # Maximum tokens for AI output responses
     AI_COPILOT_MAX_INPUT_TOKENS: int = 30000  # Maximum tokens for input (conversation + context)

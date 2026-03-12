@@ -8,6 +8,8 @@ interface EnrichmentLoadingModalProps {
   onClose: () => void;
   participantName: string;
   companyName?: string;
+  /** When true, the API call has finished. Modal waits for BOTH animation AND this flag. */
+  apiDone?: boolean;
 }
 
 interface EnrichmentStep {
@@ -27,36 +29,67 @@ const STEPS: EnrichmentStep[] = [
 const easeInOutCubic = (t: number): number =>
   t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
-export function EnrichmentLoadingModal({ open, onComplete, onClose, participantName, companyName }: EnrichmentLoadingModalProps) {
+export function EnrichmentLoadingModal({ open, onComplete, onClose, participantName, companyName, apiDone }: EnrichmentLoadingModalProps) {
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
+  const [animationDone, setAnimationDone] = useState(false);
+
+  // When both animation is done AND API is done, fire onComplete
+  useEffect(() => {
+    if (animationDone && apiDone) {
+      const timer = setTimeout(() => onComplete(), 400);
+      return () => clearTimeout(timer);
+    }
+  }, [animationDone, apiDone, onComplete]);
+
+  // When apiDone becomes true and animation is holding, snap to 100%
+  useEffect(() => {
+    if (apiDone && animationDone) {
+      setProgress(100);
+      setCurrentStep(STEPS.length - 1);
+    }
+  }, [apiDone, animationDone]);
 
   useEffect(() => {
     if (!open) {
       setProgress(0);
       setCurrentStep(0);
+      setAnimationDone(false);
       return;
     }
 
     let animationFrame: number;
     let startTime: number;
+    // If apiDone prop is provided, cap progress at 90% until API finishes
+    const usesApiDone = apiDone !== undefined;
+    const maxProgressBeforeApi = usesApiDone ? 90 : 100;
 
     const animate = (timestamp: number) => {
       if (!startTime) startTime = timestamp;
       const elapsed = timestamp - startTime;
       const totalDuration = 3000;
       const normalizedTime = Math.min(elapsed / totalDuration, 1);
-      const easedProgress = easeInOutCubic(normalizedTime) * 100;
+      let easedProgress = easeInOutCubic(normalizedTime) * 100;
 
-      setProgress(Math.min(easedProgress, 100));
+      // Cap at maxProgressBeforeApi if API hasn't finished yet
+      easedProgress = Math.min(easedProgress, maxProgressBeforeApi);
+
+      setProgress(easedProgress);
 
       const newStep = STEPS.findIndex((step) => easedProgress < step.duration);
       setCurrentStep(newStep === -1 ? STEPS.length - 1 : Math.max(0, newStep));
 
-      if (easedProgress < 100) {
+      if (easedProgress < maxProgressBeforeApi) {
         animationFrame = requestAnimationFrame(animate);
       } else {
-        setTimeout(() => onComplete(), 800);
+        // Animation reached its cap
+        if (!usesApiDone) {
+          // Legacy mode: no apiDone prop, complete immediately
+          setTimeout(() => onComplete(), 800);
+        } else {
+          // Mark animation as done; the useEffect above will handle completion
+          setAnimationDone(true);
+        }
       }
     };
 
@@ -123,7 +156,9 @@ export function EnrichmentLoadingModal({ open, onComplete, onClose, participantN
         {/* Progress info */}
         <div className="mb-5 text-center">
           <h3 className="text-lg font-bold tracking-tight text-cal-text-primary">
-            {STEPS[currentStep]?.label ?? "Generating insights..."}
+            {animationDone && !apiDone
+              ? "Waiting for profile data..."
+              : (STEPS[currentStep]?.label ?? "Generating insights...")}
           </h3>
           <p className="mt-1 text-sm text-cal-text-secondary/70">
             {companyName ? `Enriching ${participantName} at ${companyName}` : `Enriching ${participantName}'s profile`}
