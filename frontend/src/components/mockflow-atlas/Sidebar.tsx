@@ -25,7 +25,6 @@ interface NavLink {
 type NavItem = NavLink;
 
 const navItems: NavItem[] = [
-  { type: "link", icon: Radio, label: "Record", href: "/atlas/record" },
   { type: "link", icon: CalendarDays, label: "Meeting Intelligence", href: "/atlas/calendar" },
   { type: "link", icon: Video, label: "Meeting Insights", href: "/atlas/insights" },
   { type: "link", icon: BarChart3, label: "Performance", href: "/atlas/performance" },
@@ -58,7 +57,10 @@ export function AtlasSidebar() {
       {/* Header: Logo + Collapse */}
       <div className="flex items-center justify-between px-4 py-5">
         <div className="flex items-center gap-2.5 overflow-hidden">
-          <img src="/images/forskale-logo.png" alt="ForSkale" className="h-9 w-9 flex-shrink-0 rounded-lg object-contain" />
+          <div className="relative flex-shrink-0">
+            <div className="absolute inset-0 rounded-full bg-white/10 blur-md scale-125" />
+            <img src="/images/forskale-logo.png" alt="ForSkale" className="relative h-16 w-16 rounded-lg object-contain" />
+          </div>
           {!collapsed && (
             <span className="whitespace-nowrap text-sm font-bold text-white tracking-wide">
               ForSkale
@@ -113,8 +115,23 @@ export function AtlasSidebar() {
       {/* Gradient divider */}
       <div className="mx-4 h-px bg-gradient-to-r from-transparent via-sidebar-primary/20 to-transparent" />
 
-      {/* Bottom: Invite + User */}
+      {/* Bottom: Record + Invite + User */}
       <div className="px-3 py-3 space-y-2">
+        {/* Record button */}
+        <button
+          onClick={() => navigate("/atlas/record")}
+          className={cn(
+            "flex w-full items-center justify-center gap-2.5 py-2.5 text-sm font-semibold text-white transition-all duration-200",
+            "bg-gradient-to-r from-[hsl(var(--forskale-green))] via-[hsl(var(--forskale-teal))] to-[hsl(var(--forskale-cyan))]",
+            "hover:shadow-lg hover:shadow-[hsl(var(--forskale-teal)/0.3)] hover:brightness-110",
+            "rounded-[5px]",
+            collapsed && "px-0"
+          )}
+        >
+          <Radio className="h-5 w-5 flex-shrink-0" />
+          {!collapsed && <span>Record</span>}
+        </button>
+
         <button
           className={cn(
             "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors",
