@@ -83,8 +83,11 @@ class Settings(BaseSettings):
     VEXA_API_KEY: str = "cbEsQmSHkRvCx1Frnou8liElUn9dkaVtBlLs0Gla"
     VEXA_API_BASE: str = "https://api.cloud.vexa.ai"
     
-    # SerpAPI Configuration (for company information search)
+    # SerpAPI Configuration (for company information search) - DEPRECATED, replaced by Tavily
     SERPAPI_API_KEY: str = ""
+    
+    # Tavily Search API Configuration (replaces SerpAPI)
+    API_TAVILY_KEY: str = ""
     
     # Apify Configuration (for LinkedIn profile scraping)
     APIFY_API_TOKEN: str = ""

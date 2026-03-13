@@ -19,7 +19,8 @@ from app.models.user import UserResponse
 from app.models.rag_document import RAGDocumentStatus
 from app.services.pdf_processor import process_file_to_chunks
 from app.services.vectorization import vectorize_texts
-from app.services.serpapi_service import get_serpapi_service
+# from app.services.serpapi_service import get_serpapi_service  # DEPRECATED: replaced by Tavily
+from app.services.tavily_service import get_tavily_service
 from app.services.linkedin_enrichment_service import get_linkedin_enrichment_service
 from bson import ObjectId
 
@@ -1673,7 +1674,7 @@ async def transcribe_audio(
 # MEETING AUTO-ENRICH: Extract company info from attendee email
 # ============================================================
 
-# Legacy API URL (deprecated, now using SerpAPI)
+# Legacy API URL (deprecated, now using Tavily - previously SerpAPI)
 # COMPANY_SEARCH_API_URL = os.getenv("COMPANY_SEARCH_API_URL", "http://207.180.227.97:5001/search")
 
 # Common email domains to skip (personal emails)
@@ -1739,8 +1740,8 @@ async def search_company_info(
     current_user: UserResponse = Depends(get_current_active_user),
 ):
     """
-    Search company information using SerpAPI (Google search).
-    Replaced slow 207.180.227.97 API with faster SerpAPI.
+    Search company information using Tavily API.
+    Replaced SerpAPI with Tavily for faster and cheaper search.
     """
     company_name = request.company_name.strip()
     if not company_name:
@@ -1749,8 +1750,11 @@ async def search_company_info(
     logger.info(f"[COMPANY-SEARCH] Searching for company: {company_name}")
     
     try:
-        serpapi = get_serpapi_service()
-        data = await serpapi.search_company_info(company_name)
+        # OLD: SerpAPI (commented out, replaced by Tavily)
+        # serpapi = get_serpapi_service()
+        # data = await serpapi.search_company_info(company_name)
+        tavily = get_tavily_service()
+        data = await tavily.search_company_info(company_name)
         
         logger.info(f"[COMPANY-SEARCH] Found info for {company_name}: {len(data.get('result', ''))} chars")
         
@@ -2038,21 +2042,27 @@ async def enrich_meeting_from_attendee(
     company_name = extract_company_from_email(attendee_email)
     logger.info(f"[MEETING-ENRICH] Found attendee {attendee_email}, company: {company_name}")
     
-    # Search company info using SerpAPI
+    # Search company info using Tavily (replaced SerpAPI)
     search_result = ""
     try:
-        serpapi = get_serpapi_service()
-        search_data = await serpapi.search_company_info(company_name)
+        # OLD: SerpAPI (commented out, replaced by Tavily)
+        # serpapi = get_serpapi_service()
+        # search_data = await serpapi.search_company_info(company_name)
+        tavily = get_tavily_service()
+        search_data = await tavily.search_company_info(company_name)
         search_result = search_data.get("result", "")
     except Exception as e:
         logger.error(f"[MEETING-ENRICH] Company search error: {e}")
         search_result = ""
     
-    # Search LinkedIn URL for attendee via SerpAPI
+    # Search LinkedIn URL for attendee via Tavily (replaced SerpAPI)
     linkedin_url = None
     try:
-        serpapi = get_serpapi_service()
-        linkedin_url = await serpapi.search_linkedin_url(attendee_email)
+        # OLD: SerpAPI (commented out, replaced by Tavily)
+        # serpapi = get_serpapi_service()
+        # linkedin_url = await serpapi.search_linkedin_url(attendee_email)
+        tavily = get_tavily_service()
+        linkedin_url = await tavily.search_linkedin_url(attendee_email)
         if linkedin_url:
             logger.info(f"[MEETING-ENRICH] Found LinkedIn URL for {attendee_email}: {linkedin_url}")
     except Exception as e:
@@ -2145,7 +2155,7 @@ async def enrich_participant_linkedin(
 ):
     """
     Enrich a single participant via LinkedIn:
-    1. If linkedin_url not provided, search it via SerpAPI ("linkedin {email}")
+    1. If linkedin_url not provided, search it via Tavily ("linkedin {email}")
     2. If found (or provided), scrape profile via Apify
     3. Generate prospect intelligence with AI
     4. Save to enriched_linkedin_profiles collection
@@ -2176,10 +2186,15 @@ async def enrich_participant_linkedin(
     logger.info(f"[PARTICIPANT-ENRICH] Step 1: linkedin_url from request = {linkedin_url}")
     if not linkedin_url:
         try:
-            serpapi = get_serpapi_service()
-            logger.info(f"[PARTICIPANT-ENRICH] Step 1: Searching LinkedIn URL via SerpAPI for {email}")
-            linkedin_url = await serpapi.search_linkedin_url(email)
-            logger.info(f"[PARTICIPANT-ENRICH] Step 1: SerpAPI result = {linkedin_url}")
+            # OLD: SerpAPI (commented out, replaced by Tavily)
+            # serpapi = get_serpapi_service()
+            # logger.info(f"[PARTICIPANT-ENRICH] Step 1: Searching LinkedIn URL via SerpAPI for {email}")
+            # linkedin_url = await serpapi.search_linkedin_url(email)
+            # logger.info(f"[PARTICIPANT-ENRICH] Step 1: SerpAPI result = {linkedin_url}")
+            tavily = get_tavily_service()
+            logger.info(f"[PARTICIPANT-ENRICH] Step 1: Searching LinkedIn URL via Tavily for {email}")
+            linkedin_url = await tavily.search_linkedin_url(email)
+            logger.info(f"[PARTICIPANT-ENRICH] Step 1: Tavily result = {linkedin_url}")
         except Exception as e:
             logger.error(f"[PARTICIPANT-ENRICH] Step 1: LinkedIn URL search failed: {e}", exc_info=True)
 
