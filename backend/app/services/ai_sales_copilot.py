@@ -2,12 +2,17 @@
 AI Sales Copilot Service
 Analyzes customer conversations and provides insights, recommendations, and sales scripts.
 """
+import asyncio
 import aiohttp
 import json
+import logging
+import re
 from typing import Optional, Dict, List, Any
 from app.core.config import settings
 from app.core.database import get_database
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 # Rough token estimation: ~4 characters per token
 def estimate_tokens(text: str) -> int:
@@ -152,7 +157,7 @@ IMPORTANT:
         }
 
         payload = {
-            "model": "llama-3.3-70b-versatile",  # Using more capable model for analysis
+            "model": "llama-3.1-8b-instant",  # Using more capable model for analysis
             "messages": [
                 {
                     "role": "system",
@@ -448,7 +453,7 @@ IMPORTANT:
         }
 
         payload = {
-            "model": "llama-3.3-70b-versatile",  # Using more capable model for follow-up analysis
+            "model": "llama-3.1-8b-instant",  # Using more capable model for follow-up analysis
             "messages": [
                 {
                     "role": "system",
@@ -691,7 +696,7 @@ IMPORTANT:
         }
 
         payload = {
-            "model": "llama-3.3-70b-versatile",  # Using more capable model for campaign analysis
+            "model": "llama-3.1-8b-instant",  # Using more capable model for campaign analysis
             "messages": [
                 {
                     "role": "system",
@@ -958,7 +963,7 @@ IMPORTANT:
         }
 
         payload = {
-            "model": "llama-3.3-70b-versatile",  # Using more capable model for campaign follow-up analysis
+            "model": "llama-3.1-8b-instant",  # Using more capable model for campaign follow-up analysis
             "messages": [
                 {
                     "role": "system",
@@ -1013,6 +1018,261 @@ IMPORTANT:
         return None
 
 
+# ---------------------------------------------------------------------------
+# Chunked Playbook Analysis helpers
+# ---------------------------------------------------------------------------
+
+# Groq free-tier TPM limit is 8000 tokens.  We keep each chunk small so that
+# prompt + completion together stay well under the limit even after the system
+# message and instruction overhead (~600 tokens).
+_CHUNK_MAX_CHARS = 5000          # ~1 250 tokens per chunk
+_CHUNK_OVERLAP_CHARS = 400       # small overlap so context isn't lost at edges
+_GROQ_MODEL = "llama-3.1-8b-instant"
+_GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# Retry / back-off parameters for 429 rate-limit errors
+_MAX_RETRIES = 5
+_INITIAL_BACKOFF_SEC = 6.0       # Groq asks for ~5.5 s in the error body
+_BACKOFF_MULTIPLIER = 1.5
+
+
+def _preprocess_transcript(transcript: str) -> str:
+    """Light cleanup: collapse multiple blank lines, strip trailing spaces."""
+    text = re.sub(r"\n{3,}", "\n\n", transcript)
+    text = re.sub(r"[ \t]+\n", "\n", text)
+    return text.strip()
+
+
+def _chunk_transcript(transcript: str) -> List[str]:
+    """
+    Split a transcript into overlapping chunks of roughly _CHUNK_MAX_CHARS.
+    Splits prefer newline boundaries so we don't cut mid-sentence.
+    """
+    if len(transcript) <= _CHUNK_MAX_CHARS:
+        return [transcript]
+
+    chunks: List[str] = []
+    start = 0
+    while start < len(transcript):
+        end = start + _CHUNK_MAX_CHARS
+
+        # If this isn't the last chunk, try to break at a newline
+        if end < len(transcript):
+            # look backward from `end` for a newline
+            nl = transcript.rfind("\n", start, end)
+            if nl > start + _CHUNK_MAX_CHARS // 2:
+                end = nl + 1  # include the newline itself
+
+        chunk = transcript[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+
+        # next chunk starts with overlap
+        start = end - _CHUNK_OVERLAP_CHARS if end < len(transcript) else end
+
+    return chunks
+
+
+async def _call_groq_with_retry(
+    payload: dict,
+    *,
+    timeout_sec: float = 60,
+) -> Optional[dict]:
+    """
+    POST to Groq chat/completions with automatic retry on 429.
+    Returns parsed JSON body of the assistant message, or None.
+    """
+    headers = {
+        "Authorization": f"Bearer {settings.GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    backoff = _INITIAL_BACKOFF_SEC
+    last_error = ""
+
+    for attempt in range(1, _MAX_RETRIES + 1):
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    _GROQ_URL,
+                    json=payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=timeout_sec),
+                ) as resp:
+                    if resp.status == 200:
+                        result = await resp.json()
+                        choices = result.get("choices") or []
+                        if not choices:
+                            logger.warning(f"[Playbook] Groq returned no choices (attempt {attempt})")
+                            return None
+                        content = choices[0].get("message", {}).get("content", "").strip()
+                        try:
+                            return json.loads(content)
+                        except json.JSONDecodeError:
+                            # try extracting first {...}
+                            s = content.find("{")
+                            e = content.rfind("}")
+                            if s != -1 and e > s:
+                                return json.loads(content[s : e + 1])
+                            logger.error(f"[Playbook] JSON parse failed (attempt {attempt}): {content[:300]}")
+                            return None
+
+                    if resp.status == 429:
+                        error_body = await resp.text()
+                        # Try to extract wait time from error body
+                        wait = backoff
+                        m = re.search(r"try again in ([\d.]+)s", error_body, re.IGNORECASE)
+                        if m:
+                            wait = max(float(m.group(1)) + 0.5, backoff)
+                        logger.warning(
+                            f"[Playbook] Rate limited (429) attempt {attempt}/{_MAX_RETRIES}. "
+                            f"Waiting {wait:.1f}s ..."
+                        )
+                        await asyncio.sleep(wait)
+                        backoff *= _BACKOFF_MULTIPLIER
+                        last_error = f"429: {error_body[:200]}"
+                        continue
+
+                    # Other HTTP errors – don't retry
+                    error_text = await resp.text()
+                    logger.error(f"[Playbook] Groq API error {resp.status}: {error_text[:300]}")
+                    return None
+
+        except asyncio.TimeoutError:
+            logger.warning(f"[Playbook] Groq request timeout (attempt {attempt}/{_MAX_RETRIES})")
+            await asyncio.sleep(backoff)
+            backoff *= _BACKOFF_MULTIPLIER
+            last_error = "timeout"
+            continue
+        except Exception as exc:
+            logger.error(f"[Playbook] Groq request exception (attempt {attempt}): {exc}")
+            return None
+
+    logger.error(f"[Playbook] All {_MAX_RETRIES} retries exhausted. Last error: {last_error}")
+    return None
+
+
+def _build_chunk_prompt(
+    chunk_text: str,
+    chunk_index: int,
+    total_chunks: int,
+    playbook_name: str,
+    rules_text: str,
+) -> str:
+    """Build the prompt for analyzing one transcript chunk."""
+    return f"""You are an expert sales coach.
+You will evaluate a PORTION of a sales call transcript against a Sales Playbook.
+
+Sales Playbook: {playbook_name}
+
+Playbook Rules:
+{rules_text}
+
+Transcript chunk {chunk_index + 1} of {total_chunks}:
+\"\"\"{chunk_text}\"\"\"
+
+TASK:
+For EACH rule, look for evidence in THIS chunk that the seller satisfied or violated the rule.
+
+For each rule return:
+- "passed": true if THIS chunk contains clear evidence the rule was satisfied; false otherwise.
+- "what_you_said": the most relevant QUOTE or short summary (1-2 sentences) from THIS chunk. Empty string if nothing relevant.
+- "confidence": "high", "medium", or "low" – how confident you are based on this chunk alone.
+
+Return ONLY valid JSON:
+{{
+  "rules": [
+    {{
+      "rule_id": "<id>",
+      "label": "<label>",
+      "passed": true/false,
+      "what_you_said": "<quote or empty>",
+      "confidence": "high|medium|low"
+    }}
+  ],
+  "dimension_scores": {{
+    "Handled objections": 0-100,
+    "Personalized demo": 0-100,
+    "Intro Banter": 0-100,
+    "Set Agenda": 0-100,
+    "Demo told a story": 0-100
+  }}
+}}
+"""
+
+
+def _build_merge_prompt(
+    chunk_results: List[dict],
+    playbook_name: str,
+    rules_text: str,
+    total_chunks: int,
+) -> str:
+    """Build the final merge / summarization prompt."""
+    # Compact representation of per-chunk findings
+    findings_parts: List[str] = []
+    for i, cr in enumerate(chunk_results):
+        findings_parts.append(f"--- Chunk {i + 1}/{total_chunks} ---")
+        for r in (cr.get("rules") or []):
+            label = r.get("label", "?")
+            passed = r.get("passed", False)
+            quote = r.get("what_you_said") or ""
+            conf = r.get("confidence", "low")
+            findings_parts.append(
+                f"  Rule \"{label}\": passed={passed}, confidence={conf}"
+                + (f", quote=\"{quote[:120]}\"" if quote else "")
+            )
+        dim = cr.get("dimension_scores") or {}
+        if dim:
+            dim_str = ", ".join(f"{k}={v}" for k, v in dim.items())
+            findings_parts.append(f"  dimension_scores: {dim_str}")
+    findings_text = "\n".join(findings_parts)
+
+    return f"""You are an expert sales coach performing a FINAL evaluation.
+
+The transcript of a sales call was split into {total_chunks} chunks and each was
+evaluated against the playbook rules below.  Your job is to MERGE the per-chunk
+findings into ONE coherent final evaluation.
+
+Sales Playbook: {playbook_name}
+
+Playbook Rules:
+{rules_text}
+
+Per-chunk findings:
+{findings_text}
+
+MERGE RULES:
+- A rule is "passed" if ANY chunk provides HIGH or MEDIUM confidence evidence it was satisfied.
+- Pick the BEST "what_you_said" quote across chunks for each rule.
+- Provide a new "what_you_should_say" suggestion (1-3 sentences) for each rule.
+- Compute an overall_score 0-100 and a coaching_summary (1-3 sentences).
+- dimension_scores: average the per-chunk scores, rounding to int.
+
+Return ONLY valid JSON:
+{{
+  "rules": [
+    {{
+      "rule_id": "<id>",
+      "label": "<label>",
+      "description": "<rule description if any>",
+      "passed": true/false,
+      "what_you_said": "<best quote>",
+      "what_you_should_say": "<suggestion>"
+    }}
+  ],
+  "overall_score": 0-100,
+  "coaching_summary": "1-3 sentences.",
+  "dimension_scores": {{
+    "Handled objections": 0-100,
+    "Personalized demo": 0-100,
+    "Intro Banter": 0-100,
+    "Set Agenda": 0-100,
+    "Demo told a story": 0-100
+  }}
+}}
+"""
+
+
 async def analyze_call_against_playbook(
     *,
     transcript: str,
@@ -1020,23 +1280,45 @@ async def analyze_call_against_playbook(
     rules: List[Dict[str, Any]],
 ) -> Optional[Dict[str, Any]]:
     """
-    Analyze a single call transcript against a sales playbook template.
+    Analyze a call transcript against a sales playbook template.
 
-    Returns structured JSON with per-rule evaluation:
-    - passed: whether the seller satisfied the rule
-    - what_you_said: concrete quote or summary from the transcript (can be empty)
-    - what_you_should_say: suggested phrasing to satisfy the rule
+    Flow:
+      1. Preprocess transcript
+      2. Chunk transcript into small pieces (~1 250 tokens each)
+      3. Analyze each chunk against the rules (with retry + rate-limit back-off)
+      4. Merge chunk results into a single coherent evaluation
+      5. Return the merged result
+
+    Returns structured JSON with per-rule evaluation, overall_score,
+    coaching_summary, and dimension_scores.
     """
     try:
         if not settings.GROQ_API_KEY:
-            print("⚠️ [Atlas] GROQ_API_KEY not configured (playbook analysis)")
+            logger.warning("[Playbook] GROQ_API_KEY not configured")
             return None
 
-        # Protect against overly long transcripts - limit to ~3000 tokens to stay under rate limit
-        max_input_tokens = 3000
-        safe_transcript = truncate_text_from_start(transcript, max_input_tokens)
+        masked_key = (
+            settings.GROQ_API_KEY[:8] + "..." + settings.GROQ_API_KEY[-4:]
+            if len(settings.GROQ_API_KEY) > 12
+            else "***too_short***"
+        )
+        logger.info(
+            f"[Playbook] Analysis starting (chunked): "
+            f"key={masked_key}, playbook={playbook_name}, "
+            f"rules={len(rules)}, transcript={len(transcript)} chars"
+        )
 
-        # Format rules for the prompt
+        # ---- Step 1: Preprocess ----
+        transcript = _preprocess_transcript(transcript)
+
+        # ---- Step 2: Chunk ----
+        chunks = _chunk_transcript(transcript)
+        logger.info(
+            f"[Playbook] Step 2/5: Transcript split into {len(chunks)} chunk(s) "
+            f"(sizes: {[len(c) for c in chunks]})"
+        )
+
+        # Format rules text (shared across all prompts)
         rules_text_lines = []
         for idx, rule in enumerate(rules, start=1):
             label = rule.get("label") or ""
@@ -1047,113 +1329,148 @@ async def analyze_call_against_playbook(
             )
         rules_text = "\n".join(rules_text_lines) if rules_text_lines else "No rules defined."
 
-        prompt = f"""You are an expert sales coach.
-You will evaluate a sales call transcript against a Sales Playbook template.
+        # ---- Step 3: Analyze each chunk (sequentially to respect rate limits) ----
+        chunk_results: List[dict] = []
+        for ci, chunk in enumerate(chunks):
+            prompt = _build_chunk_prompt(chunk, ci, len(chunks), playbook_name, rules_text)
+            payload = {
+                "model": _GROQ_MODEL,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are an expert B2B sales coach. Always respond with valid JSON only.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0.3,
+                "max_tokens": 1200,
+                "response_format": {"type": "json_object"},
+            }
 
-Sales Playbook: {playbook_name}
+            logger.info(f"[Playbook] Step 3/5: Analyzing chunk {ci + 1}/{len(chunks)} ({len(chunk)} chars) ...")
+            result = await _call_groq_with_retry(payload)
 
-Playbook Rules:
-{rules_text}
+            if result:
+                chunk_results.append(result)
+                logger.info(f"[Playbook] Chunk {ci + 1}/{len(chunks)} done")
+            else:
+                logger.warning(f"[Playbook] Chunk {ci + 1}/{len(chunks)} failed - skipping")
 
-Call Transcript (seller and prospect):
-\"\"\"{safe_transcript}\"\"\"
+            # Small delay between chunks to stay comfortably under rate limit
+            if ci < len(chunks) - 1:
+                await asyncio.sleep(3.0)
 
-TASK:
-For EACH rule in the playbook, decide if the SELLER satisfied that rule during the call.
+        if not chunk_results:
+            logger.error("[Playbook] All chunks failed - cannot produce playbook analysis")
+            return None
 
-For each rule:
-- Carefully scan the transcript for what the seller actually said.
-- If the rule is clearly satisfied, set "passed" to true.
-- If the rule is not satisfied or is weakly satisfied, set "passed" to false.
-- "what_you_said": extract the most relevant QUOTE or short summary (1-3 sentences) of what the seller said that relates to this rule. If the seller did not say anything relevant, use an empty string.
-- "what_you_should_say": propose a concrete, ready-to-use sentence (1-3 sentences) that would satisfy this rule in a future call. This should be specific and natural, not meta-commentary.
+        # ---- Step 4: If only one chunk, we can enhance it directly ----
+        if len(chunk_results) == 1 and len(chunks) == 1:
+            # Single-chunk fast path: add what_you_should_say directly
+            single = chunk_results[0]
+            # If the single chunk already has all fields, return it
+            has_summary = bool(single.get("coaching_summary"))
+            has_score = single.get("overall_score") is not None
+            if has_summary and has_score:
+                logger.info("[Playbook] Step 5/5: Single-chunk analysis complete (fast path)")
+                return single
+            # Otherwise fall through to merge which will add coaching_summary etc.
 
-Return ONLY valid JSON in the following format:
-{{
-  "rules": [
-    {{
-      "rule_id": "<id from input or empty>",
-      "label": "<rule label>",
-      "description": "<rule description if any>",
-      "passed": true or false,
-      "what_you_said": "<quote or short summary, or empty string>",
-      "what_you_should_say": "<suggested phrasing, 1-3 sentences>"
-    }}
-  ],
-  "overall_score": 0-100,
-  "coaching_summary": "1-3 sentence overview of how well the playbook was followed.",
-  "dimension_scores": {{
-    "Handled objections": 0-100,
-    "Personalized demo": 0-100,
-    "Intro Banter": 0-100,
-    "Set Agenda": 0-100,
-    "Demo told a story": 0-100
-  }}
-}}
-
-IMPORTANT:
-- Base your evaluation STRICTLY on the transcript content.
-- When there is no clear evidence, mark the rule as not passed and leave "what_you_said" empty.
-- dimension_scores: rate the call 0-100 for EACH of the five dimensions above. Handled objections = how well objections were addressed. Personalized demo = how tailored the demo was. Intro Banter = warmth/small talk at start. Set Agenda = clarity of purpose and agenda. Demo told a story = whether the demo had a clear narrative. Use 0 if absent, up to 100 if excellent.
-- Always return valid JSON, with double quotes and no trailing commas.
-"""
-
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json",
-        }
-
-        payload = {
-            "model": "llama-3.1-8b-instant",  # Use smaller model to avoid rate limits
+        # ---- Step 5: Merge results ----
+        merge_prompt = _build_merge_prompt(chunk_results, playbook_name, rules_text, len(chunks))
+        merge_payload = {
+            "model": _GROQ_MODEL,
             "messages": [
                 {
                     "role": "system",
                     "content": "You are an expert B2B sales coach. Always respond with valid JSON only.",
                 },
-                {"role": "user", "content": prompt},
+                {"role": "user", "content": merge_prompt},
             ],
             "temperature": 0.3,
             "max_tokens": 1500,
             "response_format": {"type": "json_object"},
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                groq_url,
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=45),
-            ) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    print(
-                        f"❌ [Atlas] Playbook analysis API error: {response.status} - {error_text}"
-                    )
-                    return None
+        logger.info(f"[Playbook] Step 4/5: Merging {len(chunk_results)} chunk results ...")
+        # Allow extra retries for the merge step
+        await asyncio.sleep(4.0)  # rate-limit buffer before merge call
+        merged = await _call_groq_with_retry(merge_payload)
 
-                result = await response.json()
-                choices = result.get("choices", [])
-                if not choices:
-                    print("⚠️ [Atlas] Playbook analysis: no choices in response")
-                    return None
+        if merged:
+            logger.info("[Playbook] Step 5/5: Playbook analysis completed successfully (chunked)")
+            return merged
 
-                content = choices[0].get("message", {}).get("content", "").strip()
-                try:
-                    data = json.loads(content)
-                    print("✅ [Atlas] Playbook analysis completed successfully")
-                    return data
-                except json.JSONDecodeError as e:
-                    print(f"❌ [Atlas] Failed to parse playbook JSON response: {e}")
-                    print(f"   - Response content (first 500 chars): {content[:500]}")
-                    return None
+        # If merge fails, attempt to produce a best-effort result from chunks
+        logger.warning("[Playbook] Merge call failed - assembling best-effort result from chunks")
+        return _assemble_fallback(chunk_results, rules)
 
     except Exception as e:
-        print(f"❌ [Atlas] Error in analyze_call_against_playbook: {str(e)}")
-        import traceback
-
-        traceback.print_exc()
+        logger.error(f"[Playbook] Error in analyze_call_against_playbook: {str(e)}", exc_info=True)
         return None
+
+
+def _assemble_fallback(
+    chunk_results: List[dict],
+    original_rules: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """
+    Best-effort merge when the LLM merge call fails.
+    OR-merges passed flags, picks the longest what_you_said, averages dimension scores.
+    """
+    # Build a map: rule_id/label -> aggregated data
+    rule_map: Dict[str, dict] = {}
+    for rule in original_rules:
+        key = rule.get("id") or rule.get("label") or ""
+        rule_map[key] = {
+            "rule_id": rule.get("id") or "",
+            "label": rule.get("label") or "",
+            "description": rule.get("description") or "",
+            "passed": False,
+            "what_you_said": "",
+            "what_you_should_say": "",
+        }
+
+    for cr in chunk_results:
+        for r in (cr.get("rules") or []):
+            key = r.get("rule_id") or r.get("label") or ""
+            if key not in rule_map:
+                continue
+            if r.get("passed"):
+                rule_map[key]["passed"] = True
+            quote = (r.get("what_you_said") or "").strip()
+            if len(quote) > len(rule_map[key]["what_you_said"]):
+                rule_map[key]["what_you_said"] = quote
+
+    # Average dimension scores
+    dim_keys = ["Handled objections", "Personalized demo", "Intro Banter", "Set Agenda", "Demo told a story"]
+    dim_totals: Dict[str, List[int]] = {k: [] for k in dim_keys}
+    for cr in chunk_results:
+        ds = cr.get("dimension_scores") or {}
+        for k in dim_keys:
+            v = ds.get(k)
+            if v is not None:
+                try:
+                    dim_totals[k].append(int(v))
+                except (TypeError, ValueError):
+                    pass
+    dimension_scores = {}
+    for k in dim_keys:
+        vals = dim_totals[k]
+        if vals:
+            dimension_scores[k] = round(sum(vals) / len(vals))
+
+    rules_out = list(rule_map.values())
+    passed_count = sum(1 for r in rules_out if r["passed"])
+    total = max(len(rules_out), 1)
+    overall_score = round(100 * passed_count / total)
+
+    return {
+        "rules": rules_out,
+        "overall_score": overall_score,
+        "coaching_summary": f"{passed_count}/{total} playbook rules satisfied (best-effort merge).",
+        "dimension_scores": dimension_scores if dimension_scores else None,
+    }
 
 
 async def generate_goal_todo_items(
@@ -1303,7 +1620,7 @@ IMPORTANT RULES:
         }
 
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",
             "messages": [
                 {
                     "role": "system",
@@ -1449,7 +1766,7 @@ IMPORTANT:
         }
 
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",
             "messages": [
                 {
                     "role": "system",

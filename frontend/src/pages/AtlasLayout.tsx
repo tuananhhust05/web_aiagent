@@ -13,7 +13,7 @@ import AtlasSectionGuide from '../components/AtlasSectionGuide'
 import { AtlasSidebar } from '../components/mockflow-atlas/Sidebar'
 
 export default function AtlasLayout() {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -25,6 +25,18 @@ export default function AtlasLayout() {
 
   const [showFirstModalOpen, setShowFirstModalOpen] = useState(showFirstModal)
   const [sectionGuideSection, setSectionGuideSection] = useState<AtlasSectionId | null>(null)
+
+  // Auth guard: redirect to login if token expired or user not authenticated
+  useEffect(() => {
+    if (loading) return // Wait for auth check to complete
+    const token = localStorage.getItem('token')
+    if (!token || !user) {
+      console.warn('🔒 [Atlas] Token expired or user not authenticated — redirecting to login')
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      navigate('/login', { replace: true })
+    }
+  }, [user, loading, navigate])
 
   useEffect(() => {
     if (showFirstModal && !onboarding.firstModalDone) {
@@ -38,6 +50,20 @@ export default function AtlasLayout() {
     if (onboarding.sectionsVisited.includes(currentSection)) return
     setSectionGuideSection(currentSection)
   }, [userId, onboarding.firstModalDone, currentSection, onboarding.sectionsVisited])
+
+  // Show loading spinner while checking auth
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+      </div>
+    )
+  }
+
+  // If no user after loading, don't render (redirect will happen via useEffect above)
+  if (!user) {
+    return null
+  }
 
   const handleFirstModalClose = () => {
     markFirstModalDone(userId)

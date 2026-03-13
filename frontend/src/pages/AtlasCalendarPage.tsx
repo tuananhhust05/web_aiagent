@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { CalendarView, type Meeting } from "../components/mockflow-atlas/CalendarView";
 import { ContactCard } from "../components/mockflow-atlas/ContactCard";
 import { RegistrationWizard } from "../components/mockflow-atlas/RegistrationWizard";
@@ -15,6 +15,9 @@ const AtlasCalendarPage = () => {
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
 
+  // Track the currently displayed range so we can reload on navigation
+  const rangeRef = useRef<{ start: Date; end: Date } | null>(null);
+
   useEffect(() => {
     checkCalendarConnection();
   }, []);
@@ -28,10 +31,13 @@ const AtlasCalendarPage = () => {
       if (!connected) {
         setShowRegistration(true);
       } else {
-        await loadCalendarEvents(true);
-        // After loading events, re-verify connection status.
-        // The backend revokes the flag when the Google token is expired/invalid,
-        // so a second status check catches stale "connected=true" from the first call.
+        // Load events for the default week (CalendarView starts on current week's Monday)
+        const monday = getMonday(new Date());
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        sunday.setHours(23, 59, 59, 999);
+        rangeRef.current = { start: monday, end: sunday };
+        await loadCalendarEvents(monday, sunday, true);
         await revalidateConnectionStatus();
       }
     } catch (error) {
@@ -54,27 +60,22 @@ const AtlasCalendarPage = () => {
     }
   };
 
-  const getCurrentWeekRange = () => {
-    const now = new Date();
-    const day = now.getDay(); // 0 (Sun) - 6 (Sat)
-    const diffToMonday = (day === 0 ? -6 : 1) - day;
-    const monday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() + diffToMonday,
-    );
-    monday.setHours(0, 0, 0, 0);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-    return { monday, sunday };
-  };
+  /** Return the Monday 00:00 of the week containing `date`. */
+  function getMonday(date: Date): Date {
+    const d = new Date(date);
+    const day = d.getDay(); // 0=Sun … 6=Sat
+    const diff = (day === 0 ? -6 : 1) - day;
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
 
   const mapEventsToMeetings = (
     events: GoogleCalendarEvent[],
-    monday: Date,
+    rangeStart: Date,
   ): Meeting[] => {
     const msPerDay = 24 * 60 * 60 * 1000;
+    const monday = getMonday(rangeStart);
 
     return events
       .map((event) => {
@@ -102,8 +103,7 @@ const AtlasCalendarPage = () => {
           Math.max(
             0,
             Math.floor(
-              (new Date(start.toDateString()).getTime() -
-                monday.getTime()) /
+              (new Date(start.toDateString()).getTime() - monday.getTime()) /
                 msPerDay,
             ),
           ),
@@ -122,13 +122,15 @@ const AtlasCalendarPage = () => {
           return `${format(start!)} - ${format(end!)}`;
         })();
 
-        // Extract Google Meet link from hangoutLink or conferenceData
         const meetLink =
           event.hangoutLink ||
           event.conferenceData?.entryPoints?.find(
             (ep) => ep.entryPointType === "video",
           )?.uri ||
           undefined;
+
+        // ISO date key for month-view grouping
+        const dateISO = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
 
         return {
           id: event.id,
@@ -137,19 +139,19 @@ const AtlasCalendarPage = () => {
           startHour,
           duration,
           dayIndex,
+          dateISO,
           ...(meetLink ? { meetLink } : {}),
         } as Meeting;
       })
       .filter((m): m is Meeting => m !== null);
   };
 
-  const loadCalendarEvents = async (force = false) => {
+  const loadCalendarEvents = async (start: Date, end: Date, force = false) => {
     if (!force && !calendarConnected) return;
     try {
-      const { monday, sunday } = getCurrentWeekRange();
       const response = await calendarAPI.getEvents({
-        time_min: monday.toISOString(),
-        time_max: sunday.toISOString(),
+        time_min: start.toISOString(),
+        time_max: end.toISOString(),
       });
       const events = response.data?.events ?? [];
 
@@ -158,13 +160,14 @@ const AtlasCalendarPage = () => {
         await atlasAPI.syncCalendarEvents(events);
       }
 
-      const mapped = mapEventsToMeetings(events, monday);
+      const mapped = mapEventsToMeetings(events, start);
 
-      // Không xóa lịch đang hiển thị nếu lần gọi sau trả về rỗng (lỗi tạm thời / quota)
       if (mapped.length === 0) {
         console.warn(
-          "[AtlasCalendar] No meetings mapped from Google events for current week.",
+          "[AtlasCalendar] No meetings mapped from Google events for the displayed range.",
         );
+        // Clear meetings when navigating to a range with no events
+        setMeetings([]);
       } else {
         setMeetings(mapped);
       }
@@ -174,7 +177,19 @@ const AtlasCalendarPage = () => {
     }
   };
 
+  /** Called by CalendarView when the user navigates or switches view */
+  const handleRangeChange = useCallback(
+    (start: Date, end: Date) => {
+      rangeRef.current = { start, end };
+      if (calendarConnected) {
+        loadCalendarEvents(start, end);
+      }
+    },
+    [calendarConnected],
+  );
+
   const handleMeetingClick = (meeting: Meeting) => {
+    setShowRefreshTip(false);
     setSelectedMeeting(meeting);
   };
 
@@ -184,10 +199,15 @@ const AtlasCalendarPage = () => {
       setShowRegistration(true);
       return;
     }
-    
+
+    setShowRefreshTip(false);
+
     try {
       toast.loading("Syncing calendar...", { id: "sync" });
-      await loadCalendarEvents();
+      const range = rangeRef.current;
+      if (range) {
+        await loadCalendarEvents(range.start, range.end);
+      }
       toast.success("Calendar synced successfully", { id: "sync" });
     } catch (error) {
       console.error("Sync failed:", error);
@@ -210,8 +230,6 @@ const AtlasCalendarPage = () => {
       return;
     }
 
-    // Extract the native Google Meet ID from the link
-    // e.g. https://meet.google.com/abc-defg-hij => abc-defg-hij
     const meetId = selectedMeeting.meetLink.split("/").pop();
     if (!meetId) {
       toast.error("Could not extract meeting ID from link");
@@ -236,7 +254,7 @@ const AtlasCalendarPage = () => {
     try {
       const origin = window.location.origin;
       const response = await calendarAPI.getAuthUrl(origin);
-      
+
       if (response.data?.url) {
         window.location.href = response.data.url;
       }
@@ -248,17 +266,20 @@ const AtlasCalendarPage = () => {
 
   return (
     <>
-      <div className="relative flex flex-1 overflow-hidden h-full">
-        <CalendarView
-          meetings={meetings}
-          onMeetingClick={handleMeetingClick}
-          selectedMeetingId={selectedMeeting?.id}
-          onSyncClick={handleSync}
-        />
+      <div className="flex flex-1 overflow-hidden h-full">
+        <div className="relative flex flex-1 flex-col min-w-0 overflow-hidden">
+          <CalendarView
+            meetings={meetings}
+            onMeetingClick={handleMeetingClick}
+            selectedMeetingId={selectedMeeting?.id}
+            onSyncClick={handleSync}
+            onRangeChange={handleRangeChange}
+          />
 
-        {showRefreshTip && (
-          <CalendarRefreshPopup onDismissPermanent={() => setShowRefreshTip(false)} />
-        )}
+          {showRefreshTip && (
+            <CalendarRefreshPopup onDismissPermanent={() => setShowRefreshTip(false)} />
+          )}
+        </div>
 
         {selectedMeeting && (
           <ContactCard

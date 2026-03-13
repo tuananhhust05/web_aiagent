@@ -561,7 +561,7 @@ Return ONLY the description text, no additional formatting."""
         
         try:
             rules_query_payload = {
-                "model": "llama-3.3-70b-versatile",
+                "model": "llama-3.1-8b-instant",
                 "messages": [
                     {
                         "role": "system",
@@ -751,7 +751,7 @@ IMPORTANT:
         }
         
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",
             "messages": [
                 {
                     "role": "system",
@@ -1087,7 +1087,7 @@ Return ONLY the shortened content, no additional text or explanation."""
         }
         
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",
             "messages": [
                 {
                     "role": "system",
@@ -1226,7 +1226,7 @@ Return ONLY the new content, no additional text or explanation."""
         }
         
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",
             "messages": [
                 {
                     "role": "system",

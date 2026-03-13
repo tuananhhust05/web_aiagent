@@ -64,7 +64,7 @@ qualification criteria, engagement rules, or best practices.
 
 # Call Groq API
 POST https://api.groq.com/openai/v1/chat/completions
-Model: llama-3.3-70b-versatile
+Model: llama-3.1-8b-instant
 Max tokens: 200
 Temperature: 0.5
 ```
@@ -180,7 +180,7 @@ Contacts Data:
 ```python
 # Call Groq API
 POST https://api.groq.com/openai/v1/chat/completions
-Model: llama-3.3-70b-versatile
+Model: llama-3.1-8b-instant
 Temperature: 0.7
 Max tokens: 8000
 

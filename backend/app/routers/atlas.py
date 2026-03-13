@@ -1841,7 +1841,7 @@ Return ONLY valid JSON:
             "Content-Type": "application/json"
         }
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "system", "content": "You are a helpful sales preparation assistant. Return ONLY valid JSON. No markdown. No extra text."},
                 {"role": "user", "content": prompt},
@@ -1921,7 +1921,7 @@ Return ONLY valid JSON, no markdown or explanation."""
             "Content-Type": "application/json"
         }
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "system", "content": "Return ONLY valid JSON. No markdown. No extra text."},
                 {"role": "user", "content": prompt},
@@ -2130,6 +2130,7 @@ class ParticipantEnrichRequest(BaseModel):
     email: str
     name: Optional[str] = None
     linkedin_url: Optional[str] = None  # if user provided manually
+    force: bool = False  # skip "already enriched" cache and re-enrich
 
 
 class ParticipantEnrichResponse(BaseModel):
@@ -2159,12 +2160,12 @@ async def enrich_participant_linkedin(
 
     logger.info(f"[PARTICIPANT-ENRICH] Enriching {email} for event {request.event_id}")
 
-    # Check if already enriched
+    # Check if already enriched (skip when force=True)
     existing = await db[ENRICHED_PROFILES_COLLECTION].find_one({
         "user_id": user_id,
         "email": email,
     })
-    if existing and existing.get("profile_data"):
+    if existing and existing.get("profile_data") and not request.force:
         logger.info(f"[PARTICIPANT-ENRICH] Already enriched: {email}")
         return ParticipantEnrichResponse(
             email=email,
@@ -2174,9 +2175,17 @@ async def enrich_participant_linkedin(
             profile_data=existing.get("profile_data"),
         )
 
+    if request.force:
+        logger.info(f"[PARTICIPANT-ENRICH] Force re-enrich requested for {email}")
+
     # Step 1: Get LinkedIn URL
+    # For force re-enrich, prefer the existing stored linkedin_url if no new one provided
     linkedin_url = request.linkedin_url
-    logger.info(f"[PARTICIPANT-ENRICH] Step 1: linkedin_url from request = {linkedin_url}")
+    if not linkedin_url and request.force and existing and existing.get("linkedin_url"):
+        linkedin_url = existing["linkedin_url"]
+        logger.info(f"[PARTICIPANT-ENRICH] Step 1: Using stored linkedin_url for re-enrich = {linkedin_url}")
+    else:
+        logger.info(f"[PARTICIPANT-ENRICH] Step 1: linkedin_url from request = {linkedin_url}")
     if not linkedin_url:
         try:
             # Use Company Data Pool (caches Tavily LinkedIn results)
@@ -2195,20 +2204,27 @@ async def enrich_participant_linkedin(
             error="no_linkedin_url",
         )
 
-    # Step 2: Scrape LinkedIn profile via Apify (with shared cache)
+    # Step 2: Scrape LinkedIn profile via Apify
     li_service = get_linkedin_enrichment_service()
 
     # Normalize linkedin_url for cache lookup
     cache_key_url = linkedin_url.strip().rstrip("/").lower()
 
-    # Check shared cache first (not user-specific)
-    cached_profile = await db[LINKEDIN_PROFILES_CACHE].find_one({"linkedin_url": cache_key_url})
     raw_profile = None
-    if cached_profile and cached_profile.get("raw_profile"):
-        raw_profile = cached_profile["raw_profile"]
-        logger.info(f"[PARTICIPANT-ENRICH] Step 2: ✅ Cache HIT for {linkedin_url} "
-                    f"(name={raw_profile.get('fullName', 'unknown')})")
+
+    if request.force:
+        # Force re-enrich: clear shared cache and always call Apify fresh
+        await db[LINKEDIN_PROFILES_CACHE].delete_one({"linkedin_url": cache_key_url})
+        logger.info(f"[PARTICIPANT-ENRICH] Step 2: Force mode — cleared shared cache for {cache_key_url}, calling Apify fresh...")
     else:
+        # Check shared cache first (not user-specific)
+        cached_profile = await db[LINKEDIN_PROFILES_CACHE].find_one({"linkedin_url": cache_key_url})
+        if cached_profile and cached_profile.get("raw_profile"):
+            raw_profile = cached_profile["raw_profile"]
+            logger.info(f"[PARTICIPANT-ENRICH] Step 2: ✅ Cache HIT for {linkedin_url} "
+                        f"(name={raw_profile.get('fullName', 'unknown')})")
+
+    if not raw_profile:
         logger.info(f"[PARTICIPANT-ENRICH] Step 2: Cache MISS for {linkedin_url}, calling Apify...")
         logger.info(f"[PARTICIPANT-ENRICH] Step 2: Apify configured={li_service.configured}, "
                     f"token={'***' + li_service.api_token[-6:] if li_service.api_token else 'EMPTY'}, "
@@ -2360,3 +2376,47 @@ async def get_participant_profile(
         "linkedin_url": doc.get("linkedin_url"),
         "profile_data": doc["profile_data"],
     }
+
+
+class UpdateParticipantLinkedInRequest(BaseModel):
+    email: str
+    linkedin_url: str
+
+
+@router.patch("/participant-linkedin")
+async def update_participant_linkedin(
+    request: UpdateParticipantLinkedInRequest,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """Update (or set) a participant's LinkedIn URL without triggering full enrichment."""
+    db = get_database()
+    user_id = str(current_user.id)
+    normalized_email = request.email.strip().lower()
+    linkedin_url = request.linkedin_url.strip()
+
+    logger.info(f"[PARTICIPANT-LINKEDIN] Update: email={normalized_email}, linkedin_url={linkedin_url}, user_id={user_id}")
+
+    # Upsert in enriched_linkedin_profiles collection
+    await db[ENRICHED_PROFILES_COLLECTION].update_one(
+        {"user_id": user_id, "email": normalized_email},
+        {
+            "$set": {
+                "linkedin_url": linkedin_url,
+                "updated_at": datetime.utcnow().isoformat(),
+            },
+            "$setOnInsert": {
+                "user_id": user_id,
+                "email": normalized_email,
+                "created_at": datetime.utcnow().isoformat(),
+            },
+        },
+        upsert=True,
+    )
+
+    # Also update in any calendar event docs that reference this participant
+    await db["calendar_events"].update_many(
+        {"user_id": user_id, "participants.email": {"$regex": f"^{normalized_email}$", "$options": "i"}},
+        {"$set": {"participants.$.linkedin_url": linkedin_url}},
+    )
+
+    return {"email": normalized_email, "linkedin_url": linkedin_url, "updated": True}

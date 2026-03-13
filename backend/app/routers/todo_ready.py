@@ -15,8 +15,9 @@ import httpx
 
 from app.models.user import UserResponse
 from app.core.auth import get_current_active_user
-from app.core.database import get_database
+from app.core.database import get_database, get_weaviate
 from app.core.config import settings
+from app.services.vectorization import vectorize_text
 from app.models.todo_item import (
     TodoItemCreate, TodoItemUpdate, TodoItemResponse, TodoListResponse,
     TodoSource, TodoStatus, TodoPriority, TodoTaskType, IntentCategory,
@@ -27,6 +28,16 @@ from app.models.todo_item import (
 from app.services.gmail_service import gmail_service
 
 logger = logging.getLogger(__name__)
+
+# Knowledge categories matching atlas.py config (Weaviate collections for RAG)
+KNOWLEDGE_CATEGORIES = [
+    {"weaviate": "AtlasProductInfo", "name": "Product Info"},
+    {"weaviate": "AtlasPricingPlan", "name": "Pricing"},
+    {"weaviate": "AtlasObjectionHandling", "name": "Objection Handling"},
+    {"weaviate": "AtlasCompetitiveIntel", "name": "Competitive Intel"},
+    {"weaviate": "AtlasCustomerFaqs", "name": "FAQs"},
+    {"weaviate": "AtlasCompanyPolicies", "name": "Company Policies"},
+]
 
 router = APIRouter()
 
@@ -147,7 +158,7 @@ Reply with ONLY the category key. No punctuation, no explanation."""
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",
             "messages": [
                 {"role": "user", "content": prompt},
             ],
@@ -216,6 +227,103 @@ async def _get_full_context_for_task(db, user_id: str, task: dict) -> Optional[s
     return (task.get("title") or "") + " " + (task.get("description") or "")
 
 
+async def _search_knowledge_for_context(query_text: str, top_k: int = 3) -> Optional[str]:
+    """
+    Search Weaviate Knowledge base across all 6 categories to find relevant content
+    for enriching AI-generated strategies and scripts.
+
+    Args:
+        query_text: The text to search for (email content, meeting summary, task title/description)
+        top_k: Max number of results per category
+
+    Returns:
+        Combined relevant knowledge text, or None if nothing found / Weaviate unavailable.
+    """
+    if not query_text or not query_text.strip():
+        logger.debug("📚 [KNOWLEDGE RETRIEVE] Skipped — empty query text")
+        return None
+
+    logger.info(f"📚 [KNOWLEDGE RETRIEVE] Starting knowledge search across {len(KNOWLEDGE_CATEGORIES)} categories (top_k={top_k})")
+    logger.info(f"📚 [KNOWLEDGE RETRIEVE] Query text preview: {query_text[:150].strip()}...")
+
+    try:
+        weaviate_client = get_weaviate()
+        if not weaviate_client:
+            logger.warning("📚 [KNOWLEDGE RETRIEVE] Weaviate client not available — skipping knowledge enrichment")
+            return None
+
+        logger.info("📚 [KNOWLEDGE RETRIEVE] Weaviate client connected ✓")
+
+        # Vectorize the query text
+        logger.info("📚 [KNOWLEDGE RETRIEVE] Vectorizing query text...")
+        query_vector = vectorize_text(query_text[:1500])  # Cap input length
+        if not query_vector:
+            logger.warning("📚 [KNOWLEDGE RETRIEVE] Vectorization returned empty — aborting search")
+            return None
+        logger.info(f"📚 [KNOWLEDGE RETRIEVE] Query vectorized ✓ (dimension: {len(query_vector)})")
+
+        all_results = []
+
+        for cat in KNOWLEDGE_CATEGORIES:
+            try:
+                collection = weaviate_client.collections.get(cat["weaviate"])
+                results = collection.query.near_vector(
+                    near_vector=query_vector,
+                    limit=top_k,
+                    return_metadata=["distance"],
+                )
+                cat_hits = 0
+                for obj in results.objects:
+                    props = obj.properties
+                    distance = obj.metadata.distance if obj.metadata else 1.0
+                    similarity = 1 - distance
+                    if similarity > 0.5:  # Only include meaningfully relevant results
+                        all_results.append({
+                            "content": props.get("content", ""),
+                            "category": cat["name"],
+                            "similarity": round(similarity, 3),
+                        })
+                        cat_hits += 1
+                if cat_hits > 0:
+                    logger.info(f"📚 [KNOWLEDGE RETRIEVE]   ✓ {cat['name']} ({cat['weaviate']}): {cat_hits} relevant chunks found")
+                else:
+                    logger.debug(f"📚 [KNOWLEDGE RETRIEVE]   ○ {cat['name']} ({cat['weaviate']}): no relevant chunks (similarity ≤ 0.5)")
+            except Exception as e:
+                logger.warning(f"📚 [KNOWLEDGE RETRIEVE]   ✗ {cat['name']} ({cat['weaviate']}): search failed — {e}")
+                continue
+
+        if not all_results:
+            logger.info("📚 [KNOWLEDGE RETRIEVE] No relevant knowledge found across any category")
+            return None
+
+        # Sort by similarity, take top results across all categories
+        all_results.sort(key=lambda x: x["similarity"], reverse=True)
+        top_results = all_results[:top_k * 2]  # Max ~6 chunks
+
+        # Log top results summary
+        logger.info(f"📚 [KNOWLEDGE RETRIEVE] Total relevant chunks: {len(all_results)}, using top {len(top_results)}")
+        for i, r in enumerate(top_results):
+            content_preview = r["content"][:80].replace("\n", " ").strip()
+            logger.info(f"📚 [KNOWLEDGE RETRIEVE]   #{i+1} [{r['category']}] sim={r['similarity']} — \"{content_preview}...\"")
+
+        knowledge_context = "\n\n".join([
+            f"[{r['category']}] {r['content']}"
+            for r in top_results
+        ])
+
+        # Cap total length to avoid blowing up the LLM prompt
+        if len(knowledge_context) > 2000:
+            logger.info(f"📚 [KNOWLEDGE RETRIEVE] Trimming knowledge context from {len(knowledge_context)} to 2000 chars")
+            knowledge_context = knowledge_context[:2000]
+
+        logger.info(f"✅ [KNOWLEDGE RETRIEVE] Knowledge enrichment complete: {len(top_results)} chunks, {len(knowledge_context)} chars injected into prompt")
+        return knowledge_context
+
+    except Exception as e:
+        logger.warning(f"❌ [KNOWLEDGE RETRIEVE] Knowledge search failed (non-blocking): {e}")
+        return None
+
+
 def _default_task_strategy(doc: dict) -> dict:
     """Build default strategy from task source/type/intent (no AI)."""
     source = doc.get("source", "email")
@@ -257,8 +365,9 @@ def _default_task_strategy(doc: dict) -> dict:
     }
 
 
-async def _generate_task_strategy_with_ai(doc: dict, full_context: Optional[str] = None) -> Optional[dict]:
-    """Use Groq to generate strategy (objective, key_topics, reasoning, alternatives with confidence)."""
+async def _generate_task_strategy_with_ai(doc: dict, full_context: Optional[str] = None, knowledge_context: Optional[str] = None) -> Optional[dict]:
+    """Use Groq to generate strategy (objective, key_topics, reasoning, alternatives with confidence).
+    Now enriched with knowledge base context from Weaviate when available."""
     if not getattr(settings, "GROQ_API_KEY", None) or not settings.GROQ_API_KEY:
         return None
     title = (doc.get("title") or "")[:200]
@@ -266,6 +375,9 @@ async def _generate_task_strategy_with_ai(doc: dict, full_context: Optional[str]
     source = doc.get("source", "email")
     intent = doc.get("intent_category") or ""
     context_block = f"\nFull context (email/meeting):\n{full_context[:2500]}" if full_context else ""
+    knowledge_block = ""
+    if knowledge_context:
+        knowledge_block = f"\n\nRelevant Knowledge Base (use this to make your strategy concrete and grounded):\n{knowledge_context}"
     prompt = f"""You are a B2B sales strategy advisor. For this task, output a JSON object (no markdown, no code block) with:
 
 - recommended_next_step_type: one of send_email, make_call, share_case_study, escalate_technical_validation, schedule_followup_call
@@ -282,14 +394,14 @@ Task:
 Title: {title}
 Description: {desc}
 Source: {source}
-Intent: {intent}{context_block}
+Intent: {intent}{context_block}{knowledge_block}
 
 Output only valid JSON, no other text."""
     try:
         url = "https://api.groq.com/openai/v1/chat/completions"
         headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
         payload = {
-            "model": "llama-3.3-70b-versatile",
+            "model": "llama-3.1-8b-instant",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.2,
             "max_tokens": 600,
@@ -529,7 +641,12 @@ async def generate_strategy_for_item(
     if not doc:
         raise HTTPException(status_code=404, detail="Todo item not found")
     full_context = await _get_full_context_for_task(db, user_id, doc)
-    strategy_dict = await _generate_task_strategy_with_ai(doc, full_context)
+    # Enrich with knowledge base
+    logger.info(f"🎯 [GENERATE STRATEGY] item={item_id} — searching knowledge base for enrichment...")
+    search_text = full_context or (doc.get("title") or "") + " " + (doc.get("description") or "")
+    knowledge_context = await _search_knowledge_for_context(search_text)
+    logger.info(f"🎯 [GENERATE STRATEGY] item={item_id} — knowledge {'enriched ✓' if knowledge_context else 'not available (proceeding without)'}")
+    strategy_dict = await _generate_task_strategy_with_ai(doc, full_context, knowledge_context)
     if not strategy_dict:
         strategy_dict = _default_task_strategy(doc)
     now = datetime.utcnow()
@@ -563,14 +680,23 @@ async def suggest_script_for_item(
     prepared = doc.get("prepared_action") or {}
     draft = prepared.get("draft_text") or ""
     if key_topics and getattr(settings, "GROQ_API_KEY", None):
+        # Enrich with knowledge base for more grounded email drafts
+        logger.info(f"✍️ [SUGGEST SCRIPT] item={item_id} — searching knowledge base for email draft enrichment...")
+        search_text = (doc.get("title") or "") + " " + (doc.get("description") or "") + " " + " ".join(key_topics)
+        knowledge_context = await _search_knowledge_for_context(search_text)
+        logger.info(f"✍️ [SUGGEST SCRIPT] item={item_id} — knowledge {'enriched ✓' if knowledge_context else 'not available (draft without knowledge)'}")
+        knowledge_block = ""
+        if knowledge_context:
+            knowledge_block = f"\n\nRelevant product/company knowledge (use to make the reply specific and accurate):\n{knowledge_context}\n"
         prompt = f"""Write a professional B2B reply email (2-5 sentences) that:
 - Achieves this commercial objective: {objective}
 - Addresses these key topics in order: {', '.join(key_topics)}
 - Tone: professional, clear, action-oriented. No fluff.
 - Do not include subject line or greeting if the thread already has one; output only the body paragraphs.
+- If knowledge base info is provided, use specific facts (pricing, features, policies) to make the reply concrete.
 
 Task: {doc.get('title', '')}
-Context: {doc.get('description', '')[:300]}
+Context: {doc.get('description', '')[:300]}{knowledge_block}
 
 Output only the email body text, no subject line."""
         try:
@@ -578,7 +704,7 @@ Output only the email body text, no subject line."""
             url = "https://api.groq.com/openai/v1/chat/completions"
             headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
             payload = {
-                "model": "llama-3.3-70b-versatile",
+                "model": "llama-3.1-8b-instant",
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.3,
                 "max_tokens": 400,
@@ -646,9 +772,14 @@ async def ensure_item_analyzed(
     if not doc:
         raise HTTPException(status_code=404, detail="Todo item not found")
 
-    # 3) Missing strategy: generate with full context
+    # 3) Missing strategy: generate with full context + knowledge enrichment
     if not doc.get("task_strategy") or not isinstance(doc.get("task_strategy"), dict):
-        strategy_dict = await _generate_task_strategy_with_ai(doc, full_context)
+        logger.info(f"🔍 [ENSURE ANALYZED] item={item_id} — searching knowledge base for strategy enrichment...")
+        knowledge_context = await _search_knowledge_for_context(
+            text_for_intent[:1500] if text_for_intent else (doc.get("title") or "")
+        )
+        logger.info(f"🔍 [ENSURE ANALYZED] item={item_id} — knowledge {'enriched ✓' if knowledge_context else 'not available (proceeding without)'}")
+        strategy_dict = await _generate_task_strategy_with_ai(doc, full_context, knowledge_context)
         if not strategy_dict:
             strategy_dict = _default_task_strategy(doc)
         await db.todo_items.update_one(

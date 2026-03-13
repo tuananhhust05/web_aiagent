@@ -4,7 +4,7 @@
 Tài liệu này ước tính mức tiêu thụ token AI (Groq LLM) cho từng tính năng với 1 khách hàng bình thường.
 
 **Model sử dụng:**
-- **Meeting Intelligence & Call Insights:** `llama-3.3-70b-versatile` (model lớn, chất lượng cao)
+- **Meeting Intelligence & Call Insights:** `llama-3.1-8b-instant` (model lớn, chất lượng cao)
 - **Action Ready & Q&A Engine:** `llama-3.1-8b-instant` (model nhỏ, tiết kiệm)
 
 ---
@@ -16,15 +16,15 @@ Tài liệu này ước tính mức tiêu thụ token AI (Groq LLM) cho từng t
 ### Tính Năng Chính:
 1. **Atlas Meeting Insights** (`get_atlas_meeting_insights`) - Dòng 1658-1789
    - Phân tích transcript → Summary, Next Steps, Q&A
-   - Sử dụng model: `llama-3.3-70b-versatile`
+   - Sử dụng model: `llama-3.1-8b-instant`
 
 2. **Meeting Feedback** (`get_meeting_feedback`) - Dòng 1792-1989
    - Performance metrics, AI coach feedback
-   - Sử dụng model: `llama-3.3-70b-versatile`
+   - Sử dụng model: `llama-3.1-8b-instant`
 
 3. **Playbook Analysis** (`get_meeting_playbook_analysis`) - Dòng 1991+
    - So sánh với sales playbook
-   - Sử dụng model: `llama-3.3-70b-versatile`
+   - Sử dụng model: `llama-3.1-8b-instant`
 
 ### Ước Tính Token Cho 1 Meeting:
 
@@ -49,7 +49,7 @@ Tài liệu này ước tính mức tiêu thụ token AI (Groq LLM) cho từng t
 ### Tính Năng Chính:
 1. **Playbook Analysis** (`get_call_playbook_analysis`) - Dòng 537-720
    - So sánh call transcript với sales playbook
-   - Sử dụng model: `llama-3.3-70b-versatile` (qua service `analyze_call_against_playbook`)
+   - Sử dụng model: `llama-3.1-8b-instant` (qua service `analyze_call_against_playbook`)
 
 ### Ước Tính Token Cho 1 Call:
 
@@ -72,17 +72,17 @@ Tài liệu này ước tính mức tiêu thụ token AI (Groq LLM) cho từng t
 ### Tính Năng Chính:
 1. **Intent Classification** (`_classify_intent_for_text`) - Dòng 118-180
    - Phân loại email/meeting intent
-   - Model: `llama-3.3-70b-versatile`
+   - Model: `llama-3.1-8b-instant`
    - Max tokens: 20
 
 2. **Task Strategy Generation** (`_generate_task_strategy_with_ai`) - Dòng 260-312
    - Tạo chiến lược xử lý task
-   - Model: `llama-3.3-70b-versatile`
+   - Model: `llama-3.1-8b-instant`
    - Max tokens: 600
 
 3. **Email Script Suggestion** (`suggest_script_for_item`) - Dòng 544-608
    - Gợi ý email trả lời
-   - Model: `llama-3.3-70b-versatile`
+   - Model: `llama-3.1-8b-instant`
    - Max tokens: 400
 
 ### Ước Tính Token Cho Mỗi Task:
@@ -164,7 +164,7 @@ Tài liệu này ước tính mức tiêu thụ token AI (Groq LLM) cho từng t
 ## 💰 PRICING ESTIMATION
 
 ### Groq API Pricing (tham khảo):
-- **llama-3.3-70b-versatile**: $0.59/1M input tokens, $0.79/1M output tokens
+- **llama-3.1-8b-instant**: $0.59/1M input tokens, $0.79/1M output tokens
 - **llama-3.1-8b-instant**: $0.05/1M input tokens, $0.08/1M output tokens
 
 ### Cost Breakdown (1 khách hàng/tháng):

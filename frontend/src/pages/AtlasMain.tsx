@@ -37,6 +37,7 @@ import {
   Radio as RadioIcon,
   Download,
   AlertCircle,
+  XCircle,
   Brain,
   Eye,
   Lightbulb,
@@ -983,14 +984,15 @@ export default function AtlasMain() {
     }
   }
 
-  const handleAnalyzePlaybook = async () => {
+  const handleAnalyzePlaybook = async (overrideTemplateId?: string) => {
     if (section !== 'calls' || !activeCallId) return
     try {
       setPlaybookLoading(true)
       setPlaybookError(null)
+      const templateId = overrideTemplateId || selectedPlaybookId || undefined
       const res = await meetingsAPI.getMeetingPlaybookAnalysis(activeCallId, {
         force_refresh: true,
-        template_id: selectedPlaybookId || undefined,
+        template_id: templateId,
       })
       setPlaybookAnalysis(res.data)
       if (res.data.source === 'cache') {
@@ -1726,6 +1728,71 @@ export default function AtlasMain() {
             {activeCall && (
               <>
 
+                {/* ── Full meeting re-analysis overlay ── */}
+                {reanalyzing && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-card rounded-2xl shadow-2xl border border-border p-8 max-w-md w-full mx-4 space-y-6 animate-slide-up">
+                      <div className="flex flex-col items-center gap-3 text-center">
+                        <div className="relative">
+                          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue opacity-20 animate-ping" />
+                          <div className="relative w-14 h-14 rounded-full bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue flex items-center justify-center">
+                            <Sparkles className="h-7 w-7 text-white animate-pulse" />
+                          </div>
+                        </div>
+                        <h3 className="text-lg font-heading font-bold text-foreground">Analyzing Meeting</h3>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Running full AI analysis — insights, feedback, playbook, and Q&A extraction. This may take up to a minute.
+                        </p>
+                      </div>
+                      <div className="space-y-3">
+                        {[
+                          { icon: FileText, label: 'Generating call insights & summary', delay: '0s' },
+                          { icon: TrendingUp, label: 'Analyzing performance metrics', delay: '0.4s' },
+                          { icon: Brain, label: 'Evaluating playbook compliance', delay: '0.8s' },
+                          { icon: HelpCircle, label: 'Extracting Q&A from transcript', delay: '1.2s' },
+                          { icon: CheckCircle2, label: 'Finalizing analysis', delay: '1.6s' },
+                        ].map((step, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-secondary/60 border border-border/50 opacity-0"
+                            style={{ animation: `fadeSlideIn 0.5s ease forwards ${step.delay}` }}
+                          >
+                            <step.icon className="h-4 w-4 text-forskale-teal shrink-0" />
+                            <span className="text-sm text-foreground font-medium flex-1">{step.label}</span>
+                            <Loader2 className="h-3.5 w-3.5 text-forskale-teal animate-spin shrink-0" />
+                          </div>
+                        ))}
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-secondary overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue"
+                          style={{ animation: 'progressShimmer 4s ease-in-out infinite' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {reanalyzing && (
+                  <style>{`
+                    @keyframes fadeSlideIn {
+                      from { opacity: 0; transform: translateY(8px); }
+                      to   { opacity: 1; transform: translateY(0); }
+                    }
+                    @keyframes progressShimmer {
+                      0%   { width: 5%; }
+                      50%  { width: 75%; }
+                      100% { width: 95%; }
+                    }
+                    @keyframes slide-up {
+                      from { opacity: 0; transform: translateY(24px) scale(0.97); }
+                      to   { opacity: 1; transform: translateY(0) scale(1); }
+                    }
+                    .animate-slide-up {
+                      animation: slide-up 0.35s ease-out;
+                    }
+                  `}</style>
+                )}
+
                 {activeCallTab === 'summary' && (
                   <div className="space-y-3">
                     <div className="text-xs text-muted-foreground mb-3">
@@ -2003,9 +2070,82 @@ export default function AtlasMain() {
                 )}
 
             {activeCallTab === 'playbook' && (
-              <div className="space-y-5">
+              <div className="space-y-5 relative">
+
+                {/* ── Analyzing overlay / popup ── */}
+                {playbookLoading && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-card rounded-2xl shadow-2xl border border-border p-8 max-w-md w-full mx-4 space-y-6 animate-slide-up">
+                      {/* Header */}
+                      <div className="flex flex-col items-center gap-3 text-center">
+                        <div className="relative">
+                          <div className="absolute inset-0 rounded-full bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue opacity-20 animate-ping" />
+                          <div className="relative w-14 h-14 rounded-full bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue flex items-center justify-center">
+                            <Brain className="h-7 w-7 text-white animate-pulse" />
+                          </div>
+                        </div>
+                        <h3 className="text-lg font-heading font-bold text-foreground">Analyzing Playbook</h3>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          AI is evaluating the transcript against your sales playbook rules. This may take a moment for longer calls.
+                        </p>
+                      </div>
+
+                      {/* Animated steps */}
+                      <div className="space-y-3">
+                        {[
+                          { icon: FileText, label: 'Fetching transcript', delay: '0s' },
+                          { icon: Zap, label: 'Preprocessing & chunking', delay: '0.3s' },
+                          { icon: Sparkles, label: 'Analyzing chunks with AI', delay: '0.6s' },
+                          { icon: Brain, label: 'Merging results', delay: '0.9s' },
+                          { icon: CheckCircle2, label: 'Finalizing playbook analysis', delay: '1.2s' },
+                        ].map((step, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-secondary/60 border border-border/50 opacity-0"
+                            style={{ animation: `fadeSlideIn 0.5s ease forwards ${step.delay}` }}
+                          >
+                            <step.icon className="h-4 w-4 text-forskale-teal shrink-0" />
+                            <span className="text-sm text-foreground font-medium flex-1">{step.label}</span>
+                            <Loader2 className="h-3.5 w-3.5 text-forskale-teal animate-spin shrink-0" />
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Progress shimmer */}
+                      <div className="w-full h-1.5 rounded-full bg-secondary overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue"
+                          style={{ animation: 'progressShimmer 3s ease-in-out infinite' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Keyframe styles for the popup */}
+                {playbookLoading && (
+                  <style>{`
+                    @keyframes fadeSlideIn {
+                      from { opacity: 0; transform: translateY(8px); }
+                      to   { opacity: 1; transform: translateY(0); }
+                    }
+                    @keyframes progressShimmer {
+                      0%   { width: 5%; }
+                      50%  { width: 80%; }
+                      100% { width: 95%; }
+                    }
+                    @keyframes slide-up {
+                      from { opacity: 0; transform: translateY(24px) scale(0.97); }
+                      to   { opacity: 1; transform: translateY(0) scale(1); }
+                    }
+                    .animate-slide-up {
+                      animation: slide-up 0.35s ease-out;
+                    }
+                  `}</style>
+                )}
+
                 {/* Playbook header card */}
-                <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+                <div className="bg-card rounded-xl border border-border shadow-card">
                   <div className="flex items-center gap-3 p-4 flex-wrap">
                   <div className="relative">
                     <button
@@ -2029,6 +2169,7 @@ export default function AtlasMain() {
                                 setSelectedPlaybookId(opt.id)
                                 setSelectedPlaybookName(opt.name)
                                 setPlaybookDropdownOpen(false)
+                                handleAnalyzePlaybook(opt.id)
                               }}
                               className="w-full text-left px-3 py-2 text-xs flex items-center justify-between gap-2 hover:bg-accent"
                             >
@@ -2054,9 +2195,19 @@ export default function AtlasMain() {
                       </span>
                     )}
                     <div className="ml-auto flex shrink-0 gap-2">
-                      <button type="button" onClick={handleAnalyzePlaybook} disabled={playbookLoading}
+                      <button type="button" onClick={() => handleAnalyzePlaybook()} disabled={playbookLoading}
                         className="px-3 py-1.5 bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white text-xs font-semibold rounded-lg shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 transition-all disabled:opacity-60">
-                        {playbookLoading ? 'Analyzing…' : 'Analyze this meeting'}
+                        {playbookLoading ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin inline mr-1.5" />
+                            Analyzing…
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="h-3.5 w-3.5 inline mr-1.5" />
+                            Analyze this meeting
+                          </>
+                        )}
                       </button>
                       <button className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-xs font-medium text-foreground hover:bg-accent transition-colors h-7">
                         <Download className="h-3.5 w-3.5" /> Download playbook
@@ -2107,9 +2258,9 @@ export default function AtlasMain() {
                           className="w-full flex items-center gap-3 px-4 py-3 text-left"
                         >
                           {rule.passed ? (
-                            <Check className="h-4 w-4 text-status-great shrink-0" />
+                            <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
                           ) : (
-                            <X className="h-4 w-4 text-status-needs-work shrink-0" />
+                            <XCircle className="h-5 w-5 text-red-500 shrink-0" />
                           )}
                           <div className="flex-1 min-w-0 flex items-center gap-2 flex-wrap">
                             <span className="text-sm text-foreground flex-1 font-medium">{rule.label}</span>

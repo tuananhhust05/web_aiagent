@@ -561,7 +561,7 @@ async def _call_groq_json(prompt: str) -> Any:
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
     payload = {
-        "model": "llama-3.3-70b-versatile",
+        "model": "llama-3.1-8b-instant",
         "messages": [
             {"role": "system", "content": "Return ONLY valid JSON. No markdown. No extra text."},
             {"role": "user", "content": prompt},
@@ -2172,13 +2172,28 @@ async def get_meeting_playbook_analysis(
     rules_input = tpl.get("rules") or []
 
     # 3) Call AI sales copilot to analyze transcript vs playbook rules
+    import time as _time
+    _t0 = _time.time()
+    logger.info(
+        f"[Playbook] Starting analysis for meeting={meeting_id}, "
+        f"template={template_id} ({template_name}), "
+        f"rules={len(rules_input)}, transcript={len(transcript_text)} chars, "
+        f"user={current_user.id}"
+    )
+
     ai_result = await analyze_call_against_playbook(
         transcript=transcript_text,
         playbook_name=template_name,
         rules=rules_input,
     )
+    _elapsed = round(_time.time() - _t0, 2)
 
     if not ai_result:
+        logger.warning(
+            f"[Playbook] Analysis returned None after {_elapsed}s — "
+            f"meeting={meeting_id}, template={template_id}, "
+            f"user={current_user.id}, transcript={len(transcript_text)} chars"
+        )
         return MeetingPlaybookAnalysisResponse(
             meeting_id=meeting_id,
             template_id=template_id,
@@ -2247,6 +2262,14 @@ async def get_meeting_playbook_analysis(
                 "updated_at": datetime.utcnow(),
             }
         },
+    )
+
+    passed_count = sum(1 for r in rules_out if r.passed)
+    logger.info(
+        f"[Playbook] Analysis complete in {_elapsed}s — "
+        f"meeting={meeting_id}, score={ai_result.get('overall_score')}, "
+        f"rules passed={passed_count}/{len(rules_out)}, "
+        f"dimensions={dimension_scores or 'none'}"
     )
 
     return MeetingPlaybookAnalysisResponse(

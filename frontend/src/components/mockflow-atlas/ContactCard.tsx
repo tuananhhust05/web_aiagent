@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { X, ChevronDown, ChevronRight, Linkedin, Building2, MapPin, Globe, Calendar, Sparkles, AlertTriangle, Lightbulb, History, UserPlus, RefreshCw, Loader2 } from "lucide-react";
+import { X, ChevronDown, ChevronRight, Linkedin, Building2, MapPin, Globe, Calendar, Sparkles, AlertTriangle, Lightbulb, History, UserPlus, RefreshCw, Loader2, Pencil } from "lucide-react";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Separator } from "../ui/separator";
@@ -7,6 +7,7 @@ import { cn } from "../../lib/utils";
 import { EnrichmentLoadingModal } from "./EnrichmentLoadingModal";
 import { EnrichedProfileCard } from "./EnrichedProfileCard";
 import { AddProfileDialog } from "./AddProfileDialog";
+import { EditLinkedInDialog } from "./EditLinkedInDialog";
 import toast from "react-hot-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 import { atlasAPI, type MeetingParticipantsResponse, type AtlasMeetingContext, type EnrichedProfileData } from "../../lib/api";
@@ -177,6 +178,8 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
   const [addProfileTarget, setAddProfileTarget] = useState<string | null>(null);
   const [enrichingCompanyName, setEnrichingCompanyName] = useState<string | null>(null);
   const [enrichApiDone, setEnrichApiDone] = useState(false);
+  const [editLinkedInTarget, setEditLinkedInTarget] = useState<{ name: string; email: string } | null>(null);
+  const [participantLinkedInUrls, setParticipantLinkedInUrls] = useState<Record<string, string>>({});
 
   const fetchAndBuildCard = useCallback(
     async (forceEnrich = false) => {
@@ -240,7 +243,7 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
   const [enrichedProfilesData, setEnrichedProfilesData] = useState<Record<string, EnrichedProfileData>>({});
   const enrichApiRef = useRef<AbortController | null>(null);
 
-  const handleEnrichClick = async (name: string, email: string) => {
+  const handleEnrichClick = async (name: string, email: string, force = false) => {
     // Extract company name from email domain
     const domain = email.split('@')[1];
     const companyName = domain ? domain.split('.')[0] : '';
@@ -259,6 +262,7 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
         event_id: meeting.id,
         email,
         name,
+        force,
       });
 
       if (controller.signal.aborted) return;
@@ -356,6 +360,9 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
         if (p.email && p.email !== "—") {
           try {
             const res = await atlasAPI.getParticipantProfile(p.email);
+            if (res.data?.linkedin_url) {
+              setParticipantLinkedInUrls((prev) => ({ ...prev, [p.email]: res.data.linkedin_url! }));
+            }
             if (res.data?.profile_data) {
               setEnrichedProfilesData((prev) => ({ ...prev, [p.name]: res.data.profile_data }));
               setEnrichedProfiles((prev) => new Set(prev).add(p.name));
@@ -372,6 +379,32 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
   }, [loading, data.participants]);
 
   const profileData = viewingProfile ? enrichedProfilesData[viewingProfile] : null;
+
+  const handleEditLinkedInSave = async (linkedinUrl: string) => {
+    if (!editLinkedInTarget) return;
+    const { email } = editLinkedInTarget;
+    setEditLinkedInTarget(null);
+
+    try {
+      if (linkedinUrl) {
+        await atlasAPI.updateParticipantLinkedIn({ email, linkedin_url: linkedinUrl });
+        setParticipantLinkedInUrls((prev) => ({ ...prev, [email]: linkedinUrl }));
+        toast.success("LinkedIn URL updated");
+      } else {
+        // Clearing the URL
+        await atlasAPI.updateParticipantLinkedIn({ email, linkedin_url: "" });
+        setParticipantLinkedInUrls((prev) => {
+          const next = { ...prev };
+          delete next[email];
+          return next;
+        });
+        toast.success("LinkedIn URL removed");
+      }
+    } catch (err) {
+      console.error("Failed to update LinkedIn URL:", err);
+      toast.error("Failed to update LinkedIn URL");
+    }
+  };
 
   return (
     <>
@@ -446,16 +479,42 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
                         <p className="text-[10px] text-atlas-warning">Personal email — auto-enrich unavailable</p>
                       )}
                     </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => setEditLinkedInTarget({ name: p.name, email: p.email })}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          Edit LinkedIn URL
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     {isEnriched ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-7 gap-1 text-xs border-atlas-success text-atlas-success hover:bg-atlas-success/10"
-                        onClick={() => setViewingProfile(p.name)}
-                      >
-                        <Linkedin className="h-3 w-3" />
-                        View
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1 text-xs border-atlas-success text-atlas-success hover:bg-atlas-success/10"
+                          onClick={() => setViewingProfile(p.name)}
+                        >
+                          <Linkedin className="h-3 w-3" />
+                          View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1 text-xs text-primary border-primary/30 hover:bg-primary/10"
+                          onClick={() => handleEnrichClick(p.name, p.email || "", true)}
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                          
+                        </Button>
+                      </div>
                     ) : isGmail ? (
                       <div className="flex items-center gap-1">
                         <TooltipProvider>
@@ -506,7 +565,7 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
           {/* Company Profile */}
           <section>
             <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Company Profile</h4>
-            <div className="rounded-lg border p-3 space-y-2.5">
+            <div className="rounded-lg border p-3 space-y-2.5 overflow-hidden">
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4 text-muted-foreground" />
                 <span className="text-xs font-medium text-foreground">{data.companyName}</span>
@@ -535,11 +594,18 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-1 text-xs">
-                <Globe className="h-3 w-3 text-muted-foreground" />
-                <a href="#" className="text-primary hover:underline">{data.company.website}</a>
+              <div className="flex items-center gap-1 text-xs min-w-0">
+                <Globe className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                <a
+                  href={data.company.website !== "—" ? (data.company.website.startsWith("http") ? data.company.website : `https://${data.company.website}`) : "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary hover:underline truncate"
+                >
+                  {data.company.website}
+                </a>
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">{data.company.description}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed break-words whitespace-pre-wrap overflow-hidden">{data.company.description}</p>
             </div>
           </section>
 
@@ -685,6 +751,15 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
         onClose={() => setAddProfileTarget(null)}
         onSubmit={handleAddProfile}
         participantName={addProfileTarget || ""}
+      />
+
+      {/* Edit LinkedIn URL dialog */}
+      <EditLinkedInDialog
+        open={!!editLinkedInTarget}
+        onClose={() => setEditLinkedInTarget(null)}
+        onSave={handleEditLinkedInSave}
+        participantName={editLinkedInTarget?.name || ""}
+        currentUrl={editLinkedInTarget ? (participantLinkedInUrls[editLinkedInTarget.email] || "") : ""}
       />
     </>
   );

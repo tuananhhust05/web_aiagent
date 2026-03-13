@@ -878,7 +878,7 @@ The RAG-Enhanced AI Sales Copilot is an intelligent sales assistance system that
 - **Metadata Extraction**: Rule type, seniority, channel
 
 #### LLM Service
-- **Model**: `llama-3.3-70b-versatile`
+- **Model**: `llama-3.1-8b-instant`
 - **Function**: 
   - Used by RuleAnalysisAgent for query refinement
   - Used by GenerationAgent for prospect generation
@@ -1632,7 +1632,7 @@ ScoringAgent ──────┘                       │
       uncertainty_components: { /* data_coverage, retrieval_strength, agent_stability */ },
       prompt_hash: string,
       prompt_template_version: string,
-      model_version: "llama-3.3-70b-versatile",
+      model_version: "llama-3.1-8b-instant",
       temperature: 0.7,
       top_p: 0.9,
       token_usage: { input_tokens, output_tokens },

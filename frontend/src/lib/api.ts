@@ -7,8 +7,8 @@ import { deleteCookie } from './cookies'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://app.forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://app.forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -1280,12 +1280,17 @@ export const atlasAPI = {
     email: string
     name?: string
     linkedin_url?: string
+    force?: boolean
   }) =>
     api.post<ParticipantEnrichResponse>('/api/atlas/participant-enrich', params, { timeout: 240000 }),
 
   /** Get previously enriched LinkedIn profile for a participant */
   getParticipantProfile: (email: string) =>
     api.get<{ email: string; linkedin_url?: string; profile_data: EnrichedProfileData }>('/api/atlas/participant-profile', { params: { email } }),
+
+  /** Update a participant's LinkedIn URL without full enrichment */
+  updateParticipantLinkedIn: (params: { email: string; linkedin_url: string }) =>
+    api.patch<{ email: string; linkedin_url: string; updated: boolean }>('/api/atlas/participant-linkedin', params),
 
   /** Rolling Q&A Repository CRUD */
   listQna: (params?: { 
