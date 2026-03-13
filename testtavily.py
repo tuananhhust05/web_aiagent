@@ -1,6 +1,6 @@
 import requests
 
-API_KEY = "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"
+API_KEY = ""
 
 url = "https://api.tavily.com/search"
 
