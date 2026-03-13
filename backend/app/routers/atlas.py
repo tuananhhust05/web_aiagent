@@ -21,6 +21,7 @@ from app.services.pdf_processor import process_file_to_chunks
 from app.services.vectorization import vectorize_texts
 # from app.services.serpapi_service import get_serpapi_service  # DEPRECATED: replaced by Tavily
 from app.services.tavily_service import get_tavily_service
+from app.services.company_data_pool import get_company_data_pool
 from app.services.linkedin_enrichment_service import get_linkedin_enrichment_service
 from bson import ObjectId
 
@@ -1750,11 +1751,9 @@ async def search_company_info(
     logger.info(f"[COMPANY-SEARCH] Searching for company: {company_name}")
     
     try:
-        # OLD: SerpAPI (commented out, replaced by Tavily)
-        # serpapi = get_serpapi_service()
-        # data = await serpapi.search_company_info(company_name)
-        tavily = get_tavily_service()
-        data = await tavily.search_company_info(company_name)
+        # Use Company Data Pool (caches Tavily results in MongoDB)
+        pool = get_company_data_pool()
+        data = await pool.get_company_info(company_name)
         
         logger.info(f"[COMPANY-SEARCH] Found info for {company_name}: {len(data.get('result', ''))} chars")
         
@@ -2042,27 +2041,21 @@ async def enrich_meeting_from_attendee(
     company_name = extract_company_from_email(attendee_email)
     logger.info(f"[MEETING-ENRICH] Found attendee {attendee_email}, company: {company_name}")
     
-    # Search company info using Tavily (replaced SerpAPI)
+    # Search company info using Company Data Pool (caches Tavily results)
     search_result = ""
     try:
-        # OLD: SerpAPI (commented out, replaced by Tavily)
-        # serpapi = get_serpapi_service()
-        # search_data = await serpapi.search_company_info(company_name)
-        tavily = get_tavily_service()
-        search_data = await tavily.search_company_info(company_name)
+        pool = get_company_data_pool()
+        search_data = await pool.get_company_info(company_name)
         search_result = search_data.get("result", "")
     except Exception as e:
         logger.error(f"[MEETING-ENRICH] Company search error: {e}")
         search_result = ""
     
-    # Search LinkedIn URL for attendee via Tavily (replaced SerpAPI)
+    # Search LinkedIn URL for attendee via Company Data Pool (caches Tavily results)
     linkedin_url = None
     try:
-        # OLD: SerpAPI (commented out, replaced by Tavily)
-        # serpapi = get_serpapi_service()
-        # linkedin_url = await serpapi.search_linkedin_url(attendee_email)
-        tavily = get_tavily_service()
-        linkedin_url = await tavily.search_linkedin_url(attendee_email)
+        pool = get_company_data_pool()
+        linkedin_url = await pool.get_linkedin_url(attendee_email)
         if linkedin_url:
             logger.info(f"[MEETING-ENRICH] Found LinkedIn URL for {attendee_email}: {linkedin_url}")
     except Exception as e:
@@ -2186,15 +2179,11 @@ async def enrich_participant_linkedin(
     logger.info(f"[PARTICIPANT-ENRICH] Step 1: linkedin_url from request = {linkedin_url}")
     if not linkedin_url:
         try:
-            # OLD: SerpAPI (commented out, replaced by Tavily)
-            # serpapi = get_serpapi_service()
-            # logger.info(f"[PARTICIPANT-ENRICH] Step 1: Searching LinkedIn URL via SerpAPI for {email}")
-            # linkedin_url = await serpapi.search_linkedin_url(email)
-            # logger.info(f"[PARTICIPANT-ENRICH] Step 1: SerpAPI result = {linkedin_url}")
-            tavily = get_tavily_service()
-            logger.info(f"[PARTICIPANT-ENRICH] Step 1: Searching LinkedIn URL via Tavily for {email}")
-            linkedin_url = await tavily.search_linkedin_url(email)
-            logger.info(f"[PARTICIPANT-ENRICH] Step 1: Tavily result = {linkedin_url}")
+            # Use Company Data Pool (caches Tavily LinkedIn results)
+            pool = get_company_data_pool()
+            logger.info(f"[PARTICIPANT-ENRICH] Step 1: Searching LinkedIn URL via Data Pool for {email}")
+            linkedin_url = await pool.get_linkedin_url(email)
+            logger.info(f"[PARTICIPANT-ENRICH] Step 1: Data Pool result = {linkedin_url}")
         except Exception as e:
             logger.error(f"[PARTICIPANT-ENRICH] Step 1: LinkedIn URL search failed: {e}", exc_info=True)
 

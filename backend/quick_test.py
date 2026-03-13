@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Quick test to check deals import
+Quick test  to check deals import
 """
 
 try:
