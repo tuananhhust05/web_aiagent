@@ -57,7 +57,7 @@ const CLASSIFICATION_CONFIG: Record<AtlasQnAClassification, { label: string; ico
 }
 
 const STATUS_CONFIG: Record<AtlasQnAStatus, { label: string; color: string; bg: string; border: string }> = {
-  draft: { label: 'Pending Review', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
+  draft: { label: 'Draft', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' },
   approved: { label: 'Approved', color: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' },
   archived: { label: 'Archived', color: 'text-slate-500', bg: 'bg-slate-100', border: 'border-slate-200' },
 }
@@ -762,7 +762,7 @@ export default function AtlasQnAPage() {
               bgGradient="from-emerald-500/10 to-teal-500/10"
             />
             <StatCard
-              label="Pending Review"
+              label="Drafts"
               value={mockStats.draft_count}
               icon={FileEdit}
               gradient="from-amber-500 to-orange-500"
