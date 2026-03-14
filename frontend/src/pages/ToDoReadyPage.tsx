@@ -148,6 +148,14 @@ export default function ToDoReadyPage() {
     mutationFn: () => todoReadyAPI.analyze().then((r) => r.data),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['todo-ready', 'items'] })
+      // Check if backend reported a Gmail auth/token error
+      if (data.gmail_auth_error || data.needs_reauthorization) {
+        toast.error('Gmail token expired. Please re-connect your Gmail account.')
+        setShowGmailPopup(true)
+        // Refresh gmail status so the UI reflects the disconnected state
+        queryClient.invalidateQueries({ queryKey: ['gmail', 'status'] })
+        return
+      }
       if (data.new_todos_created > 0) {
         toast.success(`Created ${data.new_todos_created} new tasks from ${data.emails_analyzed} emails and ${data.meetings_analyzed} meetings`)
       }

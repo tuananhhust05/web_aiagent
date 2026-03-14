@@ -109,9 +109,9 @@ class GmailService:
                 except Exception:
                     data = {}
                 error_code = (data or {}).get("error", "")
-                if error_code == "invalid_grant":
+                if error_code in ("invalid_grant", "unauthorized_client"):
                     logger.warning(
-                        f"⚠️ Gmail refresh token invalid for user {user_id}; marking gmail_connected=False"
+                        f"⚠️ Gmail refresh token invalid ({error_code}) for user {user_id}; marking gmail_connected=False"
                     )
                     await db.users.update_one(
                         {"_id": user["_id"]},

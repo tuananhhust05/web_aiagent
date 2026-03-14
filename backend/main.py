@@ -9,7 +9,7 @@ import sys
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 
-# Configure logging
+# Configure  logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',

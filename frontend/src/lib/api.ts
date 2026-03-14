@@ -2005,6 +2005,8 @@ export interface AnalyzeResponse {
   emails_analyzed: number
   meetings_analyzed: number
   message: string
+  gmail_auth_error?: boolean
+  needs_reauthorization?: boolean
 }
 
 export interface AnalysisState {

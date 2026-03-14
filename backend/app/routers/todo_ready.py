@@ -1077,6 +1077,8 @@ async def analyze_new_items(
     new_todos = []
     new_email_ids = []
     new_meeting_ids = []
+    gmail_auth_error = False
+    gmail_auth_message = ""
     
     # Get user's email to filter out self-sent emails
     user_email = current_user.email.lower() if current_user.email else ""
@@ -1162,7 +1164,12 @@ async def analyze_new_items(
                 new_todos.append(todo_doc)
                 
     except Exception as e:
-        logger.warning(f"Failed to fetch emails for user {user_id}: {e}")
+        error_msg = str(e)
+        logger.warning(f"Failed to fetch emails for user {user_id}: {error_msg}")
+        # Detect token expiry / re-authentication errors
+        if "re-authenticate" in error_msg.lower() or "access token" in error_msg.lower():
+            gmail_auth_error = True
+            gmail_auth_message = error_msg
     
     try:
         meetings_cursor = db.meetings.find({
@@ -1260,13 +1267,19 @@ async def analyze_new_items(
             upsert=True,
         )
     
-    return {
+    response = {
         "success": True,
         "new_todos_created": len(new_todos),
         "emails_analyzed": len(new_email_ids),
         "meetings_analyzed": len(new_meeting_ids),
         "message": f"Created {len(new_todos)} new tasks from {len(new_email_ids)} emails and {len(new_meeting_ids)} meetings",
+        "gmail_auth_error": gmail_auth_error,
+        "needs_reauthorization": gmail_auth_error,
     }
+    if gmail_auth_error:
+        response["message"] = gmail_auth_message or "Gmail token expired. Please re-connect your Gmail account."
+        logger.warning(f"Returning gmail_auth_error=True for user {user_id}")
+    return response
 
 
 @router.get("/analysis-state")
