@@ -13,8 +13,13 @@ import {
   Mail,
   Share2,
   ArrowUpRight,
+  Loader2,
+  Copy,
 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { TodoItem, DraftTone } from "../../../lib/api";
+import { todoReadyAPI } from "../../../lib/api";
+import { toast } from "react-hot-toast";
 import InteractionSummary from "./InteractionSummary";
 
 const TONE_OPTIONS: { key: DraftTone; label: string }[] = [
@@ -49,10 +54,46 @@ export default function ActionCardExpanded({
   resolved?: boolean;
   onResolve?: () => void;
 }) {
+  const queryClient = useQueryClient();
   const [showDraft, setShowDraft] = useState(false);
   const [showFullDraft, setShowFullDraft] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [selectedTone, setSelectedTone] = useState<DraftTone>("professional");
+  const [isEditingDraft, setIsEditingDraft] = useState(false);
+  const [editedDraft, setEditedDraft] = useState("");
+
+  const sendEmailMutation = useMutation({
+    mutationFn: ({ taskId, draftText }: { taskId: string; draftText?: string }) =>
+      todoReadyAPI.sendEmail(taskId, draftText).then((r) => r.data),
+    onSuccess: (data) => {
+      if (data.needs_reauthorization && data.auth_url) {
+        toast((t) => (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-medium">Gmail needs to be reconnected</p>
+            <button
+              onClick={() => {
+                window.location.href = data.auth_url!;
+                toast.dismiss(t.id);
+              }}
+              className="px-2.5 py-1 bg-blue-600 text-white text-[10px] font-medium rounded hover:bg-blue-700"
+            >
+              Connect Gmail
+            </button>
+          </div>
+        ), { duration: 10000 });
+        return;
+      }
+      if (data.success) {
+        toast.success("Email sent!");
+        queryClient.invalidateQueries({ queryKey: ["todo-ready", "items"] });
+      } else {
+        toast.error(data.message || "Failed to send");
+      }
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Failed to send email");
+    },
+  });
 
   const prospect = task.deal_intelligence?.company_name ?? "—";
   const strategy = task.task_strategy;
@@ -210,15 +251,74 @@ export default function ActionCardExpanded({
                     {currentDraft || baseDraft}
                   </p>
 
+                  {isEditingDraft && (
+                    <textarea
+                      value={editedDraft || currentDraft || baseDraft}
+                      onChange={(e) => setEditedDraft(e.target.value)}
+                      className="w-full min-h-[120px] rounded-lg border border-border bg-card p-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 resize-y"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  )}
+
                   <div className="flex flex-wrap gap-2">
-                    <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-4 text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground transition-colors hover:border-accent hover:text-foreground">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isEditingDraft) {
+                          setIsEditingDraft(false);
+                        } else {
+                          setEditedDraft(currentDraft || baseDraft);
+                          setIsEditingDraft(true);
+                        }
+                      }}
+                      className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-xs font-bold uppercase tracking-[0.05em] transition-colors ${
+                        isEditingDraft
+                          ? "border-primary bg-primary/10 text-primary hover:bg-primary/20"
+                          : "border-border text-muted-foreground hover:border-accent hover:text-foreground"
+                      }`}
+                    >
                       <Pencil size={14} />
-                      Edit
+                      {isEditingDraft ? "Done" : "Edit"}
                     </button>
-                    <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-xs font-bold uppercase tracking-[0.05em] text-primary-foreground transition-colors hover:bg-primary/90">
-                      <Send size={14} />
-                      Send
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const textToCopy = editedDraft || currentDraft || baseDraft;
+                        if (textToCopy) {
+                          navigator.clipboard.writeText(textToCopy);
+                          toast.success("Copied to clipboard");
+                        }
+                      }}
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-4 text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground transition-colors hover:border-accent hover:text-foreground"
+                    >
+                      <Copy size={14} />
+                      Copy
                     </button>
+                    {task.source === "email" && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const draftToSend = editedDraft || currentDraft || baseDraft;
+                          if (task.id && draftToSend) {
+                            sendEmailMutation.mutate({ taskId: task.id, draftText: draftToSend });
+                          }
+                        }}
+                        disabled={
+                          sendEmailMutation.isPending ||
+                          task.status === "done" ||
+                          task.intent_category === "do_not_contact" ||
+                          !(editedDraft || currentDraft || baseDraft)
+                        }
+                        className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-xs font-bold uppercase tracking-[0.05em] text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {sendEmailMutation.isPending ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Send size={14} />
+                        )}
+                        {task.status === "done" ? "Sent" : "Send"}
+                      </button>
+                    )}
                   </div>
 
                   <button

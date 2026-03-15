@@ -266,27 +266,44 @@ const AtlasCalendarPage = () => {
 
   return (
     <>
-      <div className="flex flex-1 overflow-hidden h-full">
-        <div className="relative flex flex-1 flex-col min-w-0 overflow-hidden">
-          <CalendarView
-            meetings={meetings}
-            onMeetingClick={handleMeetingClick}
-            selectedMeetingId={selectedMeeting?.id}
-            onSyncClick={handleSync}
-            onRangeChange={handleRangeChange}
-          />
+      <div className="flex flex-1 overflow-hidden h-full relative">
+        <div className="relative flex flex-1 flex-col min-w-0 overflow-hidden pl-0 lg:pl-0">
+          {/* Add top padding on mobile for hamburger button */}
+          <div className="pt-12 lg:pt-0">
+            <CalendarView
+              meetings={meetings}
+              onMeetingClick={handleMeetingClick}
+              selectedMeetingId={selectedMeeting?.id}
+              onSyncClick={handleSync}
+              onRangeChange={handleRangeChange}
+            />
+          </div>
 
           {showRefreshTip && (
             <CalendarRefreshPopup onDismissPermanent={() => setShowRefreshTip(false)} />
           )}
         </div>
 
+        {/* Desktop: sidebar panel */}
         {selectedMeeting && (
-          <ContactCard
-            meeting={selectedMeeting}
-            onClose={() => setSelectedMeeting(null)}
-            onBotJoin={handleBotJoin}
-          />
+          <div className="hidden md:block">
+            <ContactCard
+              meeting={selectedMeeting}
+              onClose={() => setSelectedMeeting(null)}
+              onBotJoin={handleBotJoin}
+            />
+          </div>
+        )}
+
+        {/* Mobile: full-screen overlay */}
+        {selectedMeeting && (
+          <div className="fixed inset-0 z-50 flex flex-col bg-card md:hidden overflow-y-auto">
+            <ContactCard
+              meeting={selectedMeeting}
+              onClose={() => setSelectedMeeting(null)}
+              onBotJoin={handleBotJoin}
+            />
+          </div>
         )}
       </div>
 

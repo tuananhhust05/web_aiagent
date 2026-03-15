@@ -437,29 +437,29 @@ export default function ToDoReadyPage() {
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
       {/* ── Header (action-ready-main style) ── */}
-      <header className="shrink-0 border-b border-border bg-card px-5 py-3.5 lg:px-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <header className="shrink-0 border-b border-border bg-card pl-14 pr-3 py-2.5 sm:px-5 sm:py-3.5 lg:px-6">
+        <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0 flex-1">
-            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-forskale-blue">
+            <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.1em] text-forskale-blue">
               Action Ready
             </span>
-            <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground">
+            <h1 className="mt-0.5 sm:mt-1 text-lg sm:text-2xl font-bold tracking-tight text-foreground">
               Execution flashcards for sales follow-up
             </h1>
-            <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
+            <p className="mt-0.5 sm:mt-1 max-w-xl text-[10px] sm:text-xs leading-relaxed text-muted-foreground hidden sm:block">
               Review one AI-prepared action at a time, expand the card, refine the draft, and move straight to the next task.
             </p>
           </div>
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <div className="relative">
+          <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2">
+            <div className="relative flex-1 sm:flex-none">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
                 placeholder="Search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-10 w-[180px] rounded-lg border border-border bg-card pl-9 pr-3 text-sm text-foreground transition-all placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10"
+                className="h-9 sm:h-10 w-full sm:w-[180px] rounded-lg border border-border bg-card pl-9 pr-3 text-sm text-foreground transition-all placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10"
               />
             </div>
 
@@ -467,7 +467,7 @@ export default function ToDoReadyPage() {
               <button
                 type="button"
                 onClick={() => setFilterDropdownOpen((o) => !o)}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-3.5 text-sm font-semibold text-muted-foreground transition-all hover:border-primary hover:text-foreground"
+                className="inline-flex h-9 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg border border-border bg-card px-2.5 sm:px-3.5 text-sm font-semibold text-muted-foreground transition-all hover:border-primary hover:text-foreground"
               >
                 <SlidersHorizontal size={16} />
                 <span className="hidden sm:inline">{filters.prospect || 'Filters'}</span>
@@ -505,7 +505,7 @@ export default function ToDoReadyPage() {
               type="button"
               onClick={() => analyzeMutation.mutate()}
               disabled={analyzeMutation.isPending}
-              className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-3.5 text-sm font-semibold text-muted-foreground transition-all hover:border-primary hover:text-foreground disabled:opacity-50"
+              className="inline-flex h-9 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg border border-border bg-card px-2.5 sm:px-3.5 text-sm font-semibold text-muted-foreground transition-all hover:border-primary hover:text-foreground disabled:opacity-50"
             >
               {analyzeMutation.isPending ? <Loader2 size={16} className="animate-spin text-forskale-blue" /> : <Sparkles size={16} />}
               <span className="hidden sm:inline">Analyze New</span>
@@ -514,17 +514,18 @@ export default function ToDoReadyPage() {
             <button
               type="button"
               onClick={() => setPasteModalOpen(true)}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue px-4 text-sm font-semibold text-white shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.4)]"
+              className="inline-flex h-9 sm:h-10 items-center gap-1.5 sm:gap-2 rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue px-3 sm:px-4 text-xs sm:text-sm font-semibold text-white shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.4)]"
             >
               <Mail size={16} />
-              <span>Paste Email</span>
+              <span className="hidden xs:inline">Paste Email</span>
+              <span className="xs:hidden">Paste</span>
             </button>
           </div>
         </div>
       </header>
 
       {/* ── Body: Filter Sidebar + Main Content ── */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
 
         {/* ── Left Filter Sidebar (action-ready-main style) ── */}
         {sidebarCollapsed ? (
@@ -562,8 +563,8 @@ export default function ToDoReadyPage() {
             </div>
           </aside>
         ) : (
-          <aside className="w-full border-b border-border bg-card p-4 lg:w-[240px] lg:shrink-0 lg:border-b-0 lg:border-r lg:p-4 transition-all duration-200">
-            <div className="space-y-4 lg:sticky lg:top-0">
+          <aside className="shrink-0 border-b border-border bg-card p-3 sm:p-4 lg:w-[240px] lg:border-b-0 lg:border-r lg:p-4 transition-all duration-200 lg:overflow-y-auto">
+            <div className="space-y-3 sm:space-y-4 lg:sticky lg:top-0">
               <div className="hidden lg:flex lg:justify-end">
                 <button
                   onClick={() => setSidebarCollapsed(true)}
@@ -579,7 +580,7 @@ export default function ToDoReadyPage() {
                 <button
                   type="button"
                   onClick={() => setChannelDropdownOpen((o) => !o)}
-                  className="w-full flex items-center justify-between rounded-xl border border-border bg-muted/40 px-3 py-2.5 text-sm text-foreground hover:bg-muted"
+                  className="w-full flex items-center justify-between rounded-xl border border-border bg-muted/40 px-3 py-2 sm:py-2.5 text-sm text-foreground hover:bg-muted"
                 >
                   <span>{channelFilter === 'all' ? 'All channels' : channelFilter === 'email' ? 'Email' : 'Meeting'}</span>
                   <ChevronDown size={14} className={`text-muted-foreground transition-transform ${channelDropdownOpen ? 'rotate-180' : ''}`} />
@@ -603,49 +604,49 @@ export default function ToDoReadyPage() {
                 )}
               </div>
 
-              {/* Status filters */}
-              <div className="space-y-2">
+              {/* Status filters — horizontal on mobile, vertical on desktop */}
+              <div className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-x-visible lg:pb-0">
                 {statusFilters.map((f) => {
                   const isActive = activeTab === f.tab
                   return (
                     <button
                       key={f.label}
                       onClick={() => setActiveTab(f.tab)}
-                      className={`relative flex w-full items-center gap-2.5 rounded-xl border p-2.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md ${
+                      className={`relative flex shrink-0 items-center gap-2 lg:gap-2.5 rounded-xl border p-2 lg:p-2.5 text-left transition-all hover:-translate-y-0.5 hover:shadow-md lg:w-full ${
                         isActive
                           ? 'border-primary bg-gradient-to-r from-forskale-green/[0.06] to-primary/[0.06] shadow-md'
                           : 'border-border bg-card hover:border-primary'
                       }`}
                     >
-                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${f.colorClass}`}>
+                      <div className={`flex h-6 w-6 lg:h-7 lg:w-7 shrink-0 items-center justify-center rounded-full ${f.colorClass}`}>
                         {f.icon}
                       </div>
-                      <div className="flex flex-1 flex-col">
-                        <span className="text-sm font-semibold text-foreground">{f.label}</span>
-                        <span className="text-xs text-muted-foreground">{f.count}{f.countSuffix}</span>
+                      <div className="flex flex-1 flex-col min-w-0">
+                        <span className="text-xs lg:text-sm font-semibold text-foreground whitespace-nowrap">{f.label}</span>
+                        <span className="text-[10px] lg:text-xs text-muted-foreground whitespace-nowrap">{f.count}{f.countSuffix}</span>
                       </div>
                       {isActive ? (
-                        <div className="h-2 w-2 rounded-full bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.2)]" />
+                        <div className="hidden lg:block h-2 w-2 rounded-full bg-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.2)]" />
                       ) : (
-                        <ChevronRight size={14} className="text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                        <ChevronRight size={14} className="hidden lg:block text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                       )}
                     </button>
                   )
                 })}
               </div>
 
-              {/* Categories */}
-              <div className="pt-2">
+              {/* Categories — collapsed by default on mobile */}
+              <div className="pt-1 lg:pt-2">
                 <button
                   type="button"
                   onClick={() => setCategoriesCollapsed((c) => !c)}
-                  className="mb-3 flex w-full items-center justify-between"
+                  className="mb-2 lg:mb-3 flex w-full items-center justify-between"
                 >
-                  <h3 className="text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">Categories</h3>
+                  <h3 className="text-[10px] lg:text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">Categories</h3>
                   <ChevronDown size={14} className={`text-muted-foreground transition-transform ${categoriesCollapsed ? '' : 'rotate-180'}`} />
                 </button>
                 {!categoriesCollapsed && (
-                  <div className="flex flex-col gap-2 max-h-[min(50vh,320px)] overflow-y-auto overflow-x-hidden pr-1 scrollbar-thin">
+                  <div className="flex flex-wrap gap-1.5 lg:flex-col lg:gap-2 max-h-[min(30vh,220px)] lg:max-h-[min(50vh,320px)] overflow-y-auto overflow-x-hidden pr-1 scrollbar-thin">
                     {INTENT_CATEGORIES.map((cat) => {
                       const count = categoryCounts[cat.id] ?? 0
                       const isActive = categoryFilter === cat.id
@@ -654,7 +655,7 @@ export default function ToDoReadyPage() {
                           key={cat.id}
                           type="button"
                           onClick={() => setCategoryFilter(cat.id)}
-                          className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-all ${
+                          className={`rounded-lg border px-2.5 py-1.5 lg:px-3 lg:py-2 text-[10px] lg:text-xs font-semibold transition-all ${
                             isActive
                               ? 'border-foreground bg-foreground text-card'
                               : 'border-border bg-muted/40 text-muted-foreground hover:border-primary hover:text-foreground'
@@ -675,7 +676,7 @@ export default function ToDoReadyPage() {
         <main className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
           {/* Gmail connection prompt (inline) */}
           {!gmailConnected && (
-            <div className="shrink-0 mx-4 mt-4 lg:mx-6">
+            <div className="shrink-0 mx-3 mt-3 sm:mx-4 sm:mt-4 lg:mx-6">
               <GmailConnectPrompt
                 status={gmailStatus ?? null}
                 loading={gmailStatusLoading}
@@ -688,41 +689,41 @@ export default function ToDoReadyPage() {
 
           {/* Content area */}
           {!selectedTaskId ? (
-            <div className="flex-1 overflow-y-auto px-4 py-4 lg:px-6">
-              <div className="mx-auto max-w-7xl space-y-4">
-                <section className="space-y-3">
+            <div className="flex-1 overflow-y-auto px-3 py-3 sm:px-4 sm:py-4 lg:px-6">
+              <div className="mx-auto max-w-7xl space-y-3 sm:space-y-4">
+                <section className="space-y-2.5 sm:space-y-3">
                   {/* Queue header */}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <div className={`flex h-8 w-8 items-center justify-center rounded-full ${
+                    <div className="flex items-center gap-2 sm:gap-2.5">
+                      <div className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full ${
                         isOverdue ? 'bg-forskale-cyan/10 text-forskale-cyan' : isCompleted ? 'bg-forskale-green/10 text-forskale-green' : 'bg-primary/10 text-primary'
                       }`}>
                         <queueConfig.Icon size={16} />
                       </div>
-                      <div>
-                        <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{queueConfig.eyebrow}</span>
-                        <h2 className="text-lg font-bold tracking-tight text-foreground">{queueConfig.title}</h2>
+                      <div className="min-w-0">
+                        <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{queueConfig.eyebrow}</span>
+                        <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground truncate">{queueConfig.title}</h2>
                       </div>
                     </div>
-                    <span className="rounded-md border border-border bg-card px-2.5 py-1 text-[10px] font-semibold text-primary">
+                    <span className="shrink-0 rounded-md border border-border bg-card px-2 py-0.5 sm:px-2.5 sm:py-1 text-[10px] font-semibold text-primary">
                       {displayTasks.length} cards
                     </span>
                   </div>
 
                   {isOverdue && (
-                    <p className="text-xs text-muted-foreground">Tasks older than 5 days stay visible here for quick intervention.</p>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground">Tasks older than 5 days stay visible here for quick intervention.</p>
                   )}
 
                   {/* Loading state */}
                   {todoLoading && (
-                    <div className="flex items-center justify-center py-12">
+                    <div className="flex items-center justify-center py-8 sm:py-12">
                       <Loader2 size={24} className="animate-spin text-primary" />
                     </div>
                   )}
 
-                  {/* Action Card Grid */}
+                  {/* Action Card Grid — 1 col on mobile, 2 cols on md+ */}
                   {!todoLoading && displayTasks.length > 0 && (
-                    <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="grid gap-3 sm:gap-4 md:grid-cols-2">
                       {displayTasks.map((task) => (
                         <ActionCard
                           key={task.id}
@@ -745,11 +746,11 @@ export default function ToDoReadyPage() {
 
                   {/* Empty state */}
                   {!todoLoading && displayTasks.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-border bg-card px-5 py-8 text-center">
+                    <div className="rounded-xl border border-dashed border-border bg-card px-4 py-6 sm:px-5 sm:py-8 text-center">
                       <p className="text-sm font-bold text-foreground">
                         {isCompleted ? 'No completed cards yet.' : isOverdue ? 'No overdue cards right now.' : 'Execution queue is clear.'}
                       </p>
-                      <p className="mt-1.5 text-xs text-muted-foreground">
+                      <p className="mt-1 sm:mt-1.5 text-[10px] sm:text-xs text-muted-foreground">
                         {isCompleted ? 'Completed work will appear here once reps finish tasks.' : isOverdue ? 'Cards older than 5 days will appear here automatically.' : 'When a new action is ready, it will drop straight into this flow.'}
                       </p>
                     </div>
@@ -758,9 +759,9 @@ export default function ToDoReadyPage() {
               </div>
             </div>
           ) : (
-            /* Detail view: StrategyPanel + ReplyLab */
-            <div className="flex-1 min-h-0 overflow-y-auto bg-secondary px-4 py-4 lg:px-6">
-              <div className="mx-auto max-w-4xl flex flex-col gap-3">
+            /* Detail view: StrategyPanel + ReplyLab — hidden on mobile, shown via mobile drawer below */
+            <div className="hidden md:flex flex-1 min-h-0 overflow-y-auto bg-secondary px-3 py-3 sm:px-4 sm:py-4 lg:px-6">
+              <div className="mx-auto max-w-4xl w-full flex flex-col gap-3">
                 <div className="shrink-0 rounded-2xl bg-card border border-border shadow-md overflow-visible">
                   <StrategyPanel
                     key={`strategy-${selectedTask?.id ?? 'empty'}`}

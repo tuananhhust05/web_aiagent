@@ -2101,9 +2101,9 @@ export const todoReadyAPI = {
   getSourceContent: (taskId: string) =>
     api.get<TaskSourceContent>(`/api/todo-ready/items/${taskId}/source-content`),
 
-  /** Send email for a task */
-  sendEmail: (taskId: string) =>
-    api.post<SendEmailResponse>(`/api/todo-ready/items/${taskId}/send-email`),
+  /** Send email for a task (optionally with edited draft text) */
+  sendEmail: (taskId: string, draftText?: string) =>
+    api.post<SendEmailResponse>(`/api/todo-ready/items/${taskId}/send-email`, draftText ? { draft_text: draftText } : undefined),
 
   /** Check if Gmail has send permission */
   checkGmailSendStatus: () =>

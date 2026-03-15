@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Radio,
@@ -11,6 +11,8 @@ import {
   UserPlus,
   ChevronLeft,
   ChevronRight,
+  Menu,
+  X,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
@@ -35,9 +37,27 @@ const navItems: NavItem[] = [
 
 export function AtlasSidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  // Prevent body scroll when mobile sidebar is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
 
   const initials = user
     ? `${user.first_name?.[0] ?? ""}${user.last_name?.[0] ?? ""}`.toUpperCase() || user.email?.[0]?.toUpperCase() || "?"
@@ -47,13 +67,13 @@ export function AtlasSidebar() {
     : "User";
   const displayEmail = user?.email ?? "";
 
-  return (
-    <aside
-      className={cn(
-        "flex flex-col bg-gradient-to-b from-[hsl(var(--sidebar-accent))] to-[hsl(var(--sidebar-background))] text-sidebar-foreground transition-all duration-300 ease-in-out",
-        collapsed ? "w-[72px]" : "w-60"
-      )}
-    >
+  const handleNavigate = (href: string) => {
+    navigate(href);
+    setMobileOpen(false);
+  };
+
+  const sidebarContent = (
+    <>
       {/* Header: Logo + Collapse */}
       <div className="flex items-center justify-between px-4 py-5">
         <div className="flex items-center gap-2.5 overflow-hidden">
@@ -67,12 +87,21 @@ export function AtlasSidebar() {
             </span>
           )}
         </div>
+        {/* Close button on mobile, collapse toggle on desktop */}
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => {
+            if (window.innerWidth < 1024) {
+              setMobileOpen(false);
+            } else {
+              setCollapsed(!collapsed);
+            }
+          }}
           className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={mobileOpen ? "Close sidebar" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {collapsed ? (
+          {mobileOpen && window.innerWidth < 1024 ? (
+            <X className="h-4 w-4" />
+          ) : collapsed ? (
             <ChevronRight className="h-4 w-4" />
           ) : (
             <ChevronLeft className="h-4 w-4" />
@@ -93,7 +122,7 @@ export function AtlasSidebar() {
           return (
             <button
               key={item.label}
-              onClick={() => navigate(item.href)}
+              onClick={() => handleNavigate(item.href)}
               className={cn(
                 "group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200",
                 collapsed && "justify-center px-0",
@@ -119,7 +148,7 @@ export function AtlasSidebar() {
       <div className="px-3 py-3 space-y-2">
         {/* Record button */}
         <button
-          onClick={() => navigate("/atlas/record")}
+          onClick={() => handleNavigate("/atlas/record")}
           className={cn(
             "flex w-full items-center justify-center gap-2.5 py-2.5 text-sm font-semibold text-white transition-all duration-200",
             "bg-gradient-to-r from-[hsl(var(--forskale-green))] via-[hsl(var(--forskale-teal))] to-[hsl(var(--forskale-cyan))]",
@@ -168,6 +197,47 @@ export function AtlasSidebar() {
           )}
         </div>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile hamburger button — fixed top-left */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed top-3 left-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-card border border-border shadow-md text-foreground lg:hidden"
+        aria-label="Open menu"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/50 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Mobile sidebar — slides in from left */}
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-[70] flex flex-col bg-gradient-to-b from-[hsl(var(--sidebar-accent))] to-[hsl(var(--sidebar-background))] text-sidebar-foreground transition-transform duration-300 ease-in-out w-64 lg:hidden",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Desktop sidebar — always visible */}
+      <aside
+        className={cn(
+          "hidden lg:flex flex-col bg-gradient-to-b from-[hsl(var(--sidebar-accent))] to-[hsl(var(--sidebar-background))] text-sidebar-foreground transition-all duration-300 ease-in-out",
+          collapsed ? "w-[72px]" : "w-60"
+        )}
+      >
+        {sidebarContent}
+      </aside>
+    </>
   );
 }

@@ -93,7 +93,8 @@ export default function ReplyLab({
   })
 
   const sendEmailMutation = useMutation({
-    mutationFn: (taskId: string) => todoReadyAPI.sendEmail(taskId).then((r) => r.data),
+    mutationFn: ({ taskId, draftText }: { taskId: string; draftText?: string }) =>
+      todoReadyAPI.sendEmail(taskId, draftText).then((r) => r.data),
     onSuccess: (data) => {
       if (data.needs_reauthorization && data.auth_url) {
         toast((t) => (
@@ -264,7 +265,7 @@ export default function ReplyLab({
         {task?.task_strategy?.recommended_next_step_type === 'send_email' && (
           <button
             type="button"
-            onClick={() => task?.id && sendEmailMutation.mutate(task.id)}
+            onClick={() => task?.id && sendEmailMutation.mutate({ taskId: task.id, draftText: effectiveDraft })}
             disabled={
               !effectiveDraft ||
               sendEmailMutation.isPending ||

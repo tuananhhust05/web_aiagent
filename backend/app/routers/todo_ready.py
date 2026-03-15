@@ -800,7 +800,10 @@ async def send_email_for_task(
 ):
     """
     Send the prepared email reply for a task.
-    Uses the user's Gmail account to send the email.
+    Uses the user's Gmail account (Google OAuth token) to send the email.
+
+    Accepts optional JSON body: { "draft_text": "..." }
+    If draft_text is provided in body, it overrides the stored draft (for edited drafts).
     
     If the user doesn't have send permission, returns needs_reauthorization=true
     with the auth_url to reconnect Gmail.
@@ -810,6 +813,15 @@ async def send_email_for_task(
     
     db = get_database()
     user_id = str(current_user.id)
+
+    # Parse optional request body for edited draft
+    body_draft_text: Optional[str] = None
+    try:
+        body = await request.json()
+        if isinstance(body, dict):
+            body_draft_text = body.get("draft_text")
+    except Exception:
+        pass  # No body or invalid JSON is fine — we fall back to stored draft
     
     try:
         oid = ObjectId(item_id)
@@ -829,11 +841,19 @@ async def send_email_for_task(
     if task.get("source") != TodoSource.EMAIL.value:
         raise HTTPException(status_code=400, detail="This task is not from an email")
     
-    # Get the draft text
+    # Get the draft text — prefer body override, then stored draft
     prepared_action = task.get("prepared_action", {})
-    draft_text = prepared_action.get("draft_text")
+    draft_text = body_draft_text or prepared_action.get("draft_text")
     if not draft_text:
         raise HTTPException(status_code=400, detail="No draft text to send")
+
+    # If user passed an edited draft, persist it back to the task for audit trail
+    if body_draft_text and body_draft_text != prepared_action.get("draft_text"):
+        await db.todo_items.update_one(query, {"$set": {
+            "prepared_action.draft_text": body_draft_text,
+            "updated_at": datetime.utcnow(),
+        }})
+        logger.info(f"[SEND EMAIL] Updated draft_text for task {item_id} before sending")
     
     # Check if user has send permission
     can_send = await gmail_service.check_send_permission(user_id)

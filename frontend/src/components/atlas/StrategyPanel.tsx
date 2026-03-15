@@ -104,7 +104,7 @@ export default function StrategyPanel({
   return (
     <div className="flex flex-col bg-white rounded-lg border border-slate-200 shadow-sm overflow-visible">
       {/* Header */}
-      <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 border-b border-slate-100 bg-slate-50/80">
+      <div className="shrink-0 flex items-center gap-2 px-3 py-2 sm:py-2.5 border-b border-slate-100 bg-slate-50/80">
         {onBack && (
           <button
             type="button"
@@ -121,11 +121,11 @@ export default function StrategyPanel({
         </div>
       </div>
 
-      <div className="p-4 space-y-4 overflow-visible">
+      <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 overflow-visible">
         {!hasStrategy && !loadingStrategy && (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-6 text-center">
-            <Sparkles className="h-10 w-10 text-slate-300 mx-auto mb-3" />
-            <p className="text-sm text-slate-600 mb-4">Generate recommended next step, objective, and key topics</p>
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 sm:p-6 text-center">
+            <Sparkles className="h-8 w-8 sm:h-10 sm:w-10 text-slate-300 mx-auto mb-2 sm:mb-3" />
+            <p className="text-xs sm:text-sm text-slate-600 mb-3 sm:mb-4">Generate recommended next step, objective, and key topics</p>
             <button
               type="button"
               onClick={() => task.id && generateStrategyMutation.mutate(task.id)}
