@@ -269,7 +269,7 @@ const AtlasCalendarPage = () => {
       <div className="flex flex-1 overflow-hidden h-full relative">
         <div className="relative flex flex-1 flex-col min-w-0 overflow-hidden pl-0 lg:pl-0">
           {/* Add top padding on mobile for hamburger button */}
-          <div className="pt-12 lg:pt-0">
+          <div className="flex flex-1 flex-col pt-12 lg:pt-0 overflow-hidden">
             <CalendarView
               meetings={meetings}
               onMeetingClick={handleMeetingClick}

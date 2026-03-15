@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   Radio,
@@ -13,6 +13,8 @@ import {
   ChevronRight,
   Menu,
   X,
+  LogOut,
+  User,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
@@ -38,9 +40,24 @@ const navItems: NavItem[] = [
 export function AtlasSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+
+  // Close profile menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    }
+    if (profileMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [profileMenuOpen]);
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -171,28 +188,63 @@ export function AtlasSidebar() {
           {!collapsed && <span>Invite</span>}
         </button>
 
-        <div
-          className={cn(
-            "flex items-center gap-2.5 rounded-lg px-3 py-2",
-            collapsed && "justify-center px-0"
-          )}
-        >
-          {user?.avatar_url ? (
-            <img
-              src={user.avatar_url}
-              alt={displayName}
-              className="h-8 w-8 flex-shrink-0 rounded-full object-cover"
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[hsl(var(--forskale-green))] to-[hsl(var(--forskale-teal))] text-xs font-bold text-white">
-              {initials}
-            </div>
-          )}
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-white">{displayName}</p>
-              <p className="truncate text-[10px] text-sidebar-foreground/50">{displayEmail}</p>
+        <div ref={profileMenuRef} className="relative">
+          <button
+            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+            className={cn(
+              "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 transition-colors hover:bg-sidebar-accent cursor-pointer",
+              collapsed && "justify-center px-0"
+            )}
+          >
+            {user?.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={displayName}
+                className="h-8 w-8 flex-shrink-0 rounded-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[hsl(var(--forskale-green))] to-[hsl(var(--forskale-teal))] text-xs font-bold text-white">
+                {initials}
+              </div>
+            )}
+            {!collapsed && (
+              <div className="min-w-0 text-left">
+                <p className="truncate text-sm font-medium text-white">{displayName}</p>
+                <p className="truncate text-[10px] text-sidebar-foreground/50">{displayEmail}</p>
+              </div>
+            )}
+          </button>
+
+          {/* Profile dropdown menu */}
+          {profileMenuOpen && (
+            <div
+              className={cn(
+                "absolute z-50 mb-1 w-48 rounded-lg border border-border bg-card shadow-xl py-1",
+                collapsed ? "bottom-0 left-full ml-2" : "bottom-full left-0"
+              )}
+            >
+              <button
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  handleNavigate("/profile");
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+              >
+                <User className="h-4 w-4" />
+                <span>Profile</span>
+              </button>
+              <div className="mx-2 h-px bg-border" />
+              <button
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  signOut();
+                }}
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-red-400 hover:bg-muted transition-colors"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Logout</span>
+              </button>
             </div>
           )}
         </div>
