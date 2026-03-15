@@ -86,8 +86,6 @@ function buildCardDataFromApi(
 ): CardData {
   const mc = res.main_contact;
   const ci = res.company_info;
-  const companyName =
-    meetingTitle.split("—")[0].trim() || (mc?.email ? mc.email.split("@")[1]?.split(".")[0] : null) || "—";
 
   const rawParticipants = res.participants?.length
     ? res.participants
@@ -99,6 +97,15 @@ function buildCardDataFromApi(
     email: p.email || "—",
     isGmail: isPersonalEmail(p.email || ""),
   }));
+
+  // Derive company name from the first participant with a valid (non-personal) email
+  const firstBusinessParticipant = participantsList.find((p) => !p.isGmail && p.email !== "—");
+  const companyFromEmail = firstBusinessParticipant
+    ? firstBusinessParticipant.email.split("@")[1]?.split(".")[0] ?? null
+    : mc?.email && !isPersonalEmail(mc.email)
+      ? mc.email.split("@")[1]?.split(".")[0] ?? null
+      : null;
+  const companyName = companyFromEmail || meetingTitle.split("—")[0].trim() || "—";
 
   const prep = context?.meeting_preparation;
   const keyPoints = prep?.key_points ?? [];
@@ -476,7 +483,7 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
                       <p className="truncate text-xs font-medium text-foreground">{p.name}</p>
                       <p className="truncate text-[10px] text-muted-foreground">{p.email}</p>
                       {isGmail && !isEnriched && (
-                        <p className="text-[10px] text-atlas-warning">Personal email — auto-enrich unavailable</p>
+                        <p className="text-[10px] text-atlas-warning"></p>
                       )}
                     </div>
                     <TooltipProvider>
@@ -542,7 +549,7 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
                           onClick={() => setAddProfileTarget(p.name)}
                         >
                           <UserPlus className="h-3 w-3" />
-                          Add Profile
+                          
                         </Button>
                       </div>
                     ) : (

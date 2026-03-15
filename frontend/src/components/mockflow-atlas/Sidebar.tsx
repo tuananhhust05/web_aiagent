@@ -14,7 +14,7 @@ import {
   Menu,
   X,
   LogOut,
-  User,
+  Settings,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
@@ -231,8 +231,8 @@ export function AtlasSidebar() {
                 }}
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
               >
-                <User className="h-4 w-4" />
-                <span>Profile</span>
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
               </button>
               <div className="mx-2 h-px bg-border" />
               <button

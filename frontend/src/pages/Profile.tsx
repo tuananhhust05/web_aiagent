@@ -199,7 +199,7 @@ export default function Profile() {
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'password', label: 'Password', icon: Lock },
-    { id: 'voice', label: 'Voice Agent', icon: Settings },
+    // { id: 'voice', label: 'Voice Agent', icon: Settings },
   ]
 
   return (
@@ -584,8 +584,8 @@ export default function Profile() {
             </div>
           )}
 
-          {/* Voice Agent Tab */}
-          {activeTab === 'voice' && (
+          {/* Voice Agent Tab - temporarily commented out */}
+          {/* {activeTab === 'voice' && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
               <div className="flex items-center space-x-4 mb-8">
                 <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
@@ -675,7 +675,7 @@ export default function Profile() {
                 </div>
               </div>
             </div>
-          )}
+          )} */}
 
         </div>
 

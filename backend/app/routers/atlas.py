@@ -2017,70 +2017,97 @@ async def enrich_meeting_from_attendee(
             error="No attendees found for this event.",
         )
     
-    # Find first external attendee with business email
-    attendee_email = None
-    attendee_name = None
+    # Build list of ALL external attendees
+    all_participants = []
     for att in attendees:
         email = (att.get("email") or "").lower().strip()
         if not email:
             continue
-        
-        company_name = extract_company_from_email(email)
-        if company_name:
-            attendee_email = email
-            attendee_name = att.get("displayName") or email.split("@")[0]
-            break
+        name = att.get("displayName") or email.split("@")[0]
+        all_participants.append({"name": name, "email": email})
     
-    if not attendee_email:
+    if not all_participants:
         return MeetingEnrichResponse(
             event_id=event_id,
             enriched=False,
-            error="No business email found among attendees (only personal emails like Gmail).",
+            error="No attendees found for this event.",
         )
     
-    company_name = extract_company_from_email(attendee_email)
-    logger.info(f"[MEETING-ENRICH] Found attendee {attendee_email}, company: {company_name}")
+    logger.info(f"[MEETING-ENRICH] Found {len(all_participants)} external attendees for event {event_id}")
+    
+    # Find first attendee with a valid company name for company enrichment
+    company_attendee_email = None
+    company_attendee_name = None
+    company_name = None
+    for p in all_participants:
+        cn = extract_company_from_email(p["email"])
+        if cn:
+            company_attendee_email = p["email"]
+            company_attendee_name = p["name"]
+            company_name = cn
+            break
+    
+    if not company_name:
+        logger.info(f"[MEETING-ENRICH] No business email found, using first attendee as main contact")
+        company_attendee_email = all_participants[0]["email"]
+        company_attendee_name = all_participants[0]["name"]
+    
+    logger.info(f"[MEETING-ENRICH] Company attendee: {company_attendee_email}, company: {company_name}")
     
     # Search company info using Company Data Pool (caches Tavily results)
     search_result = ""
-    try:
-        pool = get_company_data_pool()
-        search_data = await pool.get_company_info(company_name)
-        search_result = search_data.get("result", "")
-    except Exception as e:
-        logger.error(f"[MEETING-ENRICH] Company search error: {e}")
-        search_result = ""
+    if company_name:
+        try:
+            pool = get_company_data_pool()
+            search_data = await pool.get_company_info(company_name)
+            search_result = search_data.get("result", "")
+        except Exception as e:
+            logger.error(f"[MEETING-ENRICH] Company search error: {e}")
+            search_result = ""
     
-    # Search LinkedIn URL for attendee via Company Data Pool (caches Tavily results)
-    linkedin_url = None
-    try:
-        pool = get_company_data_pool()
-        linkedin_url = await pool.get_linkedin_url(attendee_email)
-        if linkedin_url:
-            logger.info(f"[MEETING-ENRICH] Found LinkedIn URL for {attendee_email}: {linkedin_url}")
-    except Exception as e:
-        logger.error(f"[MEETING-ENRICH] LinkedIn search error: {e}")
+    # Search LinkedIn URLs for ALL participants (max 5)
+    participant_linkedin_urls = {}
+    pool = get_company_data_pool()
+    for p in all_participants[:5]:
+        try:
+            li_url = await pool.get_linkedin_url(p["email"])
+            if li_url:
+                participant_linkedin_urls[p["email"]] = li_url
+                logger.info(f"[MEETING-ENRICH] Found LinkedIn URL for {p['email']}: {li_url}")
+        except Exception as e:
+            logger.error(f"[MEETING-ENRICH] LinkedIn search error for {p['email']}: {e}")
     
     # Extract structured info with AI
     company_info = {}
-    if search_result:
+    if search_result and company_name:
         company_info = await extract_company_info_with_ai(company_name, search_result)
     
-    # Build main contact from attendee
+    # Build main contact from the company attendee (first with valid company)
     main_contact = {
-        "name": attendee_name,
-        "email": attendee_email,
+        "name": company_attendee_name,
+        "email": company_attendee_email,
     }
-    if linkedin_url:
-        main_contact["linkedin_url"] = linkedin_url
+    if company_attendee_email and participant_linkedin_urls.get(company_attendee_email):
+        main_contact["linkedin_url"] = participant_linkedin_urls[company_attendee_email]
     
     # Add key people info if available
     if company_info.get("key_people"):
         for person in company_info["key_people"]:
-            if attendee_name and attendee_name.lower() in person.lower():
-                # Extract job title from key_people entry
-                main_contact["job_title"] = person.replace(attendee_name, "").strip(" -–,")
+            if company_attendee_name and company_attendee_name.lower() in person.lower():
+                main_contact["job_title"] = person.replace(company_attendee_name, "").strip(" -–,")
                 break
+    
+    # Build participants list from ALL attendees
+    participants_docs = []
+    for p in all_participants:
+        p_doc = {
+            "name": p["name"],
+            "email": p["email"],
+        }
+        li_url = participant_linkedin_urls.get(p["email"])
+        if li_url:
+            p_doc["linkedin_url"] = li_url
+        participants_docs.append(p_doc)
     
     # Save to database
     now = datetime.utcnow()
@@ -2091,9 +2118,10 @@ async def enrich_meeting_from_attendee(
         "event_start": event_cache.get("event_start"),
         "company_info": company_info,
         "main_contact": main_contact,
+        "participants": participants_docs,
         "auto_enriched": True,
         "enriched_at": now,
-        "enriched_from_email": attendee_email,
+        "enriched_from_email": company_attendee_email,
         "updated_at": now,
     }
     
@@ -2103,12 +2131,12 @@ async def enrich_meeting_from_attendee(
         upsert=True,
     )
     
-    logger.info(f"[MEETING-ENRICH] Successfully enriched event {event_id}")
+    logger.info(f"[MEETING-ENRICH] Successfully enriched event {event_id} with {len(participants_docs)} participants")
     
     return MeetingEnrichResponse(
         event_id=event_id,
         enriched=True,
-        attendee_email=attendee_email,
+        attendee_email=company_attendee_email,
         company_name=company_name,
         company_info=company_info,
         main_contact=main_contact,
