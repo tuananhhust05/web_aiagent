@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { 
-  User, 
-  Lock, 
-  Settings, 
-  Trash2, 
-  Save, 
-  Building2, 
+import {
+  User,
+  Lock,
+  // Settings,  // temporarily unused (Voice Agent tab commented out)
+  Trash2,
+  Save,
+  Building2,
   Phone,
   Mail,
   Globe,
