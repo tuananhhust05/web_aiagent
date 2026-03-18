@@ -17,7 +17,7 @@ router = APIRouter()
 class VexaBotJoinBody(BaseModel):
     platform: str = Field(..., description="google_meet or teams")
     native_meeting_id: str = Field(..., description="Meeting ID from link")
-    bot_name: str = Field(default="MyMeetingBot", description="Bot display name")
+    bot_name: str = Field(default="Atlas Assistant", description="Bot display name")
     passcode: str | None = Field(None, description="Required for Teams")
 
 

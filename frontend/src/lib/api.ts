@@ -1828,14 +1828,14 @@ export const vexaAPI = {
     api.post('/api/vexa/bots', {
       platform: 'google_meet',
       native_meeting_id: nativeMeetingId,
-      bot_name: 'MyMeetingBot',
+      bot_name: 'Atlas Assistant',
     }),
   joinTeams: (nativeMeetingId: string, passcode: string) =>
     api.post('/api/vexa/bots', {
       platform: 'teams',
       native_meeting_id: nativeMeetingId,
       passcode,
-      bot_name: 'MyMeetingBot',
+      bot_name: 'Atlas Assistant',
     }),
   getGoogleMeetTranscription: (googleMeetId: string) =>
     api.get(`/api/vexa/transcripts/google_meet/${googleMeetId}`),
