@@ -1317,7 +1317,7 @@ async def analyze_objection_insights(
 
         for item in qna_list:
             q_text = item.get("question", "")
-            a_text = item.get("answer", "")
+            a_text = (item.get("answer") or "").strip()
             t_text = item.get("time")
             topic = _classify_objection_topic(q_text)
 
@@ -1327,17 +1327,24 @@ async def analyze_objection_insights(
             user_actual_answer = _extract_seller_answer_from_transcript(transcript_lines, t_text)
 
             suggested_answer: Optional[str] = _find_suggested_answer(q_text)
-            if not suggested_answer and a_text and len(a_text.strip()) > 5:
-                suggested_answer = a_text.strip()
+            if not suggested_answer and len(a_text) > 5:
+                suggested_answer = a_text
             if not suggested_answer:
                 suggested_answer = await _generate_suggested_answer(q_text) or None
 
             scoring: dict = {"match_score": None, "key_points_covered": [], "learning_opportunities": []}
-            answer_for_scoring = user_actual_answer or (a_text.strip() if a_text and len(a_text.strip()) > 5 else None)
-            if answer_for_scoring and suggested_answer:
-                scoring = await _score_objection_answer(
-                    q_text, answer_for_scoring, suggested_answer, playbook_rules or None
-                )
+            if suggested_answer:
+                answer_for_scoring = user_actual_answer or (a_text if len(a_text) > 5 else None)
+                if not answer_for_scoring:
+                    scoring = {
+                        "match_score": 0,
+                        "key_points_covered": [],
+                        "learning_opportunities": [f"No answer was recorded for this question. Suggested: {suggested_answer[:120]}"],
+                    }
+                else:
+                    scoring = await _score_objection_answer(
+                        q_text, answer_for_scoring, suggested_answer, playbook_rules or None
+                    )
 
             classified_item = {
                 "question": q_text,

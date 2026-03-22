@@ -3676,6 +3676,7 @@ export default function AtlasMain() {
                 if (score >= 80) return { bg: 'bg-forskale-green', text: 'text-forskale-green', label: 'Excellent alignment', bgLight: 'bg-forskale-green/10', border: 'border-forskale-green/30' }
                 if (score >= 50) return { bg: 'bg-forskale-blue', text: 'text-forskale-blue', label: 'Good alignment', bgLight: 'bg-forskale-blue/10', border: 'border-forskale-blue/30' }
                 if (score >= 30) return { bg: 'bg-orange-500', text: 'text-orange-500', label: 'Partial alignment', bgLight: 'bg-orange-500/10', border: 'border-orange-500/30' }
+                if (score <= 0) return { bg: 'bg-muted-foreground/40', text: 'text-muted-foreground', label: 'Not answered', bgLight: 'bg-secondary/30', border: 'border-border/30' }
                 return { bg: 'bg-destructive', text: 'text-destructive', label: 'Learning opportunity', bgLight: 'bg-destructive/10', border: 'border-destructive/30' }
               }
 
@@ -3840,13 +3841,18 @@ export default function AtlasMain() {
                                       </div>
 
                                       {/* YOUR ANSWER */}
-                                      {displayAnswer && (
+                                      {displayAnswer ? (
                                         <div className="rounded-lg border border-border/30 bg-secondary/20 px-4 py-3">
                                           <div className="flex items-center gap-1.5 mb-1.5">
                                             <_User className="h-3 w-3 text-muted-foreground shrink-0" />
                                             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Your Answer</span>
                                           </div>
                                           <p className="text-sm text-foreground/90 leading-relaxed italic">&ldquo;{displayAnswer}&rdquo;</p>
+                                        </div>
+                                      ) : (
+                                        <div className="rounded-lg border border-border/20 bg-secondary/10 px-4 py-2.5 flex items-center gap-2">
+                                          <_User className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                                          <span className="text-xs text-muted-foreground/60 italic">No answer recorded for this question</span>
                                         </div>
                                       )}
 
