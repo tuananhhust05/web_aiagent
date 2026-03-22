@@ -1021,12 +1021,21 @@ async def _score_objection_answer(
     question: str,
     user_answer: str,
     suggested_answer: str,
+    playbook_rules: Optional[List[str]] = None,
 ) -> dict:
     """
-    Call Groq LLM to evaluate how well the user's answer aligns with the suggested answer.
+    Call Groq LLM to evaluate how well the user's answer aligns with the suggested answer
+    and, if provided, the active playbook rules.
     Returns: { match_score: int, key_points_covered: list[str], learning_opportunities: list[str] }
     """
-    prompt = f"""You are a sales coaching AI. Evaluate how well a sales rep answered a prospect's question compared to the ideal suggested answer.
+    playbook_section = ""
+    if playbook_rules:
+        rules_text = "\n".join(f"- {r}" for r in playbook_rules)
+        playbook_section = f"""
+Active sales playbook rules (also evaluate alignment against these):
+{rules_text}
+"""
+    prompt = f"""You are a sales coaching AI. Evaluate how well a sales rep answered a prospect's question compared to the ideal suggested answer.{playbook_section}
 
 Prospect question: {question}
 
@@ -1035,7 +1044,7 @@ Sales rep's actual answer: {user_answer}
 Ideal suggested answer: {suggested_answer}
 
 Return a JSON object with:
-- "match_score": integer 0-100 (how well the actual answer aligns with the suggested answer)
+- "match_score": integer 0-100 (how well the actual answer aligns with the suggested answer AND playbook rules)
 - "key_points_covered": array of short strings (what the rep covered well, max 4 items)
 - "learning_opportunities": array of short strings (specific improvements, max 3 items)
 
@@ -1049,6 +1058,54 @@ Be concise. Key points and learning opportunities should be 5-10 words each."""
         }
     except Exception:
         return {"match_score": 70, "key_points_covered": [], "learning_opportunities": []}
+
+
+_FILLER_PHRASES = {
+    "hello", "hi", "hey", "okay", "ok", "yes", "no", "thank you", "thanks",
+    "can you hear me", "are you there", "testing", "test", "is this on",
+    "good morning", "good afternoon", "good evening", "sorry", "excuse me",
+    "um", "uh", "hmm", "right", "sure", "alright", "bye", "goodbye",
+}
+
+
+def _is_filler_question(text: str) -> bool:
+    """Return True if the question is a greeting/filler and should be skipped."""
+    normalized = (text or "").lower().strip().rstrip("?!.,")
+    if not normalized:
+        return True
+    if normalized in _FILLER_PHRASES:
+        return True
+    words = normalized.split()
+    if len(words) <= 3 and all(w in _FILLER_PHRASES or len(w) <= 2 for w in words):
+        return True
+    return False
+
+
+async def _generate_suggested_answer(question: str) -> str:
+    """Use LLM to generate a suggested answer when no QnA bank match exists."""
+    prompt = f"""You are a professional sales rep. A prospect just asked: "{question}"
+
+Write a concise, helpful suggested answer (1-3 sentences) that a sales rep should give.
+Return ONLY the answer text, no JSON, no labels."""
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"},
+                json={
+                    "model": "llama-3.1-8b-instant",
+                    "messages": [
+                        {"role": "system", "content": "You are a helpful sales rep. Answer concisely."},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "temperature": 0.3,
+                },
+            )
+            r.raise_for_status()
+            data = r.json()
+        return (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+    except Exception:
+        return ""
 
 
 def _classify_objection_topic(question: str) -> str:
@@ -1136,6 +1193,30 @@ async def analyze_objection_insights(
     qna_bank_docs = await qna_bank_cursor.to_list(length=2000)
     qna_bank: List[dict] = [{"question": d.get("question", ""), "answer": d.get("answer", "")} for d in qna_bank_docs]
 
+    # Load active/default playbook rules for this user
+    playbook_rules: List[str] = []
+    try:
+        pb_doc = await db.playbook_templates.find_one(
+            {"user_id": current_user.id, "is_default": True, "active": True},
+            projection={"rules": 1, "prompt": 1},
+        )
+        if not pb_doc:
+            pb_doc = await db.playbook_templates.find_one(
+                {"user_id": current_user.id, "active": True},
+                projection={"rules": 1, "prompt": 1},
+                sort=[("created_at", -1)],
+            )
+        if pb_doc:
+            for rule in (pb_doc.get("rules") or []):
+                label = rule.get("label") or ""
+                desc = rule.get("description") or ""
+                if label:
+                    playbook_rules.append(f"{label}: {desc}".strip(": ") if desc else label)
+            if pb_doc.get("prompt"):
+                playbook_rules.insert(0, pb_doc["prompt"])
+    except Exception:
+        pass
+
     def _find_suggested_answer(question: str) -> Optional[str]:
         """Simple keyword overlap lookup in qna_bank."""
         if not qna_bank or not question:
@@ -1192,12 +1273,22 @@ async def analyze_objection_insights(
             t_text = item.get("time")
             topic = _classify_objection_topic(q_text)
 
+            if _is_filler_question(q_text):
+                continue
+
             user_actual_answer = _extract_seller_answer_from_transcript(transcript_lines, t_text)
-            suggested_answer = _find_suggested_answer(q_text) or a_text or None
+
+            suggested_answer: Optional[str] = _find_suggested_answer(q_text)
+            if not suggested_answer and a_text and len(a_text.strip()) > 5:
+                suggested_answer = a_text.strip()
+            if not suggested_answer:
+                suggested_answer = await _generate_suggested_answer(q_text) or None
 
             scoring: dict = {"match_score": None, "key_points_covered": [], "learning_opportunities": []}
             if user_actual_answer and suggested_answer:
-                scoring = await _score_objection_answer(q_text, user_actual_answer, suggested_answer)
+                scoring = await _score_objection_answer(
+                    q_text, user_actual_answer, suggested_answer, playbook_rules or None
+                )
 
             classified_item = {
                 "question": q_text,
