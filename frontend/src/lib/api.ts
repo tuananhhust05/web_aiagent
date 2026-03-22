@@ -1567,7 +1567,7 @@ export const meetingsAPI = {
     }>(`/api/meetings/${id}/reanalyze`),
 
   /** Playbook scores per day for Insights page (last N days). */
-  getPlaybookScoresInsights: (params?: { days?: number }) =>
+  getPlaybookScoresInsights: (params?: { days?: number; offset_days?: number }) =>
     api.get<{
       days: Array<{
         date: string
@@ -1579,7 +1579,7 @@ export const meetingsAPI = {
     }>('/api/meetings/insights/playbook-scores', { params: params ?? { days: 5 } }),
 
   /** Speaking metrics per day + averages for Insights > Speaking Skills (from feedback_coach.speaking_metrics). */
-  getSpeakingScoresInsights: (params?: { days?: number }) =>
+  getSpeakingScoresInsights: (params?: { days?: number; offset_days?: number }) =>
     api.get<{
       days: Array<{
         date: string
@@ -1672,6 +1672,11 @@ export const meetingsAPI = {
           question: string
           time?: string | null
           answer: string
+          user_actual_answer?: string | null
+          suggested_answer?: string | null
+          match_score?: number | null
+          key_points_covered?: string[]
+          learning_opportunities?: string[]
         }>
       }>
       generated_at: string
@@ -1694,6 +1699,11 @@ export const meetingsAPI = {
           question: string
           time?: string | null
           answer: string
+          user_actual_answer?: string | null
+          suggested_answer?: string | null
+          match_score?: number | null
+          key_points_covered?: string[]
+          learning_opportunities?: string[]
         }>
       }>
       generated_at: string

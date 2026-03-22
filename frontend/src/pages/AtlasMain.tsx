@@ -2,6 +2,9 @@ import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
   Calendar,
   ChevronRight,
   ChevronDown,
@@ -15,6 +18,7 @@ import {
   Info,
   Loader2,
   MessageCircle,
+  MessageSquare,
   Mic,
   Monitor,
   Pencil,
@@ -47,8 +51,10 @@ import {
   PanelRightOpen,
   ListChecks,
   Filter,
+  User as _User,
+  Bot,
 } from 'lucide-react'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts'
 import { cn } from '../lib/utils'
 import { useAuth } from '../hooks/useAuth'
 import {
@@ -217,7 +223,10 @@ export default function AtlasMain() {
   const [saveRecordingModalOpen, setSaveRecordingModalOpen] = useState(false)
   const [saveRecordingTitle, setSaveRecordingTitle] = useState('')
   const [insightsActiveTab, setInsightsActiveTab] = useState<'playbook' | 'speaking' | 'objection'>('playbook')
-  const [insightsDateRange] = useState('Last week')
+  const [insightsDays, setInsightsDays] = useState<7 | 14 | 30>(7)
+  const [insightsDropdownOpen, setInsightsDropdownOpen] = useState(false)
+  const insightsDropdownRef = useRef<HTMLDivElement>(null)
+  const [expandedObjectionTopics, setExpandedObjectionTopics] = useState<Record<string, boolean>>({})
   const [todoActiveTab, setTodoActiveTab] = useState<'prioritized' | 'followups' | 'overdue'>('prioritized')
   const [todoRange, setTodoRange] = useState<'today' | 'week'>('week')
   const [knowledgeCategory, setKnowledgeCategory] = useState<
@@ -522,6 +531,15 @@ export default function AtlasMain() {
       dimension_scores?: Record<string, number> | null
     }>
   }>({ days: [] })
+  const [playbookScoresPrev, setPlaybookScoresPrev] = useState<{
+    days: Array<{
+      date: string
+      label: string
+      score_pct: number | null
+      count: number
+      dimension_scores?: Record<string, number> | null
+    }>
+  }>({ days: [] })
   const [playbookInsightsLoading, setPlaybookInsightsLoading] = useState(false)
   const [playbookInsightsError, setPlaybookInsightsError] = useState<string | null>(null)
   const [speakingScoresInsights, setSpeakingScoresInsights] = useState<{
@@ -537,6 +555,9 @@ export default function AtlasMain() {
     }>
     averages: Record<string, number>
   }>({ days: [], averages: {} })
+  const [speakingScoresPrev, setSpeakingScoresPrev] = useState<{
+    averages: Record<string, number>
+  }>({ averages: {} })
   type SpeakingMetricKey =
     | 'speech_pace_wpm'
     | 'talk_ratio_pct'
@@ -551,29 +572,34 @@ export default function AtlasMain() {
   const [speakingInsightsLoading, setSpeakingInsightsLoading] = useState(false)
   const [reanalyzing, setReanalyzing] = useState(false)
   const [speakingInsightsError, setSpeakingInsightsError] = useState<string | null>(null)
-  const [objectionInsights, setObjectionInsights] = useState<
-    | {
-        analyzed_from: string
-        analyzed_to: string
-        total_calls: number
-        topics: Array<{
-          topic: string
-          pct_calls: number
-          calls_count: number
-          questions_count: number
-          questions: Array<{
-            meeting_id: string
-            meeting_title?: string | null
-            meeting_created_at?: string | null
-            question: string
-            time?: string | null
-            answer: string
-          }>
-        }>
-        generated_at: string
-      }
-    | null
-  >(null)
+  type ObjectionQuestionItem = {
+    meeting_id: string
+    meeting_title?: string | null
+    meeting_created_at?: string | null
+    question: string
+    time?: string | null
+    answer: string
+    user_actual_answer?: string | null
+    suggested_answer?: string | null
+    match_score?: number | null
+    key_points_covered?: string[]
+    learning_opportunities?: string[]
+  }
+  type ObjectionTopicItem = {
+    topic: string
+    pct_calls: number
+    calls_count: number
+    questions_count: number
+    questions: ObjectionQuestionItem[]
+  }
+  type ObjectionInsightsData = {
+    analyzed_from: string
+    analyzed_to: string
+    total_calls: number
+    topics: ObjectionTopicItem[]
+    generated_at: string
+  }
+  const [objectionInsights, setObjectionInsights] = useState<ObjectionInsightsData | null>(null)
   const [objectionInsightsLoading, setObjectionInsightsLoading] = useState(false)
   const [objectionInsightsError, setObjectionInsightsError] = useState<string | null>(null)
   const [objectionAnalyzing, setObjectionAnalyzing] = useState(false)
@@ -675,14 +701,29 @@ export default function AtlasMain() {
   }, [section, knowledgeCategory, currentKnowledgeDocuments.map((d) => d.id + d.status).join(',')])
 
   useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (insightsDropdownRef.current && !insightsDropdownRef.current.contains(e.target as Node)) {
+        setInsightsDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  useEffect(() => {
     if (section !== 'insights') return
     let cancelled = false
     setPlaybookInsightsLoading(true)
     setPlaybookInsightsError(null)
-    meetingsAPI
-      .getPlaybookScoresInsights({ days: 5 })
-      .then((res) => {
-        if (!cancelled) setPlaybookScoresInsights(res.data)
+    Promise.all([
+      meetingsAPI.getPlaybookScoresInsights({ days: insightsDays }),
+      meetingsAPI.getPlaybookScoresInsights({ days: insightsDays, offset_days: insightsDays }),
+    ])
+      .then(([curr, prev]) => {
+        if (!cancelled) {
+          setPlaybookScoresInsights(curr.data)
+          setPlaybookScoresPrev({ days: prev.data.days || [] })
+        }
       })
       .catch((err) => {
         if (!cancelled) setPlaybookInsightsError(err.response?.data?.detail || err.message || 'Failed to load playbook scores')
@@ -693,10 +734,15 @@ export default function AtlasMain() {
 
     setSpeakingInsightsLoading(true)
     setSpeakingInsightsError(null)
-    meetingsAPI
-      .getSpeakingScoresInsights({ days: 5 })
-      .then((res) => {
-        if (!cancelled) setSpeakingScoresInsights({ days: res.data.days || [], averages: res.data.averages || {} })
+    Promise.all([
+      meetingsAPI.getSpeakingScoresInsights({ days: insightsDays }),
+      meetingsAPI.getSpeakingScoresInsights({ days: insightsDays, offset_days: insightsDays }),
+    ])
+      .then(([curr, prev]) => {
+        if (!cancelled) {
+          setSpeakingScoresInsights({ days: curr.data.days || [], averages: curr.data.averages || {} })
+          setSpeakingScoresPrev({ averages: prev.data.averages || {} })
+        }
       })
       .catch((err) => {
         if (!cancelled) setSpeakingInsightsError(err.response?.data?.detail || err.message || 'Failed to load speaking scores')
@@ -705,7 +751,6 @@ export default function AtlasMain() {
         if (!cancelled) setSpeakingInsightsLoading(false)
       })
 
-    // Load any cached objection insights snapshot (no analysis triggered here)
     setObjectionInsightsLoading(true)
     setObjectionInsightsError(null)
     meetingsAPI
@@ -724,7 +769,7 @@ export default function AtlasMain() {
     return () => {
       cancelled = true
     }
-  }, [section])
+  }, [section, insightsDays])
 
   useEffect(() => {
     if (section !== 'todo') return
@@ -3521,10 +3566,40 @@ export default function AtlasMain() {
           : insightsActiveTab === 'speaking' && speakingHasData
             ? speakingMetricsWithData
             : metricsByTab
-    const insightsChartTitles: Record<string, string> = {
-      playbook: 'Average % of playbook completed across calls (last 5 days)',
-      speaking: currentSpeakingConfig.title,
+    const insightsDaysOptions: { value: 7 | 14 | 30; label: string }[] = [
+      { value: 7, label: 'Last 7 days' },
+      { value: 14, label: 'Last 14 days' },
+      { value: 30, label: 'Last 30 days' },
+    ]
+    const insightsDaysLabel = insightsDaysOptions.find((o) => o.value === insightsDays)?.label ?? 'Last 7 days'
+
+    const calcPctChange = (curr: number | null | undefined, prev: number | null | undefined): { value: number } | null => {
+      if (curr == null) return null
+      const c = curr
+      const p = prev ?? 0
+      if (p === 0 && c === 0) return { value: 0 }
+      if (p === 0) return { value: 100 }
+      return { value: Math.round(((c - p) / p) * 100) }
     }
+
+    const prevPlaybookDays = playbookScoresPrev.days
+    const prevNDays = prevPlaybookDays.length
+    const prevOverallAvgPct =
+      prevNDays === 0
+        ? null
+        : Math.round(
+            prevPlaybookDays.reduce((sum, d) => sum + (d.score_pct != null ? d.score_pct : 0), 0) / prevNDays
+          )
+    const prevDimensionAvgPct: Record<string, number> = {}
+    playbookDimensionKeys.forEach((dim) => {
+      prevDimensionAvgPct[dim] =
+        prevNDays === 0
+          ? 0
+          : Math.round(
+              prevPlaybookDays.reduce((sum, d) => sum + (d.dimension_scores?.[dim] ?? 0), 0) / prevNDays
+            )
+    })
+    const prevSpeakingAvg = speakingScoresPrev.averages || {}
 
     return (
       <div className="flex-1 h-full overflow-y-auto bg-background text-foreground">
@@ -3541,15 +3616,39 @@ export default function AtlasMain() {
                 {insightsSubtitle[insightsActiveTab]}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => {}}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border/30 bg-secondary/30 text-sm text-muted-foreground hover:bg-secondary/50 hover:border-primary hover:text-foreground transition-all backdrop-blur-sm"
-            >
-              <Calendar className="h-4 w-4 text-primary" />
-              {insightsDateRange}
-              <ChevronDown className="h-4 w-4 text-muted-foreground/60" />
-            </button>
+            <div className="relative" ref={insightsDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setInsightsDropdownOpen((v) => !v)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border/30 bg-secondary/30 text-sm text-muted-foreground hover:bg-secondary/50 hover:border-primary hover:text-foreground transition-all backdrop-blur-sm"
+              >
+                <Calendar className="h-4 w-4 text-primary" />
+                {insightsDaysLabel}
+                <ChevronDown className={cn("h-4 w-4 text-muted-foreground/60 transition-transform", insightsDropdownOpen && "rotate-180")} />
+              </button>
+              {insightsDropdownOpen && (
+                <div className="absolute right-0 top-full mt-1.5 z-50 w-44 rounded-xl border border-border/30 bg-background shadow-xl overflow-hidden">
+                  {insightsDaysOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        setInsightsDays(opt.value)
+                        setInsightsDropdownOpen(false)
+                      }}
+                      className={cn(
+                        "w-full text-left px-4 py-2.5 text-sm transition-colors",
+                        opt.value === insightsDays
+                          ? "text-primary font-semibold bg-primary/8"
+                          : "text-foreground hover:bg-secondary/50"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Tabs */}
@@ -3572,104 +3671,220 @@ export default function AtlasMain() {
           </nav>
 
           {insightsActiveTab === 'objection' ? (
-            /* Objection Handling View */
-            <div>
-              <div className="flex items-center justify-between mb-6">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  % of calls in which prospects raised questions about each topic
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setObjectionAnalyzing(true)
-                    setObjectionInsightsError(null)
-                    setObjectionInsights(null)
-                    meetingsAPI
-                      .analyzeObjectionInsights({ days: 5 })
-                      .then((res) => {
-                        setObjectionInsights(res.data)
-                      })
-                      .catch((err) => {
-                        setObjectionInsightsError(
-                          err.response?.data?.detail || err.message || 'Failed to analyze objections',
-                        )
-                      })
-                      .finally(() => setObjectionAnalyzing(false))
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border/30 bg-background text-sm text-muted-foreground hover:bg-secondary/50 transition-all"
-                >
-                  {objectionAnalyzing ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                  ) : (
-                    <span className="text-primary">✦</span>
-                  )}
-                  Analyze last 5 days
-                </button>
-              </div>
+            (() => {
+              const getAlignColor = (score: number) => {
+                if (score >= 80) return { bg: 'bg-forskale-green', text: 'text-forskale-green', label: 'Excellent alignment', bgLight: 'bg-forskale-green/10', border: 'border-forskale-green/30' }
+                if (score >= 50) return { bg: 'bg-forskale-blue', text: 'text-forskale-blue', label: 'Good alignment', bgLight: 'bg-forskale-blue/10', border: 'border-forskale-blue/30' }
+                if (score >= 30) return { bg: 'bg-orange-500', text: 'text-orange-500', label: 'Partial alignment', bgLight: 'bg-orange-500/10', border: 'border-orange-500/30' }
+                return { bg: 'bg-destructive', text: 'text-destructive', label: 'Learning opportunity', bgLight: 'bg-destructive/10', border: 'border-destructive/30' }
+              }
 
-              {objectionInsightsError && (
-                <p className="text-sm text-destructive mb-3">{objectionInsightsError}</p>
-              )}
-              {objectionInsightsLoading && !objectionInsights && (
-                <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Loading objection insights…
-                </div>
-              )}
-              {!objectionInsightsLoading &&
-                objectionInsights &&
-                objectionInsights.topics &&
-                objectionInsights.topics.length === 0 && (
-                  <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
-                    No objections found in the last 5 days. Analyze more calls to see patterns here.
-                  </div>
-                )}
-              {!objectionInsightsLoading &&
-                objectionInsights &&
-                objectionInsights.topics &&
-                objectionInsights.topics.length > 0 && (
-                  <div className="flex flex-col gap-3">
-                    {objectionInsights.topics.map((topic) => {
-                      return (
-                        <div key={topic.topic} className="rounded-xl border border-border/20 overflow-hidden">
-                          <details open className="group">
-                            <summary className={cn(
-                              "list-none flex items-center justify-between px-5 py-4 bg-secondary/30 hover:bg-secondary/50 transition-all cursor-pointer"
-                            )}>
-                              <div className="flex items-center gap-4">
-                                <span className="text-sm font-bold text-forskale-green">{Math.round(topic.pct_calls)}%</span>
-                                <span className="text-sm font-medium text-foreground">{topic.topic}</span>
-                              </div>
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <span>{topic.calls_count} calls · {topic.questions_count} questions</span>
-                                <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
-                              </div>
-                            </summary>
-                            <div className="border-t border-border/20 bg-background divide-y divide-border/10">
-                              {topic.questions.map((q, i) => (
-                                <div key={`${q.meeting_id}-${i}`} className="px-6 py-4">
-                                  <p className="text-sm text-muted-foreground">
-                                    <span className="font-medium text-foreground">{q.meeting_title || 'Call'}</span>
-                                    {q.time && (
-                                      <span> at <span className="text-primary font-medium">{q.time}</span></span>
-                                    )}
-                                  </p>
-                                  <p className="text-sm font-semibold text-foreground mt-1">{q.question}</p>
-                                  {q.answer && (
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                      <span className="text-primary/80">Suggested answer:</span> {q.answer}
-                                    </p>
-                                  )}
-                                </div>
+              const CoachingDetailsInline = ({ keyPoints, learning }: { keyPoints: string[]; learning: string[] }) => {
+                const [open, setOpen] = useState(false)
+                if (!keyPoints.length && !learning.length) return null
+                return (
+                  <div className="rounded-lg border border-border/10 bg-secondary/10 overflow-hidden">
+                    <button
+                      onClick={() => setOpen(!open)}
+                      className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:bg-secondary/20 transition-all duration-200"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Lightbulb className="h-3 w-3 text-primary" />
+                        View Coaching Details
+                      </span>
+                      <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-300", open && "rotate-180")} />
+                    </button>
+                    <div className={cn("overflow-hidden transition-all duration-300 ease-out", open ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0")}>
+                      <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {keyPoints.length > 0 && (
+                          <div>
+                            <p className="text-[11px] font-semibold text-forskale-green mb-1.5 flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" /> What you covered well
+                            </p>
+                            <ul className="space-y-1">
+                              {keyPoints.map((pt, pi) => (
+                                <li key={pi} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                                  <span className="text-forskale-green mt-0.5 shrink-0">✓</span>{pt}
+                                </li>
                               ))}
-                            </div>
-                          </details>
-                        </div>
-                      )
-                    })}
+                            </ul>
+                          </div>
+                        )}
+                        {learning.length > 0 && (
+                          <div>
+                            <p className="text-[11px] font-semibold text-forskale-blue mb-1.5 flex items-center gap-1">
+                              <Lightbulb className="h-3 w-3" /> Learning opportunities
+                            </p>
+                            <ul className="space-y-1">
+                              {learning.map((pt, pi) => (
+                                <li key={pi} className="text-xs text-muted-foreground flex items-start gap-1.5">
+                                  <span className="text-forskale-blue mt-0.5 shrink-0">•</span>{pt}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                )}
-            </div>
+                )
+              }
+
+              const topics = objectionInsights?.topics ?? []
+              const isLoading = objectionInsightsLoading || objectionAnalyzing
+
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-6">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Playbook alignment by topic — expand to compare your answers
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setObjectionAnalyzing(true)
+                        setObjectionInsightsError(null)
+                        meetingsAPI
+                          .analyzeObjectionInsights({ days: insightsDays })
+                          .then((res) => { setObjectionInsights(res.data) })
+                          .catch((err) => { setObjectionInsightsError(err.response?.data?.detail || err.message || 'Failed to analyze objections') })
+                          .finally(() => setObjectionAnalyzing(false))
+                      }}
+                      disabled={isLoading}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg border border-border/30 bg-background text-sm text-muted-foreground hover:bg-secondary/50 transition-all disabled:opacity-60"
+                    >
+                      {objectionAnalyzing
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        : <span className="text-primary">✦</span>
+                      }
+                      Analyze last {insightsDays} days
+                    </button>
+                  </div>
+
+                  {objectionInsightsError && (
+                    <p className="text-sm text-destructive mb-4">{objectionInsightsError}</p>
+                  )}
+
+                  {isLoading && !objectionInsights && (
+                    <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {objectionAnalyzing ? 'Analyzing calls with AI…' : 'Loading objection insights…'}
+                    </div>
+                  )}
+
+                  {!isLoading && !objectionInsights && (
+                    <div className="flex flex-col items-center justify-center h-48 text-sm text-muted-foreground gap-3">
+                      <MessageSquare className="h-8 w-8 text-border" />
+                      <p>No analysis yet. Click &ldquo;Analyze last {insightsDays} days&rdquo; to get started.</p>
+                    </div>
+                  )}
+
+                  {topics.length === 0 && objectionInsights && !isLoading && (
+                    <div className="flex items-center justify-center h-40 text-sm text-muted-foreground">
+                      No objections found in the last {insightsDays} days. Try analyzing a longer period.
+                    </div>
+                  )}
+
+                  {topics.length > 0 && (
+                    <div className="flex flex-col gap-3">
+                      {topics.map((item) => {
+                        const isExpanded = !!expandedObjectionTopics[item.topic]
+                        const scoredQs = item.questions.filter((q) => q.match_score != null)
+                        const avgScore = scoredQs.length
+                          ? Math.round(scoredQs.reduce((s, q) => s + (q.match_score ?? 0), 0) / scoredQs.length)
+                          : 0
+                        const avgColors = getAlignColor(avgScore)
+                        return (
+                          <div key={item.topic} className="rounded-xl border border-border/20 overflow-hidden transition-all duration-300">
+                            <div
+                              onClick={() => setExpandedObjectionTopics((prev) => ({ ...prev, [item.topic]: !prev[item.topic] }))}
+                              className="flex items-center justify-between px-5 py-4 bg-secondary/30 hover:bg-secondary/50 transition-all cursor-pointer"
+                            >
+                              <div className="flex items-center gap-4 flex-1 min-w-0">
+                                <span className="text-sm font-bold text-forskale-green shrink-0">{Math.round(item.pct_calls)}%</span>
+                                <span className="text-sm font-medium text-foreground">{item.topic}</span>
+                                {scoredQs.length > 0 && (
+                                  <div className="flex items-center gap-2 ml-auto mr-4 w-32">
+                                    <div className="flex-1 h-1.5 rounded-full overflow-hidden bg-border/20">
+                                      <div className={cn("h-full rounded-full transition-all duration-700", avgColors.bg)} style={{ width: `${avgScore}%` }} />
+                                    </div>
+                                    <span className={cn("text-[11px] font-bold tabular-nums", avgColors.text)}>{avgScore}%</span>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground shrink-0">
+                                <span>{item.calls_count} calls · {item.questions_count} questions</span>
+                                <ChevronDown className={cn("h-4 w-4 transition-transform duration-300", isExpanded && "rotate-180")} />
+                              </div>
+                            </div>
+
+                            <div className={cn("overflow-hidden transition-all duration-300", isExpanded ? "max-h-[5000px] opacity-100" : "max-h-0 opacity-0")}>
+                              <div className="border-t border-border/20 bg-background divide-y divide-border/10">
+                                {item.questions.map((q, i) => {
+                                  const scoreColors = q.match_score != null ? getAlignColor(q.match_score) : null
+                                  return (
+                                    <div key={`${q.meeting_id}-${i}`} className="px-6 py-5">
+                                      <p className="text-xs text-muted-foreground mb-3">
+                                        {q.meeting_title || 'Call'}
+                                        {q.time && <> at <span className="text-primary font-medium">{q.time}</span></>}
+                                      </p>
+                                      <div className="flex items-start gap-2 mb-4">
+                                        <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                                        <p className="text-sm font-semibold text-foreground">{q.question}</p>
+                                      </div>
+
+                                      {q.user_actual_answer && (
+                                        <div className="rounded-lg border border-border/20 bg-secondary/20 p-4 mb-3">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <_User className="h-3.5 w-3.5 text-muted-foreground" />
+                                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Your Answer</span>
+                                          </div>
+                                          <p className="text-sm text-foreground/90 leading-relaxed italic">&ldquo;{q.user_actual_answer}&rdquo;</p>
+                                        </div>
+                                      )}
+
+                                      {scoreColors && q.match_score != null && (
+                                        <div className={cn("rounded-lg border p-4 mb-3", scoreColors.bgLight, scoreColors.border)}>
+                                          <div className="flex items-center justify-between mb-2">
+                                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Playbook Alignment</span>
+                                            <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", scoreColors.bgLight, scoreColors.text)}>{scoreColors.label}</span>
+                                          </div>
+                                          <div className="flex items-center gap-3">
+                                            <div className="flex-1 h-2.5 rounded-full overflow-hidden bg-border/20">
+                                              <div className={cn("h-full rounded-full transition-all duration-700 ease-out", scoreColors.bg)} style={{ width: `${q.match_score}%` }} />
+                                            </div>
+                                            <span className={cn("text-sm font-bold tabular-nums shrink-0", scoreColors.text)}>{q.match_score}%</span>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {(q.suggested_answer || q.answer) && (
+                                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 mb-3">
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <Bot className="h-3.5 w-3.5 text-primary" />
+                                            <span className="text-xs font-semibold text-primary uppercase tracking-wider">Suggested Answer</span>
+                                          </div>
+                                          <p className="text-sm text-foreground/90 leading-relaxed">{q.suggested_answer || q.answer}</p>
+                                        </div>
+                                      )}
+
+                                      <CoachingDetailsInline
+                                        keyPoints={q.key_points_covered ?? []}
+                                        learning={q.learning_opportunities ?? []}
+                                      />
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })()
           ) : (
             <div className="flex gap-6">
               {/* Metric Cards - Vertical on left */}
@@ -3682,6 +3897,19 @@ export default function AtlasMain() {
                   const isSpeakingMetric = insightsActiveTab === 'speaking' && !!metricKey && (['speech_pace_wpm','talk_ratio_pct','longest_customer_monologue_sec','questions_asked_avg','filler_words_avg'] as SpeakingMetricKey[]).includes(metricKey as SpeakingMetricKey)
                   const isPlaybookMetric = insightsActiveTab === 'playbook' && !!metricKey && (['overall','Handled objections','Personalized demo','Intro Banter','Set Agenda','Demo told a story'] as PlaybookMetricKey[]).includes(metricKey as PlaybookMetricKey)
                   const isActive = m.blueUnderline
+
+                  let pctChange: { value: number } | null = null
+                  if (isPlaybookMetric && metricKey) {
+                    const currVal = metricKey === 'overall' ? overallAvgPct : dimensionAvgPct[metricKey] ?? 0
+                    const prevVal = metricKey === 'overall' ? prevOverallAvgPct : prevDimensionAvgPct[metricKey] ?? 0
+                    pctChange = calcPctChange(currVal, prevVal)
+                  } else if (isSpeakingMetric && metricKey) {
+                    const sk = metricKey as SpeakingMetricKey
+                    const currVal = avg[sk] ?? null
+                    const prevVal = prevSpeakingAvg[sk] ?? null
+                    pctChange = calcPctChange(currVal, prevVal)
+                  }
+
                   return (
                     <div
                       key={m.name}
@@ -3703,7 +3931,7 @@ export default function AtlasMain() {
                         <span className="text-[11px] font-semibold text-muted-foreground text-center truncate">{m.name}</span>
                         <Info className="h-2.5 w-2.5 text-muted-foreground/60 hover:text-primary transition-colors shrink-0" />
                       </div>
-                      <div className="relative z-10 text-center mb-2">
+                      <div className="relative z-10 text-center mb-1">
                         <p className={cn(
                           "text-sm font-bold tabular-nums transition-all duration-300",
                           isActive
@@ -3714,6 +3942,17 @@ export default function AtlasMain() {
                         </p>
                         <p className="text-[10px] text-muted-foreground/60 mt-0.5">{m.unit}</p>
                       </div>
+                      {pctChange !== null && !(playbookInsightsLoading || speakingInsightsLoading) && (
+                        <div className={cn(
+                          "relative z-10 flex items-center justify-center gap-0.5 mt-1 text-[10px] font-medium",
+                          pctChange.value > 0 ? "text-forskale-green" : pctChange.value < 0 ? "text-destructive" : "text-muted-foreground"
+                        )}>
+                          {pctChange.value > 0 && <ArrowUp className="h-2.5 w-2.5" />}
+                          {pctChange.value < 0 && <ArrowDown className="h-2.5 w-2.5" />}
+                          {pctChange.value === 0 && <ArrowRight className="h-2.5 w-2.5" />}
+                          {Math.abs(pctChange.value)}%
+                        </div>
+                      )}
                       <div className="mt-auto h-0.5 w-full bg-border/30 rounded-full overflow-hidden relative z-10">
                         <div className={cn(
                           "h-full transition-all duration-500 rounded-full",
@@ -3733,8 +3972,11 @@ export default function AtlasMain() {
                   <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm bg-gradient-to-r from-forskale-green to-forskale-teal text-primary-foreground">
                     <Check className="h-2.5 w-2.5 stroke-[3]" />
                   </span>
-                  <h3 className="text-sm font-semibold text-foreground">
-                    {insightsChartTitles[insightsActiveTab] || 'Performance'}
+                  <h3 className="text-sm font-semibold text-foreground transition-all duration-300">
+                    {insightsActiveTab === 'playbook'
+                      ? `${playbookMetricKey === 'overall' ? 'Overall' : playbookMetricKey} across calls (last ${insightsDays} days)`
+                      : `${speakingMetricKey === 'speech_pace_wpm' ? 'Speech pace' : speakingMetricKey === 'talk_ratio_pct' ? 'Talk ratio' : speakingMetricKey === 'longest_customer_monologue_sec' ? 'Longest customer monologue' : speakingMetricKey === 'questions_asked_avg' ? 'Questions asked' : 'Filler words'} across calls (last ${insightsDays} days)`
+                    }
                   </h3>
                 </div>
                 
@@ -3795,11 +4037,29 @@ export default function AtlasMain() {
                             <CartesianGrid strokeDasharray="4 3" stroke="hsl(224, 30%, 20%)" vertical={false} />
                             <XAxis dataKey="name" stroke="hsl(215, 20%, 65%)" fontSize={11} axisLine={false} tickLine={false} />
                             <YAxis stroke="hsl(215, 20%, 65%)" fontSize={11} axisLine={false} tickLine={false} tickFormatter={(v) => `${v}%`} domain={[0, 100]} />
-                            <Area type="monotone" dataKey="value" stroke="hsl(174, 56%, 55%)" strokeWidth={2} fill="url(#chartFillPlaybook)" strokeLinecap="round" />
+                            <RechartsTooltip
+                              content={({ active, payload, label }) => {
+                                if (!active || !payload?.length) return null
+                                return (
+                                  <div className="rounded-lg border border-border/50 bg-background px-3 py-2 shadow-xl text-xs">
+                                    <p className="font-medium text-foreground mb-1">{label}</p>
+                                    <p className="text-primary font-bold tabular-nums">{payload[0].value}%</p>
+                                  </div>
+                                )
+                              }}
+                              cursor={{ stroke: 'hsl(174, 56%, 55%)', strokeWidth: 1, strokeDasharray: '4 3' }}
+                            />
+                            <Area
+                              type="monotone" dataKey="value"
+                              stroke="hsl(174, 56%, 55%)" strokeWidth={2}
+                              fill="url(#chartFillPlaybook)" strokeLinecap="round"
+                              animationDuration={600}
+                              dot={{ r: 3, fill: 'hsl(174, 56%, 55%)', stroke: 'hsl(224, 100%, 10%)', strokeWidth: 2 }}
+                              activeDot={{ r: 5, fill: 'hsl(174, 56%, 55%)', stroke: 'hsl(224, 100%, 10%)', strokeWidth: 2 }}
+                            />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
-                      
                       <div className="flex justify-end gap-2 mt-4">
                         <button className="p-2 rounded-lg bg-secondary/30 border border-border/30 text-muted-foreground hover:text-primary hover:border-primary transition-all">
                           <Filter className="h-4 w-4" />
@@ -3829,11 +4089,30 @@ export default function AtlasMain() {
                             <CartesianGrid strokeDasharray="4 3" stroke="hsl(224, 30%, 20%)" vertical={false} />
                             <XAxis dataKey="name" stroke="hsl(215, 20%, 65%)" fontSize={11} axisLine={false} tickLine={false} />
                             <YAxis stroke="hsl(215, 20%, 65%)" fontSize={11} axisLine={false} tickLine={false} domain={[0, currentSpeakingConfig.maxY]} ticks={currentSpeakingConfig.ticks} />
-                            <Area type="monotone" dataKey="value" stroke="hsl(174, 56%, 55%)" strokeWidth={2} fill="url(#chartFillSpeaking)" strokeLinecap="round" />
+                            <RechartsTooltip
+                              content={({ active, payload, label }) => {
+                                if (!active || !payload?.length) return null
+                                const unit = speakingMetricKey === 'talk_ratio_pct' ? '%' : speakingMetricKey === 'speech_pace_wpm' ? ' wpm' : speakingMetricKey === 'longest_customer_monologue_sec' ? ' sec' : ''
+                                return (
+                                  <div className="rounded-lg border border-border/50 bg-background px-3 py-2 shadow-xl text-xs">
+                                    <p className="font-medium text-foreground mb-1">{label}</p>
+                                    <p className="text-primary font-bold tabular-nums">{payload[0].value}{unit}</p>
+                                  </div>
+                                )
+                              }}
+                              cursor={{ stroke: 'hsl(174, 56%, 55%)', strokeWidth: 1, strokeDasharray: '4 3' }}
+                            />
+                            <Area
+                              type="monotone" dataKey="value"
+                              stroke="hsl(174, 56%, 55%)" strokeWidth={2}
+                              fill="url(#chartFillSpeaking)" strokeLinecap="round"
+                              animationDuration={600}
+                              dot={{ r: 3, fill: 'hsl(174, 56%, 55%)', stroke: 'hsl(224, 100%, 10%)', strokeWidth: 2 }}
+                              activeDot={{ r: 5, fill: 'hsl(174, 56%, 55%)', stroke: 'hsl(224, 100%, 10%)', strokeWidth: 2 }}
+                            />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
-                      
                       <div className="flex justify-end gap-2 mt-4">
                         <button className="p-2 rounded-lg bg-secondary/30 border border-border/30 text-muted-foreground hover:text-primary hover:border-primary transition-all">
                           <Filter className="h-4 w-4" />
