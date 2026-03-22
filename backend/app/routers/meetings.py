@@ -75,6 +75,11 @@ class ObjectionQuestionItem(BaseModel):
     question: str
     time: Optional[str] = None
     answer: str
+    user_actual_answer: Optional[str] = None
+    suggested_answer: Optional[str] = None
+    match_score: Optional[int] = None
+    key_points_covered: List[str] = Field(default_factory=list)
+    learning_opportunities: List[str] = Field(default_factory=list)
 
 
 class ObjectionTopicInsights(BaseModel):
@@ -626,6 +631,96 @@ def _format_seconds(sec: Any) -> str:
     r = s % 60
     return f"{m:02d}:{r:02d}"
 
+
+async def _fetch_and_cache_transcript(
+    doc: dict,
+    collection: Any,
+    user_id: str,
+) -> List[dict]:
+    """
+    Best-effort fetch of transcript_lines for a meeting document.
+    Priority:
+      1. Fresh cache in DB (< 1 hour old)
+      2. Vexa API (google_meet or teams)
+      3. Stale cache in DB
+    Returns list of transcript line dicts. Never raises.
+    """
+    cached_lines: List[dict] = doc.get("transcript_lines") or []
+    cached_fetched_at = doc.get("transcript_fetched_at")
+    meeting_id_str = str(doc.get("_id", ""))
+    now = datetime.utcnow()
+
+    if cached_lines and cached_fetched_at:
+        try:
+            age = (now - cached_fetched_at).total_seconds()
+            if age <= 3600:
+                return cached_lines
+        except Exception:
+            pass
+
+    platform = doc.get("platform")
+    link = doc.get("link") or ""
+
+    if not platform:
+        if "meet.google.com" in link:
+            platform = "google_meet"
+        elif "teams.live.com" in link or "teams.microsoft.com" in link:
+            platform = "teams"
+
+    if platform not in ("google_meet", "teams"):
+        return cached_lines
+
+    native_id = None
+    endpoint = None
+    if platform == "google_meet":
+        native_id = _extract_google_meet_id(link)
+        if native_id:
+            endpoint = f"{settings.VEXA_API_BASE.rstrip('/')}/transcripts/google_meet/{native_id}"
+    elif platform == "teams":
+        native_id = _extract_teams_meeting_id(link)
+        if native_id:
+            endpoint = f"{settings.VEXA_API_BASE.rstrip('/')}/transcripts/teams/{native_id}"
+
+    if not native_id or not endpoint or not settings.VEXA_API_KEY:
+        return cached_lines
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            r = await client.get(endpoint, headers={"X-API-Key": settings.VEXA_API_KEY})
+            r.raise_for_status()
+            data = r.json()
+
+        segments = (data or {}).get("segments") or []
+        mapped: List[dict] = [
+            {
+                "speaker": seg.get("speaker") or "Unknown",
+                "role": None,
+                "time": _format_seconds(seg.get("start")),
+                "text": seg.get("text") or "",
+            }
+            for seg in segments
+        ]
+
+        if mapped:
+            try:
+                await collection.update_one(
+                    {"_id": doc["_id"], "user_id": user_id},
+                    {"$set": {
+                        "transcript_lines": mapped,
+                        "transcript_fetched_at": now,
+                        "transcript_source": "vexa",
+                        "updated_at": now,
+                    }},
+                )
+            except Exception:
+                pass
+            return mapped
+
+        return cached_lines
+    except Exception:
+        return cached_lines
+
+
 @router.get("", response_model=MeetingListResponse)
 async def get_meetings(
     search: Optional[str] = Query(None),
@@ -715,18 +810,18 @@ async def get_meeting_by_link(
 
 @router.get("/insights/playbook-scores", response_model=PlaybookScoresInsightsResponse)
 async def get_playbook_scores_insights(
-    days: int = Query(5, ge=1, le=31, description="Number of days (last N days including today)."),
+    days: int = Query(5, ge=1, le=31, description="Number of days in the window."),
+    offset_days: int = Query(0, ge=0, description="Shift window back by N days (0 = current period)."),
     current_user: UserResponse = Depends(get_current_active_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ):
     """
-    Get playbook score aggregates for the last N days (Insights page).
-    Returns one row per day: date, label, average overall score %, meeting count,
-    and average per dimension (Handled objections, Personalized demo, Intro Banter, Set Agenda, Demo told a story).
+    Get playbook score aggregates for a window of N days ending `offset_days` ago.
+    offset_days=0 → current period; offset_days=N → previous period of same length.
     """
     collection = db.meetings
     now = datetime.utcnow()
-    end_date = now.date()
+    end_date = (now - timedelta(days=offset_days)).date()
     start_date = end_date - timedelta(days=days - 1)
     start_dt = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
     end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59, 999999)
@@ -796,17 +891,18 @@ async def get_playbook_scores_insights(
 
 @router.get("/insights/speaking-scores", response_model=SpeakingScoresInsightsResponse)
 async def get_speaking_scores_insights(
-    days: int = Query(5, ge=1, le=31, description="Number of days (last N days including today)."),
+    days: int = Query(5, ge=1, le=31, description="Number of days in the window."),
+    offset_days: int = Query(0, ge=0, description="Shift window back by N days (0 = current period)."),
     current_user: UserResponse = Depends(get_current_active_user),
     db: AsyncIOMotorDatabase = Depends(get_database),
 ):
     """
-    Get speaking metrics aggregates from feedback_coach.speaking_metrics for the last N days.
-    Used by Insights > Speaking Skills: chart by day + averages for metrics cards.
+    Get speaking metrics aggregates for a window of N days ending `offset_days` ago.
+    offset_days=0 → current period; offset_days=N → previous period of same length.
     """
     collection = db.meetings
     now = datetime.utcnow()
-    end_date = now.date()
+    end_date = (now - timedelta(days=offset_days)).date()
     start_date = end_date - timedelta(days=days - 1)
     start_dt = datetime(start_date.year, start_date.month, start_date.day, 0, 0, 0)
     end_dt = datetime(end_date.year, end_date.month, end_date.day, 23, 59, 59, 999999)
@@ -889,6 +985,72 @@ async def get_speaking_scores_insights(
     return SpeakingScoresInsightsResponse(days=result_days, averages=averages)
 
 
+def _extract_seller_answer_from_transcript(transcript_lines: List[dict], question_time: Optional[str]) -> Optional[str]:
+    """
+    Find the seller's answer that follows a question at `question_time` in the transcript.
+    Returns the concatenated seller turns immediately after that timestamp.
+    Falls back to None if not found.
+    """
+    if not transcript_lines or not question_time:
+        return None
+    lines = transcript_lines
+    found_idx = None
+    for i, line in enumerate(lines):
+        t = (line.get("time") or "") if isinstance(line, dict) else getattr(line, "time", "")
+        if t == question_time:
+            found_idx = i
+            break
+    if found_idx is None:
+        return None
+    seller_parts: List[str] = []
+    for line in lines[found_idx + 1:]:
+        role = (line.get("role") or "") if isinstance(line, dict) else getattr(line, "role", "")
+        speaker = (line.get("speaker") or "") if isinstance(line, dict) else getattr(line, "speaker", "")
+        text = (line.get("text") or "") if isinstance(line, dict) else getattr(line, "text", "")
+        is_seller = role.lower() in ("seller", "sales", "rep", "host") or "seller" in speaker.lower()
+        if not is_seller and seller_parts:
+            break
+        if is_seller and text.strip():
+            seller_parts.append(text.strip())
+        if len(seller_parts) >= 3:
+            break
+    return " ".join(seller_parts) if seller_parts else None
+
+
+async def _score_objection_answer(
+    question: str,
+    user_answer: str,
+    suggested_answer: str,
+) -> dict:
+    """
+    Call Groq LLM to evaluate how well the user's answer aligns with the suggested answer.
+    Returns: { match_score: int, key_points_covered: list[str], learning_opportunities: list[str] }
+    """
+    prompt = f"""You are a sales coaching AI. Evaluate how well a sales rep answered a prospect's question compared to the ideal suggested answer.
+
+Prospect question: {question}
+
+Sales rep's actual answer: {user_answer}
+
+Ideal suggested answer: {suggested_answer}
+
+Return a JSON object with:
+- "match_score": integer 0-100 (how well the actual answer aligns with the suggested answer)
+- "key_points_covered": array of short strings (what the rep covered well, max 4 items)
+- "learning_opportunities": array of short strings (specific improvements, max 3 items)
+
+Be concise. Key points and learning opportunities should be 5-10 words each."""
+    try:
+        result = await _call_groq_json(prompt)
+        return {
+            "match_score": int(result.get("match_score") or 70),
+            "key_points_covered": [str(x) for x in (result.get("key_points_covered") or [])],
+            "learning_opportunities": [str(x) for x in (result.get("learning_opportunities") or [])],
+        }
+    except Exception:
+        return {"match_score": 70, "key_points_covered": [], "learning_opportunities": []}
+
+
 def _classify_objection_topic(question: str) -> str:
     """
     Very simple keyword-based classifier to group questions/objections into topics.
@@ -921,12 +1083,15 @@ async def analyze_objection_insights(
     Analyze questions & objections across all meetings in the last N days.
 
     - For each meeting, uses (or generates) `atlas_questions_and_objections`.
-    - Groups questions by high-level topic.
-    - Computes % of calls in which each topic appeared.
-    - Persists a single aggregated snapshot per user; re-running replaces the snapshot.
+    - Extracts the seller's actual answer from transcript_lines.
+    - Looks up suggested answer from atlas_qna bank by semantic keyword match.
+    - Calls LLM to score match_score, key_points_covered, learning_opportunities.
+    - Groups by topic, computes % of calls per topic.
+    - Persists snapshot and returns.
     """
     meetings_coll = db.meetings
     insights_coll = db.objection_insights
+    qna_coll = db.atlas_qna
 
     now = datetime.utcnow()
     end_date = now.date()
@@ -944,13 +1109,16 @@ async def analyze_objection_insights(
             "title": 1,
             "created_at": 1,
             "atlas_questions_and_objections": 1,
+            "transcript_lines": 1,
+            "transcript_fetched_at": 1,
+            "platform": 1,
+            "link": 1,
         },
     )
     docs = await cursor.to_list(length=1000)
 
     total_calls = len(docs)
     if total_calls == 0:
-        # Clear any previous insights and return empty response
         await insights_coll.delete_many({"user_id": current_user.id})
         return ObjectionInsightsResponse(
             analyzed_from=start_dt,
@@ -960,10 +1128,31 @@ async def analyze_objection_insights(
             generated_at=now,
         )
 
-    # Accumulators
+    # Load QnA bank for this user (question -> answer lookup)
+    qna_bank_cursor = qna_coll.find(
+        {"user_id": current_user.id, "answer": {"$exists": True, "$ne": ""}},
+        projection={"question": 1, "answer": 1},
+    )
+    qna_bank_docs = await qna_bank_cursor.to_list(length=2000)
+    qna_bank: List[dict] = [{"question": d.get("question", ""), "answer": d.get("answer", "")} for d in qna_bank_docs]
+
+    def _find_suggested_answer(question: str) -> Optional[str]:
+        """Simple keyword overlap lookup in qna_bank."""
+        if not qna_bank or not question:
+            return None
+        q_words = set(question.lower().split())
+        best_score = 0
+        best_answer = None
+        for entry in qna_bank:
+            entry_q_words = set((entry["question"] or "").lower().split())
+            overlap = len(q_words & entry_q_words)
+            if overlap > best_score:
+                best_score = overlap
+                best_answer = entry["answer"]
+        return best_answer if best_score >= 2 else None
+
     topic_meeting_ids: Dict[str, set] = {}
-    topic_questions: Dict[str, List[ObjectionQuestionItem]] = {}
-    # Per-meeting updated Q&A with assigned topics (to persist back into meetings collection)
+    topic_questions_map: Dict[str, List[ObjectionQuestionItem]] = {}
     meeting_qna_updates: Dict[str, List[dict]] = {}
 
     for doc in docs:
@@ -971,14 +1160,19 @@ async def analyze_objection_insights(
         meeting_title = doc.get("title") or ""
         meeting_created_at = doc.get("created_at")
 
+        transcript_lines: List[dict] = await _fetch_and_cache_transcript(
+            doc=doc,
+            collection=meetings_coll,
+            user_id=current_user.id,
+        )
+
         raw_qna = doc.get("atlas_questions_and_objections") or []
         qna_list = _sanitize_qna(raw_qna)
-        # If there is no cached Q&A, try to generate it once via existing helper
         if not qna_list:
             try:
                 insights = await get_atlas_meeting_insights(
                     meeting_id=meeting_id,
-                    force_refresh=False,
+                    force_refresh=bool(transcript_lines),
                     current_user=current_user,
                     db=db,
                 )
@@ -991,27 +1185,39 @@ async def analyze_objection_insights(
 
         seen_topics_for_meeting = set()
         updated_qna_for_meeting: List[dict] = []
+
         for item in qna_list:
             q_text = item.get("question", "")
             a_text = item.get("answer", "")
             t_text = item.get("time")
-
             topic = _classify_objection_topic(q_text)
 
-            # Build normalized + classified Q&A item (to persist back into meetings collection)
+            user_actual_answer = _extract_seller_answer_from_transcript(transcript_lines, t_text)
+            suggested_answer = _find_suggested_answer(q_text) or a_text or None
+
+            scoring: dict = {"match_score": None, "key_points_covered": [], "learning_opportunities": []}
+            if user_actual_answer and suggested_answer:
+                scoring = await _score_objection_answer(q_text, user_actual_answer, suggested_answer)
+
             classified_item = {
                 "question": q_text,
                 "time": t_text,
                 "answer": a_text,
                 "topic": topic,
+                "user_actual_answer": user_actual_answer,
+                "suggested_answer": suggested_answer,
+                "match_score": scoring.get("match_score"),
+                "key_points_covered": scoring.get("key_points_covered", []),
+                "learning_opportunities": scoring.get("learning_opportunities", []),
             }
             updated_qna_for_meeting.append(classified_item)
+
             if topic not in topic_meeting_ids:
                 topic_meeting_ids[topic] = set()
-            if topic not in topic_questions:
-                topic_questions[topic] = []
+            if topic not in topic_questions_map:
+                topic_questions_map[topic] = []
 
-            topic_questions[topic].append(
+            topic_questions_map[topic].append(
                 ObjectionQuestionItem(
                     meeting_id=meeting_id,
                     meeting_title=meeting_title,
@@ -1019,6 +1225,11 @@ async def analyze_objection_insights(
                     question=q_text or "",
                     time=t_text,
                     answer=a_text or "",
+                    user_actual_answer=user_actual_answer,
+                    suggested_answer=suggested_answer,
+                    match_score=scoring.get("match_score"),
+                    key_points_covered=scoring.get("key_points_covered", []),
+                    learning_opportunities=scoring.get("learning_opportunities", []),
                 )
             )
             if topic not in seen_topics_for_meeting:
@@ -1029,7 +1240,7 @@ async def analyze_objection_insights(
             meeting_qna_updates[meeting_id] = updated_qna_for_meeting
 
     topics: List[ObjectionTopicInsights] = []
-    for topic, questions in topic_questions.items():
+    for topic, questions in topic_questions_map.items():
         calls_with_topic = len(topic_meeting_ids.get(topic, set()))
         pct_calls = round(100.0 * calls_with_topic / total_calls, 1) if total_calls > 0 else 0.0
         topics.append(
@@ -1042,10 +1253,8 @@ async def analyze_objection_insights(
             )
         )
 
-    # Sort topics by percentage desc
     topics.sort(key=lambda t: t.pct_calls, reverse=True)
 
-    # Persist per-meeting classified topics back into meetings collection
     if meeting_qna_updates:
         for mid, qna_items in meeting_qna_updates.items():
             try:
@@ -1054,10 +1263,8 @@ async def analyze_objection_insights(
                     {"$set": {"atlas_questions_and_objections": qna_items}},
                 )
             except Exception:
-                # Best-effort; don't fail whole analysis if one meeting update fails
                 continue
 
-    # Persist snapshot: one document per user (overwrite any previous)
     await insights_coll.delete_many({"user_id": current_user.id})
     doc_to_insert = {
         "user_id": current_user.id,
