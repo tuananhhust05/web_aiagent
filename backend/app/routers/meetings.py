@@ -988,32 +988,80 @@ async def get_speaking_scores_insights(
 def _extract_seller_answer_from_transcript(transcript_lines: List[dict], question_time: Optional[str]) -> Optional[str]:
     """
     Find the seller's answer that follows a question at `question_time` in the transcript.
-    Returns the concatenated seller turns immediately after that timestamp.
+
+    Strategy:
+    1. Find the line at or near `question_time` to identify the questioner's speaker name.
+    2. Collect the next consecutive turns from a *different* speaker (the rep answering).
+    3. If no timestamp match, fall back to gathering the first non-empty turns after the question.
     Falls back to None if not found.
     """
-    if not transcript_lines or not question_time:
+    if not transcript_lines:
         return None
+
     lines = transcript_lines
-    found_idx = None
-    for i, line in enumerate(lines):
-        t = (line.get("time") or "") if isinstance(line, dict) else getattr(line, "time", "")
-        if t == question_time:
-            found_idx = i
-            break
+    found_idx: Optional[int] = None
+
+    if question_time:
+        for i, line in enumerate(lines):
+            t = (line.get("time") or "") if isinstance(line, dict) else getattr(line, "time", "")
+            if t == question_time:
+                found_idx = i
+                break
+
+        if found_idx is None:
+            def _time_to_sec(t: str) -> int:
+                try:
+                    parts = t.split(":")
+                    if len(parts) == 2:
+                        return int(parts[0]) * 60 + int(parts[1])
+                    return int(parts[0])
+                except Exception:
+                    return -1
+
+            q_sec = _time_to_sec(question_time)
+            if q_sec >= 0:
+                best_diff = 9999
+                for i, line in enumerate(lines):
+                    t = (line.get("time") or "") if isinstance(line, dict) else getattr(line, "time", "")
+                    diff = abs(_time_to_sec(t) - q_sec)
+                    if diff < best_diff:
+                        best_diff = diff
+                        found_idx = i
+                if best_diff > 10:
+                    found_idx = None
+
     if found_idx is None:
         return None
+
+    questioner_speaker = ""
+    q_line = lines[found_idx]
+    questioner_speaker = (q_line.get("speaker") or "") if isinstance(q_line, dict) else getattr(q_line, "speaker", "")
+
     seller_parts: List[str] = []
+    answerer_speaker: Optional[str] = None
     for line in lines[found_idx + 1:]:
-        role = (line.get("role") or "") if isinstance(line, dict) else getattr(line, "role", "")
+        role = ((line.get("role") or "") if isinstance(line, dict) else getattr(line, "role", "")).lower()
         speaker = (line.get("speaker") or "") if isinstance(line, dict) else getattr(line, "speaker", "")
         text = (line.get("text") or "") if isinstance(line, dict) else getattr(line, "text", "")
-        is_seller = role.lower() in ("seller", "sales", "rep", "host") or "seller" in speaker.lower()
-        if not is_seller and seller_parts:
+
+        is_known_seller = role in ("seller", "sales", "rep", "host") or "seller" in speaker.lower()
+        is_different_speaker = speaker and speaker != questioner_speaker
+
+        if not is_known_seller and not is_different_speaker:
+            if seller_parts:
+                break
+            continue
+
+        if answerer_speaker is None:
+            answerer_speaker = speaker
+        elif speaker != answerer_speaker:
             break
-        if is_seller and text.strip():
+
+        if text.strip():
             seller_parts.append(text.strip())
-        if len(seller_parts) >= 3:
+        if len(seller_parts) >= 4:
             break
+
     return " ".join(seller_parts) if seller_parts else None
 
 
@@ -1285,9 +1333,10 @@ async def analyze_objection_insights(
                 suggested_answer = await _generate_suggested_answer(q_text) or None
 
             scoring: dict = {"match_score": None, "key_points_covered": [], "learning_opportunities": []}
-            if user_actual_answer and suggested_answer:
+            answer_for_scoring = user_actual_answer or (a_text.strip() if a_text and len(a_text.strip()) > 5 else None)
+            if answer_for_scoring and suggested_answer:
                 scoring = await _score_objection_answer(
-                    q_text, user_actual_answer, suggested_answer, playbook_rules or None
+                    q_text, answer_for_scoring, suggested_answer, playbook_rules or None
                 )
 
             classified_item = {

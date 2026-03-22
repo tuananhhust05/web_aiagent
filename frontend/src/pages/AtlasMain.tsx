@@ -3822,56 +3822,75 @@ export default function AtlasMain() {
                               <div className="border-t border-border/20 bg-background divide-y divide-border/10">
                                 {item.questions.map((q, i) => {
                                   const scoreColors = q.match_score != null ? getAlignColor(q.match_score) : null
+                                  const displayAnswer = q.user_actual_answer
+                                  const hasSuggested = !!(q.suggested_answer || q.answer)
+                                  const hasCoaching = !!(q.key_points_covered?.length || q.learning_opportunities?.length)
                                   return (
-                                    <div key={`${q.meeting_id}-${i}`} className="px-6 py-5">
-                                      <p className="text-xs text-muted-foreground mb-3">
-                                        {q.meeting_title || 'Call'}
-                                        {q.time && <> at <span className="text-primary font-medium">{q.time}</span></>}
+                                    <div key={`${q.meeting_id}-${i}`} className="px-6 py-5 space-y-3">
+                                      {/* Source line */}
+                                      <p className="text-xs text-muted-foreground">
+                                        <span className="font-medium text-primary">{q.meeting_title || 'Call'}</span>
+                                        {q.time && <> at <span className="font-semibold text-primary">{q.time}</span></>}
                                       </p>
-                                      <div className="flex items-start gap-2 mb-4">
+
+                                      {/* Question */}
+                                      <div className="flex items-start gap-2">
                                         <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                                        <p className="text-sm font-semibold text-foreground">{q.question}</p>
+                                        <p className="text-sm font-semibold text-foreground leading-snug">{q.question}</p>
                                       </div>
 
-                                      {q.user_actual_answer && (
-                                        <div className="rounded-lg border border-border/20 bg-secondary/20 p-4 mb-3">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <_User className="h-3.5 w-3.5 text-muted-foreground" />
-                                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Your Answer</span>
+                                      {/* YOUR ANSWER */}
+                                      {displayAnswer && (
+                                        <div className="rounded-lg border border-border/30 bg-secondary/20 px-4 py-3">
+                                          <div className="flex items-center gap-1.5 mb-1.5">
+                                            <_User className="h-3 w-3 text-muted-foreground shrink-0" />
+                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Your Answer</span>
                                           </div>
-                                          <p className="text-sm text-foreground/90 leading-relaxed italic">&ldquo;{q.user_actual_answer}&rdquo;</p>
+                                          <p className="text-sm text-foreground/90 leading-relaxed italic">&ldquo;{displayAnswer}&rdquo;</p>
                                         </div>
                                       )}
 
+                                      {/* PLAYBOOK ALIGNMENT bar */}
                                       {scoreColors && q.match_score != null && (
-                                        <div className={cn("rounded-lg border p-4 mb-3", scoreColors.bgLight, scoreColors.border)}>
+                                        <div className={cn("rounded-lg border px-4 py-3", scoreColors.bgLight, scoreColors.border)}>
                                           <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Playbook Alignment</span>
-                                            <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", scoreColors.bgLight, scoreColors.text)}>{scoreColors.label}</span>
+                                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Playbook Alignment</span>
+                                            <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full border", scoreColors.bgLight, scoreColors.text, scoreColors.border)}>
+                                              {scoreColors.label}
+                                            </span>
                                           </div>
                                           <div className="flex items-center gap-3">
-                                            <div className="flex-1 h-2.5 rounded-full overflow-hidden bg-border/20">
-                                              <div className={cn("h-full rounded-full transition-all duration-700 ease-out", scoreColors.bg)} style={{ width: `${q.match_score}%` }} />
+                                            <div className="flex-1 h-2 rounded-full overflow-hidden bg-border/30">
+                                              <div
+                                                className={cn("h-full rounded-full transition-all duration-700 ease-out", scoreColors.bg)}
+                                                style={{ width: `${q.match_score}%` }}
+                                              />
                                             </div>
-                                            <span className={cn("text-sm font-bold tabular-nums shrink-0", scoreColors.text)}>{q.match_score}%</span>
+                                            <span className={cn("text-sm font-bold tabular-nums w-10 text-right shrink-0", scoreColors.text)}>
+                                              {q.match_score}%
+                                            </span>
                                           </div>
                                         </div>
                                       )}
 
-                                      {(q.suggested_answer || q.answer) && (
-                                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 mb-3">
-                                          <div className="flex items-center gap-2 mb-2">
-                                            <Bot className="h-3.5 w-3.5 text-primary" />
-                                            <span className="text-xs font-semibold text-primary uppercase tracking-wider">Suggested Answer</span>
+                                      {/* SUGGESTED ANSWER */}
+                                      {hasSuggested && (
+                                        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+                                          <div className="flex items-center gap-1.5 mb-1.5">
+                                            <Bot className="h-3 w-3 text-primary shrink-0" />
+                                            <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Suggested Answer</span>
                                           </div>
                                           <p className="text-sm text-foreground/90 leading-relaxed">{q.suggested_answer || q.answer}</p>
                                         </div>
                                       )}
 
-                                      <CoachingDetailsInline
-                                        keyPoints={q.key_points_covered ?? []}
-                                        learning={q.learning_opportunities ?? []}
-                                      />
+                                      {/* VIEW COACHING DETAILS */}
+                                      {hasCoaching && (
+                                        <CoachingDetailsInline
+                                          keyPoints={q.key_points_covered ?? []}
+                                          learning={q.learning_opportunities ?? []}
+                                        />
+                                      )}
                                     </div>
                                   )
                                 })}
