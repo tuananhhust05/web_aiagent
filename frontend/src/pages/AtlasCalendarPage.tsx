@@ -286,7 +286,7 @@ const AtlasCalendarPage = () => {
 
         {/* Desktop: sidebar panel */}
         {selectedMeeting && (
-          <div className="hidden md:block">
+          <div className="hidden md:flex md:flex-col md:h-full">
             <ContactCard
               meeting={selectedMeeting}
               onClose={() => setSelectedMeeting(null)}

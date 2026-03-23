@@ -415,7 +415,7 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
 
   return (
     <>
-      <div className="flex w-[380px] flex-col border-l bg-card">
+      <div className="flex w-[380px] flex-col border-l bg-card h-full overflow-hidden">
         {/* Header */}
         <div className="border-b px-4 py-3">
           <div className="flex items-start justify-between gap-3">
@@ -428,22 +428,25 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
             </Button>
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button size="sm" className="h-8 px-3 text-xs">
+            <button
+              className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue px-3 py-1.5 text-xs font-semibold text-white shadow-[0_2px_8px_hsl(var(--forskale-green)/0.3)] transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_14px_hsl(var(--forskale-green)/0.5)] active:translate-y-0"
+            >
               Join Meeting
-            </Button>
-            <Button variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={onBotJoin}>
+            </button>
+            <button
+              onClick={onBotJoin}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground shadow-sm transition-all hover:bg-accent hover:border-primary/40 active:scale-95"
+            >
               Bot Join
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 px-3 text-xs border-primary/30 text-primary hover:bg-primary/10"
+            </button>
+            <button
               onClick={handleRegenerate}
               disabled={loading || regenerating}
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground shadow-sm transition-all hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {regenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               Regenerate
-            </Button>
+            </button>
           </div>
         </div>
 
@@ -455,9 +458,264 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
             </div>
           ) : (
             <>
-          {/* Primary Contact */}
+          {/* Deal Context — top card */}
           <section>
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Primary Contact</h4>
+            <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+              {/* Header row */}
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-border/50">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
+                  <path d="M3 8 C3 5 5 3 8 3 C10 3 12 4.5 13 6.5 L11 6.5 C10.2 5.3 9.2 4.5 8 4.5 C6 4.5 4.5 6 4.5 8 C4.5 10 6 11.5 8 11.5 C9.5 11.5 10.8 10.5 11.3 9 L13 9 C12.3 11.5 10.3 13 8 13 C5 13 3 11 3 8 Z" fill="#FF7A59"/>
+                  <circle cx="11.5" cy="6" r="2" fill="#FF7A59"/>
+                </svg>
+                <span className="text-sm font-bold text-foreground">Deal Context</span>
+                <span className="inline-flex items-center rounded-full bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 px-2 py-0.5 text-[10px] font-semibold text-orange-500">
+                  from HubSpot
+                </span>
+                <div className="ml-auto flex items-center gap-1">
+                  <span className="text-[10px] text-muted-foreground">Last synced: 2 min ago</span>
+                  <button className="flex h-5 w-5 items-center justify-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                    <RefreshCw className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* 3 columns */}
+              <div className="grid grid-cols-3 px-4 py-3 gap-4">
+                {/* CONTACT */}
+                <div className="space-y-2">
+                  <p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/60">Contact</p>
+                  <div className="flex items-start gap-1.5">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground mt-0.5 shrink-0">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                    </svg>
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-foreground leading-tight">
+                        {data.primaryContact.name !== "—" ? data.primaryContact.name : "John Doe"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+                        {data.primaryContact.jobTitle !== "—" ? data.primaryContact.jobTitle : "—"}
+                      </p>
+                      <p className="text-[11px] font-semibold text-primary leading-tight mt-0.5 truncate">
+                        {data.companyName !== "—" ? data.companyName : "—"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* DEAL */}
+                <div className="space-y-2">
+                  <p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/60">Deal</p>
+                  <div className="space-y-1.5">
+                    <p className="text-[13px] font-bold text-foreground leading-snug">
+                      {meeting.title.split("—")[0].trim()}
+                    </p>
+                    <div className="relative">
+                      <button
+                        onClick={() => setShowStageDropdown(!showStageDropdown)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors hover:opacity-80",
+                          dealStage === "Closed Won"  && "bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-400",
+                          dealStage === "Closed Lost" && "bg-red-100 dark:bg-red-500/15 text-red-600 dark:text-red-400",
+                          dealStage === "Negotiation" && "bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-400",
+                          dealStage === "Proposal"    && "bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400",
+                          dealStage === "Demo"        && "bg-primary/10 text-primary",
+                          dealStage === "Discovery"   && "bg-secondary text-muted-foreground",
+                        )}
+                      >
+                        <span className={cn(
+                          "h-1.5 w-1.5 rounded-full shrink-0",
+                          dealStage === "Closed Won"  && "bg-green-500",
+                          dealStage === "Closed Lost" && "bg-red-500",
+                          dealStage === "Negotiation" && "bg-green-500",
+                          dealStage === "Proposal"    && "bg-blue-500",
+                          dealStage === "Demo"        && "bg-primary",
+                          dealStage === "Discovery"   && "bg-muted-foreground",
+                        )} />
+                        {dealStage}
+                      </button>
+                      {showStageDropdown && (
+                        <div className="absolute z-30 left-0 mt-1 w-36 rounded-lg border bg-popover p-1 shadow-lg">
+                          {DEAL_STAGES.map((s) => (
+                            <button
+                              key={s}
+                              onClick={() => { setDealStage(s); setShowStageDropdown(false); }}
+                              className={cn(
+                                "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[11px] transition-colors hover:bg-accent",
+                                s === dealStage && "bg-accent font-semibold"
+                              )}
+                            >
+                              <span className={cn(
+                                "h-1.5 w-1.5 rounded-full shrink-0",
+                                s === "Closed Won"  && "bg-green-500",
+                                s === "Closed Lost" && "bg-red-500",
+                                s === "Negotiation" && "bg-green-500",
+                                s === "Proposal"    && "bg-blue-500",
+                                s === "Demo"        && "bg-primary",
+                                s === "Discovery"   && "bg-muted-foreground",
+                              )} />
+                              {s}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* VALUE & TIMELINE */}
+                <div className="space-y-2">
+                  <p className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/60">Value &amp; Timeline</p>
+                  <div>
+                    <p className="text-2xl font-bold text-foreground leading-tight">$—</p>
+                    <p className="text-[10px] text-muted-foreground leading-snug mt-1">Expected: —</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* CRM Actions */}
+          <section>
+            <div className="rounded-xl bg-secondary/40 shadow-sm overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center gap-2 px-4 pt-4 pb-3">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
+                  <path d="M7 1L8.5 5H13L9.5 7.5L11 12L7 9.5L3 12L4.5 7.5L1 5H5.5L7 1Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" className="text-primary" />
+                  <path d="M7 1L8.5 5H13L9.5 7.5L11 12L7 9.5L3 12L4.5 7.5L1 5H5.5L7 1Z" fill="hsl(var(--primary)/0.15)" />
+                </svg>
+                <span className="text-sm font-bold text-foreground">CRM Actions</span>
+                <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  AI-Powered
+                </span>
+              </div>
+
+              {/* Action buttons */}
+              <div className="grid grid-cols-3 gap-2 px-4 pb-3">
+                {/* Push Insights to HubSpot */}
+                <button className="flex flex-col items-start gap-1.5 rounded-lg bg-gradient-to-br from-forskale-green via-forskale-teal to-forskale-blue p-3 text-left shadow-[0_2px_8px_hsl(var(--forskale-teal)/0.3)] transition-all hover:shadow-[0_4px_14px_hsl(var(--forskale-teal)/0.4)] hover:-translate-y-0.5 active:translate-y-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  <span className="text-[11px] font-bold text-white leading-tight">Push Insights</span>
+                </button>
+
+                {/* Update Deal Stage */}
+                <button className="flex flex-col items-start gap-1.5 rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-all hover:bg-accent hover:border-primary/30 hover:-translate-y-0.5 active:translate-y-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                    <polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-3.51" />
+                  </svg>
+                  <span className="text-[11px] font-bold text-foreground leading-tight">Update Stage</span>
+                  <span className="text-[9px] text-muted-foreground leading-tight">Suggest: {
+                    dealStage === "Discovery" ? "Demo" :
+                    dealStage === "Demo" ? "Proposal" :
+                    dealStage === "Proposal" ? "Negotiation" :
+                    dealStage === "Negotiation" ? "Closed Won" : dealStage
+                  }</span>
+                </button>
+
+                {/* Add Note to CRM */}
+                <button className="flex flex-col items-start gap-1.5 rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-all hover:bg-accent hover:border-primary/30 hover:-translate-y-0.5 active:translate-y-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="15" y2="15" />
+                  </svg>
+                  <span className="text-[11px] font-bold text-foreground leading-tight">Add Note</span>
+                  <span className="text-[9px] text-muted-foreground leading-tight">Manual entry</span>
+                </button>
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-border/50">
+                <a
+                  href="#"
+                  className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                >
+                  View full deal in HubSpot
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </a>
+                <div className="inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-[10px] font-semibold text-green-600 dark:text-green-400">Auto-sync: ON</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* AI Sales Coach */}
+          <section>
+            <div className="rounded-xl bg-secondary/40 shadow-sm overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                <div className="flex items-center gap-2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                  </svg>
+                  <span className="text-sm font-bold text-foreground">AI Sales Coach</span>
+                </div>
+                <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  Using CRM data
+                </span>
+              </div>
+
+              {/* Info bar */}
+              <div className="mx-4 mb-3 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+                <p className="text-xs text-foreground leading-snug">
+                  Deal is in{" "}
+                  <strong className="font-bold">{dealStage}</strong>
+                  {" "}stage — Here&apos;s what to focus on:
+                </p>
+              </div>
+
+              {/* 3 action cards */}
+              <div className="grid grid-cols-3 gap-2 px-4 pb-3">
+                {/* Card 1 — Ask about decision */}
+                <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card p-3">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--forskale-green))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">Ask about decision timeline</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">Deal is in {dealStage.toLowerCase()} - confirm next steps</p>
+                  <button className="mt-auto text-left text-[10px] font-semibold text-primary hover:underline">
+                    View Questions →
+                  </button>
+                </div>
+
+                {/* Card 2 — Schedule follow-up */}
+                <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card p-3">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">Schedule follow-up within 48hrs</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">Based on conversation tone</p>
+                  <button className="mt-auto text-left text-[10px] font-semibold text-primary hover:underline">
+                    Create Task →
+                  </button>
+                </div>
+
+                {/* Card 3 — Send proposal */}
+                <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card p-3">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+                  </svg>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">Send pricing proposal</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">Customer showed budget interest</p>
+                  <button className="mt-auto text-left text-[10px] font-semibold text-primary hover:underline">
+                    Generate Proposal →
+                  </button>
+                </div>
+              </div>
+
+              {/* Footer CTA */}
+              <button className="w-full px-4 py-3 text-sm font-semibold text-primary bg-primary/8 hover:bg-primary/12 transition-colors border-t border-primary/10">
+                Send All to Action Ready
+              </button>
+            </div>
+          </section>
+          <section>
             <div className="rounded-lg border p-3">
               <div>
                 <p className="text-sm font-medium text-foreground">{data.primaryContact.name}</p>
@@ -671,36 +929,6 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
 
           <Separator />
 
-          {/* Deal Context */}
-          <section>
-            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Deal Context</h4>
-            <div className="relative">
-              <button
-                onClick={() => setShowStageDropdown(!showStageDropdown)}
-                className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-xs"
-              >
-                <span className="font-medium text-foreground">{dealStage}</span>
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-              {showStageDropdown && (
-                <div className="absolute z-30 mt-1 w-full rounded-md border bg-popover p-1 shadow-lg">
-                  {DEAL_STAGES.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => { setDealStage(s); setShowStageDropdown(false); }}
-                      className={cn(
-                        "block w-full rounded-sm px-3 py-1.5 text-left text-xs transition-colors hover:bg-accent",
-                        s === dealStage && "bg-accent font-medium"
-                      )}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-
           {/* Interaction History */}
           <section>
             <div className="mb-2 flex items-center gap-1.5">
@@ -727,6 +955,115 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
                   )}
                 </div>
               ))}
+            </div>
+          </section>
+
+          {/* CRM Actions */}
+          <section>
+            <div className="rounded-xl bg-secondary/40 shadow-sm overflow-hidden">
+              <div className="flex items-center gap-2 px-4 pt-4 pb-3">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
+                  <path d="M7 1L8.5 5H13L9.5 7.5L11 12L7 9.5L3 12L4.5 7.5L1 5H5.5L7 1Z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" className="text-primary" />
+                  <path d="M7 1L8.5 5H13L9.5 7.5L11 12L7 9.5L3 12L4.5 7.5L1 5H5.5L7 1Z" fill="hsl(var(--primary)/0.15)" />
+                </svg>
+                <span className="text-sm font-bold text-foreground">CRM Actions</span>
+                <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  AI-Powered
+                </span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 px-4 pb-3">
+                <button className="flex flex-col items-start gap-1.5 rounded-lg bg-gradient-to-br from-forskale-green via-forskale-teal to-forskale-blue p-3 text-left shadow-[0_2px_8px_hsl(var(--forskale-teal)/0.3)] transition-all hover:shadow-[0_4px_14px_hsl(var(--forskale-teal)/0.4)] hover:-translate-y-0.5 active:translate-y-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  <span className="text-[11px] font-bold text-white leading-tight">Push Insights</span>
+                </button>
+                <button className="flex flex-col items-start gap-1.5 rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-all hover:bg-accent hover:border-primary/30 hover:-translate-y-0.5 active:translate-y-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                    <polyline points="1 4 1 10 7 10" /><path d="M3.51 15a9 9 0 1 0 .49-3.51" />
+                  </svg>
+                  <span className="text-[11px] font-bold text-foreground leading-tight">Update Stage</span>
+                  <span className="text-[9px] text-muted-foreground leading-tight">Suggest: {
+                    dealStage === "Discovery" ? "Demo" :
+                    dealStage === "Demo" ? "Proposal" :
+                    dealStage === "Proposal" ? "Negotiation" :
+                    dealStage === "Negotiation" ? "Closed Won" : dealStage
+                  }</span>
+                </button>
+                <button className="flex flex-col items-start gap-1.5 rounded-lg border border-border bg-card p-3 text-left shadow-sm transition-all hover:bg-accent hover:border-primary/30 hover:-translate-y-0.5 active:translate-y-0">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="12" y1="18" x2="12" y2="12" /><line x1="9" y1="15" x2="15" y2="15" />
+                  </svg>
+                  <span className="text-[11px] font-bold text-foreground leading-tight">Add Note</span>
+                  <span className="text-[9px] text-muted-foreground leading-tight">Manual entry</span>
+                </button>
+              </div>
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-border/50">
+                <a href="#" className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline">
+                  View full deal in HubSpot
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                </a>
+                <div className="inline-flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-[10px] font-semibold text-green-600 dark:text-green-400">Auto-sync: ON</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* AI Sales Coach */}
+          <section>
+            <div className="rounded-xl bg-secondary/40 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-4 pt-4 pb-3">
+                <div className="flex items-center gap-2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+                  </svg>
+                  <span className="text-sm font-bold text-foreground">AI Sales Coach</span>
+                </div>
+                <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  Using CRM data
+                </span>
+              </div>
+              <div className="mx-4 mb-3 flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+                </svg>
+                <p className="text-xs text-foreground leading-snug">
+                  Deal is in <strong className="font-bold">{dealStage}</strong> stage — Here&apos;s what to focus on:
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 px-4 pb-3">
+                <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card p-3">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--forskale-green))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">Ask about decision timeline</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">Deal is in {dealStage.toLowerCase()} - confirm next steps</p>
+                  <button className="mt-auto text-left text-[10px] font-semibold text-primary hover:underline">View Questions →</button>
+                </div>
+                <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card p-3">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                  </svg>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">Schedule follow-up within 48hrs</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">Based on conversation tone</p>
+                  <button className="mt-auto text-left text-[10px] font-semibold text-primary hover:underline">Create Task →</button>
+                </div>
+                <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card p-3">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="hsl(var(--primary))" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+                  </svg>
+                  <p className="text-[11px] font-bold text-foreground leading-tight">Send pricing proposal</p>
+                  <p className="text-[10px] text-muted-foreground leading-tight">Customer showed budget interest</p>
+                  <button className="mt-auto text-left text-[10px] font-semibold text-primary hover:underline">Generate Proposal →</button>
+                </div>
+              </div>
+              <button className="w-full px-4 py-3 text-sm font-semibold text-primary bg-primary/8 hover:bg-primary/12 transition-colors border-t border-primary/10">
+                Send All to Action Ready
+              </button>
             </div>
           </section>
             </>
