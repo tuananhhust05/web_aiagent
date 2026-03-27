@@ -2852,3 +2852,766 @@ async def download_playbook_report(
             "Content-Disposition": f'attachment; filename="playbook-report-{meeting_id}.json"'
         },
     )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Meeting Evaluation endpoint
+# ──────────────────────────────────────────────────────────────────────────────
+
+class EvaluationKeyMoment(BaseModel):
+    timestamp: str
+    type: Literal["positive", "negative", "neutral"]
+    description: str
+
+
+class EvaluationDealProgression(BaseModel):
+    from_stage: str = Field(alias="from")
+    to_stage: str = Field(alias="to")
+    likelihood: Literal["high", "medium", "low"]
+
+    class Config:
+        populate_by_name = True
+
+
+class EvaluationOutcome(BaseModel):
+    status: Literal["successful", "neutral", "needs-attention"]
+    summary: str
+    deal_progression: EvaluationDealProgression
+    key_moments: List[EvaluationKeyMoment] = Field(default_factory=list)
+
+
+class StrategicInsight(BaseModel):
+    category: Literal["pain-point", "budget", "decision-maker", "timeline", "competition"]
+    insight: str
+    confidence: int
+    icon: str
+
+
+class RecommendedAction(BaseModel):
+    id: str
+    priority: int
+    title: str
+    description: str
+    timing: Literal["immediate", "within-24h", "this-week", "this-month"]
+    action_type: Literal["follow-up", "send-material", "schedule-meeting"]
+    status: Literal["pending", "completed", "dismissed"] = "pending"
+
+
+class MeetingEvaluationResponse(BaseModel):
+    meeting_id: str
+    source: Literal["llm", "cache", "none"] = "none"
+    generated_at: Optional[datetime] = None
+    playbook_score_pct: Optional[int] = None
+    outcome: Optional[EvaluationOutcome] = None
+    strategic_insights: List[StrategicInsight] = Field(default_factory=list)
+    recommended_actions: List[RecommendedAction] = Field(default_factory=list)
+    message: Optional[str] = None
+
+
+@router.get("/{meeting_id}/evaluation", response_model=MeetingEvaluationResponse)
+async def get_meeting_evaluation(
+    meeting_id: str,
+    force_refresh: bool = Query(False),
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """
+    Get AI-powered call evaluation for Atlas Insights / Evaluation tab.
+    Produces: call outcome status, deal progression, key moments,
+    strategic insights and recommended actions.
+    Caches result on the meeting document under 'atlas_evaluation'.
+    """
+    collection = db.meetings
+    try:
+        oid = ObjectId(meeting_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid meeting id")
+
+    doc = await collection.find_one({"_id": oid, "user_id": current_user.id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    cached = doc.get("atlas_evaluation") or {}
+    if cached and not force_refresh:
+        return MeetingEvaluationResponse(
+            meeting_id=meeting_id,
+            source="cache",
+            generated_at=cached.get("generated_at"),
+            playbook_score_pct=cached.get("playbook_score_pct"),
+            outcome=EvaluationOutcome(**cached["outcome"]) if cached.get("outcome") else None,
+            strategic_insights=[StrategicInsight(**s) for s in (cached.get("strategic_insights") or [])],
+            recommended_actions=[RecommendedAction(**a) for a in (cached.get("recommended_actions") or [])],
+            message="Returned cached evaluation.",
+        )
+
+    transcript_lines = doc.get("transcript_lines") or []
+    transcript_text = _build_transcript_text(transcript_lines)
+    if not transcript_text.strip():
+        return MeetingEvaluationResponse(
+            meeting_id=meeting_id,
+            source="none",
+            message="No transcript available to generate evaluation.",
+        )
+
+    title = doc.get("title") or doc.get("meeting_title") or "Meeting"
+    playbook_score_pct = (doc.get("playbook_analysis") or {}).get("overall_score")
+
+    prompt = f"""You are an expert AI sales coach. Analyze the call transcript below and return a JSON evaluation.
+
+Meeting: {title}
+
+Return JSON with this EXACT structure:
+{{
+  "outcome": {{
+    "status": "successful" | "neutral" | "needs-attention",
+    "summary": "2-3 sentence summary of the call outcome addressed to the seller using 'you'",
+    "deal_progression": {{
+      "from": "intro" | "discovery" | "demo" | "proposal" | "negotiation" | "closed-won" | "closed-lost",
+      "to": "intro" | "discovery" | "demo" | "proposal" | "negotiation" | "closed-won" | "closed-lost",
+      "likelihood": "high" | "medium" | "low"
+    }},
+    "key_moments": [
+      {{"timestamp": "MM:SS", "type": "positive" | "negative" | "neutral", "description": "One sentence about what happened"}}
+    ]
+  }},
+  "strategic_insights": [
+    {{
+      "category": "pain-point" | "budget" | "decision-maker" | "timeline" | "competition",
+      "insight": "One sentence insight addressed to the seller using 'you'",
+      "confidence": 85,
+      "icon": "✓" | "💰" | "👤" | "⏱️" | "⚠️"
+    }}
+  ],
+  "recommended_actions": [
+    {{
+      "id": "action-001",
+      "priority": 1,
+      "title": "Short action title",
+      "description": "One sentence explaining why and how to execute this action",
+      "timing": "immediate" | "within-24h" | "this-week" | "this-month",
+      "action_type": "follow-up" | "send-material" | "schedule-meeting"
+    }}
+  ]
+}}
+
+Rules:
+- Output ONLY valid JSON.
+- key_moments: 3-5 moments with timestamps from the transcript.
+- strategic_insights: 3-5 insights covering different categories.
+- recommended_actions: 2-4 actions ordered by priority (1 = most urgent).
+- confidence values: integer 0-100.
+- Use timestamps in MM:SS format matching the transcript.
+
+Transcript:
+{transcript_text}
+""".strip()
+
+    try:
+        generated = await _call_groq_json(prompt)
+        raw_outcome = generated.get("outcome") or {}
+        raw_insights = generated.get("strategic_insights") or []
+        raw_actions = generated.get("recommended_actions") or []
+
+        outcome = None
+        if raw_outcome:
+            try:
+                dp_raw = raw_outcome.get("deal_progression") or {}
+                dp = EvaluationDealProgression(**{"from": dp_raw.get("from", "intro"), "to": dp_raw.get("to", "discovery"), "likelihood": dp_raw.get("likelihood", "medium")})
+                moments = []
+                for m in (raw_outcome.get("key_moments") or []):
+                    try:
+                        moments.append(EvaluationKeyMoment(**m))
+                    except Exception:
+                        pass
+                outcome = EvaluationOutcome(
+                    status=raw_outcome.get("status", "neutral"),
+                    summary=raw_outcome.get("summary", ""),
+                    deal_progression=dp,
+                    key_moments=moments,
+                )
+            except Exception as e:
+                logger.warning(f"[Evaluation] Could not parse outcome: {e}")
+
+        strategic_insights = []
+        for s in raw_insights:
+            try:
+                strategic_insights.append(StrategicInsight(**s))
+            except Exception:
+                pass
+
+        recommended_actions = []
+        for i, a in enumerate(raw_actions):
+            try:
+                if "id" not in a:
+                    a["id"] = f"action-{i+1:03d}"
+                if "action_type" not in a and "action_type" not in a:
+                    a["action_type"] = "follow-up"
+                recommended_actions.append(RecommendedAction(**a))
+            except Exception:
+                pass
+
+        now = datetime.utcnow()
+        store = {
+            "generated_at": now,
+            "playbook_score_pct": playbook_score_pct,
+            "outcome": outcome.model_dump(by_alias=True) if outcome else None,
+            "strategic_insights": [s.model_dump() for s in strategic_insights],
+            "recommended_actions": [a.model_dump() for a in recommended_actions],
+        }
+        await collection.update_one(
+            {"_id": oid, "user_id": current_user.id},
+            {"$set": {"atlas_evaluation": store, "updated_at": now}},
+        )
+
+        return MeetingEvaluationResponse(
+            meeting_id=meeting_id,
+            source="llm",
+            generated_at=now,
+            playbook_score_pct=playbook_score_pct,
+            outcome=outcome,
+            strategic_insights=strategic_insights,
+            recommended_actions=recommended_actions,
+            message="Generated evaluation via LLM and cached.",
+        )
+    except Exception as e:
+        logger.error(f"[Evaluation] LLM generation failed: {e}")
+        return MeetingEvaluationResponse(
+            meeting_id=meeting_id,
+            source="none",
+            message=f"LLM generation failed: {str(e)}",
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Smart Summary endpoint (cross-meeting intelligence)
+# ──────────────────────────────────────────────────────────────────────────────
+
+class DealHealthMetric(BaseModel):
+    value: int
+    trend: Literal["up", "down", "stable"]
+
+
+class SmartSummaryDealHealth(BaseModel):
+    engagement: DealHealthMetric
+    momentum: DealHealthMetric
+    risk_level: str
+    risk_trend: Literal["up", "down", "stable"]
+    win_probability: DealHealthMetric
+
+
+class DealEvolutionMeeting(BaseModel):
+    id: str
+    date: str
+    type: str
+    outcome: str
+    is_current: bool
+
+
+class ThenVsNowItem(BaseModel):
+    topic: str
+    then_date: str
+    then_status: str
+    then_sentiment: Literal["positive", "negative", "neutral"]
+    now_status: str
+    now_sentiment: Literal["positive", "negative", "neutral"]
+    impact: str
+    indicator: Literal["green", "amber", "red", "blue"]
+
+
+class ChangeAlert(BaseModel):
+    id: str
+    severity: Literal["critical", "warning", "info", "positive"]
+    title: str
+    category: str
+    previous_state: str
+    previous_date: str
+    current_state: str
+    impact_analysis: str
+    recommended_actions: List[str] = Field(default_factory=list)
+
+
+class TopicTimelineEntry(BaseModel):
+    date: str
+    quote: str
+    sentiment: Literal["positive", "negative", "neutral"]
+
+
+class EnhancedTopic(BaseModel):
+    title: str
+    badge: Literal["new", "revisited", "resolved", "shifted", "trending"]
+    meeting_count: str
+    sentiment_trend: Literal["improving", "declining", "stable"]
+    timeline: List[TopicTimelineEntry] = Field(default_factory=list)
+    status: str
+    next_step: str
+
+
+class StrategicRecommendation(BaseModel):
+    priority: Literal["critical", "important", "opportunity"]
+    title: str
+    why: str
+    impact: str
+    timeline: str
+    confidence: int
+
+
+class SmartSummaryResponse(BaseModel):
+    meeting_id: str
+    source: Literal["llm", "cache", "none"] = "none"
+    generated_at: Optional[datetime] = None
+    deal_health: Optional[SmartSummaryDealHealth] = None
+    deal_evolution: List[DealEvolutionMeeting] = Field(default_factory=list)
+    then_vs_now: List[ThenVsNowItem] = Field(default_factory=list)
+    change_alerts: List[ChangeAlert] = Field(default_factory=list)
+    enhanced_topics: List[EnhancedTopic] = Field(default_factory=list)
+    strategic_recommendations: List[StrategicRecommendation] = Field(default_factory=list)
+    message: Optional[str] = None
+
+
+@router.get("/{meeting_id}/smart-summary", response_model=SmartSummaryResponse)
+async def get_meeting_smart_summary(
+    meeting_id: str,
+    force_refresh: bool = Query(False),
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """
+    Get cross-meeting Smart Summary intelligence for Atlas Insights / Smart Summary tab.
+    Produces: deal health snapshot, deal evolution timeline, then-vs-now comparison,
+    change alerts, enhanced discussion topics, strategic recommendations.
+    Gathers context from past meetings with the same company/contact to build multi-meeting intel.
+    Caches result under 'atlas_smart_summary'.
+    """
+    collection = db.meetings
+    try:
+        oid = ObjectId(meeting_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid meeting id")
+
+    doc = await collection.find_one({"_id": oid, "user_id": current_user.id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    cached = doc.get("atlas_smart_summary") or {}
+    if cached and not force_refresh:
+        def _parse_deal_health(h):
+            if not h:
+                return None
+            try:
+                return SmartSummaryDealHealth(
+                    engagement=DealHealthMetric(**h["engagement"]),
+                    momentum=DealHealthMetric(**h["momentum"]),
+                    risk_level=h.get("risk_level", "Medium"),
+                    risk_trend=h.get("risk_trend", "stable"),
+                    win_probability=DealHealthMetric(**h["win_probability"]),
+                )
+            except Exception:
+                return None
+
+        return SmartSummaryResponse(
+            meeting_id=meeting_id,
+            source="cache",
+            generated_at=cached.get("generated_at"),
+            deal_health=_parse_deal_health(cached.get("deal_health")),
+            deal_evolution=[DealEvolutionMeeting(**m) for m in (cached.get("deal_evolution") or [])],
+            then_vs_now=[ThenVsNowItem(**t) for t in (cached.get("then_vs_now") or [])],
+            change_alerts=[ChangeAlert(**a) for a in (cached.get("change_alerts") or [])],
+            enhanced_topics=[EnhancedTopic(**t) for t in (cached.get("enhanced_topics") or [])],
+            strategic_recommendations=[StrategicRecommendation(**r) for r in (cached.get("strategic_recommendations") or [])],
+            message="Returned cached smart summary.",
+        )
+
+    transcript_lines = doc.get("transcript_lines") or []
+    transcript_text = _build_transcript_text(transcript_lines)
+    if not transcript_text.strip():
+        return SmartSummaryResponse(
+            meeting_id=meeting_id,
+            source="none",
+            message="No transcript available to generate smart summary.",
+        )
+
+    title = doc.get("title") or doc.get("meeting_title") or "Meeting"
+    created_at = doc.get("created_at") or doc.get("start_time") or datetime.utcnow()
+    meeting_date = created_at.strftime("%b %d") if isinstance(created_at, datetime) else str(created_at)[:10]
+
+    participants_raw = doc.get("participants") or doc.get("attendees") or []
+    company_name = ""
+    if isinstance(participants_raw, list) and participants_raw:
+        first = participants_raw[0] if isinstance(participants_raw[0], dict) else {}
+        company_name = first.get("company", "")
+
+    past_meetings_context = ""
+    past_cursor = collection.find(
+        {
+            "user_id": current_user.id,
+            "_id": {"$ne": oid},
+        },
+        sort=[("created_at", -1)],
+        limit=5,
+    )
+    past_docs = await past_cursor.to_list(length=5)
+    past_summaries = []
+    for p in past_docs:
+        p_title = p.get("title") or p.get("meeting_title") or "Past meeting"
+        p_date = p.get("created_at") or p.get("start_time")
+        p_date_str = p_date.strftime("%b %d") if isinstance(p_date, datetime) else "Earlier"
+        p_insights = p.get("atlas_summary") or {}
+        p_takeaways = (p_insights.get("key_takeaways") or [])[:3]
+        p_next = p.get("atlas_next_steps") or []
+        p_next_desc = [n.get("description", "") for n in p_next[:2]]
+        summary_text = f"Meeting ({p_date_str}): {p_title}"
+        if p_takeaways:
+            summary_text += f"\n  Key points: {'; '.join(p_takeaways)}"
+        if p_next_desc:
+            summary_text += f"\n  Next steps agreed: {'; '.join(p_next_desc)}"
+        past_summaries.append(summary_text)
+
+    if past_summaries:
+        past_meetings_context = "PAST MEETINGS WITH THIS PROSPECT:\n" + "\n\n".join(past_summaries)
+    else:
+        past_meetings_context = "No previous meeting history available."
+
+    prompt = f"""You are an expert AI sales intelligence analyst. Analyze the current meeting transcript and past meeting history to generate a cross-meeting Smart Summary.
+
+Current Meeting: {title} ({meeting_date})
+{past_meetings_context}
+
+Current Meeting Transcript:
+{transcript_text}
+
+Return JSON with this EXACT structure:
+{{
+  "deal_health": {{
+    "engagement": {{"value": 75, "trend": "up" | "down" | "stable"}},
+    "momentum": {{"value": 65, "trend": "up" | "down" | "stable"}},
+    "risk_level": "Low" | "Medium" | "High",
+    "risk_trend": "up" | "down" | "stable",
+    "win_probability": {{"value": 70, "trend": "up" | "down" | "stable"}}
+  }},
+  "deal_evolution": [
+    {{"id": "m1", "date": "Feb 15", "type": "Cold Outreach", "outcome": "Brief outcome", "is_current": false}},
+    {{"id": "m2", "date": "Today", "type": "Discovery", "outcome": "ROI session agreed", "is_current": true}}
+  ],
+  "then_vs_now": [
+    {{
+      "topic": "Budget Status",
+      "then_date": "Feb 28",
+      "then_status": "Budget confirmed",
+      "then_sentiment": "positive" | "negative" | "neutral",
+      "now_status": "Needs re-confirmation",
+      "now_sentiment": "positive" | "negative" | "neutral",
+      "impact": "Deal risk increased",
+      "indicator": "green" | "amber" | "red" | "blue"
+    }}
+  ],
+  "change_alerts": [
+    {{
+      "id": "ca1",
+      "severity": "critical" | "warning" | "info" | "positive",
+      "title": "Alert title",
+      "category": "Budget" | "Technical" | "Stakeholder" | "Competition" | "Timeline",
+      "previous_state": "What was said before",
+      "previous_date": "Mar 1",
+      "current_state": "What changed now",
+      "impact_analysis": "One sentence on business impact",
+      "recommended_actions": ["Action 1", "Action 2"]
+    }}
+  ],
+  "enhanced_topics": [
+    {{
+      "title": "Current Challenges",
+      "badge": "new" | "revisited" | "resolved" | "shifted" | "trending",
+      "meeting_count": "Discussed in 2 of 3 meetings",
+      "sentiment_trend": "improving" | "declining" | "stable",
+      "timeline": [
+        {{"date": "Feb 28", "quote": "Short quote from that meeting", "sentiment": "positive" | "negative" | "neutral"}}
+      ],
+      "status": "One sentence status",
+      "next_step": "One sentence next step"
+    }}
+  ],
+  "strategic_recommendations": [
+    {{
+      "priority": "critical" | "important" | "opportunity",
+      "title": "Short title",
+      "why": "One sentence reason",
+      "impact": "One sentence impact",
+      "timeline": "e.g. Within 48 hours",
+      "confidence": 85
+    }}
+  ]
+}}
+
+Rules:
+- Output ONLY valid JSON.
+- deal_health values: integers 0-100.
+- Derive deal_evolution from past meeting history + current meeting.
+- then_vs_now: compare key signals from past vs current meeting (2-4 items).
+- change_alerts: only include if a real change was detected (0-3 alerts).
+- enhanced_topics: 2-4 discussion topics with cross-meeting timeline.
+- strategic_recommendations: 2-4 items ordered by priority.
+- confidence values: integer 0-100.
+""".strip()
+
+    try:
+        generated = await _call_groq_json(prompt)
+
+        def _parse_health(h):
+            if not h:
+                return None
+            try:
+                return SmartSummaryDealHealth(
+                    engagement=DealHealthMetric(**h.get("engagement", {"value": 70, "trend": "stable"})),
+                    momentum=DealHealthMetric(**h.get("momentum", {"value": 60, "trend": "stable"})),
+                    risk_level=h.get("risk_level", "Medium"),
+                    risk_trend=h.get("risk_trend", "stable"),
+                    win_probability=DealHealthMetric(**h.get("win_probability", {"value": 65, "trend": "stable"})),
+                )
+            except Exception:
+                return None
+
+        deal_health = _parse_health(generated.get("deal_health"))
+
+        deal_evolution = []
+        for m in (generated.get("deal_evolution") or []):
+            try:
+                deal_evolution.append(DealEvolutionMeeting(**m))
+            except Exception:
+                pass
+
+        then_vs_now = []
+        for t in (generated.get("then_vs_now") or []):
+            try:
+                then_vs_now.append(ThenVsNowItem(**t))
+            except Exception:
+                pass
+
+        change_alerts = []
+        for a in (generated.get("change_alerts") or []):
+            try:
+                change_alerts.append(ChangeAlert(**a))
+            except Exception:
+                pass
+
+        enhanced_topics = []
+        for t in (generated.get("enhanced_topics") or []):
+            try:
+                tl = [TopicTimelineEntry(**e) for e in (t.get("timeline") or [])]
+                t["timeline"] = tl
+                enhanced_topics.append(EnhancedTopic(**t))
+            except Exception:
+                pass
+
+        strategic_recommendations = []
+        for r in (generated.get("strategic_recommendations") or []):
+            try:
+                strategic_recommendations.append(StrategicRecommendation(**r))
+            except Exception:
+                pass
+
+        now = datetime.utcnow()
+
+        def _dhm(h: Optional[SmartSummaryDealHealth]):
+            if not h:
+                return None
+            return {
+                "engagement": h.engagement.model_dump(),
+                "momentum": h.momentum.model_dump(),
+                "risk_level": h.risk_level,
+                "risk_trend": h.risk_trend,
+                "win_probability": h.win_probability.model_dump(),
+            }
+
+        store = {
+            "generated_at": now,
+            "deal_health": _dhm(deal_health),
+            "deal_evolution": [m.model_dump() for m in deal_evolution],
+            "then_vs_now": [t.model_dump() for t in then_vs_now],
+            "change_alerts": [a.model_dump() for a in change_alerts],
+            "enhanced_topics": [t.model_dump() for t in enhanced_topics],
+            "strategic_recommendations": [r.model_dump() for r in strategic_recommendations],
+        }
+        await collection.update_one(
+            {"_id": oid, "user_id": current_user.id},
+            {"$set": {"atlas_smart_summary": store, "updated_at": now}},
+        )
+
+        return SmartSummaryResponse(
+            meeting_id=meeting_id,
+            source="llm",
+            generated_at=now,
+            deal_health=deal_health,
+            deal_evolution=deal_evolution,
+            then_vs_now=then_vs_now,
+            change_alerts=change_alerts,
+            enhanced_topics=enhanced_topics,
+            strategic_recommendations=strategic_recommendations,
+            message="Generated smart summary via LLM and cached.",
+        )
+    except Exception as e:
+        logger.error(f"[SmartSummary] LLM generation failed: {e}")
+        return SmartSummaryResponse(
+            meeting_id=meeting_id,
+            source="none",
+            message=f"LLM generation failed: {str(e)}",
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Strategy Next Meeting endpoint
+# ──────────────────────────────────────────────────────────────────────────────
+
+class NextMeetingStrategyRequest(BaseModel):
+    meeting_id: Optional[str] = None
+    context_hint: Optional[str] = None
+
+
+class NextMeetingStrategySection(BaseModel):
+    title: str
+    points: List[str]
+
+
+class NextMeetingStrategyResponse(BaseModel):
+    meeting_id: Optional[str] = None
+    source: Literal["llm", "cache", "none"] = "none"
+    generated_at: Optional[datetime] = None
+    objective: Optional[str] = None
+    opening_script: Optional[str] = None
+    key_talking_points: List[str] = Field(default_factory=list)
+    objection_handling: List[dict] = Field(default_factory=list)
+    closing_move: Optional[str] = None
+    message: Optional[str] = None
+
+
+@router.post("/{meeting_id}/strategy-next-meeting", response_model=NextMeetingStrategyResponse)
+async def get_next_meeting_strategy(
+    meeting_id: str,
+    force_refresh: bool = Query(False),
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """
+    Generate AI-powered strategy for the next meeting based on the current meeting transcript,
+    evaluation, and smart summary. Caches result under 'atlas_next_meeting_strategy'.
+    """
+    collection = db.meetings
+    try:
+        oid = ObjectId(meeting_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid meeting id")
+
+    doc = await collection.find_one({"_id": oid, "user_id": current_user.id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    cached = doc.get("atlas_next_meeting_strategy") or {}
+    if cached and not force_refresh:
+        return NextMeetingStrategyResponse(
+            meeting_id=meeting_id,
+            source="cache",
+            generated_at=cached.get("generated_at"),
+            objective=cached.get("objective"),
+            opening_script=cached.get("opening_script"),
+            key_talking_points=cached.get("key_talking_points") or [],
+            objection_handling=cached.get("objection_handling") or [],
+            closing_move=cached.get("closing_move"),
+            message="Returned cached strategy.",
+        )
+
+    transcript_lines = doc.get("transcript_lines") or []
+    transcript_text = _build_transcript_text(transcript_lines)
+    if not transcript_text.strip():
+        return NextMeetingStrategyResponse(
+            meeting_id=meeting_id,
+            source="none",
+            message="No transcript available to generate strategy.",
+        )
+
+    title = doc.get("title") or doc.get("meeting_title") or "Meeting"
+    evaluation = doc.get("atlas_evaluation") or {}
+    smart_summary = doc.get("atlas_smart_summary") or {}
+
+    eval_summary = (evaluation.get("outcome") or {}).get("summary", "")
+    recommended_actions = evaluation.get("recommended_actions") or []
+    actions_text = "; ".join([a.get("title", "") for a in recommended_actions[:3]])
+    strategic_recs = smart_summary.get("strategic_recommendations") or []
+    recs_text = "; ".join([r.get("title", "") for r in strategic_recs[:3]])
+    change_alerts = smart_summary.get("change_alerts") or []
+    alerts_text = "; ".join([a.get("title", "") for a in change_alerts[:3]])
+
+    prompt = f"""You are an expert AI sales strategist. Based on a completed sales meeting, generate a concrete strategy guide for the NEXT meeting with the same prospect.
+
+Meeting: {title}
+
+Call outcome: {eval_summary or 'Not available'}
+Recommended actions: {actions_text or 'None'}
+Strategic priorities: {recs_text or 'None'}
+Risk alerts to address: {alerts_text or 'None'}
+
+Transcript excerpt:
+{transcript_text[:2000]}
+
+Return JSON with this EXACT structure:
+{{
+  "objective": "Single sentence: the primary goal of the next meeting",
+  "opening_script": "2-3 sentence natural opener that references the last conversation and sets the new agenda",
+  "key_talking_points": [
+    "Talking point 1",
+    "Talking point 2",
+    "Talking point 3",
+    "Talking point 4"
+  ],
+  "objection_handling": [
+    {{
+      "objection": "Likely objection 1",
+      "response": "Recommended response"
+    }},
+    {{
+      "objection": "Likely objection 2",
+      "response": "Recommended response"
+    }}
+  ],
+  "closing_move": "Specific closing technique or next step to secure at the end of the meeting"
+}}"""
+
+    try:
+        result = await _call_groq_json(prompt)
+        now = datetime.utcnow()
+
+        objective = result.get("objective") or ""
+        opening_script = result.get("opening_script") or ""
+        key_talking_points = result.get("key_talking_points") or []
+        objection_handling = result.get("objection_handling") or []
+        closing_move = result.get("closing_move") or ""
+
+        store = {
+            "generated_at": now,
+            "objective": objective,
+            "opening_script": opening_script,
+            "key_talking_points": key_talking_points,
+            "objection_handling": objection_handling,
+            "closing_move": closing_move,
+        }
+        await collection.update_one(
+            {"_id": oid, "user_id": current_user.id},
+            {"$set": {"atlas_next_meeting_strategy": store, "updated_at": now}},
+        )
+
+        return NextMeetingStrategyResponse(
+            meeting_id=meeting_id,
+            source="llm",
+            generated_at=now,
+            objective=objective,
+            opening_script=opening_script,
+            key_talking_points=key_talking_points,
+            objection_handling=objection_handling,
+            closing_move=closing_move,
+            message="Generated next meeting strategy via LLM.",
+        )
+    except Exception as e:
+        logger.error(f"[NextMeetingStrategy] LLM generation failed: {e}")
+        return NextMeetingStrategyResponse(
+            meeting_id=meeting_id,
+            source="none",
+            message=f"LLM generation failed: {str(e)}",
+        )

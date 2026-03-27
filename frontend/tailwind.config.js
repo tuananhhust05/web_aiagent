@@ -88,6 +88,12 @@ export default {
           blue: "hsl(var(--forskale-blue))",
           cyan: "hsl(var(--forskale-cyan))",
           lime: "hsl(var(--forskale-lime))",
+          purple: "hsl(var(--forskale-purple))",
+        },
+        status: {
+          great: "hsl(var(--status-great))",
+          okay: "hsl(var(--status-okay))",
+          "needs-work": "hsl(var(--status-needs-work))",
         },
         cal: {
           dark: "hsl(var(--cal-dark))",
@@ -103,11 +109,16 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
+        heading: ['Plus Jakarta Sans', 'Inter', 'system-ui', 'sans-serif'],
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        "card-md": "var(--shadow-md)",
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-in-out',

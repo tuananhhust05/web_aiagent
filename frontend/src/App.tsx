@@ -78,6 +78,7 @@ import AtlasCalendarPage from './pages/AtlasCalendarPage'
 import AtlasMain from './pages/AtlasMain'
 import AtlasPlaybookTemplates from './pages/AtlasPlaybookTemplates'
 import AtlasQnAPage from './pages/AtlasQnAPage'
+import AtlasInsightsPage from './pages/AtlasInsightsPage'
 import ToDoReadyPage from './pages/ToDoReadyPage'
 
 const ALLOWED_WHEN_PROFILE_INCOMPLETE = ['/supplement-profile', '/auth/welcome', '/auth/oauth-done', '/login']
@@ -151,7 +152,7 @@ function App() {
         <Route index element={<Navigate to="/atlas/calendar" replace />} />
         <Route path="calendar" element={<AtlasCalendarPage />} />
         <Route path="calls" element={<AtlasMain />} />
-        <Route path="insights" element={<AtlasMain />} />
+        <Route path="insights" element={<AtlasInsightsPage />} />
         <Route path="performance" element={<AtlasMain />} />
         <Route path="todo" element={<ToDoReadyPage />} />
         <Route path="qna" element={<AtlasQnAPage />} />

@@ -1,14 +1,22 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../ui/dialog";
-import { Button } from "../ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { CalendarDays, Shield, CheckCircle2 } from "lucide-react";
 
 interface RegistrationWizardProps {
   open: boolean;
   onClose: () => void;
-  onConnect: () => void;
+  onConnect?: () => void | Promise<void>;
 }
 
 export function RegistrationWizard({ open, onClose, onConnect }: RegistrationWizardProps) {
+  const handleConnect = () => {
+    if (onConnect) {
+      void onConnect();
+    } else {
+      onClose();
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-md">
@@ -18,7 +26,7 @@ export function RegistrationWizard({ open, onClose, onConnect }: RegistrationWiz
           </div>
           <DialogTitle className="text-center">Connect your calendar</DialogTitle>
           <DialogDescription className="text-center">
-            Plus needs access to your Google Calendar to auto-record meetings and share insights.
+            Atlas needs access to your Google Calendar to auto-record meetings and share insights.
           </DialogDescription>
         </DialogHeader>
         <ul className="my-4 space-y-2 text-sm text-muted-foreground">
@@ -30,10 +38,10 @@ export function RegistrationWizard({ open, onClose, onConnect }: RegistrationWiz
           <Shield className="h-4 w-4 text-primary flex-shrink-0" />
           We request only the minimum permissions necessary.
         </div>
-        <Button className="mt-4 w-full" onClick={onConnect}>
+        <Button className="mt-4 w-full" onClick={handleConnect}>
           Connect Google Calendar
         </Button>
       </DialogContent>
-    </Dialog>);
-
+    </Dialog>
+  );
 }

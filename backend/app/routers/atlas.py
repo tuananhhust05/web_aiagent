@@ -6,15 +6,18 @@ import os
 import uuid
 import traceback
 import logging
+import json
+import aiohttp
 import httpx
 from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File, BackgroundTasks, Path
 from fastapi.responses import FileResponse
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Dict
 from pydantic import BaseModel, Field
 from datetime import datetime
 
 from app.core.database import get_database, get_weaviate
 from app.core.auth import get_current_active_user
+from app.core.config import settings
 from app.models.user import UserResponse
 from app.models.rag_document import RAGDocumentStatus
 from app.services.pdf_processor import process_file_to_chunks
@@ -2448,3 +2451,302 @@ async def update_participant_linkedin(
     )
 
     return {"email": normalized_email, "linkedin_url": linkedin_url, "updated": True}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Neuro Profile: AI-powered cognitive/psychological profile of contact
+# ─────────────────────────────────────────────────────────────────────────────
+
+class DecisionStyle(BaseModel):
+    score: int = Field(..., ge=0, le=100, description="Score 0-100")
+    label: str = Field(..., description="e.g., Analytical, Intuitive, etc.")
+    description: str = Field(..., description="Explanation of this style")
+
+
+class RiskTolerance(BaseModel):
+    score: int = Field(..., ge=0, le=100, description="Score 0-100")
+    label: str = Field(..., description="e.g., Conservative, Moderate, Aggressive")
+    description: str = Field(..., description="Explanation of risk profile")
+
+
+class DecisionTrigger(BaseModel):
+    label: str
+    color: str = Field(..., description="Tailwind color class, e.g., bg-blue-100 text-blue-800")
+
+
+class Approach(BaseModel):
+    do: dict = Field(..., description="What to do: {title, action}")
+    dont: dict = Field(..., description="What not to do: {title, action}")
+    bias: dict = Field(..., description="Bias info: {name, description}")
+
+
+class OpeningScript(BaseModel):
+    text: str = Field(..., description="The actual script text")
+    reasons: List[dict] = Field(..., description="Why it works: [{principle, explanation}]")
+
+
+class RiskAlert(BaseModel):
+    icon: str = Field(..., description="Icon type, e.g., budget, stakeholder")
+    title: str
+    description: str
+
+
+class NeuroProfileResponse(BaseModel):
+    decisionStyle: DecisionStyle
+    riskTolerance: RiskTolerance
+    triggers: List[DecisionTrigger]
+    summary: str = Field(..., description="Short summary of the profile")
+    approach: Approach
+    openingScript: OpeningScript
+    riskAlerts: List[RiskAlert]
+
+
+@router.get("/neuro-profile", response_model=NeuroProfileResponse)
+async def get_neuro_profile(
+    event_id: Optional[str] = Query(None, description="Calendar event ID"),
+    email: Optional[str] = Query(None, description="Contact email"),
+    name: Optional[str] = Query(None, description="Contact name"),
+    force: bool = Query(False, description="Force regenerate, skip cache"),
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """
+    Generate AI-powered neuro/cognitive profile for a contact.
+    Results are cached in MongoDB — AI only runs once per contact unless force=True.
+    """
+    db = get_database()
+    user_id = str(current_user.id)
+    normalized_email = email.strip().lower() if email else None
+    
+    logger.info(f"[NEURO-PROFILE] Request for event_id={event_id}, email={normalized_email}, name={name}, force={force}")
+    
+    # ── Cache check: return stored profile if available ──
+    NEURO_PROFILES_COLLECTION = "atlas_neuro_profiles"
+    if normalized_email and not force:
+        cached = await db[NEURO_PROFILES_COLLECTION].find_one({
+            "user_id": user_id,
+            "email": normalized_email,
+        })
+        if cached and cached.get("profile"):
+            logger.info(f"[NEURO-PROFILE] ✅ Cache hit for {normalized_email}")
+            return NeuroProfileResponse(**cached["profile"])
+    
+    # Get enriched participant profile if available
+    enriched_profile = None
+    if normalized_email:
+        enriched_profile_doc = await db[ENRICHED_PROFILES_COLLECTION].find_one({
+            "user_id": user_id,
+            "email": normalized_email,
+        })
+        enriched_profile = enriched_profile_doc.get("profile_data") if enriched_profile_doc else None
+    
+    # Get meeting context for additional signals
+    meeting_context = None
+    if email:
+        company_name = email.split("@")[1].split(".")[0] if email and "@" in email else None
+        if company_name:
+            try:
+                ctx_resp = await db["atlas_meeting_context"].find_one({
+                    "user_id": user_id,
+                    "company_name": {"$regex": company_name, "$options": "i"},
+                })
+                meeting_context = ctx_resp if ctx_resp else None
+            except:
+                pass
+    
+    # Build context for AI analysis
+    context_data = {
+        "participant_name": name or "",
+        "participant_email": email or "",
+        "enriched_profile": enriched_profile,
+        "meeting_context": meeting_context,
+    }
+    
+    # Generate neuro profile using AI
+    try:
+        profile = await generate_neuro_profile_ai(context_data)
+        logger.info(f"[NEURO-PROFILE] ✅ Generated profile for {normalized_email}")
+        
+        # ── Save to cache ──
+        if normalized_email:
+            await db[NEURO_PROFILES_COLLECTION].update_one(
+                {"user_id": user_id, "email": normalized_email},
+                {"$set": {
+                    "user_id": user_id,
+                    "email": normalized_email,
+                    "name": name or "",
+                    "profile": profile.model_dump(),
+                    "updated_at": __import__("datetime").datetime.utcnow(),
+                }},
+                upsert=True,
+            )
+            logger.info(f"[NEURO-PROFILE] 💾 Cached profile for {normalized_email}")
+        
+        return profile
+    except Exception as e:
+        logger.error(f"[NEURO-PROFILE] AI generation failed: {e}")
+        return get_fallback_neuro_profile()
+
+
+async def generate_neuro_profile_ai(context_data: Dict[str, Any]) -> NeuroProfileResponse:
+    """
+    Use Claude/Groq AI to analyze participant data and generate neuro profile.
+    
+    Inputs:
+    - Participant name/email
+    - LinkedIn enriched profile (DISC type, traits, communication style)
+    - Meeting context (deal stage, company info, past interactions)
+    
+    Outputs:
+    - Decision style & risk tolerance scores
+    - Psychological triggers
+    - Recommended sales approach
+    - Personalized opening script
+    - Risk alerts
+    """
+    if not settings.GROQ_API_KEY and not settings.ANTHROPIC_API_KEY:
+        logger.warning("[NEURO-PROFILE] No AI API configured, using fallback")
+        return get_fallback_neuro_profile()
+    
+    # Build AI prompt
+    participant_name = context_data.get("participant_name", "")
+    enriched = context_data.get("enriched_profile", {}) or {}
+    
+    disc_type = enriched.get("disc", {}).get("type", "Not available")
+    disc_traits = enriched.get("disc", {}).get("traits", [])
+    about = enriched.get("about", "")[:500]  # Truncate LinkedIn bio
+    interests = enriched.get("interests", [])[:5]
+    communication_dos = enriched.get("communicationStrategy", {}).get("dos", [])
+    communication_donts = enriched.get("communicationStrategy", {}).get("donts", [])
+    
+    prompt = f"""You are an expert in behavioral psychology and neuroscience applied to sales.
+Analyze this person's profile and generate a detailed neuro/cognitive profile.
+
+PARTICIPANT: {participant_name}
+DISC TYPE: {disc_type}
+DISC TRAITS: {', '.join(disc_traits)}
+ABOUT: {about}
+INTERESTS: {', '.join(interests)}
+COMMUNICATION DOS: {', '.join([d.get('action', '') for d in communication_dos[:2]])}
+COMMUNICATION DON'TS: {', '.join([d.get('action', '') for d in communication_donts[:2]])}
+
+Generate a JSON response with this exact structure:
+{{
+  "decisionStyle": {{
+    "score": <0-100>,
+    "label": "<Analytical/Intuitive/Balanced>",
+    "description": "<One sentence about their decision-making style>"
+  }},
+  "riskTolerance": {{
+    "score": <0-100>,
+    "label": "<Conservative/Moderate/Aggressive>",
+    "description": "<One sentence about their risk appetite>"
+  }},
+  "triggers": [
+    {{"label": "<trigger 1>", "color": "bg-blue-100 text-blue-800"}},
+    {{"label": "<trigger 2>", "color": "bg-green-100 text-green-800"}},
+    {{"label": "<trigger 3>", "color": "bg-purple-100 text-purple-800"}}
+  ],
+  "summary": "<2-3 sentence profile summary>",
+  "approach": {{
+    "do": {{"title": "<Do this>", "action": "<specific action>"}},
+    "dont": {{"title": "<Avoid this>", "action": "<specific thing to avoid>"}},
+    "bias": {{"name": "<Active bias>", "description": "<How to leverage it>"}}
+  }},
+  "openingScript": {{
+    "text": "<30-second opening that resonates with this person>",
+    "reasons": [
+      {{"principle": "<principle>", "explanation": "<why it works>"}},
+      {{"principle": "<principle>", "explanation": "<why it works>"}}
+    ]
+  }},
+  "riskAlerts": [
+    {{"icon": "budget", "title": "<Alert title>", "description": "<What to watch for>"}},
+    {{"icon": "stakeholder", "title": "<Alert title>", "description": "<What to watch for>"}}
+  ]
+}}
+
+IMPORTANT: Return ONLY valid JSON, no markdown, no explanations."""
+
+    try:
+        # Try Groq first (faster)
+        if settings.GROQ_API_KEY:
+            async with aiohttp.ClientSession() as session:
+                headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}"}
+                payload = {
+                    "model": "mixtral-8x7b-32768",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.7,
+                    "max_tokens": 1200,
+                }
+                async with session.post(
+                    "https://api.groq.com/openai/v1/chat/completions",
+                    json=payload,
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        content = data["choices"][0]["message"]["content"]
+                        profile_dict = json.loads(content)
+                        return NeuroProfileResponse(**profile_dict)
+    except Exception as e:
+        logger.error(f"[NEURO-PROFILE] Groq error: {e}")
+    
+    # Fallback: return default profile
+    return get_fallback_neuro_profile()
+
+
+def get_fallback_neuro_profile() -> NeuroProfileResponse:
+    """Return a default neuro profile when AI fails."""
+    return NeuroProfileResponse(
+        decisionStyle=DecisionStyle(
+            score=65,
+            label="Analytical",
+            description="Data-driven, values proof and concrete evidence"
+        ),
+        riskTolerance=RiskTolerance(
+            score=45,
+            label="Moderate",
+            description="Balanced approach to innovation and risk"
+        ),
+        triggers=[
+            DecisionTrigger(label="ROI Focus", color="bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"),
+            DecisionTrigger(label="Team Alignment", color="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"),
+            DecisionTrigger(label="Efficiency", color="bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300"),
+        ],
+        summary="Professional who values data, team consensus, and proven results",
+        approach=Approach(
+            do={
+                "title": "Lead with Authority & Data",
+                "action": "Share concrete case studies and ROI metrics to build credibility"
+            },
+            dont={
+                "title": "Avoid Pressure Tactics",
+                "action": "Aggressive sales tactics trigger resistance and skepticism"
+            },
+            bias={
+                "name": "Confirmation Bias",
+                "description": "Ask discovery questions to let them discover the fit themselves"
+            }
+        ),
+        openingScript=OpeningScript(
+            text="Thanks for making time. I wanted to share something relevant: we recently helped a similar team reduce delivery time by 40%. What's your biggest operational challenge right now?",
+            reasons=[
+                {"principle": "Authority", "explanation": "Specific case study builds credibility"},
+                {"principle": "Relevance", "explanation": "Shows we understand their world"},
+                {"principle": "Discovery", "explanation": "Open question lets them talk"},
+            ]
+        ),
+        riskAlerts=[
+            RiskAlert(
+                icon="budget",
+                title="Budget Sensitivity",
+                description="Reframe as ROI and business value, not cost"
+            ),
+            RiskAlert(
+                icon="stakeholder",
+                title="Multi-stakeholder Complexity",
+                description="Prepare materials for consensus-building across teams"
+            ),
+        ]
+    )

@@ -1,11 +1,11 @@
 import { useState } from "react";
-import { X, MapPin, Building2, Globe, Heart, Linkedin, Lock, Check, XCircle, MessageSquare, Brain, Sparkles, FileText } from "lucide-react";
-import { Button } from "../ui/button";
-import { Badge } from "../ui/badge";
-import { Separator } from "../ui/separator";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "../ui/accordion";
-import { cn } from "../../lib/utils";
-import type { EnrichedProfileData } from "../../lib/api";
+import { X, MapPin, Building2, Globe, Heart, Linkedin, Lock, Check, XCircle, MessageSquare, Brain, Sparkles } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
+import { type EnrichedProfileData } from "@/lib/api";
 
 interface EnrichedProfileCardProps {
   data: EnrichedProfileData;
@@ -13,8 +13,23 @@ interface EnrichedProfileCardProps {
 }
 
 
-export function EnrichedProfileCard({ data, onClose }: EnrichedProfileCardProps) {
+export function EnrichedProfileCard({ data: rawData, onClose }: EnrichedProfileCardProps) {
   const [openSection, setOpenSection] = useState<string>("communication");
+
+  const data: EnrichedProfileData = {
+    name: rawData.name || "—",
+    title: rawData.title || "—",
+    company: rawData.company || "—",
+    tenure: rawData.tenure || "—",
+    location: rawData.location || "—",
+    linkedinUrl: rawData.linkedinUrl || "#",
+    languages: rawData.languages || [],
+    interests: rawData.interests || [],
+    disc: rawData.disc || { type: "—", label: "—", color: "bg-gray-400", traits: [] },
+    compatibility: rawData.compatibility || { level: "Medium", percentage: 65 },
+    communicationStrategy: rawData.communicationStrategy || { dos: [], donts: [] },
+    personalityTraits: rawData.personalityTraits || { archetype: "—", traits: [] },
+  };
 
   const compatColor = data.compatibility.percentage >= 70 ? "text-atlas-success" : "text-atlas-warning";
   const freeCreditsRemaining = 5;
@@ -32,17 +47,9 @@ export function EnrichedProfileCard({ data, onClose }: EnrichedProfileCardProps)
       <div className="flex-1 overflow-auto p-4 scrollbar-thin space-y-5">
         {/* Profile Header */}
         <div className="flex flex-col items-center text-center">
-          {/* Avatar with ring */}
+          {/* Avatar placeholder with ring */}
           <div className="relative mb-3">
-            {data.profilePic ? (
-              <img
-                src={data.profilePic}
-                alt={data.name}
-                className="h-20 w-20 rounded-full border-2 border-primary/30 object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
-              />
-            ) : null}
-            <div className={cn("h-20 w-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border-2 border-primary/30 flex items-center justify-center", data.profilePic ? "hidden" : "")}>
+            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 border-2 border-primary/30 flex items-center justify-center">
               <span className="text-xl font-bold text-primary">
                 {data.name.split(" ").map(n => n[0]).join("")}
               </span>
@@ -82,17 +89,6 @@ export function EnrichedProfileCard({ data, onClose }: EnrichedProfileCardProps)
             </div>
           )}
         </div>
-
-        {/* About */}
-        {data.about && (
-          <div>
-            <div className="mb-1.5 flex items-center gap-1.5">
-              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-medium text-muted-foreground">About</span>
-            </div>
-            <p className="text-xs text-foreground leading-relaxed whitespace-pre-line">{data.about}</p>
-          </div>
-        )}
 
         {/* Interests */}
         <div>

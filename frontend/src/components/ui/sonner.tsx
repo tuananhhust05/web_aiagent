@@ -1,9 +1,7 @@
-const Toaster = () => null;
+import { Toaster as SonnerToaster, toast } from 'sonner';
 
-const toast = {
-  message: (_msg: string) => {
-    // no-op stub
-  },
-};
+const Toaster = () => (
+  <SonnerToaster position="top-right" richColors />
+);
 
 export { Toaster, toast };

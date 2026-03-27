@@ -374,6 +374,152 @@ export type MeetingFeedback = {
   message?: string | null
 }
 
+export type EvaluationKeyMoment = {
+  timestamp: string
+  type: 'positive' | 'negative' | 'neutral'
+  description: string
+}
+
+export type EvaluationDealProgression = {
+  from: string
+  to: string
+  likelihood: 'high' | 'medium' | 'low'
+}
+
+export type EvaluationOutcome = {
+  status: 'successful' | 'neutral' | 'needs-attention'
+  summary: string
+  deal_progression: EvaluationDealProgression
+  key_moments: EvaluationKeyMoment[]
+}
+
+export type EvaluationStrategicInsight = {
+  category: 'pain-point' | 'budget' | 'decision-maker' | 'timeline' | 'competition'
+  insight: string
+  confidence: number
+  icon: string
+}
+
+export type EvaluationRecommendedAction = {
+  id: string
+  priority: number
+  title: string
+  description: string
+  timing: 'immediate' | 'within-24h' | 'this-week' | 'this-month'
+  action_type: 'follow-up' | 'send-material' | 'schedule-meeting'
+  status: 'pending' | 'completed' | 'dismissed'
+}
+
+export type MeetingEvaluation = {
+  meeting_id: string
+  source: 'llm' | 'cache' | 'none'
+  generated_at?: string
+  playbook_score_pct?: number | null
+  outcome?: EvaluationOutcome | null
+  strategic_insights: EvaluationStrategicInsight[]
+  recommended_actions: EvaluationRecommendedAction[]
+  message?: string | null
+}
+
+export type SmartSummaryDealHealthMetric = {
+  value: number
+  trend: 'up' | 'down' | 'stable'
+}
+
+export type SmartSummaryDealHealth = {
+  engagement: SmartSummaryDealHealthMetric
+  momentum: SmartSummaryDealHealthMetric
+  risk_level: string
+  risk_trend: 'up' | 'down' | 'stable'
+  win_probability: SmartSummaryDealHealthMetric
+}
+
+export type SmartSummaryDealEvolution = {
+  id: string
+  date: string
+  type: string
+  outcome: string
+  is_current: boolean
+}
+
+export type SmartSummaryThenVsNow = {
+  topic: string
+  then_date: string
+  then_status: string
+  then_sentiment: 'positive' | 'negative' | 'neutral'
+  now_status: string
+  now_sentiment: 'positive' | 'negative' | 'neutral'
+  impact: string
+  indicator: 'green' | 'amber' | 'red' | 'blue'
+}
+
+export type SmartSummaryChangeAlert = {
+  id: string
+  severity: 'critical' | 'warning' | 'info' | 'positive'
+  title: string
+  category: string
+  previous_state: string
+  previous_date: string
+  current_state: string
+  impact_analysis: string
+  recommended_actions: string[]
+}
+
+export type SmartSummaryTopicTimeline = {
+  date: string
+  quote: string
+  sentiment: 'positive' | 'negative' | 'neutral'
+}
+
+export type SmartSummaryEnhancedTopic = {
+  title: string
+  badge: 'new' | 'revisited' | 'resolved' | 'shifted' | 'trending'
+  meeting_count: string
+  sentiment_trend: 'improving' | 'declining' | 'stable'
+  timeline: SmartSummaryTopicTimeline[]
+  status: string
+  next_step: string
+}
+
+export type SmartSummaryStrategicRecommendation = {
+  priority: 'critical' | 'important' | 'opportunity'
+  title: string
+  why: string
+  impact: string
+  timeline: string
+  confidence: number
+}
+
+export type MeetingSmartSummary = {
+  meeting_id: string
+  source: 'llm' | 'cache' | 'none'
+  generated_at?: string
+  deal_health?: SmartSummaryDealHealth | null
+  deal_evolution: SmartSummaryDealEvolution[]
+  then_vs_now: SmartSummaryThenVsNow[]
+  change_alerts: SmartSummaryChangeAlert[]
+  enhanced_topics: SmartSummaryEnhancedTopic[]
+  strategic_recommendations: SmartSummaryStrategicRecommendation[]
+  message?: string | null
+}
+
+export type NextMeetingStrategyObjectionHandling = {
+  objection: string
+  response: string
+}
+
+export type NextMeetingStrategy = {
+  meeting_id?: string | null
+  source: 'llm' | 'cache' | 'none'
+  generated_at?: string | null
+  objective?: string | null
+  opening_script?: string | null
+  key_talking_points: string[]
+  objection_handling: NextMeetingStrategyObjectionHandling[]
+  closing_move?: string | null
+  message?: string | null
+}
+
 export type MeetingComment = {
   id: string
   meeting_id: string
@@ -1147,6 +1293,23 @@ export interface EnrichedProfileData {
   }
 }
 
+export interface NeuroProfile {
+  decisionStyle: { score: number; label: string; description: string }
+  riskTolerance: { score: number; label: string; description: string }
+  triggers: Array<{ label: string; color: string }>
+  summary: string
+  approach: {
+    do: { title: string; action: string }
+    dont: { title: string; action: string }
+    bias: { name: string; description: string }
+  }
+  openingScript: {
+    text: string
+    reasons: Array<{ principle: string; explanation: string }>
+  }
+  riskAlerts: Array<{ icon: string; title: string; description: string }>
+}
+
 export type AtlasQnAClassification = 'product' | 'service' | 'general'
 export type AtlasQnAStatus = 'draft' | 'approved' | 'archived'
 export type AtlasQnAOrigin = 'manual' | 'ai_call_extracted' | 'ai_knowledge_derived'
@@ -1291,6 +1454,10 @@ export const atlasAPI = {
   /** Update a participant's LinkedIn URL without full enrichment */
   updateParticipantLinkedIn: (params: { email: string; linkedin_url: string }) =>
     api.patch<{ email: string; linkedin_url: string; updated: boolean }>('/api/atlas/participant-linkedin', params),
+
+  /** Get AI-generated neuro/cognitive profile for contact */
+  getNeuroProfile: (params: { event_id?: string; email?: string; name?: string; force?: boolean }) =>
+    api.get<NeuroProfile>('/api/atlas/neuro-profile', { params }),
 
   /** Rolling Q&A Repository CRUD */
   listQna: (params?: { 
@@ -1543,6 +1710,16 @@ export const meetingsAPI = {
   ) => api.get<MeetingPlaybookAnalysis>(`/api/meetings/${id}/playbook-analysis`, { params }),
   getMeetingFeedback: (id: string, params?: { force_refresh?: boolean }) =>
     api.get<MeetingFeedback>(`/api/meetings/${id}/feedback`, { params }),
+
+  getMeetingEvaluation: (id: string, params?: { force_refresh?: boolean }) =>
+    api.get<MeetingEvaluation>(`/api/meetings/${id}/evaluation`, { params }),
+
+  getMeetingSmartSummary: (id: string, params?: { force_refresh?: boolean }) =>
+    api.get<MeetingSmartSummary>(`/api/meetings/${id}/smart-summary`, { params }),
+
+  getNextMeetingStrategy: (id: string, params?: { force_refresh?: boolean }) =>
+    api.post<NextMeetingStrategy>(`/api/meetings/${id}/strategy-next-meeting`, null, { params }),
+
   getMeetingComments: (id: string) =>
     api.get<MeetingComment[]>(`/api/meetings/${id}/comments`),
   createMeetingComment: (id: string, data: { text: string }) =>
