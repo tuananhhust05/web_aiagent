@@ -238,6 +238,7 @@ const MeetingFlowchart = ({
   onEnterBrowsingMode,
   onMouseEnter,
   onMouseLeave,
+  callEvaluations,
 }: {
   company: string;
   calls: CallItem[];
@@ -249,6 +250,7 @@ const MeetingFlowchart = ({
   onEnterBrowsingMode: () => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
+  callEvaluations?: CallEvaluationMap;
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [focusedIdx, setFocusedIdx] = useState(-1);
@@ -367,7 +369,7 @@ const MeetingFlowchart = ({
             const isCurrent = call.id === currentCallId;
             const isSelected = call.id === selectedNodeId;
             const isFocused = focusedIdx === idx;
-            const evalData = evaluations[call.id];
+            const evalData = callEvaluations?.[call.id];
             const sourceInfo = SOURCE_ICON[call.dataSource];
             const SourceIcon = sourceInfo.icon;
             const borderColor = call.dataSource === "call"
@@ -913,6 +915,7 @@ const CallListSidebar = ({ calls, selectedId, onSelect, collapsed, onToggle, cal
           onEnterBrowsingMode={() => setBrowsingMode(true)}
           onMouseEnter={() => { setMouseInFlowchart(true); cancelHide(); }}
           onMouseLeave={() => setMouseInFlowchart(false)}
+          callEvaluations={evaluations}
         />
       )}
     </>
