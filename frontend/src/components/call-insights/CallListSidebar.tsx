@@ -510,28 +510,6 @@ const FlowchartBridge = ({
   );
 };
 
-// ─── Progression badge: parses "Intro → Discovery ↑" or "Closing → Won ✓" ───
-const ProgressionBadge = ({ text }: { text: string }) => {
-  // Matches: "StageA → StageB ↑" or "StageA → StageB ✓"
-  const match = text.match(/^(.+?)\s*→\s*(.+?)\s*(↑|✓)?$/);
-  if (!match) return <span className="text-[9px] text-muted-foreground">{text}</span>;
-  const [, from, to, arrow] = match;
-  const isWon = to.trim() === "Won" || arrow === "✓";
-  return (
-    <span className="inline-flex items-center gap-0.5 text-[9px]">
-      <span className="text-muted-foreground">{from.trim()}</span>
-      <span className="text-muted-foreground mx-0.5">→</span>
-      <span className={cn("font-semibold", isWon ? "text-status-great" : "text-status-great")}>{to.trim()}</span>
-      {arrow && (
-        <span className={cn("font-bold", isWon ? "text-status-great" : "text-status-great")}>
-          {arrow === "↑" ? " ↑" : " ✓"}
-        </span>
-      )}
-    </span>
-  );
-};
-
-
 const CallListSidebar = ({ calls, selectedId, onSelect, collapsed, onToggle, callEvaluations }: CallListSidebarProps) => {
   const evaluations = callEvaluations ?? mockCallEvaluations;
 
@@ -814,10 +792,22 @@ const CallListSidebar = ({ calls, selectedId, onSelect, collapsed, onToggle, cal
                                 {selectedId === call.id && (
                                   <span className="absolute left-0 top-2.5 bottom-2.5 w-[3px] rounded-r-full bg-[hsl(var(--forskale-teal))]" />
                                 )}
-
-                                {/* Row 1: title + Evaluated/Pending badge */}
                                 <div className="flex items-start justify-between pl-1 gap-1">
-                                  <div className="text-[12px] font-semibold text-foreground truncate flex-1 min-w-0">{call.title}</div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="text-[12px] font-semibold text-foreground truncate">{call.title}</div>
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                      <Badge
+                                        variant="outline"
+                                        className={cn("text-[8px] h-3.5 px-1 border", STAGE_BG_COLORS[call.negotiationStage], STAGE_TEXT_COLORS[call.negotiationStage])}
+                                      >
+                                        {call.negotiationStage}
+                                      </Badge>
+                                      <span className={cn("flex items-center gap-0.5 text-[9px]", sourceInfo.color)}>
+                                        <SourceIcon className="h-2.5 w-2.5" />
+                                      </span>
+                                      <span className="text-[9px] text-muted-foreground">{call.duration}</span>
+                                    </div>
+                                  </div>
                                   {evalData && (
                                     <Badge
                                       variant="outline"
@@ -833,22 +823,7 @@ const CallListSidebar = ({ calls, selectedId, onSelect, collapsed, onToggle, cal
                                   )}
                                 </div>
 
-                                {/* Row 2: stage badge + source icon + duration */}
-                                <div className="flex items-center gap-1.5 pl-1 mt-1">
-                                  <Badge
-                                    variant="outline"
-                                    className={cn("text-[8px] h-3.5 px-1 border", STAGE_BG_COLORS[call.negotiationStage], STAGE_TEXT_COLORS[call.negotiationStage])}
-                                  >
-                                    {call.negotiationStage}
-                                  </Badge>
-                                  <span className={cn("flex items-center gap-0.5 text-[9px]", sourceInfo.color)}>
-                                    <SourceIcon className="h-2.5 w-2.5" />
-                                  </span>
-                                  <span className="text-[9px] text-muted-foreground">{call.duration}</span>
-                                </div>
-
-                                {/* Row 3: company + actions count + progression */}
-                                <div className="flex items-center gap-1.5 pl-1 mt-1 flex-wrap">
+                                <div className="flex items-center gap-2 pl-1 mt-1">
                                   <span className="text-[9px] text-muted-foreground">{call.company}</span>
                                   {evalData?.status === "evaluated" && evalData.actionCount > 0 && (
                                     <span className="text-[9px] text-[hsl(var(--forskale-teal))] font-medium">
@@ -856,28 +831,9 @@ const CallListSidebar = ({ calls, selectedId, onSelect, collapsed, onToggle, cal
                                     </span>
                                   )}
                                   {evalData?.progression && (
-                                    <ProgressionBadge text={evalData.progression} />
+                                    <span className="text-[9px] text-muted-foreground">{evalData.progression}</span>
                                   )}
                                 </div>
-
-                                {/* Data completeness bar */}
-                                {call.dataCompleteness != null && (
-                                  <div className="pl-1 mt-2">
-                                    <div className="h-[3px] w-full bg-border/40 rounded-full overflow-hidden">
-                                      <div
-                                        className="h-full rounded-full transition-all duration-700"
-                                        style={{
-                                          width: `${call.dataCompleteness}%`,
-                                          background: call.dataCompleteness > 80
-                                            ? "hsl(var(--forskale-green))"
-                                            : call.dataCompleteness > 50
-                                            ? "hsl(var(--forskale-teal))"
-                                            : "hsl(0 60% 50%)",
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                )}
                               </button>
                             );
                           })}

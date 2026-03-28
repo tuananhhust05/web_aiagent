@@ -703,14 +703,28 @@ async def _fetch_and_cache_transcript(
 
         if mapped:
             try:
+                last_time = mapped[-1].get("time") or "" if mapped else ""
+                duration_seconds: Optional[int] = None
+                if last_time:
+                    try:
+                        parts = last_time.split(":")
+                        if len(parts) == 2:
+                            duration_seconds = int(parts[0]) * 60 + int(parts[1])
+                        elif len(parts) == 3:
+                            duration_seconds = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                    except Exception:
+                        pass
+                update_fields: dict = {
+                    "transcript_lines": mapped,
+                    "transcript_fetched_at": now,
+                    "transcript_source": "vexa",
+                    "updated_at": now,
+                }
+                if duration_seconds:
+                    update_fields["duration_seconds"] = duration_seconds
                 await collection.update_one(
                     {"_id": doc["_id"], "user_id": user_id},
-                    {"$set": {
-                        "transcript_lines": mapped,
-                        "transcript_fetched_at": now,
-                        "transcript_source": "vexa",
-                        "updated_at": now,
-                    }},
+                    {"$set": update_fields},
                 )
             except Exception:
                 pass
@@ -749,10 +763,56 @@ async def get_meetings(
         total = await collection.count_documents(filter_query)
         total_pages = math.ceil(total / limit) if total > 0 else 0
         
-        # Get records
+        # Get records - exclude heavy fields, keep analysis metadata
         skip = (page - 1) * limit
-        cursor = collection.find(filter_query).skip(skip).limit(limit).sort("created_at", -1)
+        projection = {"transcript_lines": 0}
+        cursor = collection.find(filter_query, projection).skip(skip).limit(limit).sort("created_at", -1)
         records = await cursor.to_list(length=limit)
+
+        # Back-fill duration_seconds for meetings that don't have it yet
+        ids_missing_duration = [
+            r["_id"] for r in records
+            if not r.get("duration_seconds") and r.get("_id")
+        ]
+        if ids_missing_duration:
+            raw_cursor = collection.find(
+                {"_id": {"$in": ids_missing_duration}},
+                {"_id": 1, "transcript_lines": 1},
+            )
+            raw_docs = await raw_cursor.to_list(length=len(ids_missing_duration))
+            duration_map: dict = {}
+            bulk_updates = []
+            for raw in raw_docs:
+                lines = raw.get("transcript_lines") or []
+                if not lines:
+                    continue
+                last_time = lines[-1].get("time") or "" if lines else ""
+                secs = 0
+                if last_time:
+                    try:
+                        parts = last_time.split(":")
+                        if len(parts) == 2:
+                            secs = int(parts[0]) * 60 + int(parts[1])
+                        elif len(parts) == 3:
+                            secs = int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+                    except Exception:
+                        pass
+                if secs > 0:
+                    duration_map[raw["_id"]] = secs
+                    bulk_updates.append(
+                        {"_id": raw["_id"], "duration_seconds": secs}
+                    )
+            for upd in bulk_updates:
+                try:
+                    await collection.update_one(
+                        {"_id": upd["_id"]},
+                        {"$set": {"duration_seconds": upd["duration_seconds"]}},
+                    )
+                except Exception:
+                    pass
+            for record in records:
+                if not record.get("duration_seconds") and record.get("_id") in duration_map:
+                    record["duration_seconds"] = duration_map[record["_id"]]
         
         # Convert ObjectId to string for each record
         for record in records:

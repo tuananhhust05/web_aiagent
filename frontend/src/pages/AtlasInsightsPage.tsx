@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ChevronLeft, Users, Target, GraduationCap, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CallListSidebar from "@/components/call-insights/CallListSidebar";
@@ -17,7 +17,8 @@ import type {
   MeetingSmartSummary,
   MeetingPlaybookAnalysis,
 } from "@/lib/api";
-import type { CallItem, TranscriptEntry, NegotiationStage } from "@/data/mockData";
+import type { CallItem, NegotiationStage, TranscriptEntry } from "@/data/mockData";
+import { mockCalls, mockCallEvaluations, mockTranscript } from "@/data/mockData";
 
 type TabType = "evaluation" | "enablement" | "summary";
 
@@ -51,10 +52,25 @@ function mapDealStage(stage?: string): NegotiationStage {
 }
 
 function formatDuration(seconds?: number): string {
-  if (!seconds) return "";
+  if (!seconds || seconds <= 0) return "";
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function durationFromTimestamp(ts?: string): number {
+  if (!ts) return 0;
+  const parts = ts.split(":").map(Number);
+  if (parts.length === 2) return (parts[0] || 0) * 60 + (parts[1] || 0);
+  if (parts.length === 3) return (parts[0] || 0) * 3600 + (parts[1] || 0) * 60 + (parts[2] || 0);
+  return 0;
+}
+
+function durationFromTranscript(transcriptLines?: any[]): string {
+  if (!Array.isArray(transcriptLines) || transcriptLines.length === 0) return "";
+  const last = transcriptLines[transcriptLines.length - 1];
+  const secs = durationFromTimestamp(last?.time || last?.timestamp);
+  return formatDuration(secs);
 }
 
 function capitalizeStage(stage: string): string {
@@ -66,20 +82,17 @@ function mapMeetingToCallItem(meeting: any): CallItem {
   const date = meeting.created_at
     ? new Date(meeting.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : "";
-  const stage = mapDealStage(meeting.deal_stage || meeting.stage);
-  const completeness = meeting.data_completeness != null
-    ? meeting.data_completeness
-    : hasTranscript ? 80 : 40;
+  const duration = formatDuration(meeting.duration_seconds) || durationFromTranscript(meeting.transcript_lines);
   return {
     id: meeting.id,
     title: meeting.title || "Untitled Meeting",
     date,
-    duration: formatDuration(meeting.duration_seconds),
+    duration,
     company: meeting.company || meeting.company_name || "",
     product: meeting.product || "",
-    negotiationStage: stage,
+    negotiationStage: mapDealStage(meeting.deal_stage || meeting.stage),
     dataSource: hasTranscript ? "call" : "crm",
-    dataCompleteness: completeness,
+    dataCompleteness: meeting.data_completeness ?? (hasTranscript ? 80 : 40),
   };
 }
 
@@ -93,11 +106,10 @@ function mapTranscriptLines(lines: any[]): TranscriptEntry[] {
 }
 
 const AtlasInsightsPage = () => {
-  const [calls, setCalls] = useState<CallItem[]>([]);
-  const [callEvaluations, setCallEvaluations] = useState<CallEvaluationMap>({});
-  const [selectedCall, setSelectedCall] = useState<string>("");
-  const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
-  const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>([]);
+  const [calls, setCalls] = useState<CallItem[]>(mockCalls);
+  const [callEvaluations, setCallEvaluations] = useState<CallEvaluationMap>(mockCallEvaluations);
+  const [selectedCall, setSelectedCall] = useState<string>(mockCalls[0]?.id ?? "");
+  const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>(mockTranscript);
   const [evaluation, setEvaluation] = useState<MeetingEvaluation | null>(null);
   const [feedback, setFeedback] = useState<MeetingFeedback | null>(null);
   const [playbookAnalysis, setPlaybookAnalysis] = useState<MeetingPlaybookAnalysis | null>(null);
@@ -107,52 +119,73 @@ const AtlasInsightsPage = () => {
   const [activeTab, setActiveTab] = useState<TabType>("evaluation");
   const [callListCollapsed, setCallListCollapsed] = useState(false);
   const [transcriptCollapsed, setTranscriptCollapsed] = useState(true);
-  const [showTranscriptModal, setShowTranscriptModal] = useState(false);
+  const [showTranscriptModal, setShowTranscriptModal] = useState(true);
   const [strategyModalOpen, setStrategyModalOpen] = useState(false);
-  const [loadingMeetings, setLoadingMeetings] = useState(true);
   const [loadingInsights, setLoadingInsights] = useState(false);
+  const [usingRealData, setUsingRealData] = useState(false);
+
+  const meetingCache = useRef<Record<string, {
+    evaluation: MeetingEvaluation | null;
+    feedback: MeetingFeedback | null;
+    playbookAnalysis: MeetingPlaybookAnalysis | null;
+    smartSummary: MeetingSmartSummary | null;
+    atlasInsights: any;
+    transcriptEntries: TranscriptEntry[];
+  }>>({});
 
   useEffect(() => {
     const fetchMeetings = async () => {
       try {
         const res = await meetingsAPI.getMeetings({ limit: 50 });
         const meetingList: any[] = (res.data as any)?.meetings || [];
-        const mapped = meetingList.map(mapMeetingToCallItem);
-        setCalls(mapped);
+        if (meetingList.length === 0) return;
 
+        const mapped = meetingList.map(mapMeetingToCallItem);
         const evalMap: CallEvaluationMap = {};
         for (const m of meetingList) {
           const hasEval = !!(m.atlas_evaluation && (m.atlas_evaluation.generated_at || m.atlas_evaluation.outcome));
-          const actionCount = Array.isArray(m.atlas_next_steps) ? m.atlas_next_steps.length
-            : Array.isArray(m.atlas_evaluation?.recommended_actions) ? m.atlas_evaluation.recommended_actions.length
+          const actionCount = Array.isArray(m.atlas_next_steps)
+            ? m.atlas_next_steps.length
+            : Array.isArray(m.atlas_evaluation?.recommended_actions)
+            ? m.atlas_evaluation.recommended_actions.length
             : 0;
-          const dealStageFrom = m.atlas_evaluation?.outcome?.deal_progression?.from;
-          const dealStageTo = m.atlas_evaluation?.outcome?.deal_progression?.to;
-          const progression = dealStageFrom && dealStageTo
-            ? `${capitalizeStage(dealStageFrom)} → ${capitalizeStage(dealStageTo)} ↑`
-            : undefined;
+          const dp = m.atlas_evaluation?.outcome?.deal_progression;
           evalMap[m.id] = {
             status: hasEval ? "evaluated" : "pending",
             actionCount,
-            progression,
+            progression: dp?.from && dp?.to
+              ? `${capitalizeStage(dp.from)} → ${capitalizeStage(dp.to)} ↑`
+              : undefined,
           };
         }
-        setCallEvaluations(evalMap);
 
-        if (mapped.length > 0) {
-          setSelectedCall(mapped[0].id);
-        }
+        setCalls(mapped);
+        setCallEvaluations(evalMap);
+        setSelectedCall(mapped[0].id);
+        setTranscriptEntries([]);
+        setShowTranscriptModal(false);
+        setUsingRealData(true);
       } catch {
-        setCalls([]);
-      } finally {
-        setLoadingMeetings(false);
+        // keep mock data on error
       }
     };
     fetchMeetings();
   }, []);
 
   const loadMeetingData = useCallback(async (meetingId: string) => {
-    if (!meetingId) return;
+    if (!meetingId || !usingRealData) return;
+
+    if (meetingCache.current[meetingId]) {
+      const cached = meetingCache.current[meetingId];
+      setEvaluation(cached.evaluation);
+      setFeedback(cached.feedback);
+      setPlaybookAnalysis(cached.playbookAnalysis);
+      setSmartSummary(cached.smartSummary);
+      setAtlasInsights(cached.atlasInsights);
+      setTranscriptEntries(cached.transcriptEntries);
+      return;
+    }
+
     setLoadingInsights(true);
     setEvaluation(null);
     setFeedback(null);
@@ -160,24 +193,26 @@ const AtlasInsightsPage = () => {
     setSmartSummary(null);
     setAtlasInsights(null);
     setTranscriptEntries([]);
-    setSelectedMeeting(null);
 
+    let fetchedTranscript: TranscriptEntry[] = [];
     try {
       const [meetingRes, transcriptRes] = await Promise.allSettled([
         meetingsAPI.getMeeting(meetingId),
         meetingsAPI.getMeetingTranscription(meetingId),
       ]);
 
-      if (meetingRes.status === "fulfilled") {
-        setSelectedMeeting((meetingRes.value as any).data);
-      }
       if (transcriptRes.status === "fulfilled") {
         const lines = ((transcriptRes.value as any).data as any)?.transcript_lines || [];
-        const entries = mapTranscriptLines(lines);
-        setTranscriptEntries(entries);
-        if (entries.length > 0) {
-          setShowTranscriptModal(true);
-        }
+        fetchedTranscript = mapTranscriptLines(lines);
+        setTranscriptEntries(fetchedTranscript);
+        if (fetchedTranscript.length > 0) setShowTranscriptModal(true);
+      }
+
+      const meetingDetail = meetingRes.status === "fulfilled" ? (meetingRes.value as any).data : null;
+      if (meetingDetail) {
+        setCalls((prev) =>
+          prev.map((c) => (c.id === meetingId ? mapMeetingToCallItem(meetingDetail) : c))
+        );
       }
     } catch {}
 
@@ -189,42 +224,52 @@ const AtlasInsightsPage = () => {
       meetingsAPI.getAtlasMeetingInsights(meetingId),
     ]);
 
-    if (evalRes.status === "fulfilled") {
-      const evalData = (evalRes.value as any).data;
-      setEvaluation(evalData);
-      if (evalData?.outcome) {
-        const dp = evalData.outcome.deal_progression;
-        setCallEvaluations((prev) => ({
-          ...prev,
-          [meetingId]: {
-            status: "evaluated",
-            actionCount: Array.isArray(evalData.recommended_actions) ? evalData.recommended_actions.length : 0,
-            progression: dp?.from && dp?.to
-              ? `${capitalizeStage(dp.from)} → ${capitalizeStage(dp.to)} ↑`
-              : prev[meetingId]?.progression,
-          },
-        }));
-      }
+    const newEval = evalRes.status === "fulfilled" ? (evalRes.value as any).data : null;
+    const newFeedback = feedbackRes.status === "fulfilled" ? (feedbackRes.value as any).data : null;
+    const newPlaybook = playbookRes.status === "fulfilled" ? (playbookRes.value as any).data : null;
+    const newSummary = summaryRes.status === "fulfilled" ? (summaryRes.value as any).data : null;
+    const newInsights = insightsRes.status === "fulfilled" ? (insightsRes.value as any).data : null;
+
+    meetingCache.current[meetingId] = {
+      evaluation: newEval,
+      feedback: newFeedback,
+      playbookAnalysis: newPlaybook,
+      smartSummary: newSummary,
+      atlasInsights: newInsights,
+      transcriptEntries: fetchedTranscript,
+    };
+
+    if (newEval) {
+      setEvaluation(newEval);
+      const dp = newEval?.outcome?.deal_progression;
+      setCallEvaluations((prev) => ({
+        ...prev,
+        [meetingId]: {
+          status: "evaluated",
+          actionCount: Array.isArray(newEval?.recommended_actions) ? newEval.recommended_actions.length : 0,
+          progression: dp?.from && dp?.to
+            ? `${capitalizeStage(dp.from)} → ${capitalizeStage(dp.to)} ↑`
+            : prev[meetingId]?.progression,
+        },
+      }));
     }
-    if (feedbackRes.status === "fulfilled") setFeedback((feedbackRes.value as any).data);
-    if (playbookRes.status === "fulfilled") setPlaybookAnalysis((playbookRes.value as any).data);
-    if (summaryRes.status === "fulfilled") setSmartSummary((summaryRes.value as any).data);
-    if (insightsRes.status === "fulfilled") setAtlasInsights((insightsRes.value as any).data);
+    if (newFeedback) setFeedback(newFeedback);
+    if (newPlaybook) setPlaybookAnalysis(newPlaybook);
+    if (newSummary) setSmartSummary(newSummary);
+    if (newInsights) setAtlasInsights(newInsights);
 
     setLoadingInsights(false);
-  }, []);
+  }, [usingRealData]);
 
   useEffect(() => {
-    if (selectedCall) {
+    if (selectedCall && usingRealData) {
       loadMeetingData(selectedCall);
     }
-  }, [selectedCall, loadMeetingData]);
+  }, [selectedCall, usingRealData, loadMeetingData]);
 
-  const meetingTitle = selectedMeeting?.title || calls.find((c) => c.id === selectedCall)?.title || "Select a meeting";
-  const meetingDate = selectedMeeting?.created_at
-    ? new Date(selectedMeeting.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
-    : "";
-  const playbookScorePct = evaluation?.playbook_score_pct ?? (playbookAnalysis?.overall_score ?? null);
+  const meetingTitle = calls.find((c) => c.id === selectedCall)?.title || "Select a meeting";
+  const meetingDate = calls.find((c) => c.id === selectedCall)?.date || "";
+  const playbookScorePct = evaluation?.playbook_score_pct ?? (playbookAnalysis?.overall_score ?? (usingRealData ? null : 79));
 
   const meetingCountThisMonth = calls.filter((c) => {
     if (!c.date) return false;
@@ -232,14 +277,6 @@ const AtlasInsightsPage = () => {
     const now = new Date();
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
-
-  if (loadingMeetings) {
-    return (
-      <div className="flex flex-1 items-center justify-center h-screen bg-background">
-        <div className="text-sm text-muted-foreground">Loading meetings...</div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-1 overflow-hidden bg-background h-screen">

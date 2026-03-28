@@ -1,6 +1,6 @@
 """
 Debug script to check Gmail OAuth status for a user.
-Run: python debug_gmail.py
+Run: python  debug_gmail.py
 """
 import asyncio
 from pymongo import MongoClient

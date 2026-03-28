@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List, Any
+from pydantic import BaseModel, Field, ConfigDict
+from typing import Optional, List, Any, Dict
 from datetime import datetime
 from enum import Enum
 
@@ -46,10 +46,22 @@ class MeetingResponse(BaseModel):
     transcript_lines: Optional[List[TranscriptLine]] = None
     video_url: Optional[str] = None
     audio_url: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    company: Optional[str] = None
+    company_name: Optional[str] = None
+    product: Optional[str] = None
+    deal_stage: Optional[str] = None
+    stage: Optional[str] = None
+    data_completeness: Optional[int] = None
+    atlas_evaluation: Optional[Dict[str, Any]] = None
+    atlas_next_steps: Optional[List[Any]] = None
+    atlas_summary: Optional[Dict[str, Any]] = None
+    atlas_questions_and_objections: Optional[List[Any]] = None
+    feedback_coach: Optional[Dict[str, Any]] = None
+    playbook_analysis: Optional[Dict[str, Any]] = None
+    atlas_smart_summary: Optional[Dict[str, Any]] = None
 
-    class Config:
-        from_attributes = True
-        populate_by_name = True
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, extra="allow")
 
 class MeetingListResponse(BaseModel):
     meetings: List[MeetingResponse]
