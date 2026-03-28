@@ -60,6 +60,8 @@ class MeetingResponse(BaseModel):
     feedback_coach: Optional[Dict[str, Any]] = None
     playbook_analysis: Optional[Dict[str, Any]] = None
     atlas_smart_summary: Optional[Dict[str, Any]] = None
+    calendar_event_id: Optional[str] = None
+    calendar_event_title: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True, extra="allow")
 

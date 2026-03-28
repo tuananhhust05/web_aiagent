@@ -7,7 +7,7 @@ import { RecordingConsent } from "../components/mockflow-atlas/RecordingConsent"
 import { CalendarRefreshPopup } from "../components/mockflow-atlas/CalendarRefreshPopup";
 import { SalesAssistantBot } from "../components/mockflow-atlas/SalesAssistantBot";
 import { toast } from "sonner";
-import { calendarAPI, atlasAPI, vexaAPI, getVexaBotJoinErrorMessage, type GoogleCalendarEvent, type EnrichedProfileData } from "../lib/api";
+import { calendarAPI, atlasAPI, vexaAPI, meetingsAPI, getVexaBotJoinErrorMessage, type GoogleCalendarEvent, type EnrichedProfileData, type MeetingPlatform } from "../lib/api";
 
 function getMonday(date: Date): Date {
   const d = new Date(date);
@@ -144,6 +144,28 @@ const AtlasCalendarPage = () => {
       toast.loading("Bot is joining the meeting…", { id: "bot-join" });
       await vexaAPI.joinGoogleMeet(meetId);
       toast.success("Bot joined the meeting successfully!", { id: "bot-join" });
+
+      const meetingLink = selectedMeeting.meetLink;
+      let meetingId: string | null = null;
+      try {
+        const byLinkRes = await meetingsAPI.getMeetingByLink(meetingLink);
+        meetingId = byLinkRes.data?.id ?? null;
+      } catch {
+        try {
+          const platform: MeetingPlatform = "google_meet";
+          const createRes = await meetingsAPI.createMeeting({
+            title: selectedMeeting.title,
+            platform,
+            link: meetingLink,
+          });
+          meetingId = (createRes.data as any)?.id ?? null;
+        } catch {}
+      }
+      if (meetingId && selectedMeeting.id) {
+        try {
+          await meetingsAPI.linkCalendarEvent(meetingId, selectedMeeting.id, selectedMeeting.title);
+        } catch {}
+      }
     } catch (err) {
       toast.error(getVexaBotJoinErrorMessage(err), { id: "bot-join" });
     }

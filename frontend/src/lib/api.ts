@@ -1731,6 +1731,13 @@ export const meetingsAPI = {
   
   deleteMeeting: (id: string) => api.delete(`/api/meetings/${id}`),
 
+  linkCalendarEvent: (meetingId: string, calendarEventId: string, calendarEventTitle?: string) =>
+    api.patch<{ ok: boolean; meeting_id: string; calendar_event_id: string }>(
+      `/api/meetings/${meetingId}/link-calendar-event`,
+      null,
+      { params: { calendar_event_id: calendarEventId, ...(calendarEventTitle ? { calendar_event_title: calendarEventTitle } : {}) } }
+    ),
+
   /** Full re-analysis: regenerate insights, feedback, playbook + extract Q&A */
   reanalyzeMeeting: (id: string) =>
     api.post<{

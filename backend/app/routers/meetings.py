@@ -3675,3 +3675,33 @@ Return JSON with this EXACT structure:
             source="none",
             message=f"LLM generation failed: {str(e)}",
         )
+
+
+@router.patch("/{meeting_id}/link-calendar-event")
+async def link_calendar_event(
+    meeting_id: str,
+    calendar_event_id: str = Query(..., description="Google Calendar event ID to link"),
+    calendar_event_title: Optional[str] = Query(None, description="Calendar event title"),
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """Link a Google Calendar event to a meeting document."""
+    collection = db.meetings
+    try:
+        oid = ObjectId(meeting_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid meeting id")
+
+    doc = await collection.find_one({"_id": oid, "user_id": current_user.id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    update: dict = {
+        "calendar_event_id": calendar_event_id,
+        "updated_at": datetime.utcnow(),
+    }
+    if calendar_event_title:
+        update["calendar_event_title"] = calendar_event_title
+
+    await collection.update_one({"_id": oid, "user_id": current_user.id}, {"$set": update})
+    return {"ok": True, "meeting_id": meeting_id, "calendar_event_id": calendar_event_id}
