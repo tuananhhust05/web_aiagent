@@ -109,14 +109,6 @@ export default function Onboarding() {
     }
   }
 
-  const inputStyle = {
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.15)",
-    color: "#fff",
-  }
-  const onFocus = (e: React.FocusEvent<HTMLInputElement>) => (e.target.style.borderColor = "rgba(78,205,196,0.6)")
-  const onBlur = (e: React.FocusEvent<HTMLInputElement>) => (e.target.style.borderColor = "rgba(255,255,255,0.15)")
-
   return (
     <div className="min-h-screen flex flex-col px-6 py-8 onboarding-bg" style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Floating orbs */}
