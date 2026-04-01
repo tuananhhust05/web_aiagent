@@ -5,7 +5,6 @@ import { EnrichedProfileCard } from "../components/mockflow-atlas/EnrichedProfil
 import { RegistrationWizard } from "../components/mockflow-atlas/RegistrationWizard";
 import { RecordingConsent } from "../components/mockflow-atlas/RecordingConsent";
 import { CalendarRefreshPopup } from "../components/mockflow-atlas/CalendarRefreshPopup";
-import { SalesAssistantBot } from "../components/mockflow-atlas/SalesAssistantBot";
 import { toast } from "sonner";
 import { calendarAPI, atlasAPI, vexaAPI, meetingsAPI, getVexaBotJoinErrorMessage, type GoogleCalendarEvent, type EnrichedProfileData, type MeetingPlatform } from "../lib/api";
 

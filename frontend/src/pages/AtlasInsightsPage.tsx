@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ChevronLeft, Users, Target, GraduationCap, Sparkles } from "lucide-react";
+import { ChevronLeft, Users, Target, GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CallListSidebar from "@/components/call-insights/CallListSidebar";
 import type { CallEvaluationMap } from "@/components/call-insights/CallListSidebar";
