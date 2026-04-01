@@ -437,7 +437,7 @@ export default function ToDoReadyPage() {
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
       {/* ── Header (action-ready-main style) ── */}
-      <header className="shrink-0 border-b border-border bg-card pl-14 pr-3 py-2.5 sm:px-5 sm:py-3.5 lg:px-6">
+      <header className="shrink-0 border-b border-border bg-card px-3 py-2.5 sm:px-5 sm:py-3.5 lg:px-6">
         <div className="flex flex-col gap-2 sm:gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0 flex-1">
             <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.1em] text-forskale-blue">

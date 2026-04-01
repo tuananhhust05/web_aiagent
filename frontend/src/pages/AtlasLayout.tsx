@@ -84,7 +84,7 @@ export default function AtlasLayout() {
     <div className="flex h-screen overflow-hidden">
       <AtlasSidebar />
 
-      <div className="flex-1 overflow-hidden min-w-0">
+      <div className="flex-1 overflow-hidden min-w-0 pb-16 lg:pb-0">
         <Outlet />
       </div>
 

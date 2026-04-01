@@ -205,7 +205,7 @@ function DayDetailPanel({
   return (
     <div className="fixed inset-0 z-40" onClick={onClose}>
       <div
-        className="absolute right-0 top-0 h-full w-[380px] animate-[slide-in-right_300ms_cubic-bezier(0.4,0,0.2,1)] border-l border-border bg-card/95 shadow-2xl backdrop-blur-xl"
+        className="absolute right-0 top-0 h-full w-full sm:w-[380px] animate-[slide-in-right_300ms_cubic-bezier(0.4,0,0.2,1)] border-l border-border bg-card/95 shadow-2xl backdrop-blur-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
@@ -317,7 +317,7 @@ function MonthGridView({ onMeetingClick }: { onMeetingClick: (m: Meeting) => voi
                     onMouseEnter={() => events.length > 0 && setHoveredDay(day.dayIndex)}
                     onMouseLeave={() => setHoveredDay(null)}
                     className={cn(
-                      "group relative flex min-h-[100px] cursor-pointer flex-col border-r border-border/30 p-2.5 transition-all duration-300 last:border-r-0",
+                      "group relative flex min-h-[60px] sm:min-h-[100px] cursor-pointer flex-col border-r border-border/30 p-1.5 sm:p-2.5 transition-all duration-300 last:border-r-0",
                       day.isToday
                         ? "bg-gradient-to-br from-forskale-green/[0.08] via-forskale-teal/[0.06] to-forskale-blue/[0.04] shadow-[inset_0_0_0_1px_hsl(var(--forskale-green)/0.2)]"
                         : day.isCurrentMonth
@@ -330,7 +330,7 @@ function MonthGridView({ onMeetingClick }: { onMeetingClick: (m: Meeting) => voi
                     <div className="flex items-start justify-between">
                       <div
                         className={cn(
-                          "flex h-7 w-7 items-center justify-center rounded-full text-sm transition-all",
+                          "flex h-5 w-5 sm:h-7 sm:w-7 items-center justify-center rounded-full text-[11px] sm:text-sm transition-all",
                           day.isToday
                             ? "bg-gradient-to-br from-forskale-green via-forskale-teal to-forskale-blue font-bold text-white shadow-[0_0_16px_hsl(var(--forskale-green)/0.5)] animate-[pulse-glow_2s_ease-in-out_infinite_alternate]"
                             : day.isCurrentMonth
@@ -493,15 +493,15 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-background">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-border bg-card px-6 py-3">
-        <h2 className="text-lg font-bold tracking-[0.1em] text-foreground">CALENDAR</h2>
-        <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between border-b border-border bg-card px-3 sm:px-6 py-3 gap-2">
+        <h2 className="text-base sm:text-lg font-bold tracking-[0.1em] text-foreground">CALENDAR</h2>
+        <div className="flex items-center gap-2 sm:gap-4 flex-wrap justify-end">
           {/* View Toggle */}
           <div className="flex overflow-hidden rounded-lg border border-border bg-muted">
             <button
               onClick={() => switchView("week")}
               className={cn(
-                "px-4 py-1.5 text-xs font-semibold transition-all duration-300",
+                "px-3 sm:px-4 py-1.5 text-xs font-semibold transition-all duration-300",
                 view === "week"
                   ? "bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white shadow-[0_0_16px_hsl(var(--forskale-green)/0.4)]"
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -512,7 +512,7 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
             <button
               onClick={() => switchView("month")}
               className={cn(
-                "px-4 py-1.5 text-xs font-semibold transition-all duration-300",
+                "px-3 sm:px-4 py-1.5 text-xs font-semibold transition-all duration-300",
                 view === "month"
                   ? "bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white shadow-[0_0_16px_hsl(var(--forskale-green)/0.4)]"
                   : "text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -523,15 +523,15 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
           </div>
 
           {/* Navigation */}
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigateWeek(-1)} className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-forskale-teal transition-all hover:border-forskale-teal hover:bg-muted hover:shadow-[0_0_12px_hsl(var(--forskale-teal)/0.3)]">
-              <ChevronLeft className="h-5 w-5" />
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <button onClick={() => navigateWeek(-1)} className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full border border-border bg-card text-forskale-teal transition-all hover:border-forskale-teal hover:bg-muted hover:shadow-[0_0_12px_hsl(var(--forskale-teal)/0.3)]">
+              <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
-            <span className="min-w-[160px] text-center text-sm font-semibold text-foreground">
+            <span className="min-w-[110px] sm:min-w-[160px] text-center text-xs sm:text-sm font-semibold text-foreground">
               {view === "week" ? weekLabel : monthLabel}
             </span>
-            <button onClick={() => navigateWeek(1)} className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-forskale-teal transition-all hover:border-forskale-teal hover:bg-muted hover:shadow-[0_0_12px_hsl(var(--forskale-teal)/0.3)]">
-              <ChevronRight className="h-5 w-5" />
+            <button onClick={() => navigateWeek(1)} className="flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-full border border-border bg-card text-forskale-teal transition-all hover:border-forskale-teal hover:bg-muted hover:shadow-[0_0_12px_hsl(var(--forskale-teal)/0.3)]">
+              <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5" />
             </button>
           </div>
 
@@ -539,10 +539,11 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 disabled:opacity-60"
+            className="flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 disabled:opacity-60"
           >
-            <RefreshCw className={cn("h-4 w-4", syncing && "animate-spin")} />
-            {syncing ? "Syncing…" : "Sync Calendar"}
+            <RefreshCw className={cn("h-3.5 w-3.5 sm:h-4 sm:w-4", syncing && "animate-spin")} />
+            <span className="hidden sm:inline">{syncing ? "Syncing…" : "Sync Calendar"}</span>
+            <span className="sm:hidden">{syncing ? "…" : "Sync"}</span>
           </button>
         </div>
       </div>
@@ -551,16 +552,17 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
       {view === "week" ? (
         /* Week View */
         <div className="flex flex-1 overflow-auto scrollbar-thin">
-          <div className="w-20 flex-shrink-0 border-r border-border bg-muted/50 pt-16">
+          <div className="w-12 sm:w-20 flex-shrink-0 border-r border-border bg-muted/50 pt-16">
             {HOURS.map((h) => (
-              <div key={h} className="relative h-16 border-b border-border/50 pr-2 text-right">
-                <span className="absolute -top-2 right-2 text-xs font-normal text-muted-foreground">
-                  {h === 0 ? "12:00 AM" : h < 12 ? `${h}:00 AM` : h === 12 ? "12:00 PM" : `${h - 12}:00 PM`}
+              <div key={h} className="relative h-16 border-b border-border/50 pr-1 sm:pr-2 text-right">
+                <span className="absolute -top-2 right-1 sm:right-2 text-[10px] sm:text-xs font-normal text-muted-foreground leading-tight">
+                  <span className="hidden sm:inline">{h === 0 ? "12:00 AM" : h < 12 ? `${h}:00 AM` : h === 12 ? "12:00 PM" : `${h - 12}:00 PM`}</span>
+                  <span className="sm:hidden">{h === 0 ? "12a" : h < 12 ? `${h}a` : h === 12 ? "12p" : `${h - 12}p`}</span>
                 </span>
               </div>
             ))}
           </div>
-          <div className="grid flex-1 grid-cols-7">
+          <div className="grid flex-1 grid-cols-7 min-w-[560px]">
             {weekDates.map((date, di) => {
               const today = new Date();
               const isToday = date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
@@ -568,15 +570,15 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
               return (
               <div key={di} className="border-r border-border last:border-r-0">
                 <div className={cn(
-                  "sticky top-0 z-10 flex flex-col items-center justify-center border-b border-border bg-card px-2 py-2",
+                  "sticky top-0 z-10 flex flex-col items-center justify-center border-b border-border bg-card px-1 sm:px-2 py-2",
                   isToday && "bg-gradient-to-br from-forskale-green/[0.08] to-forskale-teal/[0.08]"
                 )}>
                   <div className={cn(
-                    "text-xs font-medium uppercase tracking-wider",
+                    "text-[10px] sm:text-xs font-medium uppercase tracking-wider",
                     isToday ? "text-forskale-teal" : "text-muted-foreground"
                   )}>{DAYS[di]}</div>
                   <div className={cn(
-                    "mx-auto mt-1 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold transition-all",
+                    "mx-auto mt-1 flex h-6 w-6 sm:h-8 sm:w-8 items-center justify-center rounded-full text-xs sm:text-sm font-bold transition-all",
                     isToday
                       ? "bg-gradient-to-br from-forskale-green via-forskale-teal to-forskale-blue text-white shadow-[0_0_16px_hsl(var(--forskale-green)/0.5)] animate-[pulse-glow_2s_ease-in-out_infinite_alternate]"
                       : "text-foreground"
@@ -602,7 +604,7 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
                           <button
                             onClick={() => onMeetingClick(meeting)}
                             className={cn(
-                              "absolute inset-x-1 z-20 overflow-hidden rounded-lg border-l-[3px] bg-muted/60 px-2 py-1.5 text-left transition-all duration-300",
+                              "absolute inset-x-0.5 sm:inset-x-1 z-20 overflow-hidden rounded-lg border-l-[3px] bg-muted/60 px-1 sm:px-2 py-1.5 text-left transition-all duration-300",
                               getMeetingBorderColor(meeting.type),
                               selectedMeetingId === meeting.id
                                 ? "shadow-lg ring-1 ring-forskale-teal/40 bg-muted"
@@ -613,17 +615,16 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
                               height: `${meeting.duration * 64 - 4}px`,
                             }}
                           >
-                            <p className="truncate text-xs font-semibold text-foreground">{meeting.title.split("—")[0].trim()}</p>
-                            <p className="mt-0.5 text-[10px] text-muted-foreground">{meeting.time}</p>
-                            {/* Stage dot indicator */}
-                            <div className={cn("absolute bottom-1.5 right-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-card", stageColor)} />
+                            <p className="truncate text-[10px] sm:text-xs font-semibold text-foreground">{meeting.title.split("—")[0].trim()}</p>
+                            <p className="mt-0.5 text-[9px] sm:text-[10px] text-muted-foreground hidden sm:block">{meeting.time}</p>
+                            <div className={cn("absolute bottom-1.5 right-1.5 h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full ring-2 ring-card", stageColor)} />
                           </button>
                         </HoverCardTrigger>
                         <HoverCardContent
                           side="right"
                           sideOffset={12}
                           align="center"
-                          className="w-80 rounded-xl border-border/20 bg-card p-0 shadow-2xl backdrop-blur-xl"
+                          className="w-72 sm:w-80 rounded-xl border-border/20 bg-card p-0 shadow-2xl backdrop-blur-xl"
                         >
                           {/* Deal Stage Indicator */}
                           <div className="flex items-center gap-4 border-b border-border/50 px-4 pt-4 pb-3">

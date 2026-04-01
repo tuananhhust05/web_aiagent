@@ -366,7 +366,7 @@ export function ContactCard({ meeting, onClose, onBotJoin, onViewProfile }: Cont
 
   return (
     <>
-      <div className="flex w-[380px] flex-col border-l bg-card h-full">
+      <div className="flex w-full md:w-[380px] flex-col border-l bg-card h-full">
         {/* ── Header ── */}
         <div className="border-b px-4 py-3 bg-gradient-to-br from-secondary to-primary/5">
           <div className="flex items-center gap-3">

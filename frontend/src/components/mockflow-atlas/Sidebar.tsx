@@ -11,17 +11,17 @@ import {
   UserPlus,
   ChevronLeft,
   ChevronRight,
-  Menu,
-  X,
   LogOut,
   Settings,
   Target,
   FileText,
   Sparkles,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../hooks/useAuth";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "../ui/dialog";
+import { Sheet, SheetContent } from "../ui/sheet";
 
 const RecordIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -176,19 +176,11 @@ export function AtlasSidebar() {
           )}
         </div>
         <button
-          onClick={() => {
-            if (window.innerWidth < 1024) {
-              setMobileOpen(false);
-            } else {
-              setCollapsed(!collapsed);
-            }
-          }}
-          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
-          aria-label={mobileOpen ? "Close sidebar" : collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          onClick={() => setCollapsed(!collapsed)}
+          className="hidden lg:flex h-6 w-6 flex-shrink-0 items-center justify-center rounded text-sidebar-foreground/60 hover:text-sidebar-foreground transition-colors"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {mobileOpen && window.innerWidth < 1024 ? (
-            <X className="h-4 w-4" />
-          ) : collapsed ? (
+          {collapsed ? (
             <ChevronRight className="h-4 w-4" />
           ) : (
             <ChevronLeft className="h-4 w-4" />
@@ -330,31 +322,44 @@ export function AtlasSidebar() {
     </>
   );
 
+  const mobileBottomNavItems = navItems.slice(0, 4);
+
   return (
     <>
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="fixed top-3 left-3 z-50 flex h-10 w-10 items-center justify-center rounded-lg bg-card border border-border shadow-md text-foreground lg:hidden"
-        aria-label="Open menu"
-      >
-        <Menu className="h-5 w-5" />
-      </button>
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent
+          side="left"
+          className="w-64 p-0 border-r-0 bg-gradient-to-b from-[hsl(var(--sidebar-accent))] to-[hsl(var(--sidebar-background))] text-sidebar-foreground lg:hidden"
+        >
+          {sidebarContent}
+        </SheetContent>
+      </Sheet>
 
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-[60] bg-black/50 lg:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-[70] flex flex-col bg-gradient-to-b from-[hsl(var(--sidebar-accent))] to-[hsl(var(--sidebar-background))] text-sidebar-foreground transition-transform duration-300 ease-in-out w-64 lg:hidden",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        {sidebarContent}
-      </aside>
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around border-t border-border bg-card/95 backdrop-blur-md px-2 pb-safe lg:hidden" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+        {mobileBottomNavItems.map((item) => {
+          const active = isNavActive(item);
+          return (
+            <button
+              key={item.label}
+              onClick={() => handleNavClick(item)}
+              className={cn(
+                "flex flex-1 flex-col items-center gap-0.5 py-2 px-1 text-[10px] font-medium transition-colors",
+                active ? "text-[hsl(var(--forskale-teal))]" : "text-muted-foreground"
+              )}
+            >
+              <item.icon className={cn("h-5 w-5", active && "text-[hsl(var(--forskale-teal))]")} />
+              <span className="truncate max-w-full">{item.label.split(" ")[0]}</span>
+            </button>
+          );
+        })}
+        <button
+          onClick={() => setMobileOpen(true)}
+          className="flex flex-1 flex-col items-center gap-0.5 py-2 px-1 text-[10px] font-medium text-muted-foreground transition-colors"
+        >
+          <MoreHorizontal className="h-5 w-5" />
+          <span>More</span>
+        </button>
+      </nav>
 
       <aside
         className={cn(

@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast'
 import { Toaster as SonnerToaster } from 'sonner'
 import App from './App.tsx'
 import { AuthProvider } from './hooks/useAuth'
+import { LanguageProvider } from './i18n/LanguageContext'
 import './index.css'
 import './styles/button-overrides.css'
 
@@ -22,21 +23,23 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <AuthProvider>
-          <App />
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: '#363636',
-                color: '#fff',
-              },
-            }}
-          />
-          <SonnerToaster position="top-right" richColors />
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <App />
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 4000,
+                style: {
+                  background: '#363636',
+                  color: '#fff',
+                },
+              }}
+            />
+            <SonnerToaster position="top-right" richColors />
+          </AuthProvider>
+        </LanguageProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </React.StrictMode>,
-) 
+)

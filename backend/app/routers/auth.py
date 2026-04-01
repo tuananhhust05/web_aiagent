@@ -171,8 +171,8 @@ async def register(user_data: UserCreate):
         "workspace_role": workspace_role,
         "is_active": True,
         "is_verified": False,
-        "gdpr_consent": False,
-        "terms_accepted": False,
+        "gdpr_consent": True,
+        "terms_accepted": True,
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow()
     }

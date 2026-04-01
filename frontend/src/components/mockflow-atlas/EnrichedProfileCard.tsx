@@ -35,7 +35,7 @@ export function EnrichedProfileCard({ data: rawData, onClose }: EnrichedProfileC
   const freeCreditsRemaining = 5;
 
   return (
-    <div className="flex w-[420px] flex-col border-l bg-card h-full">
+    <div className="flex w-full md:w-[420px] flex-col border-l bg-card h-full">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-3">
         <h3 className="text-sm font-semibold text-foreground">Prospect Intelligence</h3>

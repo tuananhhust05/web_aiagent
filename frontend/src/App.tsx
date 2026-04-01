@@ -3,7 +3,6 @@ import { useAuth } from './hooks/useAuth'
 import Layout from './components/Layout'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
-import RegisterCompany from './pages/auth/RegisterCompany'
 import AcceptInvite from './pages/auth/AcceptInvite'
 import AcceptColleagueLink from './pages/auth/AcceptColleagueLink'
 import Onboarding from './pages/auth/Onboarding'
@@ -81,7 +80,7 @@ import AtlasQnAPage from './pages/AtlasQnAPage'
 import AtlasInsightsPage from './pages/AtlasInsightsPage'
 import ToDoReadyPage from './pages/ToDoReadyPage'
 
-const ALLOWED_WHEN_PROFILE_INCOMPLETE = ['/supplement-profile', '/auth/welcome', '/auth/oauth-done', '/login']
+const ALLOWED_WHEN_PROFILE_INCOMPLETE = ['/supplement-profile', '/auth/welcome', '/auth/oauth-done', '/login', '/onboarding']
 
 function App() {
   const { user, loading } = useAuth()
@@ -101,11 +100,11 @@ function App() {
       <Routes>
         <Route path="/auth/oauth-done" element={<OAuthDone />} />
         <Route path="/auth/welcome" element={<WelcomeTour />} />
-        <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/home" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/register-company" element={<RegisterCompany />} />
+        <Route path="/register-company" element={<Navigate to="/register" replace />} />
         <Route path="/accept-invite/:inviteToken" element={<AcceptInvite />} />
         <Route path="/accept-colleague-link/:linkToken" element={<AcceptColleagueLink />} />
         <Route path="/onboarding" element={<Onboarding />} />
@@ -123,7 +122,7 @@ function App() {
         <Route path="/products/ai-agent" element={<AIAgent />} />
         <Route path="/products/rag-client" element={<RAGClient />} />
         <Route path="/products/crm-integration" element={<CRMIntegration />} />
-        <Route path="*" element={<Navigate to="/home" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
   }

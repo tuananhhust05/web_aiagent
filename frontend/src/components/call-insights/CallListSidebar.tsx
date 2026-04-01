@@ -628,8 +628,8 @@ const CallListSidebar = ({ calls, selectedId, onSelect, collapsed, onToggle, cal
     <>
       <div
         className={cn(
-          "h-screen border-r border-border bg-card overflow-hidden transition-all duration-300 ease-in-out flex flex-col",
-          collapsed ? "w-[56px] min-w-[56px]" : "w-[280px] min-w-[280px]",
+          "h-screen border-r border-border bg-card overflow-hidden transition-all duration-300 ease-in-out flex-col",
+          collapsed ? "w-[56px] min-w-[56px] hidden sm:flex" : "w-[280px] min-w-[280px] max-w-full hidden sm:flex",
         )}
       >
         {collapsed ? (

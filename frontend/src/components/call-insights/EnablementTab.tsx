@@ -157,7 +157,7 @@ const FeedbackContent = ({ feedback }: { feedback?: MeetingFeedback | null }) =>
           <TrendingUp className="h-4 w-4 text-[hsl(var(--forskale-purple))]" />
           <h3 className="text-[15px] font-heading font-bold text-foreground">Your Performance Metrics</h3>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           {metrics.map((m, i) => (
             <MetricCard key={i} label={m.label} rating={m.rating} detail={m.detail} />
           ))}

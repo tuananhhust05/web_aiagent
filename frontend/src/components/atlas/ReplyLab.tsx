@@ -226,7 +226,6 @@ export default function ReplyLab({
         </div>
       </div>
 
-      {/* Nội dung — không scroll nội bộ, để wrapper bên ngoài scroll cả block */}
       <div className="shrink-0">
         {sourceLoading ? (
           <div className="flex items-center justify-center py-10 text-slate-500">
@@ -260,8 +259,7 @@ export default function ReplyLab({
       )}
 
       {/* Action buttons */}
-      <div className="shrink-0 flex items-center gap-2 px-3 py-2.5 bg-slate-50 border-t border-slate-200">
-        {/* Nút Send chỉ hiển thị khi gợi ý là gửi email */}
+      <div className="shrink-0 flex flex-wrap items-center gap-2 px-3 py-2.5 bg-slate-50 border-t border-slate-200">
         {task?.task_strategy?.recommended_next_step_type === 'send_email' && (
           <button
             type="button"
@@ -327,7 +325,7 @@ function EmailThreadSection({ email }: { email: EmailSourceContent }) {
           </div>
           <div className="text-left">
             <h3 className="text-[11px] font-semibold text-slate-900">Email</h3>
-            <p className="text-[10px] text-slate-500 truncate max-w-[180px]">{email.subject}</p>
+            <p className="text-[10px] text-slate-500 truncate max-w-[min(180px,35vw)]">{email.subject}</p>
           </div>
         </div>
         {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
@@ -335,7 +333,7 @@ function EmailThreadSection({ email }: { email: EmailSourceContent }) {
       
       {expanded && (
         <div className="px-3 pb-3">
-          <div className="grid grid-cols-2 gap-2 mb-2 p-2.5 bg-slate-50 rounded text-[10px]">
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-2 mb-2 p-2.5 bg-slate-50 rounded text-[10px]">
             <div>
               <p className="text-slate-400 mb-0.5">From</p>
               <p className="font-medium text-slate-700 break-all">{email.from}</p>
@@ -381,7 +379,7 @@ function MeetingTranscriptSection({ meeting }: { meeting: MeetingSourceContent }
           </div>
           <div className="text-left">
             <h3 className="text-[11px] font-semibold text-slate-900">Meeting</h3>
-            <p className="text-[10px] text-slate-500 truncate max-w-[180px]">{meeting.title}</p>
+            <p className="text-[10px] text-slate-500 truncate max-w-[min(180px,35vw)]">{meeting.title}</p>
           </div>
         </div>
         {expanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}

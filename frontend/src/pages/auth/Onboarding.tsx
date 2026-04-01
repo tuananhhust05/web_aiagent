@@ -1,322 +1,315 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { Building2, MessageSquare, Check } from 'lucide-react'
-import { useAuth } from '../../hooks/useAuth'
-import { userAPI, authAPI } from '../../lib/api'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import { toast } from 'react-hot-toast'
+import StepIndicator from '../../components/onboarding/StepIndicator'
+import SelectField from '../../components/onboarding/SelectField'
+import StepGoals from '../../components/onboarding/StepGoals'
+import StepFamiliarity from '../../components/onboarding/StepFamiliarity'
+import LanguageSwitcher from '../../components/LanguageSwitcher'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
+import { useLanguage } from '../../i18n/LanguageContext'
+import { TranslationKey } from '../../i18n/translations'
+import { useAuth } from '../../hooks/useAuth'
 
-const onboardingSchema = z.object({
-  company_name: z.string().min(1, 'Company name is required'),
-  industry: z.string().min(1, 'Industry is required'),
-  tone: z.string().min(1, 'Tone is required'),
-  language: z.string().min(1, 'Language is required'),
-  gdpr_consent: z.boolean().refine((val) => val === true, 'GDPR consent is required'),
-  terms_accepted: z.boolean().refine((val) => val === true, 'Terms acceptance is required'),
-})
-
-type OnboardingForm = z.infer<typeof onboardingSchema>
-
-const industries = [
-  { value: 'real_estate', label: 'Real Estate' },
-  { value: 'insurance', label: 'Insurance' },
-  { value: 'healthcare', label: 'Healthcare' },
-  { value: 'finance', label: 'Finance' },
-  { value: 'education', label: 'Education' },
-  { value: 'retail', label: 'Retail' },
-  { value: 'technology', label: 'Technology' },
-  { value: 'other', label: 'Other' },
+const MEETING_LANG_KEYS = [
+  { key: "langEnUS" as const, value: "en-US" },
+  { key: "langEnAU" as const, value: "en-AU" },
+  { key: "langEnIN" as const, value: "en-IN" },
+  { key: "langEnGB" as const, value: "en-GB" },
+  { key: "langEsES" as const, value: "es-ES" },
+  { key: "langEsMX" as const, value: "es-MX" },
+  { key: "langItIT" as const, value: "it-IT" },
 ]
 
-const tones = [
-  { value: 'professional', label: 'Professional' },
-  { value: 'friendly', label: 'Friendly' },
-  { value: 'formal', label: 'Formal' },
-  { value: 'casual', label: 'Casual' },
-  { value: 'enthusiastic', label: 'Enthusiastic' },
-]
+const DEPT_KEYS: TranslationKey[] = ["deptSales", "deptHR", "deptMarketing", "deptStrategy", "deptOther"]
 
-const languages = [
-  { value: 'en', label: 'English' },
-  { value: 'es', label: 'Spanish' },
-  { value: 'fr', label: 'French' },
-  { value: 'de', label: 'German' },
-  { value: 'it', label: 'Italian' },
-  { value: 'pt', label: 'Portuguese' },
-]
+const JOB_TITLE_KEYS: Record<string, TranslationKey[]> = {
+  deptSales: ["jobSDR", "jobSalesExec", "jobMgrSalesOps", "jobMgrSales", "jobSalesIntern", "jobOtherSales"],
+  deptHR: ["jobRecruiter", "jobTalent", "jobHRManager", "jobOtherHR"],
+  deptMarketing: ["jobMktManager", "jobGrowth", "jobContent", "jobOtherMkt"],
+  deptStrategy: ["jobStrategyConsultant", "jobBizDev", "jobStrategyManager", "jobOtherStrategy"],
+  deptOther: ["jobFounder", "jobCEO", "jobCOO", "jobConsultant", "jobAdvisor", "jobFreelancer", "jobStudent", "jobOther"],
+}
+
+const TOTAL_STEPS = 4
 
 export default function Onboarding() {
-  const [currentStep, setCurrentStep] = useState(1)
-  const [isLoading, setIsLoading] = useState(false)
-  const { user, updateUser } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const { t } = useLanguage()
+  const { signUp } = useAuth()
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
+  const emailFromUrl = searchParams.get('email') || ''
 
-  } = useForm<OnboardingForm>({
-    resolver: zodResolver(onboardingSchema),
-    defaultValues: {
-      company_name: user?.company_name || '',
-      industry: user?.industry || '',
-      tone: user?.tone || 'professional',
-      language: user?.language || 'en',
-      gdpr_consent: user?.gdpr_consent || false,
-      terms_accepted: user?.terms_accepted || false,
-    },
-  })
+  const [step, setStep] = useState(0)
+  const [isLoading, setIsLoading] = useState(false)
 
-  const onSubmit = async (data: OnboardingForm) => {
+  // Step 0 data
+  const [language, setLanguage] = useState("en-US")
+  const [department, setDepartment] = useState("")
+  const [jobTitle, setJobTitle] = useState("")
+  const [teamSize, setTeamSize] = useState("")
+  const [companyWebsite, setCompanyWebsite] = useState("")
+  const [noCompanyWebsite, setNoCompanyWebsite] = useState(false)
+  const [source, setSource] = useState("")
+  const [sourceDetail, setSourceDetail] = useState("")
+
+  // Step 3 (password) data
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
+
+  const teamSizeOptions = [t("onlyMe"), t("team2to3"), t("team4to10"), t("team11to20"), t("team21to50"), t("teamOver50")]
+  const sourceOptions = [t("referred"), t("searchEngine"), t("socialMedia"), t("community"), t("other")]
+
+  const handleDepartmentChange = (val: string) => {
+    setDepartment(val)
+    setJobTitle("")
+  }
+
+  const handleFinishPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!firstName || !lastName) {
+      toast.error('Please enter your full name')
+      return
+    }
+    if (password.length < 8) {
+      toast.error('Password must be at least 8 characters')
+      return
+    }
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match')
+      return
+    }
     setIsLoading(true)
     try {
-      // Update user profile
-      const response = await userAPI.updateProfile({
-        company_name: data.company_name,
-        industry: data.industry,
-        tone: data.tone,
-        language: data.language,
+      const username = emailFromUrl.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') + Math.floor(Math.random() * 1000)
+      const { error } = await signUp({
+        email: emailFromUrl,
+        first_name: firstName,
+        last_name: lastName,
+        username,
+        password,
+        language: language || 'en',
       })
-
-      // Accept terms and GDPR consent
-      await authAPI.acceptTerms()
-      await authAPI.gdprConsent()
-
-      updateUser(response.data)
-      toast.success('Onboarding completed successfully!')
-      navigate('/')
-    } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Onboarding failed')
+      if (error) {
+        toast.error(error.response?.data?.detail || error.message || 'Registration failed')
+      } else {
+        toast.success('Account created! Welcome to ForSkale 🎉')
+        navigate('/atlas/calendar')
+      }
+    } catch {
+      toast.error('An unexpected error occurred')
     } finally {
       setIsLoading(false)
     }
   }
 
-  const steps = [
-    {
-      id: 1,
-      title: 'Company Information',
-      description: 'Tell us about your business',
-      icon: Building2,
-    },
-    {
-      id: 2,
-      title: 'Communication Preferences',
-      description: 'Set your voice agent style',
-      icon: MessageSquare,
-    },
-    {
-      id: 3,
-      title: 'Legal & Consent',
-      description: 'Terms and privacy policy',
-      icon: Check,
-    },
-  ]
+  const inputStyle = {
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.15)",
+    color: "#fff",
+  }
+  const onFocus = (e: React.FocusEvent<HTMLInputElement>) => (e.target.style.borderColor = "rgba(78,205,196,0.6)")
+  const onBlur = (e: React.FocusEvent<HTMLInputElement>) => (e.target.style.borderColor = "rgba(255,255,255,0.15)")
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        {/* Progress Steps */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            {steps.map((step, index) => (
-              <div key={step.id} className="flex items-center">
-                <div
-                  className={`flex items-center justify-center w-10 h-10 rounded-full border-2 ${
-                    currentStep >= step.id
-                      ? 'bg-primary-600 border-primary-600 text-white'
-                      : 'bg-white border-gray-300 text-gray-500'
-                  }`}
-                >
-                  {currentStep > step.id ? (
-                    <Check className="w-5 h-5" />
-                  ) : (
-                    <step.icon className="w-5 h-5" />
-                  )}
-                </div>
-                {index < steps.length - 1 && (
-                  <div
-                    className={`w-full h-0.5 mx-4 ${
-                      currentStep > step.id ? 'bg-primary-600' : 'bg-gray-300'
-                    }`}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 text-center">
-            <h2 className="text-lg font-medium text-gray-900">
-              {steps[currentStep - 1].title}
-            </h2>
-            <p className="text-sm text-gray-600">
-              {steps[currentStep - 1].description}
-            </p>
-          </div>
+    <div className="min-h-screen flex flex-col px-6 py-8 onboarding-bg" style={{ fontFamily: "'Inter', sans-serif" }}>
+      {/* Floating orbs */}
+      <div className="bg-orb-1" />
+      <div className="bg-orb-2" />
+
+      {/* Top bar */}
+      <div className="flex items-center justify-between w-full relative z-20 mb-8">
+        <div className="logo-circle">
+          <img src="/images/forskale-logo.png" alt="ForSkale logo" className="w-[72px] h-auto" />
         </div>
+        <LanguageSwitcher variant="dark" />
+      </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Step 1: Company Information */}
-          {currentStep === 1 && (
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="company_name" className="block text-sm font-medium text-gray-700">
-                  Company Name
-                </label>
-                <input
-                  {...register('company_name')}
-                  type="text"
-                  className="input mt-1"
-                  placeholder="Enter your company name"
-                />
-                {errors.company_name && (
-                  <p className="mt-1 text-sm text-red-600">{errors.company_name.message}</p>
-                )}
-              </div>
+      {/* Centered card */}
+      <div className="flex-1 flex items-center justify-center relative z-10">
+        <div className="w-full max-w-3xl">
+          <div className="glass-card px-10 py-8">
+            <StepIndicator current={step} total={TOTAL_STEPS} />
 
-              <div>
-                <label htmlFor="industry" className="block text-sm font-medium text-gray-700">
-                  Industry
-                </label>
-                <select {...register('industry')} className="input mt-1">
-                  <option value="">Select your industry</option>
-                  {industries.map((industry) => (
-                    <option key={industry.value} value={industry.value}>
-                      {industry.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.industry && (
-                  <p className="mt-1 text-sm text-red-600">{errors.industry.message}</p>
-                )}
-              </div>
-            </div>
-          )}
+            {/* ── Step 0: About yourself ── */}
+            {step === 0 && (
+              <div className="animate-fade-in">
+                <h2 className="text-lg font-medium mb-3" style={{ color: "hsl(215 16% 47%)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {t("tellAboutYourself")}
+                </h2>
 
-          {/* Step 2: Communication Preferences */}
-          {currentStep === 2 && (
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="tone" className="block text-sm font-medium text-gray-700">
-                  Communication Tone
-                </label>
-                <select {...register('tone')} className="input mt-1">
-                  {tones.map((tone) => (
-                    <option key={tone.value} value={tone.value}>
-                      {tone.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.tone && (
-                  <p className="mt-1 text-sm text-red-600">{errors.tone.message}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="language" className="block text-sm font-medium text-gray-700">
-                  Primary Language
-                </label>
-                <select {...register('language')} className="input mt-1">
-                  {languages.map((language) => (
-                    <option key={language.value} value={language.value}>
-                      {language.label}
-                    </option>
-                  ))}
-                </select>
-                {errors.language && (
-                  <p className="mt-1 text-sm text-red-600">{errors.language.message}</p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Legal & Consent */}
-          {currentStep === 3 && (
-            <div className="space-y-4">
-              <div className="flex items-start">
-                <div className="flex items-center h-5">
-                  <input
-                    {...register('terms_accepted')}
-                    type="checkbox"
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
+                <div className="flex items-center gap-2 mb-3 flex-nowrap">
+                  <h3 className="text-2xl font-semibold whitespace-nowrap" style={{ color: "hsl(0 0% 10%)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t("iMostlySpeak")}</h3>
+                  <div className="min-w-[140px]">
+                    <SelectField bold value={language} onChange={setLanguage} options={MEETING_LANG_KEYS.map(l => ({ label: t(l.key), value: l.value }))} placeholder={t("selectLanguage")} />
+                  </div>
+                  <h3 className="text-2xl font-semibold whitespace-nowrap" style={{ color: "hsl(0 0% 10%)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t("inMeetings")}</h3>
                 </div>
-                <div className="ml-3 text-sm">
-                  <label htmlFor="terms_accepted" className="font-medium text-gray-700">
-                    I accept the Terms of Service
-                  </label>
-                  <p className="text-gray-500">
-                    By checking this box, you agree to our Terms of Service and acknowledge that
-                    you have read and understood them.
+
+                <div className="flex items-center gap-2 mb-3 flex-wrap">
+                  <h3 className="text-2xl font-semibold whitespace-nowrap" style={{ color: "hsl(0 0% 10%)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t("iWorkIn")}</h3>
+                  <div className="min-w-[120px]">
+                    <SelectField bold value={department} onChange={handleDepartmentChange} options={DEPT_KEYS.map(k => ({ label: t(k), value: k }))} placeholder={t("yourDepartment")} />
+                  </div>
+                  <h3 className="text-2xl font-semibold whitespace-nowrap" style={{ color: "hsl(0 0% 10%)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t("asA")}</h3>
+                  <div className="min-w-[140px]">
+                    <SelectField bold value={jobTitle} onChange={setJobTitle} options={department ? (JOB_TITLE_KEYS[department] || []).map(k => ({ label: t(k), value: k })) : []} placeholder={t("yourJobTitle")} />
+                  </div>
+                  <h3 className="text-2xl font-semibold whitespace-nowrap" style={{ color: "hsl(0 0% 10%)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t("inATeamOf")}</h3>
+                  <div className="min-w-[100px]">
+                    <SelectField bold value={teamSize} onChange={setTeamSize} options={teamSizeOptions} placeholder={t("yourTeamSize")} />
+                  </div>
+                  <h3 className="text-2xl font-semibold" style={{ color: "hsl(0 0% 10%)" }}>.</h3>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mb-3">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h3 className="text-xl font-semibold whitespace-nowrap" style={{ color: "hsl(0 0% 10%)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t("iFoundForSkale")}</h3>
+                      <div className="min-w-[140px]">
+                        <SelectField bold value={source} onChange={setSource} options={sourceOptions} placeholder={t("howYouHeard")} />
+                      </div>
+                    </div>
+                    {source && (
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        <h3 className="text-xl font-semibold whitespace-nowrap" style={{ color: "hsl(0 0% 10%)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t("moreExactly")}</h3>
+                        <input
+                          type="text" value={sourceDetail} onChange={(e) => setSourceDetail(e.target.value)}
+                          placeholder={t("pleaseSpecify")}
+                          className="px-3 py-1.5 rounded-lg text-sm font-semibold outline-none transition-all flex-1"
+                          style={{ background: "hsla(0 0% 100% / 0.6)", border: "1px solid hsl(214 32% 91%)", color: "hsl(0 0% 10%)" }}
+                          onFocus={(e) => { e.target.style.borderColor = "hsla(176 58% 55% / 0.6)"; e.target.style.boxShadow = "0 4px 12px hsla(176 58% 55% / 0.15)"; }}
+                          onBlur={(e) => { e.target.style.borderColor = "hsl(214 32% 91%)"; e.target.style.boxShadow = "none"; }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold mb-1" style={{ color: "hsl(215 16% 47%)" }}>{t("companyWebsite")}</h3>
+                    <input
+                      type="text" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)}
+                      placeholder={t("companyWebsitePlaceholder")} disabled={noCompanyWebsite}
+                      className="w-full px-3 py-2 rounded-lg text-sm font-semibold outline-none transition-all"
+                      style={{ background: "hsla(0 0% 100% / 0.6)", border: "1px solid hsl(214 32% 91%)", color: "hsl(0 0% 10%)", opacity: noCompanyWebsite ? 0.5 : 1 }}
+                      onFocus={(e) => { e.target.style.borderColor = "hsla(176 58% 55% / 0.6)"; e.target.style.boxShadow = "0 4px 12px hsla(176 58% 55% / 0.15)"; }}
+                      onBlur={(e) => { e.target.style.borderColor = "hsl(214 32% 91%)"; e.target.style.boxShadow = "none"; }}
+                    />
+                    <p className="text-xs mt-0.5" style={{ color: "hsl(215 16% 47%)" }}>{t("companyWebsiteHelp")}</p>
+                    <label className="flex items-center gap-2 mt-1 cursor-pointer">
+                      <input type="checkbox" checked={noCompanyWebsite} onChange={(e) => { setNoCompanyWebsite(e.target.checked); if (e.target.checked) setCompanyWebsite(""); }} className="w-3.5 h-3.5 rounded accent-[#4ECDC4]" />
+                      <span className="text-xs" style={{ color: "hsl(215 20% 40%)" }}>{t("noCompanyWebsite")}</span>
+                    </label>
+                  </div>
+                </div>
+
+                <button onClick={() => setStep(1)} className="btn-continue px-8 py-3 text-sm mt-1">
+                  {t("continue")}
+                </button>
+              </div>
+            )}
+
+            {/* ── Step 1: Goals ── */}
+            {step === 1 && <StepGoals onContinue={() => setStep(2)} onBack={() => setStep(0)} />}
+
+            {/* ── Step 2: Familiarity ── */}
+            {step === 2 && <StepFamiliarity onContinue={() => setStep(3)} onBack={() => setStep(1)} />}
+
+            {/* ── Step 3: Password setup ── */}
+            {step === 3 && (
+              <div className="animate-fade-in">
+                <h2 className="text-2xl font-semibold mb-2" style={{ color: "hsl(0 0% 10%)", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {t("setUpAccount")}
+                </h2>
+                {emailFromUrl && (
+                  <p className="text-sm mb-6" style={{ color: "hsl(215 16% 47%)" }}>
+                    {emailFromUrl}
                   </p>
-                </div>
-              </div>
-              {errors.terms_accepted && (
-                <p className="text-sm text-red-600">{errors.terms_accepted.message}</p>
-              )}
-
-              <div className="flex items-start">
-                <div className="flex items-center h-5">
-                  <input
-                    {...register('gdpr_consent')}
-                    type="checkbox"
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
-                </div>
-                <div className="ml-3 text-sm">
-                  <label htmlFor="gdpr_consent" className="font-medium text-gray-700">
-                    I consent to data processing
-                  </label>
-                  <p className="text-gray-500">
-                    I consent to the processing of my personal data in accordance with GDPR
-                    requirements and the Privacy Policy.
-                  </p>
-                </div>
-              </div>
-              {errors.gdpr_consent && (
-                <p className="text-sm text-red-600">{errors.gdpr_consent.message}</p>
-              )}
-            </div>
-          )}
-
-          {/* Navigation Buttons */}
-          <div className="flex justify-between pt-6">
-            <button
-              type="button"
-              onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
-              disabled={currentStep === 1}
-              className="btn btn-outline btn-md"
-            >
-              Previous
-            </button>
-
-            {currentStep < steps.length ? (
-              <button
-                type="button"
-                onClick={() => setCurrentStep(currentStep + 1)}
-                className="btn btn-primary btn-md"
-              >
-                Next
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="btn btn-primary btn-md"
-              >
-                {isLoading ? (
-                  <LoadingSpinner className="h-4 w-4" />
-                ) : (
-                  'Complete Setup'
                 )}
-              </button>
+
+                <form onSubmit={handleFinishPassword} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: "hsl(215 16% 47%)" }}>{t("firstName")}</label>
+                      <input
+                        type="text" placeholder={t("firstNamePlaceholder")} value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all"
+                        style={{ background: "hsla(0 0% 100% / 0.6)", border: "1px solid hsl(214 32% 91%)", color: "hsl(0 0% 10%)" }}
+                        onFocus={(e) => { e.target.style.borderColor = "hsla(176 58% 55% / 0.6)"; e.target.style.boxShadow = "0 4px 12px hsla(176 58% 55% / 0.15)"; }}
+                        onBlur={(e) => { e.target.style.borderColor = "hsl(214 32% 91%)"; e.target.style.boxShadow = "none"; }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: "hsl(215 16% 47%)" }}>{t("lastName")}</label>
+                      <input
+                        type="text" placeholder={t("lastNamePlaceholder")} value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        className="w-full px-4 py-3 rounded-lg text-sm outline-none transition-all"
+                        style={{ background: "hsla(0 0% 100% / 0.6)", border: "1px solid hsl(214 32% 91%)", color: "hsl(0 0% 10%)" }}
+                        onFocus={(e) => { e.target.style.borderColor = "hsla(176 58% 55% / 0.6)"; e.target.style.boxShadow = "0 4px 12px hsla(176 58% 55% / 0.15)"; }}
+                        onBlur={(e) => { e.target.style.borderColor = "hsl(214 32% 91%)"; e.target.style.boxShadow = "none"; }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "hsl(215 16% 47%)" }}>{t("password")}</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"} placeholder="••••••••" value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full px-4 py-3 pr-11 rounded-lg text-sm outline-none transition-all"
+                        style={{ background: "hsla(0 0% 100% / 0.6)", border: "1px solid hsl(214 32% 91%)", color: "hsl(0 0% 10%)" }}
+                        onFocus={(e) => { e.target.style.borderColor = "hsla(176 58% 55% / 0.6)"; e.target.style.boxShadow = "0 4px 12px hsla(176 58% 55% / 0.15)"; }}
+                        onBlur={(e) => { e.target.style.borderColor = "hsl(214 32% 91%)"; e.target.style.boxShadow = "none"; }}
+                      />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "hsl(215 16% 47%)" }}>
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <p className="text-xs mt-1" style={{ color: "hsl(215 16% 47%)" }}>Minimum 8 characters</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1.5" style={{ color: "hsl(215 16% 47%)" }}>{t("confirmPassword")}</label>
+                    <div className="relative">
+                      <input
+                        type={showConfirm ? "text" : "password"} placeholder="••••••••" value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full px-4 py-3 pr-11 rounded-lg text-sm outline-none transition-all"
+                        style={{ background: "hsla(0 0% 100% / 0.6)", border: "1px solid hsl(214 32% 91%)", color: "hsl(0 0% 10%)" }}
+                        onFocus={(e) => { e.target.style.borderColor = "hsla(176 58% 55% / 0.6)"; e.target.style.boxShadow = "0 4px 12px hsla(176 58% 55% / 0.15)"; }}
+                        onBlur={(e) => { e.target.style.borderColor = "hsl(214 32% 91%)"; e.target.style.boxShadow = "none"; }}
+                      />
+                      <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "hsl(215 16% 47%)" }}>
+                        {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 pt-2">
+                    <button type="button" onClick={() => setStep(2)} className="btn-back px-6 py-3 text-sm">
+                      {t("back")}
+                    </button>
+                    <button
+                      type="submit" disabled={isLoading}
+                      className="btn-continue px-8 py-3 text-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {isLoading ? <LoadingSpinner size="sm" /> : t("createAccount")}
+                    </button>
+                  </div>
+                </form>
+              </div>
             )}
           </div>
-        </form>
+        </div>
       </div>
     </div>
   )
-} 
+}

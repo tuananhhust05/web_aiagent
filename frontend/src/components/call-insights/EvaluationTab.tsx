@@ -204,7 +204,7 @@ const EvaluationTab = ({ onOpenStrategyModal, evaluation: realEvaluation }: Eval
         <div className="rounded-xl border-2 border-[hsl(var(--forskale-teal)/0.4)] bg-gradient-to-br from-[hsl(var(--forskale-teal)/0.03)] to-[hsl(var(--forskale-green)/0.03)] p-5 shadow-card">
           <div className="flex items-center gap-2.5 mb-1">
             <ArrowRight className="h-5 w-5 text-[hsl(var(--forskale-teal))]" />
-            <h3 className="text-xl font-heading font-bold text-foreground">Next Actions</h3>
+            <h3 className="text-base sm:text-xl font-heading font-bold text-foreground">Next Actions</h3>
           </div>
           <p className="text-xs text-muted-foreground mb-4">Your immediate priorities to move this deal forward</p>
 

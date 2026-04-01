@@ -692,29 +692,29 @@ export default function AtlasQnAPage() {
   /* ────────────────── RENDER ────────────────── */
   return (
     <div className="flex-1 h-screen overflow-y-auto bg-background scrollbar-thin scroll-smooth">
-      {/* ═══════════════ Hero Screen ═══════════════ */}
+      {/* Hero Screen */}
       <div className="min-h-screen flex flex-col">
         {/* Header */}
-        <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/30 px-8 py-4">
-          <div className="flex items-center justify-between max-w-7xl mx-auto">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-forskale-green via-forskale-teal to-forskale-blue shadow-lg">
-                <Sparkles className="h-5 w-5 text-white" />
+        <header className="sticky top-0 z-10 bg-background/95 backdrop-blur-xl border-b border-border/30 px-4 sm:px-8 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-3 max-w-7xl mx-auto">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-forskale-green via-forskale-teal to-forskale-blue shadow-lg flex-shrink-0">
+                <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">Q&A Engine</h1>
-                <p className="text-sm text-muted-foreground">Knowledge-grounded, AI-powered question archive</p>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-2xl font-bold text-foreground">Q&A Engine</h1>
+                <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Knowledge-grounded, AI-powered question archive</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               {!isOwner && (
-                <span className="px-3 py-1.5 rounded-full bg-secondary/30 text-muted-foreground text-xs font-medium flex items-center gap-1.5 border border-border/30">
+                <span className="px-2 sm:px-3 py-1.5 rounded-full bg-secondary/30 text-muted-foreground text-xs font-medium hidden sm:flex items-center gap-1.5 border border-border/30">
                   <Eye className="h-3.5 w-3.5" />
                   View only
                 </span>
               )}
               {isOwner && (
-                <span className="px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium flex items-center gap-1.5 border border-emerald-200">
+                <span className="hidden sm:flex px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium items-center gap-1.5 border border-emerald-200">
                   <Shield className="h-3.5 w-3.5" />
                   Owner
                 </span>
@@ -723,29 +723,31 @@ export default function AtlasQnAPage() {
                 <button
                   type="button"
                   onClick={() => setIsExtractModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-semibold hover:from-violet-600 hover:to-purple-700 shadow-sm transition-all duration-300"
+                  className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-semibold hover:from-violet-600 hover:to-purple-700 shadow-sm transition-all duration-300"
                 >
                   <Brain className="h-3.5 w-3.5" />
-                  Extract from Call
+                  <span className="hidden sm:inline">Extract from Call</span>
+                  <span className="sm:hidden">Extract</span>
                 </button>
               )}
               {isOwner && (
                 <button
                   type="button"
                   onClick={() => setIsCreating(true)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-gradient-to-r from-forskale-green to-forskale-teal text-white text-xs font-semibold hover:shadow-lg shadow-sm transition-all duration-300"
+                  className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-forskale-green to-forskale-teal text-white text-xs font-semibold hover:shadow-lg shadow-sm transition-all duration-300"
                 >
                   <Plus className="h-3.5 w-3.5" />
-                  Add Q&A
+                  <span className="hidden sm:inline">Add Q&A</span>
+                  <span className="sm:hidden">Add</span>
                 </button>
               )}
             </div>
           </div>
         </header>
 
-        <div className="flex-1 flex flex-col p-8 max-w-7xl mx-auto w-full">
+        <div className="flex-1 flex flex-col p-4 sm:p-8 max-w-7xl mx-auto w-full">
           {/* Stats Grid */}
-          <div className="grid grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6 mb-6 sm:mb-8">
             <StatCard
               label="Total Questions"
               value={mockStats.total_questions}
@@ -791,7 +793,7 @@ export default function AtlasQnAPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                 {mockStats.friction_breakdown
                   .filter((f) => f.count > 0)
                   .map((fb) => {
@@ -861,7 +863,7 @@ export default function AtlasQnAPage() {
                 <h3 className="text-base font-semibold text-foreground">Top Questions</h3>
               </div>
 
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
                 {mockStats.top_questions.slice(0, 3).map((q, index) => {
                   const gradients = [
                     'from-[hsl(var(--forskale-green))] to-[hsl(var(--forskale-teal))]',
@@ -940,7 +942,7 @@ export default function AtlasQnAPage() {
           {showScrollArrow && (
             <button
               onClick={scrollToQuestions}
-              className="fixed right-6 bottom-8 z-20 p-3 rounded-full bg-gradient-to-br from-[hsl(var(--forskale-green))] to-[hsl(var(--forskale-teal))] text-white shadow-[0_0_20px_hsl(var(--forskale-green)/0.5)] hover:shadow-[0_0_32px_hsl(var(--forskale-green)/0.7)] animate-bounce transition-shadow duration-300"
+              className="fixed right-6 bottom-20 lg:bottom-8 z-20 p-3 rounded-full bg-gradient-to-br from-[hsl(var(--forskale-green))] to-[hsl(var(--forskale-teal))] text-white shadow-[0_0_20px_hsl(var(--forskale-green)/0.5)] hover:shadow-[0_0_32px_hsl(var(--forskale-green)/0.7)] animate-bounce transition-shadow duration-300"
             >
               <ChevronsDown className="h-5 w-5" />
             </button>
@@ -948,11 +950,11 @@ export default function AtlasQnAPage() {
         </div>
       </div>
 
-      {/* ═══════════════ Questions Table — Second screen ═══════════════ */}
-      <div ref={questionsRef} className="min-h-screen p-8 max-w-7xl mx-auto w-full">
-        <div className="bg-card rounded-3xl border border-border/30 overflow-hidden shadow-2xl">
+      {/* Questions Table */}
+      <div ref={questionsRef} className="min-h-screen p-4 sm:p-8 max-w-7xl mx-auto w-full">
+        <div className="bg-card rounded-2xl sm:rounded-3xl border border-border/30 overflow-hidden shadow-2xl">
           {/* Search Header */}
-          <div className="flex items-center gap-3 px-6 py-4 border-b border-border/30 bg-secondary/30 backdrop-blur-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-border/30 bg-secondary/30 backdrop-blur-sm">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
@@ -968,7 +970,7 @@ export default function AtlasQnAPage() {
             </div>
 
             {/* Filter dropdown */}
-            <div className="relative">
+            <div className="relative self-end">
               <button
                 type="button"
                 onClick={() => setFilterDropdownOpen(!filterDropdownOpen)}
@@ -1073,8 +1075,8 @@ export default function AtlasQnAPage() {
             </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto">
+          {/* Table — hidden on mobile, replaced by cards */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="bg-secondary/30 text-left border-b border-border/30">
@@ -1280,9 +1282,68 @@ export default function AtlasQnAPage() {
             </div>
           )}
         </div>
+
+          {/* Mobile card list */}
+          <div className="sm:hidden divide-y divide-border/20">
+          {isLoading && (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          )}
+          {!isLoading && items.length === 0 && (
+            <div className="px-4 py-12 text-center">
+              <HelpCircle className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-sm font-medium text-foreground">No Q&A found</p>
+            </div>
+          )}
+          {!isLoading && items.map((item) => {
+            const classification = item.classification || 'general'
+            const status = item.status || 'draft'
+            const classConfig = CLASSIFICATION_CONFIG[classification] || CLASSIFICATION_CONFIG.general
+            const statusConfig = STATUS_CONFIG[status] || STATUS_CONFIG.draft
+            const ClassIcon = classConfig.icon
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className="w-full text-left px-4 py-4 hover:bg-secondary/30 transition-colors"
+                onClick={() => {
+                  setSelectedItem(item)
+                  setIsDetailOpen(true)
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={cn('mt-0.5 p-1.5 rounded-lg flex-shrink-0', classConfig.bg)}>
+                    <ClassIcon className={cn('h-3.5 w-3.5', classConfig.color)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-foreground line-clamp-2">{item.question}</p>
+                    <p className="mt-1 text-xs text-muted-foreground line-clamp-1">{item.answer}</p>
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
+                      <span className={cn('px-2 py-0.5 rounded-md text-[10px] font-semibold border', statusConfig.bg, statusConfig.color, statusConfig.border)}>
+                        {statusConfig.label}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground">{item.usage_count} uses</span>
+                    </div>
+                  </div>
+                  <Eye className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                </div>
+              </button>
+            )
+          })}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 bg-secondary/30">
+              <p className="text-xs text-muted-foreground">{(page - 1) * 20 + 1}-{Math.min(page * 20, total)} of {total}</p>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1} className="px-3 py-1.5 text-xs font-medium text-foreground border border-border/30 rounded-lg hover:bg-secondary/50 disabled:opacity-50">Prev</button>
+                <button type="button" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages} className="px-3 py-1.5 text-xs font-medium text-foreground border border-border/30 rounded-lg hover:bg-secondary/50 disabled:opacity-50">Next</button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ═══════════════ Modals ═══════════════ */}
+      {/* Modals */}
       <QnADetailModal
         item={selectedItem}
         isOpen={isDetailOpen}

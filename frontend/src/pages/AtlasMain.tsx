@@ -53,6 +53,7 @@ import {
   Filter,
   User as _User,
   Bot,
+  Menu,
 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts'
 import { cn } from '../lib/utils'
@@ -75,6 +76,7 @@ import {
   type EnablementFeedbackResponse,
   type PlaybookTemplateRule,
 } from '../lib/api'
+import { Sheet, SheetContent } from '../components/ui/sheet'
 
 const KNOWLEDGE_CATEGORY_API_MAP: Record<string, string> = {
   product: 'product-info',
@@ -168,6 +170,7 @@ export default function AtlasMain() {
   const section: AtlasMainSection = SECTION_PATH_MAP[pathSegment] ?? 'calls'
 
   const [callListCollapsed, setCallListCollapsed] = useState(false)
+  const [mobileCallListOpen, setMobileCallListOpen] = useState(false)
   const [transcriptCollapsed, setTranscriptCollapsed] = useState(false)
   const [callsList, setCallsList] = useState<CallListItem[]>([])
   const [callsLoading, setCallsLoading] = useState(false)
@@ -1608,9 +1611,50 @@ export default function AtlasMain() {
       <>
         <div className="flex flex-1 overflow-hidden bg-background">
 
-        {/* Call List Sidebar */}
+        {/* Call List Sidebar — hidden on mobile, shown via Sheet */}
+        <Sheet open={mobileCallListOpen} onOpenChange={setMobileCallListOpen}>
+          <SheetContent side="left" className="w-[260px] p-0 border-r border-border bg-card flex flex-col md:hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h2 className="text-sm font-heading font-bold text-foreground tracking-tight">Call History</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto atlas-scrollbar px-2 py-3 space-y-1">
+              {callsLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : callsList.length === 0 ? (
+                <p className="text-xs text-muted-foreground px-3 py-2 leading-relaxed">
+                  No meetings yet. Join a meeting from Record or create one in Meetings.
+                </p>
+              ) : (
+                callsList.map((call) => (
+                  <button
+                    key={call.id}
+                    onClick={() => { setActiveCallId(call.id); setMobileCallListOpen(false) }}
+                    className={`w-full relative flex items-center justify-between px-3 py-3 rounded-lg text-left transition-all group ${
+                      activeCallId === call.id
+                        ? 'forskale-gradient-subtle border border-forskale-teal shadow-card'
+                        : 'border border-transparent hover:bg-accent hover:border-border'
+                    }`}
+                  >
+                    {activeCallId === call.id && (
+                      <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full bg-forskale-teal" />
+                    )}
+                    <div className="min-w-0 flex-1 pl-1">
+                      <div className="text-[13px] font-semibold text-foreground truncate">{call.title || call.id}</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">{call.date}</div>
+                    </div>
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </button>
+                ))
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+
+        {/* Call List Sidebar — visible on desktop */}
         <div
-          className={`h-screen border-r border-border bg-card overflow-hidden transition-all duration-300 ease-in-out flex flex-col ${
+          className={`hidden md:flex h-screen border-r border-border bg-card overflow-hidden transition-all duration-300 ease-in-out flex-col ${
             callListCollapsed ? 'w-[56px] min-w-[56px]' : 'w-[240px] min-w-[240px]'
           }`}
         >
@@ -1692,23 +1736,31 @@ export default function AtlasMain() {
         {/* Left: call analysis */}
         <div className="flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ease-in-out">
               {/* Header */}
-              <div className="px-8 pt-6 pb-0 border-b border-border bg-card">
-                <button
-                  onClick={() => setCallListCollapsed((prev) => !prev)}
-                  className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors mb-4"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" /> Calls
-                </button>
+              <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-0 border-b border-border bg-card">
+                <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                  <button
+                    onClick={() => setMobileCallListOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors md:hidden"
+                  >
+                    <Menu className="h-3.5 w-3.5" /> Calls
+                  </button>
+                  <button
+                    onClick={() => setCallListCollapsed((prev) => !prev)}
+                    className="hidden md:inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" /> Calls
+                  </button>
+                </div>
 
                 {activeCall ? (
                   <>
-                    <div className="flex items-center justify-between mb-4 gap-4">
-                      <h1 className="text-2xl font-heading font-bold text-foreground tracking-tight leading-tight">{activeCall.title || activeCall.id}</h1>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 sm:mb-4 gap-2 sm:gap-4">
+                      <h1 className="text-lg sm:text-2xl font-heading font-bold text-foreground tracking-tight leading-tight line-clamp-2">{activeCall.title || activeCall.id}</h1>
                       <button
                         type="button"
                         onClick={handleReanalyzeMeeting}
                         disabled={reanalyzing}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white text-sm font-semibold rounded-lg shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 transition-all shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                        className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white text-xs sm:text-sm font-semibold rounded-lg shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 transition-all self-start sm:self-auto shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {reanalyzing ? (
                           <>
@@ -1723,11 +1775,11 @@ export default function AtlasMain() {
                         )}
                       </button>
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-muted-foreground mb-3 sm:mb-4">
                       {typeof playbookAnalysis?.overall_score === 'number' && (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[hsl(var(--forskale-green)/0.08)] border border-[hsl(var(--forskale-green)/0.2)] text-status-great font-semibold">
                           <span className="w-1.5 h-1.5 rounded-full bg-status-great" />
-                          {playbookAnalysis.overall_score}% of sales playbook executed
+                          {playbookAnalysis.overall_score}% playbook
                         </span>
                       )}
                       <span>{activeCall.date}</span>
@@ -1741,7 +1793,7 @@ export default function AtlasMain() {
                 )}
 
                 {activeCall && (
-                  <div className="flex gap-8">
+                  <div className="flex gap-4 sm:gap-8 overflow-x-auto scrollbar-hide">
                     {[
                       { id: 'feedback', label: 'Feedback' },
                       { id: 'playbook', label: 'Playbook' },
@@ -1751,7 +1803,7 @@ export default function AtlasMain() {
                       <button
                         key={tab.id}
                         onClick={() => setActiveCallTab(tab.id as typeof activeCallTab)}
-                        className={`relative pb-3 text-sm font-semibold transition-colors ${
+                        className={`relative pb-3 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap flex-shrink-0 ${
                           activeCallTab === tab.id
                             ? 'text-foreground'
                             : 'text-muted-foreground hover:text-foreground'
@@ -1768,7 +1820,7 @@ export default function AtlasMain() {
               </div>
 
               {/* Content */}
-              <div className="flex-1 overflow-y-auto atlas-scrollbar p-8 bg-background transition-all duration-300 ease-in-out">
+              <div className="flex-1 overflow-y-auto atlas-scrollbar p-4 sm:p-8 bg-background transition-all duration-300 ease-in-out">
 
             {activeCall && (
               <>
@@ -2196,7 +2248,7 @@ export default function AtlasMain() {
                     <button
                       type="button"
                       onClick={() => setPlaybookDropdownOpen((o) => !o)}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-accent w-[180px]"
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-accent w-full sm:w-[180px]"
                     >
                       <span className="flex-1 text-left truncate">
                         {playbookAnalysis?.template_name || selectedPlaybookName}
@@ -2411,7 +2463,7 @@ export default function AtlasMain() {
                   {!feedbackLoading &&
                     !feedbackError &&
                     (feedbackData?.metrics || []).length > 0 && (
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                         {(feedbackData?.metrics || []).map((metric, index) => {
                           const rating =
                             metric.status_level === 'great'
@@ -3264,7 +3316,7 @@ export default function AtlasMain() {
 
             {/* Right: transcript panel */}
             {activeCall && (
-              <div className={`h-screen border-l border-border bg-card flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${transcriptCollapsed ? 'w-[56px] min-w-[56px]' : 'w-[340px] min-w-[340px]'}`}>
+              <div className={`h-screen border-l border-border bg-card flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${transcriptCollapsed ? 'w-[56px] min-w-[56px]' : 'w-full sm:w-[340px] sm:min-w-[340px]'}`}>
                 {transcriptCollapsed ? (
                   <>
                     <div className="flex justify-center p-3">
@@ -3605,24 +3657,24 @@ export default function AtlasMain() {
       <div className="flex-1 h-full overflow-y-auto bg-background text-foreground">
         <div className="absolute inset-0 bg-forskale-blue/[0.02] pointer-events-none" />
         
-        <div className="relative z-10 p-8 max-w-7xl mx-auto">
+        <div className="relative z-10 p-4 sm:p-8 max-w-7xl mx-auto">
           {/* Header */}
-          <div className="flex items-start justify-between gap-6 mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 sm:gap-6 mb-6 sm:mb-8">
             <div>
-              <h1 className="text-2xl font-bold text-foreground mb-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-1 sm:mb-2">
                 Performance across calls
               </h1>
-              <p className="text-sm text-muted-foreground max-w-xl leading-relaxed">
+              <p className="text-xs sm:text-sm text-muted-foreground max-w-xl leading-relaxed">
                 {insightsSubtitle[insightsActiveTab]}
               </p>
             </div>
-            <div className="relative" ref={insightsDropdownRef}>
+            <div className="relative self-start" ref={insightsDropdownRef}>
               <button
                 type="button"
                 onClick={() => setInsightsDropdownOpen((v) => !v)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-border/30 bg-secondary/30 text-sm text-muted-foreground hover:bg-secondary/50 hover:border-primary hover:text-foreground transition-all backdrop-blur-sm"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl border border-border/30 bg-secondary/30 text-xs sm:text-sm text-muted-foreground hover:bg-secondary/50 hover:border-primary hover:text-foreground transition-all backdrop-blur-sm"
               >
-                <Calendar className="h-4 w-4 text-primary" />
+                <Calendar className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-primary" />
                 {insightsDaysLabel}
                 <ChevronDown className={cn("h-4 w-4 text-muted-foreground/60 transition-transform", insightsDropdownOpen && "rotate-180")} />
               </button>
@@ -3652,13 +3704,13 @@ export default function AtlasMain() {
           </div>
 
           {/* Tabs */}
-          <nav className="flex gap-8 border-b border-border/30 mb-8">
+          <nav className="flex gap-4 sm:gap-8 border-b border-border/30 mb-6 sm:mb-8 overflow-x-auto scrollbar-hide">
             {insightsTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setInsightsActiveTab(tab.id)}
                 className={cn(
-                  "pb-3 text-sm font-medium transition-all relative",
+                  "pb-3 text-xs sm:text-sm font-medium transition-all relative whitespace-nowrap flex-shrink-0",
                   insightsActiveTab === tab.id ? "text-foreground" : "text-muted-foreground/60 hover:text-muted-foreground"
                 )}
               >
@@ -4163,9 +4215,8 @@ export default function AtlasMain() {
   if (section === 'todo') {
     return (
       <div className="h-full overflow-y-auto bg-white">
-        <div className="px-8 pt-6 pb-5">
-          {/* Header */}
-          <div className="flex items-center justify-between gap-4 mb-6">
+        <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-gray-900">To Do Ready</h1>
               <p className="mt-1 text-sm text-gray-500">
@@ -4231,8 +4282,8 @@ export default function AtlasMain() {
           </div>
 
           {/* Tabs + Filter inline */}
-          <div className="flex items-center justify-between border-b border-gray-200 mb-4">
-            <nav className="flex gap-8 text-sm">
+          <div className="flex items-center justify-between border-b border-gray-200 mb-4 overflow-x-auto scrollbar-hide">
+            <nav className="flex gap-4 sm:gap-8 text-sm whitespace-nowrap">
               {[
                 { id: 'prioritized', label: 'Prioritized Prospects' },
                 { id: 'followups', label: 'Follow-ups' },
@@ -4411,8 +4462,8 @@ export default function AtlasMain() {
 
   if (section === 'qna') {
     return (
-      <div className="h-full overflow-y-auto px-8 py-6 bg-[#f5f5f7]">
-        <div className="flex items-center justify-between gap-4 mb-5">
+      <div className="h-full overflow-y-auto px-4 sm:px-8 py-4 sm:py-6 bg-[#f5f5f7]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-gray-900">
               Rolling Q&amp;A Repository
@@ -4617,44 +4668,63 @@ export default function AtlasMain() {
     return (
       <div className="flex-1 h-screen overflow-y-auto bg-white">
         {/* Sticky Header */}
-        <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-8 py-5">
-          <div className="flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 sm:px-8 py-4 sm:py-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
                 Knowledge Configuration
               </h1>
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-xs sm:text-sm text-gray-500">
                 Train Atlas AI with YOUR company information to provide intelligent assistance during calls.
               </p>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 type="button"
                 onClick={() => setKnowledgeUploadModal(true)}
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg border border-gray-300 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
               >
-                <Upload className="h-4 w-4" />
-                Upload Document
+                <Upload className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden xs:inline">Upload Document</span>
+                <span className="xs:hidden">Upload</span>
               </button>
               <button
                 type="button"
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+                className="inline-flex items-center gap-1.5 sm:gap-2 rounded-lg border border-gray-300 bg-white px-3 sm:px-4 py-2 sm:py-2.5 text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
               >
-                <RefreshCw className="h-4 w-4" />
-                Sync CRM
+                <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline">Sync CRM</span>
+                <span className="sm:hidden">Sync</span>
               </button>
             </div>
           </div>
         </header>
 
         {/* Content */}
-        <div className="p-8 space-y-10">
+        <div className="p-4 sm:p-8 space-y-8 sm:space-y-10">
           {/* Knowledge Section */}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Your Company Knowledge</h2>
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">Your Company Knowledge</h2>
+            {/* Mobile: category tabs (horizontal scroll) */}
+            <div className="flex gap-1.5 overflow-x-auto scrollbar-hide mb-4 sm:hidden pb-1">
+              {knowledgeCategories.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setKnowledgeCategory(cat.id)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    knowledgeCategory === cat.id
+                      ? 'bg-forskale-teal text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
             <div className="flex gap-5">
-              {/* Category Sidebar */}
-              <div className="w-[220px] shrink-0">
+              {/* Category Sidebar — desktop only */}
+              <div className="w-[220px] shrink-0 hidden sm:block">
                 <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
                   <nav className="p-2">
                     {knowledgeCategories.map((cat) => {
@@ -4694,9 +4764,9 @@ export default function AtlasMain() {
                   </div>
 
                   {/* Table Header */}
-                  <div className="grid grid-cols-[1fr_160px_120px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <div className="grid grid-cols-[1fr_120px] sm:grid-cols-[1fr_160px_120px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     <div>Document Name</div>
-                    <div>Status</div>
+                    <div className="hidden sm:block">Status</div>
                     <div className="text-right">Actions</div>
                   </div>
 
@@ -4724,7 +4794,7 @@ export default function AtlasMain() {
                       {currentKnowledgeDocuments.map((doc) => (
                         <div
                           key={doc.id}
-                          className="grid grid-cols-[1fr_160px_120px] gap-4 items-center px-5 py-3.5 hover:bg-gray-50/60 transition-colors"
+                          className="grid grid-cols-[1fr_120px] sm:grid-cols-[1fr_160px_120px] gap-4 items-center px-5 py-3.5 hover:bg-gray-50/60 transition-colors"
                         >
                           {/* Document Name */}
                           <div className="flex items-center gap-3 min-w-0">
@@ -4739,7 +4809,7 @@ export default function AtlasMain() {
                             </div>
                           </div>
                           {/* Status */}
-                          <div>
+                          <div className="hidden sm:block">
                             {doc.status === 'processed' && (
                               <span className="inline-flex items-center gap-1.5 text-xs font-medium text-green-700">
                                 <CheckCircle2 className="h-3.5 w-3.5" />
@@ -4816,9 +4886,9 @@ export default function AtlasMain() {
           {/* Client Company Knowledge Section */}
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-3">Client Company Knowledge</h2>
-            <div className="flex gap-5">
+            <div className="flex flex-col sm:flex-row gap-5">
               {/* Category Sidebar */}
-              <div className="w-[220px] shrink-0">
+              <div className="w-full sm:w-[220px] sm:shrink-0">
                 <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
                   <nav className="p-2">
                     {[
@@ -4860,9 +4930,9 @@ export default function AtlasMain() {
                   </div>
 
                   {/* Table Header */}
-                  <div className="grid grid-cols-[1fr_160px_120px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <div className="grid grid-cols-[1fr_120px] sm:grid-cols-[1fr_160px_120px] gap-4 px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     <div>Document Name</div>
-                    <div>Sample</div>
+                    <div className="hidden sm:block">Sample</div>
                     <div className="text-right">Actions</div>
                   </div>
 
@@ -5003,7 +5073,7 @@ export default function AtlasMain() {
   // record
   return (
     <>
-      <div className="p-6 space-y-6 h-full overflow-y-auto">
+      <div className="p-4 sm:p-6 space-y-6 h-full overflow-y-auto">
         <h1 className="text-xl font-semibold text-gray-900">Record</h1>
         <p className="text-sm text-gray-600">Configure how Atlas records your meetings.</p>
 

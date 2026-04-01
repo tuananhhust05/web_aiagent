@@ -198,7 +198,7 @@ const ChangeDetectionSection = ({ alerts }: { alerts?: SmartSummaryChangeAlert[]
               {alert.category}
             </Badge>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-xs mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs mb-3">
             <div>
               <span className="text-muted-foreground font-medium">Previous ({alert.previous_date}):</span>
               <p className="text-foreground mt-0.5">"{alert.previous_state}"</p>
@@ -345,7 +345,7 @@ const ThenVsNowSection = ({ items }: { items?: SmartSummaryThenVsNow[] | null })
       {displayItems.map((item, i) => (
         <div key={i} className={cn("rounded-lg border p-3", indicatorColors[item.indicator])}>
           <div className="font-semibold text-sm text-foreground mb-2">{item.topic}</div>
-          <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
               <span className="text-muted-foreground font-medium">Then ({item.then_date}):</span>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -524,11 +524,11 @@ const SummaryTab = ({ smartSummary, atlasInsights }: SummaryTabProps) => {
     <TooltipProvider>
       <div className="space-y-5">
         {/* Header */}
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-[hsl(var(--forskale-teal))]" />
-              <h2 className="text-xl font-heading font-bold text-foreground">Smart Summary</h2>
+              <h2 className="text-base sm:text-xl font-heading font-bold text-foreground">Smart Summary</h2>
               <Badge variant="outline" className="text-[9px] h-4 font-bold tracking-wider bg-[hsl(var(--forskale-teal)/0.1)] text-[hsl(var(--forskale-teal))] border-[hsl(var(--forskale-teal)/0.3)]">
                 Smart S
               </Badge>

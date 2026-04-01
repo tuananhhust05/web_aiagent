@@ -203,34 +203,49 @@ export default function Profile() {
   ]
 
   return (
-    <div className="h-full overflow-hidden bg-[#f5f5f7]">
+    <div className="h-full overflow-hidden bg-muted/30">
       <div className="h-full overflow-y-auto">
-        <div className="max-w-4xl mx-auto p-6 pb-12">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-6 pb-24 lg:pb-12">
+
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight mb-2">
-            Account Settings
-          </h1>
-          <p className="text-lg text-gray-600">
-            Manage your account information and preferences
-          </p>
+        <div className="mb-5 sm:mb-8 flex items-start gap-4">
+          <div className="flex-1">
+            <h1 className="text-xl sm:text-3xl font-bold text-foreground tracking-tight mb-1 sm:mb-2">
+              Account Settings
+            </h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              Manage your account information and preferences
+            </p>
+          </div>
+          {user?.avatar_url ? (
+            <img
+              src={user.avatar_url}
+              alt="avatar"
+              className="w-12 h-12 sm:w-14 sm:h-14 rounded-full object-cover border-2 border-card shadow-md flex-shrink-0"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-[hsl(var(--forskale-green))] to-[hsl(var(--forskale-teal))] flex items-center justify-center text-white font-bold text-base sm:text-lg flex-shrink-0 shadow-md">
+              {user?.first_name?.[0]}{user?.last_name?.[0]}
+            </div>
+          )}
         </div>
 
         {/* Tabs Navigation */}
-        <div className="mb-6">
-          <div className="flex gap-2 border-b border-gray-200">
+        <div className="mb-4 sm:mb-6">
+          <div className="flex gap-1 sm:gap-2 border-b border-border">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`px-3 sm:px-4 py-2.5 sm:py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                    ? 'border-[hsl(var(--forskale-teal))] text-[hsl(var(--forskale-teal))]'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-border'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <tab.icon className="h-4 w-4" />
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <tab.icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                   <span>{tab.label}</span>
                 </div>
               </button>
@@ -242,104 +257,104 @@ export default function Profile() {
         <div>
           {/* Profile Tab */}
           {activeTab === 'profile' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-              <div className="flex items-center space-x-4 mb-8">
-                <div className="w-16 h-16 bg-gradient-to-br from-primary-400 to-primary-600 rounded-2xl flex items-center justify-center shadow-sm">
-                  <span className="text-xl font-bold text-white">
+            <div className="bg-card rounded-2xl shadow-sm border border-border p-4 sm:p-8">
+              <div className="flex items-center space-x-3 sm:space-x-4 mb-5 sm:mb-8">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-[hsl(var(--forskale-green))] to-[hsl(var(--forskale-teal))] rounded-2xl flex items-center justify-center shadow-sm flex-shrink-0">
+                  <span className="text-lg sm:text-xl font-bold text-white">
                     {user?.first_name?.[0]}{user?.last_name?.[0]}
                   </span>
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Personal Information</h2>
-                  <p className="text-gray-600">Update your account details and preferences</p>
+                  <h2 className="text-lg sm:text-2xl font-bold text-foreground">Personal Information</h2>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Update your account details and preferences</p>
                 </div>
               </div>
 
               <form onSubmit={handleProfileSubmit(onProfileSubmit)} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       First Name
                     </label>
                     <div className="relative">
-                      <User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <input
                         type="text"
                         {...registerProfile('first_name')}
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                        className="w-full pl-12 pr-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                       />
                     </div>
                     {profileErrors.first_name && (
-                      <p className="mt-2 text-sm text-red-600">{profileErrors.first_name.message}</p>
+                      <p className="mt-2 text-sm text-red-500">{profileErrors.first_name.message}</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Last Name
                     </label>
                     <div className="relative">
-                      <User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <User className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <input
                         type="text"
                         {...registerProfile('last_name')}
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                        className="w-full pl-12 pr-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                       />
                     </div>
                     {profileErrors.last_name && (
-                      <p className="mt-2 text-sm text-red-600">{profileErrors.last_name.message}</p>
+                      <p className="mt-2 text-sm text-red-500">{profileErrors.last_name.message}</p>
                     )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Email Address
                     </label>
                     <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <input
                         type="email"
                         {...registerProfile('email')}
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                        className="w-full pl-12 pr-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                       />
                     </div>
                     {profileErrors.email && (
-                      <p className="mt-2 text-sm text-red-600">{profileErrors.email.message}</p>
+                      <p className="mt-2 text-sm text-red-500">{profileErrors.email.message}</p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Phone Number
                     </label>
                     <div className="relative">
-                      <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                       <input
                         type="tel"
                         {...registerProfile('phone')}
-                        className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                        className="w-full pl-12 pr-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                       />
                     </div>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Company Name
                   </label>
                   <div className="relative">
-                    <Building2 className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Building2 className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <input
                       type="text"
                       {...registerProfile('company_name')}
-                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                      readOnly={isCompanyOwner} // Read-only if owner (should edit in company section)
+                      className="w-full pl-12 pr-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
+                      readOnly={isCompanyOwner}
                     />
                   </div>
                   {isCompanyOwner && (
-                    <p className="mt-1 text-xs text-gray-500">Edit company details in the Company section below</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Edit company details in the Company section below</p>
                   )}
                 </div>
 
@@ -347,13 +362,13 @@ export default function Profile() {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="btn btn-primary btn-lg group"
+                    className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl bg-gradient-to-r from-[hsl(var(--forskale-green))] via-[hsl(var(--forskale-teal))] to-[hsl(var(--forskale-blue))] text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50"
                   >
                     {isLoading ? (
                       <LoadingSpinner size="sm" />
                     ) : (
                       <>
-                        <Save className="mr-2 h-5 w-5" />
+                        <Save className="h-4 w-4" />
                         Save Changes
                       </>
                     )}
@@ -363,78 +378,78 @@ export default function Profile() {
 
               {/* Company Information Section - Only for Owners */}
               {isCompanyOwner && (
-                <div className="mt-8 pt-8 border-t border-gray-200">
-                  <div className="flex items-center space-x-4 mb-6">
-                    <div className="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center">
-                      <Building2 className="h-6 w-6 text-blue-600" />
+                <div className="mt-8 pt-8 border-t border-border">
+                  <div className="flex items-center space-x-3 sm:space-x-4 mb-4 sm:mb-6">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[hsl(var(--forskale-blue)/0.1)] rounded-xl flex items-center justify-center flex-shrink-0">
+                      <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-[hsl(var(--forskale-blue))]" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-gray-900">Company Information</h3>
-                      <p className="text-gray-600">Manage your company details and settings</p>
+                      <h3 className="text-lg sm:text-xl font-bold text-foreground">Company Information</h3>
+                      <p className="text-xs sm:text-sm text-muted-foreground">Manage your company details and settings</p>
                     </div>
                   </div>
 
                   {loadingCompany ? (
                     <div className="flex items-center justify-center py-8">
                       <LoadingSpinner size="sm" />
-                      <span className="ml-2 text-gray-600">Loading company information...</span>
+                      <span className="ml-2 text-muted-foreground">Loading company information...</span>
                     </div>
                   ) : (
-                    <form onSubmit={handleCompanySubmit(onCompanySubmit)} className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <form onSubmit={handleCompanySubmit(onCompanySubmit)} className="space-y-4 sm:space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-foreground mb-2">
                             Company Name <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="text"
                             {...registerCompany('name')}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                            className="w-full px-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                           />
                           {companyErrors.name && (
-                            <p className="mt-2 text-sm text-red-600">{companyErrors.name.message}</p>
+                            <p className="mt-2 text-sm text-red-500">{companyErrors.name.message}</p>
                           )}
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-foreground mb-2">
                             Domain
                           </label>
                           <input
                             type="text"
                             {...registerCompany('domain')}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                            className="w-full px-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                             placeholder="example.com"
                           />
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-foreground mb-2">
                             Website
                           </label>
                           <div className="relative">
-                            <Globe className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                            <Globe className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                             <input
                               type="url"
                               {...registerCompany('website')}
-                              className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                              className="w-full pl-12 pr-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                               placeholder="https://example.com"
                             />
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-foreground mb-2">
                             Phone
                           </label>
                           <div className="relative">
-                            <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                            <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                             <input
                               type="tel"
                               {...registerCompany('phone')}
-                              className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                              className="w-full pl-12 pr-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                               placeholder="+1 234 567 8900"
                             />
                           </div>
@@ -442,38 +457,38 @@ export default function Profile() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label className="block text-sm font-medium text-foreground mb-2">
                           Address
                         </label>
                         <input
                           type="text"
                           {...registerCompany('address')}
-                          className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                          className="w-full px-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                           placeholder="Company address"
                         />
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-foreground mb-2">
                             Country
                           </label>
                           <input
                             type="text"
                             {...registerCompany('country')}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                            className="w-full px-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                             placeholder="Country"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                          <label className="block text-sm font-medium text-foreground mb-2">
                             Tax ID
                           </label>
                           <input
                             type="text"
                             {...registerCompany('tax_id')}
-                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                            className="w-full px-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                             placeholder="Tax identification number"
                           />
                         </div>
@@ -483,13 +498,13 @@ export default function Profile() {
                         <button
                           type="submit"
                           disabled={isCompanyLoading}
-                          className="btn btn-primary btn-lg group"
+                          className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl bg-gradient-to-r from-[hsl(var(--forskale-green))] via-[hsl(var(--forskale-teal))] to-[hsl(var(--forskale-blue))] text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50"
                         >
                           {isCompanyLoading ? (
                             <LoadingSpinner size="sm" />
                           ) : (
                             <>
-                              <Save className="mr-2 h-5 w-5" />
+                              <Save className="h-4 w-4" />
                               Save Company Information
                             </>
                           )}
@@ -504,66 +519,66 @@ export default function Profile() {
 
           {/* Password Tab */}
           {activeTab === 'password' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-              <div className="flex items-center space-x-4 mb-8">
-                <div className="w-12 h-12 bg-orange-50 rounded-xl flex items-center justify-center">
-                  <Lock className="h-6 w-6 text-orange-600" />
+            <div className="bg-card rounded-2xl shadow-sm border border-border p-4 sm:p-8">
+              <div className="flex items-center space-x-3 sm:space-x-4 mb-5 sm:mb-8">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-orange-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Lock className="h-5 w-5 sm:h-6 sm:w-6 text-orange-500" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Change Password</h2>
-                  <p className="text-gray-600">Update your password to keep your account secure</p>
+                  <h2 className="text-lg sm:text-2xl font-bold text-foreground">Change Password</h2>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Update your password to keep your account secure</p>
                 </div>
               </div>
 
-                              <form onSubmit={handlePasswordSubmit(onPasswordSubmit)} className="space-y-6 max-w-md">
+              <form onSubmit={handlePasswordSubmit(onPasswordSubmit)} className="space-y-5 max-w-full sm:max-w-md">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Current Password
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <input
                       type="password"
                       {...registerPassword('current_password')}
-                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                      className="w-full pl-12 pr-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                     />
                   </div>
                   {passwordErrors.current_password && (
-                    <p className="mt-2 text-sm text-red-600">{passwordErrors.current_password.message}</p>
+                    <p className="mt-2 text-sm text-red-500">{passwordErrors.current_password.message}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     New Password
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <input
                       type="password"
                       {...registerPassword('new_password')}
-                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                      className="w-full pl-12 pr-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                     />
                   </div>
                   {passwordErrors.new_password && (
-                    <p className="mt-2 text-sm text-red-600">{passwordErrors.new_password.message}</p>
+                    <p className="mt-2 text-sm text-red-500">{passwordErrors.new_password.message}</p>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Confirm New Password
                   </label>
                   <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
                     <input
                       type="password"
                       {...registerPassword('confirm_password')}
-                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                      className="w-full pl-12 pr-4 py-3 border-2 border-input rounded-xl bg-background text-foreground focus:ring-2 focus:ring-[hsl(var(--forskale-teal))] focus:border-[hsl(var(--forskale-teal))] transition-all duration-200"
                     />
                   </div>
                   {passwordErrors.confirm_password && (
-                    <p className="mt-2 text-sm text-red-600">{passwordErrors.confirm_password.message}</p>
+                    <p className="mt-2 text-sm text-red-500">{passwordErrors.confirm_password.message}</p>
                   )}
                 </div>
 
@@ -571,7 +586,7 @@ export default function Profile() {
                   <button
                     type="submit"
                     disabled={isPasswordLoading}
-                    className="btn btn-primary btn-lg"
+                    className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl bg-gradient-to-r from-[hsl(var(--forskale-green))] via-[hsl(var(--forskale-teal))] to-[hsl(var(--forskale-blue))] text-white font-semibold text-sm shadow-md hover:shadow-lg transition-all disabled:opacity-50"
                   >
                     {isPasswordLoading ? (
                       <LoadingSpinner size="sm" />
@@ -584,127 +599,34 @@ export default function Profile() {
             </div>
           )}
 
-          {/* Voice Agent Tab - temporarily commented out */}
-          {/* {activeTab === 'voice' && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-              <div className="flex items-center space-x-4 mb-8">
-                <div className="w-12 h-12 bg-purple-50 rounded-xl flex items-center justify-center">
-                  <Settings className="h-6 w-6 text-purple-600" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Voice Agent Settings</h2>
-                  <p className="text-gray-600">Configure your AI voice agent preferences</p>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Industry
-                    </label>
-                    <select
-                      {...registerProfile('industry')}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                    >
-                      <option value="">Select industry</option>
-                      <option value="real_estate">Real Estate</option>
-                      <option value="insurance">Insurance</option>
-                      <option value="healthcare">Healthcare</option>
-                      <option value="finance">Finance</option>
-                      <option value="education">Education</option>
-                      <option value="retail">Retail</option>
-                      <option value="technology">Technology</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Communication Tone
-                    </label>
-                    <select
-                      {...registerProfile('tone')}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                    >
-                      <option value="">Select tone</option>
-                      <option value="professional">Professional</option>
-                      <option value="friendly">Friendly</option>
-                      <option value="formal">Formal</option>
-                      <option value="casual">Casual</option>
-                      <option value="enthusiastic">Enthusiastic</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Language
-                  </label>
-                  <div className="relative">
-                    <Globe className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-                    <select
-                      {...registerProfile('language')}
-                      className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                    >
-                      <option value="en">English</option>
-                      <option value="es">Spanish</option>
-                      <option value="fr">French</option>
-                      <option value="de">German</option>
-                      <option value="it">Italian</option>
-                      <option value="pt">Portuguese</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="btn btn-primary btn-lg group"
-                  >
-                    {isLoading ? (
-                      <LoadingSpinner size="sm" />
-                    ) : (
-                      <>
-                        <Save className="mr-2 h-5 w-5" />
-                        Save Preferences
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )} */}
-
         </div>
 
       {/* Danger Zone */}
-      <div className="mt-12">
-        <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-8">
-          <div className="flex items-center space-x-4 mb-6">
-            <div className="w-12 h-12 bg-red-50 rounded-xl flex items-center justify-center">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
+      <div className="mt-8 sm:mt-12">
+        <div className="bg-card rounded-2xl shadow-sm border border-red-500/20 p-4 sm:p-8">
+          <div className="flex items-center space-x-3 sm:space-x-4 mb-4 sm:mb-6">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-red-500/10 rounded-xl flex items-center justify-center flex-shrink-0">
+              <AlertTriangle className="h-5 w-5 sm:h-6 sm:w-6 text-red-500" />
             </div>
             <div>
-              <h3 className="text-xl font-bold text-gray-900">Danger Zone</h3>
-              <p className="text-gray-600">Irreversible and destructive actions</p>
+              <h3 className="text-lg sm:text-xl font-bold text-foreground">Danger Zone</h3>
+              <p className="text-xs sm:text-sm text-muted-foreground">Irreversible and destructive actions</p>
             </div>
           </div>
 
-          <div className="border-t border-red-100 pt-6">
-            <div className="flex items-center justify-between">
+          <div className="border-t border-red-500/20 pt-4 sm:pt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <div>
-                <h4 className="font-semibold text-gray-900">Delete Account</h4>
-                <p className="text-sm text-gray-600">
+                <h4 className="font-semibold text-foreground">Delete Account</h4>
+                <p className="text-sm text-muted-foreground">
                   Permanently delete your account and all associated data
                 </p>
               </div>
               <button
                 onClick={() => setShowDeleteConfirm(true)}
-                className="btn btn-outline border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-500/30 text-red-500 hover:bg-red-500/10 font-semibold text-sm transition-all"
               >
-                <Trash2 className="mr-2 h-4 w-4" />
+                <Trash2 className="h-4 w-4" />
                 Delete Account
               </button>
             </div>
@@ -714,28 +636,28 @@ export default function Profile() {
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-8 max-w-md w-full">
+        <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-card rounded-t-2xl sm:rounded-2xl p-6 sm:p-8 w-full sm:max-w-md border border-border">
             <div className="text-center">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle className="h-8 w-8 text-red-600" />
+              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="h-7 w-7 sm:h-8 sm:w-8 text-red-500" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Account</h3>
-              <p className="text-gray-600 mb-6">
+              <h3 className="text-lg sm:text-xl font-bold text-foreground mb-2">Delete Account</h3>
+              <p className="text-sm text-muted-foreground mb-6">
                 Are you sure you want to delete your account? This action cannot be undone.
               </p>
-              <div className="flex space-x-4">
+              <div className="flex gap-3">
                 <button
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="btn btn-outline btn-md flex-1"
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-border text-foreground font-semibold text-sm hover:bg-muted transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleDeleteAccount}
-                  className="btn bg-red-600 hover:bg-red-700 text-white btn-md flex-1"
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold text-sm transition-all"
                 >
-                  Delete Account
+                  Delete
                 </button>
               </div>
             </div>
@@ -746,4 +668,4 @@ export default function Profile() {
       </div>
     </div>
   )
-} 
+}

@@ -278,37 +278,82 @@ const AtlasInsightsPage = () => {
     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   }).length;
 
+  const [mobileCallPickerOpen, setMobileCallPickerOpen] = useState(false);
+
   return (
     <div className="flex flex-1 overflow-hidden bg-background h-screen">
-      <CallListSidebar
-        calls={calls}
-        selectedId={selectedCall}
-        onSelect={setSelectedCall}
-        collapsed={callListCollapsed}
-        onToggle={() => setCallListCollapsed((prev) => !prev)}
-        callEvaluations={callEvaluations}
-      />
+      {/* Desktop call list sidebar — hidden on mobile */}
+      <div className="hidden md:flex">
+        <CallListSidebar
+          calls={calls}
+          selectedId={selectedCall}
+          onSelect={setSelectedCall}
+          collapsed={callListCollapsed}
+          onToggle={() => setCallListCollapsed((prev) => !prev)}
+          callEvaluations={callEvaluations}
+        />
+      </div>
+
+      {/* Mobile call picker drawer */}
+      {mobileCallPickerOpen && (
+        <div className="fixed inset-0 z-[80] md:hidden flex">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileCallPickerOpen(false)} />
+          <div className="relative z-10 flex flex-col bg-card w-72 h-full shadow-2xl overflow-y-auto">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h3 className="text-sm font-bold text-foreground">Call History</h3>
+              <button onClick={() => setMobileCallPickerOpen(false)} className="p-1 rounded-md text-muted-foreground hover:text-foreground">
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
+              {calls.map((call) => (
+                <button
+                  key={call.id}
+                  onClick={() => { setSelectedCall(call.id); setMobileCallPickerOpen(false); }}
+                  className={cn(
+                    "w-full text-left px-3 py-2.5 rounded-lg transition-all text-sm",
+                    selectedCall === call.id
+                      ? "bg-[hsl(var(--forskale-teal)/0.1)] border border-[hsl(var(--forskale-teal)/0.3)] text-foreground font-semibold"
+                      : "text-foreground hover:bg-accent border border-transparent"
+                  )}
+                >
+                  <div className="truncate font-medium text-[13px]">{call.title}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">{call.date} · {call.duration}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ease-in-out">
-        <div className="px-8 pt-6 pb-0 border-b border-border bg-card">
+        <div className="px-4 sm:px-8 pt-4 sm:pt-6 pb-0 border-b border-border bg-card">
+          {/* Desktop: collapse sidebar toggle */}
           <button
             onClick={() => setCallListCollapsed((prev) => !prev)}
-            className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors mb-4"
+            className="hidden md:inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors mb-3 sm:mb-4"
           >
             <ChevronLeft className="h-3.5 w-3.5" /> Calls
           </button>
+          {/* Mobile: open call picker */}
+          <button
+            onClick={() => setMobileCallPickerOpen(true)}
+            className="md:hidden inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors mb-3"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" /> All Calls
+          </button>
 
-          <div className="flex items-center justify-between mb-4 gap-4">
-            <h1 className="text-2xl font-heading font-bold text-foreground tracking-tight leading-tight">
+          <div className="flex items-center justify-between mb-3 sm:mb-4 gap-4">
+            <h1 className="text-lg sm:text-2xl font-heading font-bold text-foreground tracking-tight leading-tight line-clamp-2">
               {meetingTitle}
             </h1>
           </div>
 
-          <div className="flex items-center gap-4 text-xs text-muted-foreground mb-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-muted-foreground mb-3 sm:mb-4">
             {playbookScorePct != null && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[hsl(var(--forskale-green)/0.08)] border border-[hsl(var(--forskale-green)/0.2)] text-status-great font-semibold">
                 <span className="w-1.5 h-1.5 rounded-full bg-status-great" />
-                {playbookScorePct}% of sales playbook executed
+                {playbookScorePct}% playbook
               </span>
             )}
             {meetingDate && <span>{meetingDate}</span>}
@@ -321,7 +366,7 @@ const AtlasInsightsPage = () => {
           </div>
 
           <TooltipProvider>
-            <div className="flex gap-6">
+            <div className="flex gap-3 sm:gap-6 overflow-x-auto scrollbar-hide">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -330,13 +375,13 @@ const AtlasInsightsPage = () => {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
                     className={cn(
-                      "relative pb-3 flex items-center gap-2 transition-colors group",
+                      "relative pb-3 flex items-center gap-1.5 sm:gap-2 transition-colors group whitespace-nowrap flex-shrink-0",
                       isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                     )}
                   >
                     <Icon className={cn("h-3.5 w-3.5", isActive ? "text-foreground" : "text-muted-foreground")} />
                     <span className={cn(
-                      "text-sm transition-all",
+                      "text-xs sm:text-sm transition-all",
                       tab.id === "evaluation" ? "font-bold" : "font-semibold",
                     )}>
                       {tab.label}
@@ -362,7 +407,7 @@ const AtlasInsightsPage = () => {
           </TooltipProvider>
         </div>
 
-        <div className="flex-1 overflow-y-auto atlas-scrollbar p-8 bg-background transition-all duration-300 ease-in-out">
+        <div className="flex-1 overflow-y-auto atlas-scrollbar p-4 sm:p-8 bg-background transition-all duration-300 ease-in-out">
           {loadingInsights ? (
             <div className="flex items-center justify-center py-24">
               <div className="text-sm text-muted-foreground">Analyzing meeting...</div>
@@ -393,13 +438,46 @@ const AtlasInsightsPage = () => {
         </div>
       </div>
 
-      <TranscriptPanel
-        entries={transcriptEntries}
-        collapsed={transcriptCollapsed}
-        onToggle={() => setTranscriptCollapsed((prev) => !prev)}
-        meetingId={selectedCall}
-        isNewTranscript={transcriptEntries.length > 0}
-      />
+      {/* Desktop transcript panel */}
+      <div className="hidden md:flex">
+        <TranscriptPanel
+          entries={transcriptEntries}
+          collapsed={transcriptCollapsed}
+          onToggle={() => setTranscriptCollapsed((prev) => !prev)}
+          meetingId={selectedCall}
+          isNewTranscript={transcriptEntries.length > 0}
+        />
+      </div>
+
+      {/* Mobile: floating transcript button */}
+      {transcriptEntries.length > 0 && (
+        <button
+          onClick={() => setTranscriptCollapsed(false)}
+          className="md:hidden fixed bottom-20 right-4 z-30 flex items-center gap-1.5 px-3 py-2 rounded-full bg-card border border-border shadow-lg text-xs font-medium text-foreground"
+        >
+          <Users className="h-3.5 w-3.5 text-[hsl(var(--forskale-teal))]" />
+          Transcript
+        </button>
+      )}
+
+      {/* Mobile: transcript full-screen overlay */}
+      {!transcriptCollapsed && (
+        <div className="md:hidden fixed inset-0 z-[70] flex flex-col bg-card overflow-y-auto">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <h3 className="text-sm font-bold text-foreground">Transcript</h3>
+            <button onClick={() => setTranscriptCollapsed(true)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent">
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+          </div>
+          <TranscriptPanel
+            entries={transcriptEntries}
+            collapsed={false}
+            onToggle={() => setTranscriptCollapsed(true)}
+            meetingId={selectedCall}
+            isNewTranscript={transcriptEntries.length > 0}
+          />
+        </div>
+      )}
 
       <TranscriptSuccessModal
         meetingId={selectedCall}
