@@ -89,7 +89,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCookie('is_login', '1', 365)
       return { error: null }
     } catch (error: any) {
-      return { error }
+      // Extract the backend detail message so the UI can display a meaningful error
+      const detail = error.response?.data?.detail
+      const message = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((d: any) => d.msg || d).join(', ')
+          : error.message || 'Login failed'
+      return { error: { ...error, message } }
     }
   }
 

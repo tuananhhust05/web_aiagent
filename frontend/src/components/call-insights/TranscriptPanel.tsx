@@ -1,4 +1,4 @@
-import { Search, Play, Monitor, Volume2, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Search, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -130,11 +130,6 @@ const TranscriptPanel = ({ entries, collapsed, onToggle, meetingId = "1", isNewT
               Transcript
             </span>
           </div>
-          <div className="flex flex-col items-center gap-4 pb-6 text-muted-foreground">
-            <Play className="h-4 w-4" />
-            <Monitor className="h-4 w-4" />
-            <Volume2 className="h-4 w-4" />
-          </div>
         </>
       ) : (
         <>
@@ -151,11 +146,7 @@ const TranscriptPanel = ({ entries, collapsed, onToggle, meetingId = "1", isNewT
               >
                 <PanelRightClose className="h-4 w-4" />
               </Button>
-              <Play className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
-              <span className="text-xs text-muted-foreground font-mono">00:00 / —</span>
               <div className="flex-1" />
-              <Monitor className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
-              <Volume2 className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
             </div>
           </div>
 

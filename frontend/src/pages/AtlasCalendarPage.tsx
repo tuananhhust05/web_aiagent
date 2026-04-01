@@ -238,7 +238,7 @@ const AtlasCalendarPage = () => {
         </div>
       )}
 
-      <SalesAssistantBot />
+      {/* <SalesAssistantBot /> */}
 
       <RegistrationWizard
         open={showRegistration}

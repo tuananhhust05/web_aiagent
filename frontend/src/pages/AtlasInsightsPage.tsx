@@ -25,7 +25,7 @@ type TabType = "evaluation" | "enablement" | "summary";
 const tabs: { id: TabType; label: string; subtitle: string; icon: React.ElementType }[] = [
   { id: "evaluation", label: "Evaluation", subtitle: "What happened and what to do next", icon: Target },
   { id: "enablement", label: "Enablement", subtitle: "Your performance and improvement areas", icon: GraduationCap },
-  { id: "summary", label: "Smart Summary", subtitle: "Cross-meeting intelligence that tracks deal evolution and detects strategic shifts", icon: Sparkles },
+  // { id: "summary", label: "Smart Summary", subtitle: "Cross-meeting intelligence that tracks deal evolution and detects strategic shifts", icon: Sparkles },
 ];
 
 const STAGE_MAP: Record<string, NegotiationStage> = {
@@ -119,7 +119,11 @@ const AtlasInsightsPage = () => {
   const [activeTab, setActiveTab] = useState<TabType>("evaluation");
   const [callListCollapsed, setCallListCollapsed] = useState(false);
   const [transcriptCollapsed, setTranscriptCollapsed] = useState(true);
-  const [showTranscriptModal, setShowTranscriptModal] = useState(true);
+  // Track which meeting IDs have already shown the transcript popup this session
+  const shownTranscriptIds = useRef<Set<string>>(
+    new Set(JSON.parse(sessionStorage.getItem('shownTranscriptIds') || '[]'))
+  );
+  const [showTranscriptModal, setShowTranscriptModal] = useState(false);
   const [strategyModalOpen, setStrategyModalOpen] = useState(false);
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [usingRealData, setUsingRealData] = useState(false);
@@ -172,7 +176,7 @@ const AtlasInsightsPage = () => {
     fetchMeetings();
   }, []);
 
-  const loadMeetingData = useCallback(async (meetingId: string) => {
+  const loadMeetingData = useCallback(async (meetingId: string, evaluationMap?: CallEvaluationMap) => {
     if (!meetingId || !usingRealData) return;
 
     if (meetingCache.current[meetingId]) {
@@ -205,7 +209,13 @@ const AtlasInsightsPage = () => {
         const lines = ((transcriptRes.value as any).data as any)?.transcript_lines || [];
         fetchedTranscript = mapTranscriptLines(lines);
         setTranscriptEntries(fetchedTranscript);
-        if (fetchedTranscript.length > 0) setShowTranscriptModal(true);
+        if (fetchedTranscript.length > 0
+          && !shownTranscriptIds.current.has(meetingId)
+          && evaluationMap?.[meetingId]?.status === "pending") {
+          setShowTranscriptModal(true);
+          shownTranscriptIds.current.add(meetingId);
+          sessionStorage.setItem('shownTranscriptIds', JSON.stringify([...shownTranscriptIds.current]));
+        }
       }
 
       const meetingDetail = meetingRes.status === "fulfilled" ? (meetingRes.value as any).data : null;
@@ -263,7 +273,7 @@ const AtlasInsightsPage = () => {
 
   useEffect(() => {
     if (selectedCall && usingRealData) {
-      loadMeetingData(selectedCall);
+      loadMeetingData(selectedCall, callEvaluations);
     }
   }, [selectedCall, usingRealData, loadMeetingData]);
 
