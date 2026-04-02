@@ -29,7 +29,26 @@ async def _find_user_by_id(db, user_id: str):
             pass
     return None
 
+def user_doc_has_password_hash(user: Optional[dict]) -> bool:
+    h = (user or {}).get("hashed_password")
+    return isinstance(h, str) and bool(h.strip())
+
+
+_OAUTH_PROVIDER_MARKERS = frozenset(
+    {"google", "oauth_google", "microsoft", "github", "apple"}
+)
+
+
+def user_doc_is_oauth_primary(user: dict) -> bool:
+    if user.get("google_id"):
+        return True
+    ap = (user.get("auth_provider") or "email").strip().lower()
+    return ap in _OAUTH_PROVIDER_MARKERS
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
+    if not hashed_password or not isinstance(hashed_password, str):
+        return False
     return pwd_context.verify(plain_password, hashed_password)
 
 def get_password_hash(password: str) -> str:

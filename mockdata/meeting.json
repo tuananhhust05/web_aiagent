@@ -1,0 +1,868 @@
+{
+  "_id": {
+    "$oid": "69bfca05627e343acc272f61"
+  },
+  "title": "Meeting rip-deza-qdd",
+  "description": null,
+  "platform": "google_meet",
+  "link": "https://meet.google.com/rip-deza-qdd",
+  "video_url": null,
+  "audio_url": null,
+  "user_id": "69ce5596d5e18df23661ad97",
+  "created_at": {
+    "$date": "2026-03-31T10:52:53.757Z"
+  },
+  "updated_at": {
+    "$date": "2026-03-31T15:04:05.508Z"
+  },
+  "native_meeting_id": "rip-deza-qdd",
+  "transcript_fetched_at": {
+    "$date": "2026-03-28T15:04:05.508Z"
+  },
+  "transcript_lines": [
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "00:08",
+      "text": "Grazie per il vostro tempo, Luca e Maria."
+    },
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "00:13",
+      "text": "L'obiettivo di questa call è comprendere meglio come state gestendo oggi i processi operativi e capire se ci sono opportunità per migliorare efficienza, visibilità e tempi di delivery."
+    },
+    {
+      "speaker": "Luca Bianchi",
+      "role": null,
+      "time": "00:24",
+      "text": "Grazie Andrea."
+    },
+    {
+      "speaker": "Luca Bianchi",
+      "role": null,
+      "time": "00:27",
+      "text": "Sì, in questo momento stiamo rivedendo diversi processi interni, soprattutto legati alla gestione operativa dei progetti e al coordinamento tra i vari team."
+    },
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "00:42",
+      "text": "Potresti descrivere quali sono oggi le principali difficoltà operative che state affrontando?"
+    },
+    {
+      "speaker": "Luca Bianchi",
+      "role": null,
+      "time": "00:54",
+      "text": "La criticità principale è la visibilità."
+    },
+    {
+      "speaker": "Luca Bianchi",
+      "role": null,
+      "time": "00:57",
+      "text": "Abbiamo diversi progetti attivi contemporaneamente, ma facciamo fatica ad avere una visione chiara e centralizzata sullo stato di avanzamento."
+    },
+    {
+      "speaker": "Luca Bianchi",
+      "role": null,
+      "time": "01:05",
+      "text": "Inoltre ogni team lavora con modalità leggermente diverse, quindi il coordinamento richiede molto tempo."
+    },
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "01:16",
+      "text": "Maria, dal tuo punto di vista, quali sono le aree che generano più complessità?"
+    },
+    {
+      "speaker": "Maria Rossi",
+      "role": null,
+      "time": "01:25",
+      "text": "Per noi è fondamentale mantenere accuratezza nei dati e coerenza nei processi."
+    },
+    {
+      "speaker": "Maria Rossi",
+      "role": null,
+      "time": "01:31",
+      "text": "Abbiamo ancora molti flussi manuali e questo aumenta il rischio di errori, soprattutto quando dobbiamo consolidare informazioni da più team."
+    },
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "01:45",
+      "text": "Capisco. Questa è diventata una priorità recente oppure è un tema che state monitorando già da tempo?"
+    },
+    {
+      "speaker": "Luca Bianchi",
+      "role": null,
+      "time": "01:54",
+      "text": "È un tema che stiamo monitorando da tempo, ma negli ultimi mesi è diventato molto più urgente perché il numero di progetti è aumentato."
+    },
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "02:08",
+      "text": "Chi è normalmente coinvolto in decisioni di questo tipo?"
+    },
+    {
+      "speaker": "Luca Bianchi",
+      "role": null,
+      "time": "02:15",
+      "text": "Io e Maria siamo coinvolti nella valutazione iniziale, ma per l'approvazione finale dobbiamo coinvolgere anche il CFO."
+    },
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "02:28",
+      "text": "State valutando anche altri fornitori in questa fase?"
+    },
+    {
+      "speaker": "Maria Rossi",
+      "role": null,
+      "time": "02:42",
+      "text": "Abbiamo avuto alcune conversazioni preliminari con altri due fornitori, ma nulla di definito al momento."
+    },
+    {
+      "speaker": "Maria Rossi",
+      "role": null,
+      "time": "02:50",
+      "text": "Una delle principali preoccupazioni riguarda la complessità di implementazione. Non possiamo permetterci interruzioni operative."
+    },
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "03:03",
+      "text": "Ha perfettamente senso."
+    },
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "03:05",
+      "text": "Pensate che un rollout graduale, per team o per area operativa, potrebbe ridurre questo rischio?"
+    },
+    {
+      "speaker": "Luca Bianchi",
+      "role": null,
+      "time": "03:13",
+      "text": "Sì, assolutamente. Un approccio progressivo ci farebbe sentire molto più tranquilli."
+    },
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "03:21",
+      "text": "Come prossimo step, potrebbe avere senso organizzare una sessione più dettagliata per quantificare il ROI e coinvolgere anche il finance team?"
+    },
+    {
+      "speaker": "Luca Bianchi",
+      "role": null,
+      "time": "03:30",
+      "text": "Sì, direi di sì."
+    },
+    {
+      "speaker": "Maria Rossi",
+      "role": null,
+      "time": "03:33",
+      "text": "Se possibile vorrei anche vedere documentazione dettagliata e un esempio concreto di piano di implementazione."
+    },
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "03:42",
+      "text": "Perfetto. Allora possiamo pianificare un nuovo incontro per l'inizio del prossimo mese."
+    },
+    {
+      "speaker": "Luca Bianchi",
+      "role": null,
+      "time": "03:48",
+      "text": "Va bene."
+    },
+    {
+      "speaker": "Maria Rossi",
+      "role": null,
+      "time": "03:50",
+      "text": "Perfetto, grazie."
+    },
+    {
+      "speaker": "Andrea Marino",
+      "role": null,
+      "time": "03:54",
+      "text": "Grazie a entrambi per il tempo. Ci aggiorniamo presto."
+    }
+  ],
+  "transcript_raw": {
+    "id": 5,
+    "platform": "google_meet",
+    "native_meeting_id": "rip-deza-qdd",
+    "constructed_meeting_url": "https://meet.google.com/rip-deza-qdd",
+    "status": "completed",
+    "start_time": "2026-03-22T10:53:21.504414",
+    "end_time": "2026-03-22T10:57:21.504414",
+    "segments": [
+      {
+        "start": 8.0,
+        "end": 13.0,
+        "text": "Grazie per il vostro tempo, Luca e Maria.",
+        "language": "it",
+        "created_at": "2026-03-22T10:53:29.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:53:29.504912Z",
+        "absolute_end_time": "2026-03-22T10:53:34.504912Z"
+      },
+      {
+        "start": 13.0,
+        "end": 24.0,
+        "text": "L'obiettivo di questa call è comprendere meglio come state gestendo oggi i processi operativi e capire se ci sono opportunità per migliorare efficienza, visibilità e tempi di delivery.",
+        "language": "it",
+        "created_at": "2026-03-22T10:53:34.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:53:34.504912Z",
+        "absolute_end_time": "2026-03-22T10:53:45.504912Z"
+      },
+      {
+        "start": 24.0,
+        "end": 27.0,
+        "text": "Grazie Andrea.",
+        "language": "it",
+        "created_at": "2026-03-22T10:53:45.604",
+        "speaker": "Luca Bianchi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:53:45.504912Z",
+        "absolute_end_time": "2026-03-22T10:53:48.504912Z"
+      },
+      {
+        "start": 27.0,
+        "end": 42.0,
+        "text": "Sì, in questo momento stiamo rivedendo diversi processi interni, soprattutto legati alla gestione operativa dei progetti e al coordinamento tra i vari team.",
+        "language": "it",
+        "created_at": "2026-03-22T10:53:48.604",
+        "speaker": "Luca Bianchi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:53:48.504912Z",
+        "absolute_end_time": "2026-03-22T10:54:03.504912Z"
+      },
+      {
+        "start": 42.0,
+        "end": 54.0,
+        "text": "Potresti descrivere quali sono oggi le principali difficoltà operative che state affrontando?",
+        "language": "it",
+        "created_at": "2026-03-22T10:54:03.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:54:03.504912Z",
+        "absolute_end_time": "2026-03-22T10:54:15.504912Z"
+      },
+      {
+        "start": 54.0,
+        "end": 57.0,
+        "text": "La criticità principale è la visibilità.",
+        "language": "it",
+        "created_at": "2026-03-22T10:54:15.604",
+        "speaker": "Luca Bianchi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:54:15.504912Z",
+        "absolute_end_time": "2026-03-22T10:54:18.504912Z"
+      },
+      {
+        "start": 57.0,
+        "end": 65.0,
+        "text": "Abbiamo diversi progetti attivi contemporaneamente, ma facciamo fatica ad avere una visione chiara e centralizzata sullo stato di avanzamento.",
+        "language": "it",
+        "created_at": "2026-03-22T10:54:18.604",
+        "speaker": "Luca Bianchi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:54:18.504912Z",
+        "absolute_end_time": "2026-03-22T10:54:26.504912Z"
+      },
+      {
+        "start": 65.0,
+        "end": 76.0,
+        "text": "Inoltre ogni team lavora con modalità leggermente diverse, quindi il coordinamento richiede molto tempo.",
+        "language": "it",
+        "created_at": "2026-03-22T10:54:26.604",
+        "speaker": "Luca Bianchi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:54:26.504912Z",
+        "absolute_end_time": "2026-03-22T10:54:37.504912Z"
+      },
+      {
+        "start": 76.0,
+        "end": 85.0,
+        "text": "Maria, dal tuo punto di vista, quali sono le aree che generano più complessità?",
+        "language": "it",
+        "created_at": "2026-03-22T10:54:37.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:54:37.504912Z",
+        "absolute_end_time": "2026-03-22T10:54:46.504912Z"
+      },
+      {
+        "start": 85.0,
+        "end": 91.0,
+        "text": "Per noi è fondamentale mantenere accuratezza nei dati e coerenza nei processi.",
+        "language": "it",
+        "created_at": "2026-03-22T10:54:46.604",
+        "speaker": "Maria Rossi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:54:46.504912Z",
+        "absolute_end_time": "2026-03-22T10:54:52.504912Z"
+      },
+      {
+        "start": 91.0,
+        "end": 105.0,
+        "text": "Abbiamo ancora molti flussi manuali e questo aumenta il rischio di errori, soprattutto quando dobbiamo consolidare informazioni da più team.",
+        "language": "it",
+        "created_at": "2026-03-22T10:54:52.604",
+        "speaker": "Maria Rossi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:54:52.504912Z",
+        "absolute_end_time": "2026-03-22T10:55:06.504912Z"
+      },
+      {
+        "start": 105.0,
+        "end": 114.0,
+        "text": "Capisco. Questa è diventata una priorità recente oppure è un tema che state monitorando già da tempo?",
+        "language": "it",
+        "created_at": "2026-03-22T10:55:06.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:55:06.504912Z",
+        "absolute_end_time": "2026-03-22T10:55:15.504912Z"
+      },
+      {
+        "start": 114.0,
+        "end": 128.0,
+        "text": "È un tema che stiamo monitorando da tempo, ma negli ultimi mesi è diventato molto più urgente perché il numero di progetti è aumentato.",
+        "language": "it",
+        "created_at": "2026-03-22T10:55:15.604",
+        "speaker": "Luca Bianchi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:55:15.504912Z",
+        "absolute_end_time": "2026-03-22T10:55:29.504912Z"
+      },
+      {
+        "start": 128.0,
+        "end": 135.0,
+        "text": "Chi è normalmente coinvolto in decisioni di questo tipo?",
+        "language": "it",
+        "created_at": "2026-03-22T10:55:29.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:55:29.504912Z",
+        "absolute_end_time": "2026-03-22T10:55:36.504912Z"
+      },
+      {
+        "start": 135.0,
+        "end": 148.0,
+        "text": "Io e Maria siamo coinvolti nella valutazione iniziale, ma per l'approvazione finale dobbiamo coinvolgere anche il CFO.",
+        "language": "it",
+        "created_at": "2026-03-22T10:55:36.604",
+        "speaker": "Luca Bianchi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:55:36.504912Z",
+        "absolute_end_time": "2026-03-22T10:55:49.504912Z"
+      },
+      {
+        "start": 148.0,
+        "end": 162.0,
+        "text": "State valutando anche altri fornitori in questa fase?",
+        "language": "it",
+        "created_at": "2026-03-22T10:55:49.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:55:49.504912Z",
+        "absolute_end_time": "2026-03-22T10:56:03.504912Z"
+      },
+      {
+        "start": 162.0,
+        "end": 170.0,
+        "text": "Abbiamo avuto alcune conversazioni preliminari con altri due fornitori, ma nulla di definito al momento.",
+        "language": "it",
+        "created_at": "2026-03-22T10:56:03.604",
+        "speaker": "Maria Rossi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:56:03.504912Z",
+        "absolute_end_time": "2026-03-22T10:56:11.504912Z"
+      },
+      {
+        "start": 170.0,
+        "end": 183.0,
+        "text": "Una delle principali preoccupazioni riguarda la complessità di implementazione. Non possiamo permetterci interruzioni operative.",
+        "language": "it",
+        "created_at": "2026-03-22T10:56:11.604",
+        "speaker": "Maria Rossi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:56:11.504912Z",
+        "absolute_end_time": "2026-03-22T10:56:24.504912Z"
+      },
+      {
+        "start": 183.0,
+        "end": 185.0,
+        "text": "Ha perfettamente senso.",
+        "language": "it",
+        "created_at": "2026-03-22T10:56:24.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:56:24.504912Z",
+        "absolute_end_time": "2026-03-22T10:56:26.504912Z"
+      },
+      {
+        "start": 185.0,
+        "end": 193.0,
+        "text": "Pensate che un rollout graduale, per team o per area operativa, potrebbe ridurre questo rischio?",
+        "language": "it",
+        "created_at": "2026-03-22T10:56:26.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:56:26.504912Z",
+        "absolute_end_time": "2026-03-22T10:56:34.504912Z"
+      },
+      {
+        "start": 193.0,
+        "end": 201.0,
+        "text": "Sì, assolutamente. Un approccio progressivo ci farebbe sentire molto più tranquilli.",
+        "language": "it",
+        "created_at": "2026-03-22T10:56:34.604",
+        "speaker": "Luca Bianchi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:56:34.504912Z",
+        "absolute_end_time": "2026-03-22T10:56:42.504912Z"
+      },
+      {
+        "start": 201.0,
+        "end": 210.0,
+        "text": "Come prossimo step, potrebbe avere senso organizzare una sessione più dettagliata per quantificare il ROI e coinvolgere anche il finance team?",
+        "language": "it",
+        "created_at": "2026-03-22T10:56:42.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:56:42.504912Z",
+        "absolute_end_time": "2026-03-22T10:56:51.504912Z"
+      },
+      {
+        "start": 210.0,
+        "end": 213.0,
+        "text": "Sì, direi di sì.",
+        "language": "it",
+        "created_at": "2026-03-22T10:56:51.604",
+        "speaker": "Luca Bianchi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:56:51.504912Z",
+        "absolute_end_time": "2026-03-22T10:56:54.504912Z"
+      },
+      {
+        "start": 213.0,
+        "end": 222.0,
+        "text": "Se possibile vorrei anche vedere documentazione dettagliata e un esempio concreto di piano di implementazione.",
+        "language": "it",
+        "created_at": "2026-03-22T10:56:54.604",
+        "speaker": "Maria Rossi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:56:54.504912Z",
+        "absolute_end_time": "2026-03-22T10:57:03.504912Z"
+      },
+      {
+        "start": 222.0,
+        "end": 228.0,
+        "text": "Perfetto. Allora possiamo pianificare un nuovo incontro per l'inizio del prossimo mese.",
+        "language": "it",
+        "created_at": "2026-03-22T10:57:03.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:57:03.504912Z",
+        "absolute_end_time": "2026-03-22T10:57:09.504912Z"
+      },
+      {
+        "start": 228.0,
+        "end": 230.0,
+        "text": "Va bene.",
+        "language": "it",
+        "created_at": "2026-03-22T10:57:09.604",
+        "speaker": "Luca Bianchi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:57:09.504912Z",
+        "absolute_end_time": "2026-03-22T10:57:11.504912Z"
+      },
+      {
+        "start": 230.0,
+        "end": 234.0,
+        "text": "Perfetto, grazie.",
+        "language": "it",
+        "created_at": "2026-03-22T10:57:11.604",
+        "speaker": "Maria Rossi",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:57:11.504912Z",
+        "absolute_end_time": "2026-03-22T10:57:15.504912Z"
+      },
+      {
+        "start": 234.0,
+        "end": 240.0,
+        "text": "Grazie a entrambi per il tempo. Ci aggiorniamo presto.",
+        "language": "it",
+        "created_at": "2026-03-22T10:57:15.604",
+        "speaker": "Andrea Marino",
+        "completed": true,
+        "absolute_start_time": "2026-03-22T10:57:15.504912Z",
+        "absolute_end_time": "2026-03-22T10:57:21.504912Z"
+      }
+    ]
+  },
+  "transcript_source": "vexa",
+  "atlas_insights_generated_at": {
+    "$date": "2026-03-22T12:03:15.132Z"
+  },
+  "atlas_next_steps": [
+    {
+      "assignee": "Unknown",
+      "description": "None mentioned",
+      "time": null,
+      "checked": false
+    }
+  ],
+  "atlas_questions_and_objections": [
+    {
+      "question": "None mentioned",
+      "time": null,
+      "answer": "None mentioned",
+      "topic": "Other questions",
+      "user_actual_answer": null,
+      "suggested_answer": "None mentioned",
+      "match_score": null,
+      "key_points_covered": [],
+      "learning_opportunities": []
+    }
+  ],
+  "atlas_summary": {
+    "key_takeaways": [
+      "The meeting was informal and lacked a clear agenda.",
+      "The speaker seemed to be discussing a performance or audition.",
+      "There was a mention of a 'magic bait' and a 'patch'.",
+      "The meeting ended with gratitude and appreciation."
+    ],
+    "introduction_and_overview": [
+      "The meeting started with a friendly greeting and a mention of a long collaboration.",
+      "The speaker seemed to be discussing a meeting or performance.",
+      "The tone was informal and lacked a clear agenda."
+    ],
+    "current_challenges": [
+      "The lack of a clear agenda and the informal tone made it difficult to understand the purpose of the meeting.",
+      "The mention of a 'magic bait' and a 'patch' was unclear and may have been a reference to a specific project or task."
+    ],
+    "product_fit_and_capabilities": [
+      "There was no mention of a product or its capabilities during the meeting."
+    ]
+  },
+  "feedback_coach": {
+    "quality_score": 40,
+    "metrics": [
+      {
+        "label": "Speech pace",
+        "status": "Needs work",
+        "status_level": "poor",
+        "value": "60 words per minute",
+        "detail": "Slow pace may cause listener disengagement",
+        "has_link": false,
+        "link_url": null
+      },
+      {
+        "label": "Tone and enthusiasm",
+        "status": "Okay",
+        "status_level": "ok",
+        "value": "Neutral tone",
+        "detail": "Lack of enthusiasm may impact rapport",
+        "has_link": false,
+        "link_url": null
+      },
+      {
+        "label": "Objection handling",
+        "status": "Needs work",
+        "status_level": "poor",
+        "value": "Failed to address concerns",
+        "detail": "Inadequate response to objections",
+        "has_link": false,
+        "link_url": null
+      },
+      {
+        "label": "Closing",
+        "status": "Needs work",
+        "status_level": "poor",
+        "value": "Failed to close the call",
+        "detail": "Lack of clear next steps",
+        "has_link": false,
+        "link_url": null
+      },
+      {
+        "label": "Clarity and concision",
+        "status": "Okay",
+        "status_level": "ok",
+        "value": "Some unclear statements",
+        "detail": "Vague language may confuse the listener",
+        "has_link": false,
+        "link_url": null
+      }
+    ],
+    "did_well": [
+      {
+        "title": "Building rapport and demonstrating personal interest",
+        "details": "Seller made an effort to be friendly and engaging."
+      }
+    ],
+    "improve": [
+      {
+        "title": "Improve objection handling",
+        "details": "Seller should address concerns directly and provide solutions."
+      },
+      {
+        "title": "Improve closing",
+        "details": "Seller should clearly outline next steps and follow-up."
+      },
+      {
+        "title": "Improve clarity and concision",
+        "details": "Seller should avoid vague language and provide clear explanations."
+      }
+    ],
+    "speaking_metrics": {
+      "speech_pace_wpm": 150,
+      "talk_ratio_pct": 100,
+      "longest_customer_monologue_sec": null,
+      "questions_asked": 1,
+      "filler_words": 2
+    },
+    "generated_at": {
+      "$date": "2026-03-22T10:54:36.075Z"
+    }
+  },
+  "playbook_analysis": {
+    "template_id": "6983037e7b2d4a53e2d57ad5",
+    "template_name": "Standard Sales Playbook",
+    "generated_at": {
+      "$date": "2026-03-22T10:54:20.754Z"
+    },
+    "rule":[],
+    "overall_score": 20,
+    "coaching_summary": "This call had some missed opportunities for effective objection handling, personalized demos, and clear agenda setting. However, the salesperson did engage in introductory banter and showed potential in storytelling. To improve, focus on addressing client concerns, tailoring demos, and setting clear expectations.",
+    "dimension_scores": {
+      "Handled objections": 0,
+      "Personalized demo": 0,
+      "Intro Banter": 100,
+      "Set Agenda": 0,
+      "Demo told a story": 0
+    }
+  },
+  "atlas_evaluation": {
+    "generated_at": {
+      "$date": "2026-03-27T11:02:52.210Z"
+    },
+    "playbook_score_pct": 20,
+    "outcome": {
+      "status": "neutral",
+      "summary": "You had a meeting with Tuấn Anh Nguyễn, but it seems like there was a miscommunication or a technical issue, as the conversation was mostly about saying 'you' without any meaningful discussion.",
+      "deal_progression": {
+        "from": "intro",
+        "to": "intro",
+        "likelihood": "low"
+      },
+      "key_moments": [
+        {
+          "timestamp": "00:00",
+          "type": "neutral",
+          "description": "Tuấn Anh Nguyễn started the meeting."
+        },
+        {
+          "timestamp": "00:14",
+          "type": "negative",
+          "description": "Tuấn Anh Nguyễn mentioned that the speaker was 'very amazing to burn us'."
+        },
+        {
+          "timestamp": "01:23",
+          "type": "neutral",
+          "description": "Tuấn Anh Nguyễn checked something."
+        },
+        {
+          "timestamp": "02:53",
+          "type": "positive",
+          "description": "Tuấn Anh Nguyễn thanked the speaker for their time."
+        },
+        {
+          "timestamp": "04:31",
+          "type": "negative",
+          "description": "The conversation became repetitive with the Unknown speaker saying 'you' multiple times."
+        }
+      ]
+    },
+    "strategic_insights": [
+      {
+        "category": "pain-point",
+        "insight": "You may have missed an opportunity to discuss the actual topic of the meeting.",
+        "confidence": 80,
+        "icon": "⚠️"
+      },
+      {
+        "category": "decision-maker",
+        "insight": "It's unclear who the decision-maker is in this meeting.",
+        "confidence": 70,
+        "icon": "👤"
+      },
+      {
+        "category": "timeline",
+        "insight": "The meeting seemed to drag on for an extended period of time.",
+        "confidence": 90,
+        "icon": "⏱️"
+      }
+    ],
+    "recommended_actions": [
+      {
+        "id": "action-001",
+        "priority": 1,
+        "title": "Re-schedule the meeting",
+        "description": "Re-schedule the meeting to ensure that you have a clear understanding of the topic and the decision-maker.",
+        "timing": "within-24h",
+        "action_type": "follow-up",
+        "status": "pending"
+      },
+      {
+        "id": "action-002",
+        "priority": 2,
+        "title": "Clarify the topic",
+        "description": "Clarify the topic of the meeting to ensure that you are prepared to discuss it effectively.",
+        "timing": "this-week",
+        "action_type": "send-material",
+        "status": "pending"
+      },
+      {
+        "id": "action-003",
+        "priority": 3,
+        "title": "Identify the decision-maker",
+        "description": "Identify the decision-maker in the meeting to ensure that you are speaking with the right person.",
+        "timing": "this-month",
+        "action_type": "schedule-meeting",
+        "status": "pending"
+      }
+    ]
+  },
+  "atlas_smart_summary": {
+    "generated_at": {
+      "$date": "2026-03-27T11:02:52.467Z"
+    },
+    "deal_health": {
+      "engagement": {
+        "value": 85,
+        "trend": "up"
+      },
+      "momentum": {
+        "value": 80,
+        "trend": "up"
+      },
+      "risk_level": "Low",
+      "risk_trend": "stable",
+      "win_probability": {
+        "value": 85,
+        "trend": "up"
+      }
+    },
+    "deal_evolution": [
+      {
+        "id": "m1",
+        "date": "Feb 24",
+        "type": "Discovery",
+        "outcome": "Tuấn Anh Nguyễn is interested in the company's life culture, focusing on protecting and human growth.",
+        "is_current": false
+      },
+      {
+        "id": "m2",
+        "date": "Mar 22",
+        "type": "Discovery",
+        "outcome": "Tuấn Anh Nguyễn hopes for a long collaboration in the near future.",
+        "is_current": true
+      }
+    ],
+    "then_vs_now": [
+      {
+        "topic": "Innovation Priority",
+        "then_date": "Feb 24",
+        "then_status": "Innovation is a priority for him and his wife.",
+        "then_sentiment": "positive",
+        "now_status": "Tuấn Anh Nguyễn is still interested in innovation.",
+        "now_sentiment": "positive",
+        "impact": "Deal momentum increased",
+        "indicator": "green"
+      },
+      {
+        "topic": "Life Culture Interest",
+        "then_date": "Feb 24",
+        "then_status": "He is interested in the company's life culture, focusing on protecting and human growth.",
+        "then_sentiment": "positive",
+        "now_status": "Tuấn Anh Nguyễn hopes for a long collaboration in the near future.",
+        "now_sentiment": "positive",
+        "impact": "Deal engagement increased",
+        "indicator": "green"
+      }
+    ],
+    "change_alerts": [
+      {
+        "id": "ca1",
+        "severity": "info",
+        "title": "Tuấn Anh Nguyễn's tone has become more positive.",
+        "category": "Stakeholder",
+        "previous_state": "Tuấn Anh Nguyễn was impressed by the company's culture and environment.",
+        "previous_date": "Feb 24",
+        "current_state": "Tuấn Anh Nguyễn hopes for a long collaboration in the near future.",
+        "impact_analysis": "This change indicates a stronger interest in the company.",
+        "recommended_actions": [
+          "Continue to engage with Tuấn Anh Nguyễn"
+        ]
+      }
+    ],
+    "enhanced_topics": [
+      {
+        "title": "Innovation Priority",
+        "badge": "new",
+        "meeting_count": "Discussed in 2 of 3 meetings",
+        "sentiment_trend": "improving",
+        "timeline": [
+          {
+            "date": "Feb 24",
+            "quote": "Innovation is a priority for him and his wife.",
+            "sentiment": "positive"
+          }
+        ],
+        "status": "Tuấn Anh Nguyễn is still interested in innovation.",
+        "next_step": "Continue to discuss innovation with Tuấn Anh Nguyễn"
+      },
+      {
+        "title": "Life Culture Interest",
+        "badge": "revisited",
+        "meeting_count": "Discussed in 2 of 3 meetings",
+        "sentiment_trend": "stable",
+        "timeline": [
+          {
+            "date": "Feb 24",
+            "quote": "He is interested in the company's life culture, focusing on protecting and human growth.",
+            "sentiment": "positive"
+          }
+        ],
+        "status": "Tuấn Anh Nguyễn hopes for a long collaboration in the near future.",
+        "next_step": "Continue to engage with Tuấn Anh Nguyễn"
+      }
+    ],
+    "strategic_recommendations": [
+      {
+        "priority": "important",
+        "title": "Continue to engage with Tuấn Anh Nguyễn",
+        "why": "Tuấn Anh Nguyễn's interest in the company is increasing.",
+        "impact": "Deal momentum and engagement may increase.",
+        "timeline": "Within the next week",
+        "confidence": 90
+      },
+      {
+        "priority": "opportunity",
+        "title": "Discuss innovation with Tuấn Anh Nguyễn",
+        "why": "Tuấn Anh Nguyễn is still interested in innovation.",
+        "impact": "Deal momentum and engagement may increase.",
+        "timeline": "Within the next week",
+        "confidence": 80
+      }
+    ]
+  }
+}

@@ -7,8 +7,8 @@ import { deleteCookie } from './cookies'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://app.forskale.com'
-  // const url = 'http://localhost:8001'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://app.forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -1750,6 +1750,9 @@ export const meetingsAPI = {
       insights_regenerated: boolean;
       feedback_regenerated: boolean;
       playbook_regenerated: boolean;
+      evaluation_regenerated: boolean;
+      smart_summary_regenerated: boolean;
+      strategy_regenerated: boolean;
       qna_extracted_count: number;
       qna_ids: string[];
       message: string;

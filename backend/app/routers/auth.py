@@ -2,7 +2,14 @@ from fastapi import APIRouter, HTTPException, status, Depends, Request, Backgrou
 from datetime import datetime, timedelta
 from bson import ObjectId
 from app.core.database import get_database
-from app.core.auth import verify_password, get_password_hash, create_access_token, get_current_active_user
+from app.core.auth import (
+    verify_password,
+    get_password_hash,
+    create_access_token,
+    get_current_active_user,
+    user_doc_has_password_hash,
+    user_doc_is_oauth_primary,
+)
 from app.models.user import (
     UserCreate, UserLogin, UserResponse, Token, PasswordReset, PasswordResetConfirm, PasswordChange,
     GoogleAuthRequest, GoogleAuthResponse, GoogleUserInfo
@@ -198,19 +205,32 @@ async def login(user_credentials: UserLogin):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
         )
-    
-    # Verify password
-    if not verify_password(user_credentials.password, user["hashed_password"]):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password"
-        )
-    
-    # Check if user is active
+
     if not user.get("is_active", True):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Inactive user"
+        )
+
+    if not user_doc_has_password_hash(user):
+        if user_doc_is_oauth_primary(user):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={
+                    "message": "This account uses Google sign-in. Use Continue with Google or set a password via Forgot password.",
+                    "code": "OAUTH_ONLY_NO_PASSWORD",
+                },
+            )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password"
+        )
+
+    stored_hash = user["hashed_password"]
+    if not verify_password(user_credentials.password, stored_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password"
         )
     
     # Create access token
@@ -321,8 +341,21 @@ async def change_password(
     
     # Get user with password
     user = await db.users.find_one({"_id": current_user.id})
-    
-    # Verify current password
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    if not user_doc_has_password_hash(user):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "message": "No password is set yet. Use Forgot password to create one, or sign in with Google.",
+                "code": "NO_PASSWORD_SET",
+            },
+        )
+
     if not verify_password(password_change.current_password, user["hashed_password"]):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

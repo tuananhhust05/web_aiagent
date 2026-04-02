@@ -1,4 +1,4 @@
-"""Debug script to check Q&A data in MongoDB"""
+"""Debug script to  check Q&A data in MongoDB"""
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId

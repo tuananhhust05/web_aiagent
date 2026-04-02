@@ -1,3 +1,5 @@
+import asyncio
+import re
 from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import Response
 from typing import Optional, List, Any, Literal, Dict
@@ -26,6 +28,26 @@ from ..services.ai_sales_copilot import analyze_call_against_playbook
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+TRANSCRIPT_VEXA_SKIP_REFRESH_MEETING_MAX_AGE = timedelta(hours=24)
+
+
+def _meeting_created_at_naive_utc(doc: dict) -> Optional[datetime]:
+    created = doc.get("created_at")
+    if created is None or not isinstance(created, datetime):
+        return None
+    if created.tzinfo is not None:
+        return created.replace(tzinfo=None)
+    return created
+
+
+def _skip_vexa_transcript_refresh(doc: dict, now: datetime, cached_lines: List) -> bool:
+    if not cached_lines:
+        return False
+    created = _meeting_created_at_naive_utc(doc)
+    if created is None:
+        return False
+    return (now - created) >= TRANSCRIPT_VEXA_SKIP_REFRESH_MEETING_MAX_AGE
 
 
 class MeetingTranscriptionResponse(BaseModel):
@@ -559,6 +581,25 @@ def _compute_speaking_metrics(lines: Any) -> Dict[str, Any]:
     }
 
 
+def _groq_429_sleep_seconds(response: httpx.Response) -> float:
+    wait = 4.0
+    ra = response.headers.get("Retry-After")
+    if ra:
+        try:
+            wait = max(wait, min(90.0, float(ra)))
+        except ValueError:
+            pass
+    try:
+        body = response.json()
+        msg = str((body.get("error") or {}).get("message") or "")
+        m = re.search(r"try again in ([\d.]+)\s*s", msg, re.IGNORECASE)
+        if m:
+            wait = max(wait, min(90.0, float(m.group(1)) + 0.5))
+    except Exception:
+        pass
+    return wait
+
+
 async def _call_groq_json(prompt: str) -> Any:
     """Call Groq chat completions and parse JSON response safely."""
     if not settings.GROQ_API_KEY:
@@ -573,10 +614,28 @@ async def _call_groq_json(prompt: str) -> Any:
         ],
         "temperature": 0.2,
     }
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        r = await client.post(url, headers=headers, json=payload)
-        r.raise_for_status()
-        data = r.json()
+    max_attempts = 8
+    data: Any = None
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        for attempt in range(max_attempts):
+            r = await client.post(url, headers=headers, json=payload)
+            if r.status_code == 429:
+                sleep_s = _groq_429_sleep_seconds(r)
+                if attempt >= max_attempts - 1:
+                    r.raise_for_status()
+                logger.warning(
+                    "Groq rate limit (429), retry in %.1fs (%s/%s)",
+                    sleep_s,
+                    attempt + 1,
+                    max_attempts,
+                )
+                await asyncio.sleep(sleep_s)
+                continue
+            r.raise_for_status()
+            data = r.json()
+            break
+    if data is None:
+        raise RuntimeError("Groq request exhausted retries")
     content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
     content = content.strip()
     # attempt direct json parse; else try extracting first {...} block
@@ -682,6 +741,9 @@ async def _fetch_and_cache_transcript(
             endpoint = f"{settings.VEXA_API_BASE.rstrip('/')}/transcripts/teams/{native_id}"
 
     if not native_id or not endpoint or not settings.VEXA_API_KEY:
+        return cached_lines
+
+    if _skip_vexa_transcript_refresh(doc, now, cached_lines):
         return cached_lines
 
     try:
@@ -1974,6 +2036,7 @@ async def get_meeting_transcription(
     """
     Smart transcription fetch:
     - Prefer cached transcript_lines if fresh (within TTL)
+    - If meeting is >= 24h old and transcript_lines already exist, return cache (no Vexa)
     - Else try fetching from Vexa; on success, store to DB and return
     - On Vexa failure, fall back to cached transcript_lines
     """
@@ -2044,6 +2107,15 @@ async def get_meeting_transcription(
             transcript_lines=cached_lines,
             fetched_at=cached_fetched_at,
             message="Could not extract native meeting id from link.",
+        )
+
+    if _skip_vexa_transcript_refresh(doc, now, cached_lines):
+        return MeetingTranscriptionResponse(
+            meeting_id=meeting_id,
+            source="cache",
+            transcript_lines=cached_lines,
+            fetched_at=cached_fetched_at,
+            message="Meeting is older than 24h with stored transcript; skipped Vexa refresh.",
         )
 
     # Try calling Vexa; on failure, fall back to cache
@@ -2706,6 +2778,9 @@ class ReanalyzeMeetingResponse(BaseModel):
     insights_regenerated: bool = False
     feedback_regenerated: bool = False
     playbook_regenerated: bool = False
+    evaluation_regenerated: bool = False
+    smart_summary_regenerated: bool = False
+    strategy_regenerated: bool = False
     qna_extracted_count: int = 0
     qna_ids: List[str] = Field(default_factory=list)
     message: str
@@ -2722,9 +2797,12 @@ async def reanalyze_meeting(
     1. Regenerate Atlas Insights (summary, next steps, Q&A) with force_refresh=True
     2. Regenerate Feedback (metrics, coaching) with force_refresh=True
     3. Regenerate Playbook analysis with force_refresh=True
-    4. Extract Q&A from transcript and store in Q&A Engine
-    
-    This is triggered by the "Analyze" button in the meeting detail UI.
+    4. Regenerate Evaluation (outcome, Call Summary, actions) with force_refresh=True
+    5. Regenerate Smart Summary with force_refresh=True
+    6. Regenerate Next Meeting Strategy (uses fresh evaluation + smart summary)
+    7. Extract Q&A from transcript and store in Q&A Engine
+
+    This is triggered by the regenerate control in the meeting detail UI.
     """
     from app.services.qna_engine import extract_qna_from_meeting
     
@@ -2742,9 +2820,18 @@ async def reanalyze_meeting(
         "insights_regenerated": False,
         "feedback_regenerated": False,
         "playbook_regenerated": False,
+        "evaluation_regenerated": False,
+        "smart_summary_regenerated": False,
+        "strategy_regenerated": False,
         "qna_extracted_count": 0,
         "qna_ids": [],
     }
+
+    await _fetch_and_cache_transcript(
+        doc=doc,
+        collection=collection,
+        user_id=current_user.id,
+    )
     
     # 1. Regenerate Atlas Insights
     try:
@@ -2788,8 +2875,52 @@ async def reanalyze_meeting(
             logger.info(f"[REANALYZE] Meeting {meeting_id}: Playbook analysis regenerated")
     except Exception as e:
         logger.warning(f"[REANALYZE] Meeting {meeting_id}: Failed to regenerate playbook: {e}")
+
+    await asyncio.sleep(2.0)
+
+    # 4. Regenerate Evaluation (Call Summary lives in atlas_evaluation.outcome)
+    try:
+        ev = await get_meeting_evaluation(
+            meeting_id=meeting_id,
+            force_refresh=True,
+            current_user=current_user,
+            db=db,
+        )
+        if ev.source == "llm":
+            results["evaluation_regenerated"] = True
+            logger.info(f"[REANALYZE] Meeting {meeting_id}: Evaluation regenerated")
+    except Exception as e:
+        logger.warning(f"[REANALYZE] Meeting {meeting_id}: Failed to regenerate evaluation: {e}")
+
+    # 5. Regenerate Smart Summary
+    try:
+        sm = await get_meeting_smart_summary(
+            meeting_id=meeting_id,
+            force_refresh=True,
+            current_user=current_user,
+            db=db,
+        )
+        if sm.source in ["llm", "cache"]:
+            results["smart_summary_regenerated"] = True
+            logger.info(f"[REANALYZE] Meeting {meeting_id}: Smart summary regenerated")
+    except Exception as e:
+        logger.warning(f"[REANALYZE] Meeting {meeting_id}: Failed to regenerate smart summary: {e}")
+
+    # 6. Regenerate Next Meeting Strategy (reads fresh evaluation + smart summary from DB)
+    try:
+        st = await get_next_meeting_strategy(
+            meeting_id=meeting_id,
+            force_refresh=True,
+            current_user=current_user,
+            db=db,
+        )
+        if st.source in ["llm", "cache"]:
+            results["strategy_regenerated"] = True
+            logger.info(f"[REANALYZE] Meeting {meeting_id}: Next meeting strategy regenerated")
+    except Exception as e:
+        logger.warning(f"[REANALYZE] Meeting {meeting_id}: Failed to regenerate strategy: {e}")
     
-    # 4. Extract Q&A from transcript to Q&A Engine
+    # 7. Extract Q&A from transcript to Q&A Engine
     try:
         user_name = f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email or "Unknown"
         created_qnas = await extract_qna_from_meeting(
@@ -2811,6 +2942,12 @@ async def reanalyze_meeting(
         parts.append("feedback")
     if results["playbook_regenerated"]:
         parts.append("playbook")
+    if results["evaluation_regenerated"]:
+        parts.append("evaluation")
+    if results["smart_summary_regenerated"]:
+        parts.append("smart summary")
+    if results["strategy_regenerated"]:
+        parts.append("strategy")
     if results["qna_extracted_count"] > 0:
         parts.append(f"{results['qna_extracted_count']} Q&A")
     
@@ -2821,6 +2958,9 @@ async def reanalyze_meeting(
         insights_regenerated=results["insights_regenerated"],
         feedback_regenerated=results["feedback_regenerated"],
         playbook_regenerated=results["playbook_regenerated"],
+        evaluation_regenerated=results["evaluation_regenerated"],
+        smart_summary_regenerated=results["smart_summary_regenerated"],
+        strategy_regenerated=results["strategy_regenerated"],
         qna_extracted_count=results["qna_extracted_count"],
         qna_ids=results["qna_ids"],
         message=message,
@@ -3006,6 +3146,13 @@ async def get_meeting_evaluation(
 
     transcript_lines = doc.get("transcript_lines") or []
     transcript_text = _build_transcript_text(transcript_lines)
+    if not transcript_text.strip():
+        transcript_lines = await _fetch_and_cache_transcript(
+            doc=doc,
+            collection=collection,
+            user_id=current_user.id,
+        )
+        transcript_text = _build_transcript_text(transcript_lines)
     if not transcript_text.strip():
         return MeetingEvaluationResponse(
             meeting_id=meeting_id,
@@ -3283,6 +3430,13 @@ async def get_meeting_smart_summary(
 
     transcript_lines = doc.get("transcript_lines") or []
     transcript_text = _build_transcript_text(transcript_lines)
+    if not transcript_text.strip():
+        transcript_lines = await _fetch_and_cache_transcript(
+            doc=doc,
+            collection=collection,
+            user_id=current_user.id,
+        )
+        transcript_text = _build_transcript_text(transcript_lines)
     if not transcript_text.strip():
         return SmartSummaryResponse(
             meeting_id=meeting_id,
@@ -3580,6 +3734,13 @@ async def get_next_meeting_strategy(
 
     transcript_lines = doc.get("transcript_lines") or []
     transcript_text = _build_transcript_text(transcript_lines)
+    if not transcript_text.strip():
+        transcript_lines = await _fetch_and_cache_transcript(
+            doc=doc,
+            collection=collection,
+            user_id=current_user.id,
+        )
+        transcript_text = _build_transcript_text(transcript_lines)
     if not transcript_text.strip():
         return NextMeetingStrategyResponse(
             meeting_id=meeting_id,

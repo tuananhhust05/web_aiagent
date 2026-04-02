@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ChevronLeft, Users, Target, GraduationCap } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ChevronLeft, Users, Target, GraduationCap, Video, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CallListSidebar from "@/components/call-insights/CallListSidebar";
 import type { CallEvaluationMap } from "@/components/call-insights/CallListSidebar";
@@ -18,7 +19,6 @@ import type {
   MeetingPlaybookAnalysis,
 } from "@/lib/api";
 import type { CallItem, NegotiationStage, TranscriptEntry } from "@/data/mockData";
-import { mockCalls, mockCallEvaluations, mockTranscript } from "@/data/mockData";
 
 type TabType = "evaluation" | "enablement" | "summary";
 
@@ -105,11 +105,14 @@ function mapTranscriptLines(lines: any[]): TranscriptEntry[] {
   }));
 }
 
+type MeetingsListState = "loading" | "empty" | "ready" | "error";
+
 const AtlasInsightsPage = () => {
-  const [calls, setCalls] = useState<CallItem[]>(mockCalls);
-  const [callEvaluations, setCallEvaluations] = useState<CallEvaluationMap>(mockCallEvaluations);
-  const [selectedCall, setSelectedCall] = useState<string>(mockCalls[0]?.id ?? "");
-  const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>(mockTranscript);
+  const [meetingsListState, setMeetingsListState] = useState<MeetingsListState>("loading");
+  const [calls, setCalls] = useState<CallItem[]>([]);
+  const [callEvaluations, setCallEvaluations] = useState<CallEvaluationMap>({});
+  const [selectedCall, setSelectedCall] = useState<string>("");
+  const [transcriptEntries, setTranscriptEntries] = useState<TranscriptEntry[]>([]);
   const [evaluation, setEvaluation] = useState<MeetingEvaluation | null>(null);
   const [feedback, setFeedback] = useState<MeetingFeedback | null>(null);
   const [playbookAnalysis, setPlaybookAnalysis] = useState<MeetingPlaybookAnalysis | null>(null);
@@ -126,6 +129,7 @@ const AtlasInsightsPage = () => {
   const [showTranscriptModal, setShowTranscriptModal] = useState(false);
   const [strategyModalOpen, setStrategyModalOpen] = useState(false);
   const [loadingInsights, setLoadingInsights] = useState(false);
+  const [reanalyzeLoading, setReanalyzeLoading] = useState(false);
   const [usingRealData, setUsingRealData] = useState(false);
 
   const meetingCache = useRef<Record<string, {
@@ -137,44 +141,56 @@ const AtlasInsightsPage = () => {
     transcriptEntries: TranscriptEntry[];
   }>>({});
 
-  useEffect(() => {
-    const fetchMeetings = async () => {
-      try {
-        const res = await meetingsAPI.getMeetings({ limit: 50 });
-        const meetingList: any[] = (res.data as any)?.meetings || [];
-        if (meetingList.length === 0) return;
-
-        const mapped = meetingList.map(mapMeetingToCallItem);
-        const evalMap: CallEvaluationMap = {};
-        for (const m of meetingList) {
-          const hasEval = !!(m.atlas_evaluation && (m.atlas_evaluation.generated_at || m.atlas_evaluation.outcome));
-          const actionCount = Array.isArray(m.atlas_next_steps)
-            ? m.atlas_next_steps.length
-            : Array.isArray(m.atlas_evaluation?.recommended_actions)
-            ? m.atlas_evaluation.recommended_actions.length
-            : 0;
-          const dp = m.atlas_evaluation?.outcome?.deal_progression;
-          evalMap[m.id] = {
-            status: hasEval ? "evaluated" : "pending",
-            actionCount,
-            progression: dp?.from && dp?.to
-              ? `${capitalizeStage(dp.from)} → ${capitalizeStage(dp.to)} ↑`
-              : undefined,
-          };
-        }
-
-        setCalls(mapped);
-        setCallEvaluations(evalMap);
-        setSelectedCall(mapped[0].id);
+  const fetchMeetingsList = useCallback(async () => {
+    setMeetingsListState("loading");
+    try {
+      const res = await meetingsAPI.getMeetings({ limit: 50 });
+      const meetingList: any[] = (res.data as any)?.meetings || [];
+      if (meetingList.length === 0) {
+        setCalls([]);
+        setCallEvaluations({});
+        setSelectedCall("");
         setTranscriptEntries([]);
         setShowTranscriptModal(false);
         setUsingRealData(true);
-      } catch {
-        // keep mock data on error
+        setMeetingsListState("empty");
+        return;
       }
-    };
-    fetchMeetings();
+
+      const mapped = meetingList.map(mapMeetingToCallItem);
+      const evalMap: CallEvaluationMap = {};
+      for (const m of meetingList) {
+        const hasEval = !!(m.atlas_evaluation && (m.atlas_evaluation.generated_at || m.atlas_evaluation.outcome));
+        const actionCount = Array.isArray(m.atlas_next_steps)
+          ? m.atlas_next_steps.length
+          : Array.isArray(m.atlas_evaluation?.recommended_actions)
+          ? m.atlas_evaluation.recommended_actions.length
+          : 0;
+        const dp = m.atlas_evaluation?.outcome?.deal_progression;
+        evalMap[m.id] = {
+          status: hasEval ? "evaluated" : "pending",
+          actionCount,
+          progression: dp?.from && dp?.to
+            ? `${capitalizeStage(dp.from)} → ${capitalizeStage(dp.to)} ↑`
+            : undefined,
+        };
+      }
+
+      setCalls(mapped);
+      setCallEvaluations(evalMap);
+      setSelectedCall(mapped[0].id);
+      setTranscriptEntries([]);
+      setShowTranscriptModal(false);
+      setUsingRealData(true);
+      setMeetingsListState("ready");
+    } catch {
+      setMeetingsListState("error");
+    }
   }, []);
+
+  useEffect(() => {
+    fetchMeetingsList();
+  }, [fetchMeetingsList]);
 
   const loadMeetingData = useCallback(async (meetingId: string, evaluationMap?: CallEvaluationMap) => {
     if (!meetingId || !usingRealData) return;
@@ -271,15 +287,29 @@ const AtlasInsightsPage = () => {
     setLoadingInsights(false);
   }, [usingRealData]);
 
+  const handleReanalyzeTranscript = useCallback(async () => {
+    if (!selectedCall || reanalyzeLoading || loadingInsights) return;
+    setReanalyzeLoading(true);
+    try {
+      await meetingsAPI.reanalyzeMeeting(selectedCall);
+      delete meetingCache.current[selectedCall];
+      await loadMeetingData(selectedCall, callEvaluations);
+    } catch {
+    } finally {
+      setReanalyzeLoading(false);
+    }
+  }, [selectedCall, reanalyzeLoading, loadingInsights, loadMeetingData, callEvaluations]);
+
   useEffect(() => {
     if (selectedCall && usingRealData) {
       loadMeetingData(selectedCall, callEvaluations);
     }
-  }, [selectedCall, usingRealData, loadMeetingData]);
+  }, [selectedCall, usingRealData, loadMeetingData, callEvaluations]);
 
   const meetingTitle = calls.find((c) => c.id === selectedCall)?.title || "Select a meeting";
   const meetingDate = calls.find((c) => c.id === selectedCall)?.date || "";
-  const playbookScorePct = evaluation?.playbook_score_pct ?? (playbookAnalysis?.overall_score ?? (usingRealData ? null : 79));
+  const playbookScorePct =
+    evaluation?.playbook_score_pct ?? (playbookAnalysis?.overall_score != null ? playbookAnalysis.overall_score : null);
 
   const meetingCountThisMonth = calls.filter((c) => {
     if (!c.date) return false;
@@ -289,6 +319,64 @@ const AtlasInsightsPage = () => {
   }).length;
 
   const [mobileCallPickerOpen, setMobileCallPickerOpen] = useState(false);
+
+  if (meetingsListState === "loading") {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-background h-screen">
+        <div className="flex flex-col items-center gap-3 text-muted-foreground">
+          <Loader2 className="h-8 w-8 animate-spin text-[hsl(var(--forskale-teal))]" />
+          <p className="text-sm">Loading meetings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (meetingsListState === "error") {
+    return (
+      <div className="flex flex-1 items-center justify-center bg-background h-screen px-6">
+        <div className="flex flex-col items-center gap-4 text-center max-w-sm">
+          <p className="text-sm text-foreground">Could not load your meetings.</p>
+          <p className="text-xs text-muted-foreground">Check your connection and try again.</p>
+          <button
+            type="button"
+            onClick={() => fetchMeetingsList()}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-[hsl(var(--forskale-teal))] text-white hover:opacity-90 transition-opacity"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Try again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (meetingsListState === "empty") {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center bg-background h-screen px-6">
+        <Video className="h-14 w-14 text-muted-foreground/30 mb-5" />
+        <h1 className="text-xl font-heading font-bold text-foreground tracking-tight mb-2 text-center">
+          No meetings yet
+        </h1>
+        <p className="text-sm text-muted-foreground text-center max-w-md mb-8 leading-relaxed">
+          Meeting insights appear here after you have recorded or imported calls. Connect your calendar or open Calls to get started.
+        </p>
+        <div className="flex flex-wrap gap-3 justify-center">
+          <Link
+            to="/atlas/calendar"
+            className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg text-sm font-semibold bg-[hsl(var(--forskale-teal))] text-white hover:opacity-90 transition-opacity"
+          >
+            Open calendar
+          </Link>
+          <Link
+            to="/atlas/calls"
+            className="inline-flex items-center justify-center px-4 py-2.5 rounded-lg text-sm font-semibold border border-border bg-card text-foreground hover:bg-accent transition-colors"
+          >
+            View calls
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-1 overflow-hidden bg-background h-screen">
@@ -353,26 +441,53 @@ const AtlasInsightsPage = () => {
             <ChevronLeft className="h-3.5 w-3.5" /> All Calls
           </button>
 
-          <div className="flex items-center justify-between mb-3 sm:mb-4 gap-4">
-            <h1 className="text-lg sm:text-2xl font-heading font-bold text-foreground tracking-tight leading-tight line-clamp-2">
+          <div className="flex items-start sm:items-center justify-between mb-3 sm:mb-4 gap-3 sm:gap-4">
+            <h1 className="text-lg sm:text-2xl font-heading font-bold text-foreground tracking-tight leading-tight line-clamp-2 min-w-0 flex-1">
               {meetingTitle}
             </h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-muted-foreground mb-3 sm:mb-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-muted-foreground mb-3 sm:mb-4">
             {playbookScorePct != null && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[hsl(var(--forskale-green)/0.08)] border border-[hsl(var(--forskale-green)/0.2)] text-status-great font-semibold">
                 <span className="w-1.5 h-1.5 rounded-full bg-status-great" />
                 {playbookScorePct}% playbook
               </span>
             )}
-            {meetingDate && <span>{meetingDate}</span>}
+            {meetingDate && <span className="tabular-nums">{meetingDate}</span>}
             {transcriptEntries.length > 0 && (
               <span className="inline-flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5" />
+                <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
                 {new Set(transcriptEntries.map((e) => e.speaker)).size} speakers
               </span>
             )}
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => void handleReanalyzeTranscript()}
+                    disabled={!selectedCall || reanalyzeLoading || loadingInsights}
+                    className={cn(
+                      "ml-auto inline-flex items-center gap-2 rounded-full pl-3 pr-3.5 py-1.5 text-[11px] sm:text-xs font-semibold tracking-tight",
+                      "border border-[hsl(var(--forskale-teal)/0.35)] bg-[hsl(var(--forskale-teal)/0.07)] text-[hsl(var(--forskale-teal))]",
+                      "hover:bg-[hsl(var(--forskale-teal)/0.14)] hover:border-[hsl(var(--forskale-teal)/0.45)] transition-colors",
+                      "shadow-[0_1px_2px_hsl(var(--forskale-teal)/0.08)] disabled:opacity-45 disabled:pointer-events-none disabled:shadow-none",
+                    )}
+                  >
+                    {reanalyzeLoading || loadingInsights ? (
+                      <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin opacity-90" />
+                    ) : (
+                      <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-90" />
+                    )}
+                    <span>Regenerate insights</span>
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="end" className="max-w-[280px] text-xs leading-relaxed">
+                  Re-run full AI analysis on the transcript: evaluation, insights, feedback, playbook, smart summary, strategy, and Q&A extraction.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
 
           <TooltipProvider>

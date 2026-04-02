@@ -97,38 +97,56 @@ interface EvaluationTabProps {
 }
 
 const EvaluationTab = ({ onOpenStrategyModal, evaluation: realEvaluation }: EvaluationTabProps) => {
-  const evaluation = realEvaluation?.outcome
-    ? {
-        outcome: {
-          status: realEvaluation.outcome.status,
-          summary: realEvaluation.outcome.summary,
-          dealProgression: {
-            from: realEvaluation.outcome.deal_progression?.from ?? "intro",
-            to: realEvaluation.outcome.deal_progression?.to ?? "discovery",
-            likelihood: realEvaluation.outcome.deal_progression?.likelihood ?? "medium",
-          },
-          keyMoments: (realEvaluation.outcome.key_moments ?? []).map((m) => ({
-            timestamp: m.timestamp,
-            type: m.type as "positive" | "negative" | "neutral",
-            description: m.description,
+  const evaluation =
+    realEvaluation != null
+      ? {
+          outcome: realEvaluation.outcome
+            ? {
+                status: realEvaluation.outcome.status,
+                summary: realEvaluation.outcome.summary,
+                dealProgression: {
+                  from: realEvaluation.outcome.deal_progression?.from ?? "intro",
+                  to: realEvaluation.outcome.deal_progression?.to ?? "discovery",
+                  likelihood: realEvaluation.outcome.deal_progression?.likelihood ?? "medium",
+                },
+                keyMoments: (realEvaluation.outcome.key_moments ?? []).map((m) => ({
+                  timestamp: m.timestamp,
+                  type: m.type as "positive" | "negative" | "neutral",
+                  description: m.description,
+                })),
+              }
+            : {
+                status: "neutral" as const,
+                summary:
+                  (realEvaluation.message && realEvaluation.message.trim()) ||
+                  "No call summary is available yet. Ensure the meeting has a transcript, then use Regenerate insights.",
+                dealProgression: {
+                  from: "intro",
+                  to: "discovery",
+                  likelihood: "medium" as const,
+                },
+                keyMoments: [] as Array<{
+                  timestamp: string;
+                  type: "positive" | "negative" | "neutral";
+                  description: string;
+                }>,
+              },
+          recommendedActions: (realEvaluation.recommended_actions ?? []).map((a) => ({
+            id: a.id,
+            priority: a.priority,
+            title: a.title,
+            description: a.description,
+            timing: a.timing,
+            actionType: a.action_type,
           })),
-        },
-        recommendedActions: (realEvaluation.recommended_actions ?? []).map((a) => ({
-          id: a.id,
-          priority: a.priority,
-          title: a.title,
-          description: a.description,
-          timing: a.timing,
-          actionType: a.action_type,
-        })),
-        strategicInsights: (realEvaluation.strategic_insights ?? []).map((s) => ({
-          category: s.category,
-          insight: s.insight,
-          confidence: s.confidence,
-          icon: s.icon,
-        })),
-      }
-    : mockEvaluation;
+          strategicInsights: (realEvaluation.strategic_insights ?? []).map((s) => ({
+            category: s.category,
+            insight: s.insight,
+            confidence: s.confidence,
+            icon: s.icon,
+          })),
+        }
+      : mockEvaluation;
   const config = statusConfig[evaluation.outcome.status];
   const StatusIcon = config.icon;
   const [completedActions, setCompletedActions] = useState<Record<string, boolean>>({});
