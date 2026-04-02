@@ -216,6 +216,16 @@ const translations = {
     it: "Continua",
     es: "Continuar",
   },
+  skip: {
+    en: "Skip",
+    it: "Salta",
+    es: "Omitir",
+  },
+  skipToAccountSetup: {
+    en: "Skip to account setup",
+    it: "Vai alla creazione account",
+    es: "Ir a configurar la cuenta",
+  },
   allMeetings: {
     en: "All meetings in my calendar",
     it: "Tutti i meeting nel mio calendario",

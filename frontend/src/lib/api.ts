@@ -114,12 +114,12 @@ export const authAPI = {
   gdprConsent: () => api.post('/auth/gdpr-consent'),
   /** Complete profile: update user + optional company creation (single call for supplement-profile page). */
   supplementProfile: (data: {
-    first_name: string
-    last_name: string
+    first_name?: string
+    last_name?: string
     phone?: string
     industry?: string
     language: string
-    workspace_role: 'owner' | 'member'
+    workspace_role: 'owner' | 'member' | 'personal'
     company_id?: string
     company_name?: string
     company_website?: string

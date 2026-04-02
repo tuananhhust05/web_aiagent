@@ -3,41 +3,49 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { UserPlus, Check, Building2, Users, Search, X } from 'lucide-react'
+import { UserPlus, Check, Building2, Users, Search, X, UserCircle } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { authAPI, companiesAPI } from '../../lib/api'
 import { toast } from 'react-hot-toast'
 import LoadingSpinner from '../../components/ui/LoadingSpinner'
 
 const supplementSchema = z.object({
-  first_name: z.string().min(1, 'First name is required'),
-  last_name: z.string().min(1, 'Last name is required'),
+  first_name: z.string().max(50).optional(),
+  last_name: z.string().max(50).optional(),
   phone: z.string().optional(),
   industry: z.string().optional(),
   language: z.string().min(1, 'Language is required'),
   terms_accepted: z.boolean().refine((val) => val === true, 'You must accept the Terms of Service'),
   gdpr_consent: z.boolean().refine((val) => val === true, 'You must consent to data processing'),
-  // User must choose workspace role (no default)
-  workspace_role: z.enum(['owner', 'member'], { required_error: 'Please choose your role (Owner or Member).' }),
+  workspace_role: z.enum(['owner', 'member', 'personal'], {
+    required_error: 'Please choose how you want to use Atlas.',
+  }),
   company_id: z.string().optional(),
   company_name: z.string().optional(),
   company_website: z.string().optional(),
   company_phone: z.string().optional(),
   company_address: z.string().optional(),
   company_country: z.string().optional(),
-}).refine((data) => {
-  // If owner, company_name is required
+}).superRefine((data, ctx) => {
+  if (data.workspace_role === 'personal') return
   if (data.workspace_role === 'owner') {
-    return !!data.company_name
+    if (!(data.company_name && data.company_name.trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Company name is required',
+        path: ['company_name'],
+      })
+    }
   }
-  // If member, company_id is required
   if (data.workspace_role === 'member') {
-    return !!data.company_id
+    if (!(data.company_id && data.company_id.trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Please select a company',
+        path: ['company_id'],
+      })
+    }
   }
-  return true
-}, {
-  message: 'Company information is required',
-  path: ['company_name']
 })
 
 type SupplementForm = z.infer<typeof supplementSchema>
@@ -94,7 +102,7 @@ export default function SupplementProfile() {
       language: user?.language ?? 'en',
       terms_accepted: user?.terms_accepted ?? false,
       gdpr_consent: user?.gdpr_consent ?? false,
-      workspace_role: (user?.workspace_role as 'owner' | 'member') || undefined,
+      workspace_role: (user?.workspace_role as 'owner' | 'member' | 'personal') || undefined,
       company_id: user?.company_id ?? undefined,
       company_name: user?.company_name ?? '',
       company_website: '',
@@ -182,8 +190,8 @@ export default function SupplementProfile() {
     setIsLoading(true)
     try {
       const response = await authAPI.supplementProfile({
-        first_name: data.first_name,
-        last_name: data.last_name,
+        first_name: data.first_name?.trim() || undefined,
+        last_name: data.last_name?.trim() || undefined,
         phone: data.phone || undefined,
         industry: data.industry || undefined,
         language: data.language,
@@ -217,7 +225,7 @@ export default function SupplementProfile() {
             Complete your profile
           </h1>
           <p className="text-gray-600 font-light">
-            Add a few details so we can personalize your experience. You can change these later.
+            Add a few details so we can personalize your experience. Optional fields can be skipped; you can update everything later in settings.
           </p>
         </div>
 
@@ -225,7 +233,7 @@ export default function SupplementProfile() {
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">First name (optional)</label>
                 <input
                   {...register('first_name')}
                   type="text"
@@ -237,7 +245,7 @@ export default function SupplementProfile() {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Last name (optional)</label>
                 <input
                   {...register('last_name')}
                   type="text"
@@ -288,12 +296,29 @@ export default function SupplementProfile() {
             {/* Workspace Role Selection */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">
-                Choose Your Role <span className="text-red-500">*</span>
+                Workspace <span className="text-red-500">*</span>
               </label>
-              <div className="grid grid-cols-2 gap-4">
-                <label className={`relative flex flex-col items-center justify-center p-5 border-2 rounded-xl cursor-pointer transition-all ${
-                  workspaceRole === 'owner' 
-                    ? 'border-blue-500 bg-blue-50 shadow-md' 
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <label className={`relative flex flex-col items-center justify-center p-4 border-2 rounded-xl cursor-pointer transition-all min-h-[120px] ${
+                  workspaceRole === 'personal'
+                    ? 'border-amber-500 bg-amber-50 shadow-md'
+                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                }`}>
+                  <input
+                    {...register('workspace_role')}
+                    type="radio"
+                    value="personal"
+                    className="sr-only"
+                  />
+                  <UserCircle className={`h-7 w-7 mb-2 ${workspaceRole === 'personal' ? 'text-amber-600' : 'text-gray-400'}`} />
+                  <div className="text-center">
+                    <div className={`font-semibold text-sm ${workspaceRole === 'personal' ? 'text-amber-900' : 'text-gray-900'}`}>Personal</div>
+                    <div className="text-xs text-gray-500 mt-1 px-1">Skip company for now</div>
+                  </div>
+                </label>
+                <label className={`relative flex flex-col items-center justify-center p-4 border-2 rounded-xl cursor-pointer transition-all min-h-[120px] ${
+                  workspaceRole === 'owner'
+                    ? 'border-blue-500 bg-blue-50 shadow-md'
                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}>
                   <input
@@ -302,16 +327,15 @@ export default function SupplementProfile() {
                     value="owner"
                     className="sr-only"
                   />
-                  <Building2 className={`h-8 w-8 mb-2 ${workspaceRole === 'owner' ? 'text-blue-600' : 'text-gray-400'}`} />
+                  <Building2 className={`h-7 w-7 mb-2 ${workspaceRole === 'owner' ? 'text-blue-600' : 'text-gray-400'}`} />
                   <div className="text-center">
-                    <div className={`font-semibold ${workspaceRole === 'owner' ? 'text-blue-900' : 'text-gray-900'}`}>Owner</div>
-                    <div className="text-xs text-gray-500 mt-1">Create new company</div>
+                    <div className={`font-semibold text-sm ${workspaceRole === 'owner' ? 'text-blue-900' : 'text-gray-900'}`}>Owner</div>
+                    <div className="text-xs text-gray-500 mt-1 px-1">Create new company</div>
                   </div>
                 </label>
-                
-                <label className={`relative flex flex-col items-center justify-center p-5 border-2 rounded-xl cursor-pointer transition-all ${
-                  workspaceRole === 'member' 
-                    ? 'border-green-500 bg-green-50 shadow-md' 
+                <label className={`relative flex flex-col items-center justify-center p-4 border-2 rounded-xl cursor-pointer transition-all min-h-[120px] ${
+                  workspaceRole === 'member'
+                    ? 'border-green-500 bg-green-50 shadow-md'
                     : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
                 }`}>
                   <input
@@ -320,10 +344,10 @@ export default function SupplementProfile() {
                     value="member"
                     className="sr-only"
                   />
-                  <Users className={`h-8 w-8 mb-2 ${workspaceRole === 'member' ? 'text-green-600' : 'text-gray-400'}`} />
+                  <Users className={`h-7 w-7 mb-2 ${workspaceRole === 'member' ? 'text-green-600' : 'text-gray-400'}`} />
                   <div className="text-center">
-                    <div className={`font-semibold ${workspaceRole === 'member' ? 'text-green-900' : 'text-gray-900'}`}>Member</div>
-                    <div className="text-xs text-gray-500 mt-1">Join existing company</div>
+                    <div className={`font-semibold text-sm ${workspaceRole === 'member' ? 'text-green-900' : 'text-gray-900'}`}>Member</div>
+                    <div className="text-xs text-gray-500 mt-1 px-1">Join existing company</div>
                   </div>
                 </label>
               </div>

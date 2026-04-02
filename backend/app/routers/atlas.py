@@ -987,14 +987,11 @@ async def update_atlas_qna(
     payload: AtlasQnAUpdate,
     current_user: UserResponse = Depends(get_current_active_user),
 ):
-    """Update a Q&A record (owner only)."""
+    """Update a Q&A record (organization-scoped)."""
     db = get_database()
     coll = db.atlas_qna
     user_id = str(current_user.id)
     company_id = str(current_user.company_id) if current_user.company_id else None
-    is_owner = current_user.workspace_role == "owner" or current_user.role == "company_admin"
-    if not is_owner:
-        raise HTTPException(status_code=403, detail="Only owner can edit Q&A")
     try:
         oid = ObjectId(qna_id)
     except Exception:
@@ -1069,14 +1066,11 @@ async def approve_atlas_qna(
     qna_id: str,
     current_user: UserResponse = Depends(get_current_active_user),
 ):
-    """Approve a Q&A record (owner only)."""
+    """Approve a Q&A record (organization-scoped)."""
     db = get_database()
     coll = db.atlas_qna
     user_id = str(current_user.id)
     company_id = str(current_user.company_id) if current_user.company_id else None
-    is_owner = current_user.workspace_role == "owner" or current_user.role == "company_admin"
-    if not is_owner:
-        raise HTTPException(status_code=403, detail="Only owner can approve Q&A")
     try:
         oid = ObjectId(qna_id)
     except Exception:
@@ -1139,14 +1133,11 @@ async def delete_atlas_qna(
     qna_id: str,
     current_user: UserResponse = Depends(get_current_active_user),
 ):
-    """Delete a Q&A record (owner only)."""
+    """Delete a Q&A record (organization-scoped)."""
     db = get_database()
     coll = db.atlas_qna
     user_id = str(current_user.id)
     company_id = str(current_user.company_id) if current_user.company_id else None
-    is_owner = current_user.workspace_role == "owner" or current_user.role == "company_admin"
-    if not is_owner:
-        raise HTTPException(status_code=403, detail="Only owner can delete Q&A")
     try:
         oid = ObjectId(qna_id)
     except Exception:

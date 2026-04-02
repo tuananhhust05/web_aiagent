@@ -10,9 +10,10 @@ const GOAL_KEYS: TranslationKey[] = [
 interface Props {
   onContinue: (selected: string[]) => void
   onBack: () => void
+  onSkip?: () => void
 }
 
-const StepGoals = ({ onContinue, onBack }: Props) => {
+const StepGoals = ({ onContinue, onBack, onSkip }: Props) => {
   const [selected, setSelected] = useState<string[]>([])
   const { t } = useLanguage()
 
@@ -73,16 +74,31 @@ const StepGoals = ({ onContinue, onBack }: Props) => {
         })}
       </div>
 
-      <div className="flex gap-4">
-        <button onClick={onBack} className="btn-back px-6 py-3 text-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={onBack} className="btn-back px-6 py-3 text-sm">
           {t("back")}
         </button>
         <button
+          type="button"
           onClick={() => onContinue(selected)}
           className="btn-continue px-8 py-3 text-sm"
         >
           {t("continue")}
         </button>
+        {onSkip && (
+          <button
+            type="button"
+            onClick={onSkip}
+            className="px-6 py-3 text-sm font-medium rounded-2xl border-2 transition-all"
+            style={{
+              borderColor: "hsl(214 32% 91%)",
+              color: "hsl(215 25% 40%)",
+              background: "hsla(0 0% 100% / 0.6)",
+            }}
+          >
+            {t("skipToAccountSetup")}
+          </button>
+        )}
       </div>
     </div>
   )

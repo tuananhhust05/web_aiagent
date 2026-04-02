@@ -45,8 +45,6 @@ import {
   type AtlasQnAStats,
   type AtlasQnAOrigin,
 } from '../lib/api'
-import { useAuth } from '../hooks/useAuth'
-
 type SortField = 'usage_count' | 'created_at' | 'last_used_at' | 'growth_percent'
 type SortOrder = 'asc' | 'desc'
 
@@ -493,7 +491,6 @@ function QnADetailModal({
 
 /* ──────────────────────── Main Page ──────────────────────── */
 export default function AtlasQnAPage() {
-  const { user } = useAuth()
   const queryClient = useQueryClient()
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -510,8 +507,6 @@ export default function AtlasQnAPage() {
   const [extractTranscript, setExtractTranscript] = useState('')
   const [showScrollArrow, setShowScrollArrow] = useState(true)
   const questionsRef = useRef<HTMLDivElement>(null)
-
-  const isOwner = user?.workspace_role === 'owner' || user?.role === 'company_admin'
 
   useEffect(() => {
     const observer = new IntersectionObserver(([entry]) => setShowScrollArrow(!entry.isIntersecting), { threshold: 0.1 })
@@ -707,40 +702,24 @@ export default function AtlasQnAPage() {
               </div>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-              {!isOwner && (
-                <span className="px-2 sm:px-3 py-1.5 rounded-full bg-secondary/30 text-muted-foreground text-xs font-medium hidden sm:flex items-center gap-1.5 border border-border/30">
-                  <Eye className="h-3.5 w-3.5" />
-                  View only
-                </span>
-              )}
-              {isOwner && (
-                <span className="hidden sm:flex px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium items-center gap-1.5 border border-emerald-200">
-                  <Shield className="h-3.5 w-3.5" />
-                  Owner
-                </span>
-              )}
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={() => setIsExtractModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-semibold hover:from-violet-600 hover:to-purple-700 shadow-sm transition-all duration-300"
-                >
-                  <Brain className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Extract from Call</span>
-                  <span className="sm:hidden">Extract</span>
-                </button>
-              )}
-              {isOwner && (
-                <button
-                  type="button"
-                  onClick={() => setIsCreating(true)}
-                  className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-forskale-green to-forskale-teal text-white text-xs font-semibold hover:shadow-lg shadow-sm transition-all duration-300"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Add Q&A</span>
-                  <span className="sm:hidden">Add</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setIsExtractModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 text-white text-xs font-semibold hover:from-violet-600 hover:to-purple-700 shadow-sm transition-all duration-300"
+              >
+                <Brain className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Extract from Call</span>
+                <span className="sm:hidden">Extract</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsCreating(true)}
+                className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl bg-gradient-to-r from-forskale-green to-forskale-teal text-white text-xs font-semibold hover:shadow-lg shadow-sm transition-all duration-300"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Add Q&A</span>
+                <span className="sm:hidden">Add</span>
+              </button>
             </div>
           </div>
         </header>
@@ -832,7 +811,7 @@ export default function AtlasQnAPage() {
           )}
 
           {/* Pending alert */}
-          {mockStats.draft_count > 0 && isOwner && (
+          {mockStats.draft_count > 0 && (
             <div className="mb-8 bg-gradient-to-r from-amber-50/50 to-orange-50/50 border border-amber-200/50 rounded-xl p-4 flex items-center gap-3">
               <div className="p-2 rounded-full bg-amber-100">
                 <AlertCircle className="h-4 w-4 text-amber-600" />
@@ -1375,7 +1354,7 @@ export default function AtlasQnAPage() {
             deleteMutation.mutate(selectedItem.id)
           }
         }}
-        canEdit={isOwner}
+        canEdit
       />
 
       <QnADetailModal

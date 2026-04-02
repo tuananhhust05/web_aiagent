@@ -34,6 +34,8 @@ const JOB_TITLE_KEYS: Record<string, TranslationKey[]> = {
 
 const TOTAL_STEPS = 4
 
+const PASSWORD_STEP_INDEX = 3
+
 export default function Onboarding() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -71,12 +73,10 @@ export default function Onboarding() {
     setJobTitle("")
   }
 
+  const goToPasswordStep = () => setStep(PASSWORD_STEP_INDEX)
+
   const handleFinishPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!firstName || !lastName) {
-      toast.error('Please enter your full name')
-      return
-    }
     if (password.length < 8) {
       toast.error('Password must be at least 8 characters')
       return
@@ -90,8 +90,8 @@ export default function Onboarding() {
       const username = emailFromUrl.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '') + Math.floor(Math.random() * 1000)
       const { error } = await signUp({
         email: emailFromUrl,
-        first_name: firstName,
-        last_name: lastName,
+        first_name: firstName.trim() || undefined,
+        last_name: lastName.trim() || undefined,
         username,
         password,
         language: language || 'en',
@@ -200,17 +200,43 @@ export default function Onboarding() {
                   </div>
                 </div>
 
-                <button onClick={() => setStep(1)} className="btn-continue px-8 py-3 text-sm mt-1">
-                  {t("continue")}
-                </button>
+                <div className="flex flex-wrap items-center gap-3 mt-1">
+                  <button type="button" onClick={() => setStep(1)} className="btn-continue px-8 py-3 text-sm">
+                    {t("continue")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goToPasswordStep}
+                    className="px-8 py-3 text-sm font-medium rounded-2xl border-2 transition-all"
+                    style={{
+                      borderColor: "hsl(214 32% 91%)",
+                      color: "hsl(215 25% 40%)",
+                      background: "hsla(0 0% 100% / 0.6)",
+                    }}
+                  >
+                    {t("skipToAccountSetup")}
+                  </button>
+                </div>
               </div>
             )}
 
             {/* ── Step 1: Goals ── */}
-            {step === 1 && <StepGoals onContinue={() => setStep(2)} onBack={() => setStep(0)} />}
+            {step === 1 && (
+              <StepGoals
+                onContinue={() => setStep(2)}
+                onBack={() => setStep(0)}
+                onSkip={goToPasswordStep}
+              />
+            )}
 
             {/* ── Step 2: Familiarity ── */}
-            {step === 2 && <StepFamiliarity onContinue={() => setStep(3)} onBack={() => setStep(1)} />}
+            {step === 2 && (
+              <StepFamiliarity
+                onContinue={() => setStep(3)}
+                onBack={() => setStep(1)}
+                onSkip={goToPasswordStep}
+              />
+            )}
 
             {/* ── Step 3: Password setup ── */}
             {step === 3 && (
@@ -227,7 +253,7 @@ export default function Onboarding() {
                 <form onSubmit={handleFinishPassword} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-medium mb-1.5" style={{ color: "hsl(215 16% 47%)" }}>{t("firstName")}</label>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: "hsl(215 16% 47%)" }}>{t("firstName")} <span style={{ fontWeight: 400 }}>(optional)</span></label>
                       <input
                         type="text" placeholder={t("firstNamePlaceholder")} value={firstName}
                         onChange={(e) => setFirstName(e.target.value)}
@@ -238,7 +264,7 @@ export default function Onboarding() {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium mb-1.5" style={{ color: "hsl(215 16% 47%)" }}>{t("lastName")}</label>
+                      <label className="block text-xs font-medium mb-1.5" style={{ color: "hsl(215 16% 47%)" }}>{t("lastName")} <span style={{ fontWeight: 400 }}>(optional)</span></label>
                       <input
                         type="text" placeholder={t("lastNamePlaceholder")} value={lastName}
                         onChange={(e) => setLastName(e.target.value)}

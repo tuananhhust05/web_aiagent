@@ -36,12 +36,12 @@ logger = logging.getLogger(__name__)
 
 class SupplementProfileRequest(BaseModel):
     """Request body for POST /auth/supplement-profile: update user + optional company creation."""
-    first_name: str = Field(..., min_length=1, max_length=50)
-    last_name: str = Field(..., min_length=1, max_length=50)
+    first_name: Optional[str] = Field(None, max_length=50)
+    last_name: Optional[str] = Field(None, max_length=50)
     phone: Optional[str] = None
     industry: Optional[str] = None
-    language: str = Field(..., min_length=1)
-    workspace_role: Literal["owner", "member"]
+    language: str = Field(default="en", min_length=1)
+    workspace_role: Literal["owner", "member", "personal"]
     company_id: Optional[str] = None
     company_name: Optional[str] = None
     company_website: Optional[str] = None
@@ -154,19 +154,20 @@ async def register(user_data: UserCreate):
         )
     
     user_id = str(ObjectId())
-    # Leave company and workspace_role empty so user must choose on supplement-profile
     company_id = None
     company_name = None
     user_role = "user"
-    workspace_role = None  # Required to be set by user on supplement-profile
+    workspace_role = None
 
-    # Create user document (no company/workspace_role; user chooses on supplement-profile)
+    reg_first = (user_data.first_name or "").strip() or "User"
+    reg_last = (user_data.last_name or "").strip() or "\u2014"
+
     user_doc = {
         "_id": user_id,
         "email": user_data.email,
         "username": user_data.username,
-        "first_name": user_data.first_name,
-        "last_name": user_data.last_name,
+        "first_name": reg_first,
+        "last_name": reg_last,
         "company_name": company_name,
         "company_id": company_id,
         "industry": user_data.industry,
@@ -431,19 +432,27 @@ async def supplement_profile(
         )
 
     user_id = current_user.id
+    first_name = (body.first_name or "").strip() or "User"
+    last_name = (body.last_name or "").strip() or "\u2014"
+
     update_data = {
-        "first_name": body.first_name,
-        "last_name": body.last_name,
+        "first_name": first_name,
+        "last_name": last_name,
         "phone": body.phone or None,
         "industry": body.industry or None,
         "language": body.language,
         "terms_accepted": True,
         "gdpr_consent": True,
-        "workspace_role": body.workspace_role,
         "updated_at": datetime.utcnow(),
     }
 
-    if body.workspace_role == "owner" and body.company_name:
+    if body.workspace_role == "personal":
+        update_data["workspace_role"] = "owner"
+        update_data["company_id"] = None
+        update_data["company_name"] = None
+        update_data["role"] = UserRole.USER.value
+    elif body.workspace_role == "owner" and body.company_name:
+        update_data["workspace_role"] = "owner"
         existing = await db.companies.find_one({"name": body.company_name.strip()})
         if existing:
             raise HTTPException(
@@ -481,6 +490,7 @@ async def supplement_profile(
         update_data["role"] = UserRole.COMPANY_ADMIN.value
         logger.info("Supplement-profile: created company %s for user %s", company_id, user_id)
     elif body.workspace_role == "member" and body.company_id:
+        update_data["workspace_role"] = "member"
         company = await db.companies.find_one({"_id": body.company_id.strip(), "is_active": True})
         if not company:
             raise HTTPException(

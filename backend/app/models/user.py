@@ -39,7 +39,17 @@ class UserBase(BaseModel):
     language: Optional[str] = None
     phone: Optional[str] = None
 
-class UserCreate(UserBase):
+class UserCreate(BaseModel):
+    email: EmailStr
+    username: str = Field(..., min_length=3, max_length=50)
+    first_name: Optional[str] = Field(None, max_length=50)
+    last_name: Optional[str] = Field(None, max_length=50)
+    company_name: Optional[str] = None
+    company_id: Optional[str] = None
+    industry: Optional[Industry] = None
+    tone: Optional[Tone] = None
+    language: Optional[str] = None
+    phone: Optional[str] = None
     password: str = Field(..., min_length=8)
 
 class UserUpdate(BaseModel):

@@ -10,9 +10,10 @@ const LEVELS = [
 interface Props {
   onContinue: (level: string) => void
   onBack: () => void
+  onSkip?: () => void
 }
 
-const StepFamiliarity = ({ onContinue, onBack }: Props) => {
+const StepFamiliarity = ({ onContinue, onBack, onSkip }: Props) => {
   const [selected, setSelected] = useState("")
   const { t } = useLanguage()
 
@@ -80,11 +81,12 @@ const StepFamiliarity = ({ onContinue, onBack }: Props) => {
         })}
       </div>
 
-      <div className="flex gap-4">
-        <button onClick={onBack} className="btn-back px-6 py-3 text-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" onClick={onBack} className="btn-back px-6 py-3 text-sm">
           {t("back")}
         </button>
         <button
+          type="button"
           onClick={() => onContinue(selected)}
           disabled={!selected}
           className="px-8 py-3 text-sm"
@@ -105,6 +107,20 @@ const StepFamiliarity = ({ onContinue, onBack }: Props) => {
         >
           {t("continueToSetup")}
         </button>
+        {onSkip && (
+          <button
+            type="button"
+            onClick={onSkip}
+            className="px-6 py-3 text-sm font-medium rounded-2xl border-2 transition-all"
+            style={{
+              borderColor: "hsl(214 32% 91%)",
+              color: "hsl(215 25% 40%)",
+              background: "hsla(0 0% 100% / 0.6)",
+            }}
+          >
+            {t("skipToAccountSetup")}
+          </button>
+        )}
       </div>
     </div>
   )
