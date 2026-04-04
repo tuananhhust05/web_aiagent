@@ -17,7 +17,7 @@ import {
   Copy,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { TodoItem, DraftTone } from "../../../lib/api";
+import type { TodoItem, DraftTone, EmailSourceContent } from "../../../lib/api";
 import { todoReadyAPI } from "../../../lib/api";
 import { toast } from "react-hot-toast";
 import InteractionSummary from "./InteractionSummary";
@@ -36,6 +36,13 @@ const NEXT_STEP_ICONS: Record<string, typeof Mail> = {
   schedule_followup_call: Calendar,
   schedule_demo: Calendar,
 };
+
+function decodeHtmlEntities(text: string): string {
+  if (!text) return text;
+  const textarea = document.createElement('textarea');
+  textarea.innerHTML = text;
+  return textarea.value;
+}
 
 function parseDecisionFactor(raw: string): { label: string; value: string } {
   const idx = raw.indexOf(":");
@@ -57,6 +64,9 @@ export default function ActionCardExpanded({
   const queryClient = useQueryClient();
   const [showDraft, setShowDraft] = useState(false);
   const [showOriginalEmail, setShowOriginalEmail] = useState(false);
+  const [emailContent, setEmailContent] = useState<EmailSourceContent | null>(null);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState(false);
   const [showFullDraft, setShowFullDraft] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [selectedTone, setSelectedTone] = useState<DraftTone>("professional");
@@ -172,7 +182,30 @@ export default function ActionCardExpanded({
           {task.source === 'email' && task.description && (
             <div className="rounded-xl border border-border bg-card p-4">
               <button
-                onClick={() => setShowOriginalEmail(!showOriginalEmail)}
+                onClick={() => {
+                  const opening = !showOriginalEmail;
+                  setShowOriginalEmail(opening);
+                  // Fetch on first expand only (cache in emailContent state)
+                  if (opening && !emailContent && !emailLoading) {
+                    setEmailLoading(true);
+                    setEmailError(false);
+                    todoReadyAPI.getSourceContent(task.id)
+                      .then((res) => {
+                        const data = res.data;
+                        if (data.type === 'email' && data.content) {
+                          setEmailContent(data.content as EmailSourceContent);
+                        } else {
+                          setEmailError(true);
+                        }
+                      })
+                      .catch(() => {
+                        setEmailError(true);
+                      })
+                      .finally(() => {
+                        setEmailLoading(false);
+                      });
+                  }
+                }}
                 className="flex w-full items-center justify-between gap-3 text-left"
               >
                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
@@ -187,12 +220,49 @@ export default function ActionCardExpanded({
               </button>
               {showOriginalEmail && (
                 <div className="mt-3 space-y-2">
-                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                    {task.title.replace('Reply to: ', '')}
-                  </p>
-                  <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
-                    {task.description}
-                  </p>
+                  {emailLoading ? (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 size={18} className="animate-spin text-muted-foreground" />
+                    </div>
+                  ) : emailContent ? (
+                    <>
+                      {/* Metadata row */}
+                      <div className="space-y-1 rounded-lg bg-secondary px-3 py-2 text-[11px] text-muted-foreground">
+                        <div className="flex gap-2">
+                          <span className="font-semibold uppercase tracking-wide w-8 shrink-0">From</span>
+                          <span className="break-all">{emailContent.from}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="font-semibold uppercase tracking-wide w-8 shrink-0">To</span>
+                          <span className="break-all">{emailContent.to}</span>
+                        </div>
+                        {emailContent.date && (
+                          <div className="flex gap-2">
+                            <span className="font-semibold uppercase tracking-wide w-8 shrink-0">Date</span>
+                            <span>{emailContent.date}</span>
+                          </div>
+                        )}
+                      </div>
+                      {/* Full body */}
+                      <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
+                        {decodeHtmlEntities(emailContent.body)}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                        {task.title.replace('Reply to: ', '')}
+                      </p>
+                      <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
+                        {decodeHtmlEntities(task.description ?? '')}
+                      </p>
+                      {emailError && (
+                        <p className="text-[11px] text-muted-foreground italic">
+                          Preview only — full email unavailable
+                        </p>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>

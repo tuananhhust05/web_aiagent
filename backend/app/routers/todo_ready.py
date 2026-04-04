@@ -1131,6 +1131,59 @@ async def get_memory_signals(
     return MemorySignalsResponse(signals=signals[:10], total=len(signals))
 
 
+async def _enrich_new_todos(db, user_id: str, new_todo_docs: list) -> None:
+    """
+    Background task: for each newly inserted todo doc, re-fetch the full email/meeting
+    context, re-classify intent with full context, generate task_strategy via AI, and
+    persist both fields back to MongoDB.
+
+    Only processes items with source == email or meeting (skips manual).
+    Runs fire-and-forget; exceptions per-item are caught so one failure never stops the rest.
+    """
+    eligible_sources = {TodoSource.EMAIL.value, TodoSource.MEETING.value}
+    for doc in new_todo_docs:
+        if doc.get("source") not in eligible_sources:
+            continue
+        item_id = doc.get("_id")
+        try:
+            # 1) Re-fetch the full email body / meeting transcript
+            full_context = await _get_full_context_for_task(db, user_id, doc)
+            text_for_intent = full_context or (doc.get("title") or "") + " " + (doc.get("description") or "")
+
+            updates: dict = {}
+            now = datetime.utcnow()
+
+            # 2) Re-classify intent with full context (may differ from snippet-based result)
+            new_intent = await _classify_intent_for_text(text_for_intent.strip())
+            if new_intent and new_intent != doc.get("intent_category"):
+                updates["intent_category"] = new_intent
+                doc["intent_category"] = new_intent  # keep local copy fresh for strategy generation
+                logger.info(f"[BG ENRICH] item={item_id} intent re-classified → {new_intent}")
+
+            # 3) Search knowledge base for strategy enrichment
+            knowledge_context = await _search_knowledge_for_context(
+                text_for_intent[:1500] if text_for_intent else (doc.get("title") or "")
+            )
+
+            # 4) Generate task strategy with AI (full context + knowledge)
+            strategy_dict = await _generate_task_strategy_with_ai(doc, full_context, knowledge_context)
+            if not strategy_dict:
+                strategy_dict = _default_task_strategy(doc)
+            updates["task_strategy"] = strategy_dict
+
+            if updates:
+                updates["updated_at"] = now
+                try:
+                    query = {"_id": item_id, "user_id": user_id}
+                    await db.todo_items.update_one(query, {"$set": updates})
+                    logger.info(f"[BG ENRICH] item={item_id} enriched — fields: {list(updates.keys())}")
+                except Exception as db_err:
+                    logger.warning(f"[BG ENRICH] item={item_id} DB update failed: {db_err}")
+
+        except Exception as e:
+            logger.warning(f"[BG ENRICH] item={item_id} enrichment failed (non-blocking): {e}")
+
+
 @router.post("/analyze")
 async def analyze_new_items(
     current_user: UserResponse = Depends(get_current_active_user),
@@ -1329,6 +1382,8 @@ async def analyze_new_items(
     if new_todos:
         await db.todo_items.insert_many(new_todos)
         logger.info(f"Created {len(new_todos)} new todo items for user {user_id}")
+        await _enrich_new_todos(db, user_id, list(new_todos))
+        logger.info(f"[ENRICH] Completed enrichment for {len(new_todos)} items")
     
     if new_email_ids:
         await db.email_analysis_state.update_one(

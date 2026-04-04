@@ -1,6 +1,7 @@
-"""
+﻿"""
 Gmail Service for reading and sending emails using user's Gmail account
 """
+import html as html_module
 import httpx
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List
@@ -168,7 +169,7 @@ class GmailService:
         token_expiry = user.get("google_token_expiry")
         stored_scope = user.get("google_gmail_scope", "")
         
-        logger.info(f"🔍 [GMAIL] User {user_id}: has_token={bool(access_token)}, stored_scope={stored_scope}")
+        logger.info(f"🔑 [GMAIL] User {user_id}: has_token={bool(access_token)}, stored_scope={stored_scope}")
         
         # Check if token is expired or about to expire (within 5 minutes)
         if not access_token or not token_expiry:
@@ -186,7 +187,7 @@ class GmailService:
         # Log token info for debugging
         if access_token:
             token_preview = access_token[:20] + "..." if len(access_token) > 20 else access_token
-            logger.info(f"🔑 [GMAIL] Using access token: {token_preview}")
+            logger.info(f"🔒 [GMAIL] Using access token: {token_preview}")
         
         return access_token
     
@@ -273,7 +274,7 @@ class GmailService:
                                 except:
                                     pass
                             
-                            snippet = msg_data.get("snippet", "")
+                            snippet = html_module.unescape(msg_data.get("snippet", ""))
                             thread_id = msg_data.get("threadId", "")
                             
                             emails.append({
@@ -403,14 +404,12 @@ class GmailService:
                 data = part.get("body", {}).get("data")
                 if data:
                     try:
-                        html = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
+                        html_content = base64.urlsafe_b64decode(data).decode("utf-8", errors="ignore")
                         # Simple HTML to text conversion
                         import re
-                        body_text = re.sub(r'<[^>]+>', '', html)
-                        body_text = body_text.replace('&nbsp;', ' ')
-                        body_text = body_text.replace('&amp;', '&')
-                        body_text = body_text.replace('&lt;', '<')
-                        body_text = body_text.replace('&gt;', '>')
+                        body_text = re.sub(r'<[^>]+>', '', html_content)
+                        body_text = html_module.unescape(body_text)
+                        body_text = body_text.replace('\xa0', ' ')
                     except Exception:
                         pass
             
@@ -563,4 +562,3 @@ class GmailService:
 
 # Create global instance
 gmail_service = GmailService()
-
