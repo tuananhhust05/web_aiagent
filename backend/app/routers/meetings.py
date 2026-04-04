@@ -21,6 +21,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 import math
 import httpx
 from pydantic import BaseModel, Field
+from openai import OpenAI
 from ..core.config import settings
 import json
 from ..services.ai_sales_copilot import analyze_call_against_playbook
@@ -581,63 +582,36 @@ def _compute_speaking_metrics(lines: Any) -> Dict[str, Any]:
     }
 
 
-def _groq_429_sleep_seconds(response: httpx.Response) -> float:
-    wait = 4.0
-    ra = response.headers.get("Retry-After")
-    if ra:
-        try:
-            wait = max(wait, min(90.0, float(ra)))
-        except ValueError:
-            pass
+def _get_claude_client() -> OpenAI:
+    return OpenAI(
+        api_key=settings.ANTHROPIC_AUTH_TOKEN,
+        base_url=settings.ANTHROPIC_BASE_URL,
+    )
+
+
+async def _call_claude_json(prompt: str) -> Any:
+    """Call Claude via OpenAI-compatible SDK and parse JSON response safely."""
+    if not settings.ANTHROPIC_AUTH_TOKEN:
+        raise RuntimeError("Missing ANTHROPIC_AUTH_TOKEN")
+
+    def _sync_call() -> str:
+        client = _get_claude_client()
+        response = client.chat.completions.create(
+            model="claude-haiku-4.6",
+            messages=[
+                {"role": "system", "content": "Return ONLY valid JSON. No markdown. No extra text."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+            max_tokens=8000,
+        )
+        return (response.choices[0].message.content or "").strip()
+
     try:
-        body = response.json()
-        msg = str((body.get("error") or {}).get("message") or "")
-        m = re.search(r"try again in ([\d.]+)\s*s", msg, re.IGNORECASE)
-        if m:
-            wait = max(wait, min(90.0, float(m.group(1)) + 0.5))
+        content = await asyncio.to_thread(_sync_call)
     except Exception:
-        pass
-    return wait
+        raise
 
-
-async def _call_groq_json(prompt: str) -> Any:
-    """Call Groq chat completions and parse JSON response safely."""
-    if not settings.GROQ_API_KEY:
-        raise RuntimeError("Missing GROQ_API_KEY")
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
-    payload = {
-        "model": "llama-3.1-8b-instant",
-        "messages": [
-            {"role": "system", "content": "Return ONLY valid JSON. No markdown. No extra text."},
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.2,
-    }
-    max_attempts = 8
-    data: Any = None
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        for attempt in range(max_attempts):
-            r = await client.post(url, headers=headers, json=payload)
-            if r.status_code == 429:
-                sleep_s = _groq_429_sleep_seconds(r)
-                if attempt >= max_attempts - 1:
-                    r.raise_for_status()
-                logger.warning(
-                    "Groq rate limit (429), retry in %.1fs (%s/%s)",
-                    sleep_s,
-                    attempt + 1,
-                    max_attempts,
-                )
-                await asyncio.sleep(sleep_s)
-                continue
-            r.raise_for_status()
-            data = r.json()
-            break
-    if data is None:
-        raise RuntimeError("Groq request exhausted retries")
-    content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-    content = content.strip()
     # attempt direct json parse; else try extracting first {...} block
     try:
         return json.loads(content)
@@ -647,6 +621,30 @@ async def _call_groq_json(prompt: str) -> Any:
         if start != -1 and end != -1 and end > start:
             return json.loads(content[start : end + 1])
         raise
+
+
+async def _call_claude_text(prompt: str) -> str:
+    """Call Claude via OpenAI-compatible SDK and return plain text response."""
+    if not settings.ANTHROPIC_AUTH_TOKEN:
+        return ""
+
+    def _sync_call() -> str:
+        client = _get_claude_client()
+        response = client.chat.completions.create(
+            model="claude-haiku-4.6",
+            messages=[
+                {"role": "system", "content": "You are a helpful sales rep. Answer concisely."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=1000,
+        )
+        return (response.choices[0].message.content or "").strip()
+
+    try:
+        return await asyncio.to_thread(_sync_call)
+    except Exception:
+        return ""
 
 
 def _extract_google_meet_id(link: str) -> Optional[str]:
@@ -1220,7 +1218,7 @@ Return a JSON object with:
 
 Be concise. Key points and learning opportunities should be 5-10 words each."""
     try:
-        result = await _call_groq_json(prompt)
+        result = await _call_claude_json(prompt)
         return {
             "match_score": int(result.get("match_score") or 70),
             "key_points_covered": [str(x) for x in (result.get("key_points_covered") or [])],
@@ -1257,25 +1255,7 @@ async def _generate_suggested_answer(question: str) -> str:
 
 Write a concise, helpful suggested answer (1-3 sentences) that a sales rep should give.
 Return ONLY the answer text, no JSON, no labels."""
-    try:
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            r = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                headers={"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"},
-                json={
-                    "model": "llama-3.1-8b-instant",
-                    "messages": [
-                        {"role": "system", "content": "You are a helpful sales rep. Answer concisely."},
-                        {"role": "user", "content": prompt},
-                    ],
-                    "temperature": 0.3,
-                },
-            )
-            r.raise_for_status()
-            data = r.json()
-        return (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-    except Exception:
-        return ""
+    return await _call_claude_text(prompt)
 
 
 def _classify_objection_topic(question: str) -> str:
@@ -2280,7 +2260,7 @@ Transcript:
 """.strip()
 
     try:
-        generated = await _call_groq_json(prompt)
+        generated = await _call_claude_json(prompt)
         summary = _sanitize_summary((generated or {}).get("summary"))
         next_steps = _sanitize_next_steps((generated or {}).get("next_steps"))
         qna = _sanitize_qna((generated or {}).get("questions_and_objections"))
@@ -2447,7 +2427,7 @@ Transcript:
 """.strip()
 
     try:
-        generated = await _call_groq_json(prompt)
+        generated = await _call_claude_json(prompt)
         raw_quality = (generated or {}).get("quality_score")
         raw_metrics = (generated or {}).get("metrics") or []
         raw_did_well = (generated or {}).get("did_well") or []
@@ -3214,7 +3194,7 @@ Transcript:
 """.strip()
 
     try:
-        generated = await _call_groq_json(prompt)
+        generated = await _call_claude_json(prompt)
         raw_outcome = generated.get("outcome") or {}
         raw_insights = generated.get("strategic_insights") or []
         raw_actions = generated.get("recommended_actions") or []
@@ -3568,7 +3548,7 @@ Rules:
 """.strip()
 
     try:
-        generated = await _call_groq_json(prompt)
+        generated = await _call_claude_json(prompt)
 
         def _parse_health(h):
             if not h:
@@ -3796,7 +3776,7 @@ Return JSON with this EXACT structure:
 }}"""
 
     try:
-        result = await _call_groq_json(prompt)
+        result = await _call_claude_json(prompt)
         now = datetime.utcnow()
 
         objective = result.get("objective") or ""

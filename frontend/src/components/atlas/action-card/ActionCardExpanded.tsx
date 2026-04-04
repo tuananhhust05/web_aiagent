@@ -56,6 +56,7 @@ export default function ActionCardExpanded({
 }) {
   const queryClient = useQueryClient();
   const [showDraft, setShowDraft] = useState(false);
+  const [showOriginalEmail, setShowOriginalEmail] = useState(false);
   const [showFullDraft, setShowFullDraft] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
   const [selectedTone, setSelectedTone] = useState<DraftTone>("professional");
@@ -165,6 +166,36 @@ export default function ActionCardExpanded({
           {/* ── Section 1: Interaction Summary ── */}
           {interactionSummary && (
             <InteractionSummary summary={interactionSummary} history={interactionHistory} />
+          )}
+
+          {/* ── Original Email Preview ── */}
+          {task.source === 'email' && task.description && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <button
+                onClick={() => setShowOriginalEmail(!showOriginalEmail)}
+                className="flex w-full items-center justify-between gap-3 text-left"
+              >
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                  <Mail size={14} />
+                  Original Email
+                </div>
+                {showOriginalEmail ? (
+                  <ChevronUp size={16} className="text-muted-foreground" />
+                ) : (
+                  <ChevronDown size={16} className="text-muted-foreground" />
+                )}
+              </button>
+              {showOriginalEmail && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                    {task.title.replace('Reply to: ', '')}
+                  </p>
+                  <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap break-words">
+                    {task.description}
+                  </p>
+                </div>
+              )}
+            </div>
           )}
 
           {/* ── Section 2: Strategic Next Step ── */}

@@ -21,12 +21,19 @@ export default function ActionCard({
   const [containerH, setContainerH] = useState<number | undefined>(undefined);
 
   useEffect(() => {
-    if (expanded && backRef.current) {
-      setContainerH(backRef.current.scrollHeight);
-    } else if (!expanded && frontRef.current) {
-      setContainerH(frontRef.current.scrollHeight);
+    if (!expanded) {
+      if (frontRef.current) setContainerH(frontRef.current.offsetHeight);
+      return;
     }
-  }, [expanded, task]);
+    const el = backRef.current;
+    if (!el) return;
+    setContainerH(el.scrollHeight); // initial
+    const ro = new ResizeObserver(() => {
+      setContainerH(el.scrollHeight);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [expanded]);
 
   const handleResolve = () => {
     setResolving(true);
@@ -35,14 +42,12 @@ export default function ActionCard({
 
   const handleOpen = () => {
     if (expanded) return;
-    if (backRef.current) setContainerH(backRef.current.scrollHeight);
     setExpanded(true);
     onOpen?.(task);
   };
 
   const handleClose = () => {
     if (!expanded || resolved) return;
-    if (frontRef.current) setContainerH(frontRef.current.scrollHeight);
     setExpanded(false);
   };
 

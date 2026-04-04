@@ -11,7 +11,9 @@ from typing import Optional, List, Literal
 from datetime import datetime, timedelta
 from bson import ObjectId
 import logging
+import asyncio
 import httpx
+from openai import OpenAI
 
 from app.models.user import UserResponse
 from app.core.auth import get_current_active_user
@@ -40,6 +42,56 @@ KNOWLEDGE_CATEGORIES = [
 ]
 
 router = APIRouter()
+
+
+def _get_claude_client():
+    """Return an OpenAI-SDK client pointed at Claude (via Anthropic-compatible endpoint)."""
+    return OpenAI(
+        api_key=settings.ANTHROPIC_AUTH_TOKEN,
+        base_url=settings.ANTHROPIC_BASE_URL,
+    )
+
+
+async def _generate_initial_draft_for_email(subject: str, snippet: str, from_email: str = "") -> str:
+    """Generate a vivid, context-aware draft reply for an incoming email using Claude.
+    Falls back to a minimal placeholder if Claude is unavailable."""
+    if not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
+        return f"Thanks for reaching out about {subject}. I'll get back to you shortly."
+
+    sender_hint = f" from {from_email}" if from_email else ""
+    prompt = f"""You are a world-class B2B sales professional. You just received this email{sender_hint}:
+
+Subject: {subject}
+Preview: {snippet}
+
+Write a sharp, engaging reply email body (3-5 sentences) that:
+- Opens with a compelling hook (NOT "Thank you for your email" or "Hope this finds you well")
+- Acknowledges the specific topic/ask from their email
+- Shows genuine understanding of their situation or need
+- Ends with one clear, confident next-step call-to-action
+- Tone: professional, warm, peer-to-peer. No hollow pleasantries. No fluff.
+
+Output ONLY the email body text. No subject line. No greeting (e.g., "Hi [Name],"). Body paragraphs only."""
+
+    try:
+        def _call():
+            c = _get_claude_client()
+            resp = c.chat.completions.create(
+                model="claude-sonnet-4-6",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,
+                max_tokens=8000,
+            )
+            return resp.choices[0].message.content or ""
+
+        content = await asyncio.to_thread(_call)
+        draft = content.strip()
+        if draft:
+            return draft
+    except Exception as e:
+        logger.warning(f"Initial draft generation failed: {e}")
+
+    return f"Thanks for reaching out about {subject}. Let me review and come back to you with a thoughtful response."
 
 
 async def _get_or_create_email_analysis_state(db, user_id: str) -> dict:
@@ -127,11 +179,11 @@ INTENT_CATEGORIES = [
 
 
 async def _classify_intent_for_text(text: str) -> Optional[str]:
-    """Use Groq to classify intent category from task/email/meeting text. Returns one of INTENT_CATEGORIES or None."""
+    """Use Claude to classify intent category from task/email/meeting text. Returns one of INTENT_CATEGORIES or None."""
     if not text or not text.strip():
         return None
-    if not getattr(settings, "GROQ_API_KEY", None) or not settings.GROQ_API_KEY:
-        logger.debug("GROQ_API_KEY not set, skipping intent classification")
+    if not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None) or not settings.ANTHROPIC_AUTH_TOKEN:
+        logger.debug("ANTHROPIC_AUTH_TOKEN not set, skipping intent classification")
         return None
     prompt = f"""You are a B2B sales intent classifier. Classify the prospect/customer message into exactly ONE category.
 
@@ -155,21 +207,17 @@ CONTENT TO CLASSIFY:
 
 Reply with ONLY the category key. No punctuation, no explanation."""
     try:
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.1,
-            "max_tokens": 20,
-        }
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.post(url, headers=headers, json=payload)
-            r.raise_for_status()
-            data = r.json()
-        content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        def _call():
+            c = _get_claude_client()
+            resp = c.chat.completions.create(
+                model="claude-haiku-4.6",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.1,
+                max_tokens=2000,
+            )
+            return resp.choices[0].message.content or ""
+
+        content = await asyncio.to_thread(_call)
         raw = content.strip().lower().replace(".", "").strip()
         # Map back to snake_case key
         for cat in INTENT_CATEGORIES:
@@ -366,9 +414,9 @@ def _default_task_strategy(doc: dict) -> dict:
 
 
 async def _generate_task_strategy_with_ai(doc: dict, full_context: Optional[str] = None, knowledge_context: Optional[str] = None) -> Optional[dict]:
-    """Use Groq to generate strategy (objective, key_topics, reasoning, alternatives with confidence).
+    """Use Claude to generate strategy (objective, key_topics, reasoning, alternatives with confidence).
     Now enriched with knowledge base context from Weaviate when available."""
-    if not getattr(settings, "GROQ_API_KEY", None) or not settings.GROQ_API_KEY:
+    if not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None) or not settings.ANTHROPIC_AUTH_TOKEN:
         return None
     title = (doc.get("title") or "")[:200]
     desc = (doc.get("description") or "")[:500]
@@ -378,39 +426,44 @@ async def _generate_task_strategy_with_ai(doc: dict, full_context: Optional[str]
     knowledge_block = ""
     if knowledge_context:
         knowledge_block = f"\n\nRelevant Knowledge Base (use this to make your strategy concrete and grounded):\n{knowledge_context}"
-    prompt = f"""You are a B2B sales strategy advisor. For this task, output a JSON object (no markdown, no code block) with:
+    prompt = f"""You are an elite B2B sales strategist with deep expertise in enterprise SaaS deals. Analyze this task and produce a razor-sharp, actionable strategy.
+
+Output a JSON object (no markdown, no code block) with:
 
 - recommended_next_step_type: one of send_email, make_call, share_case_study, escalate_technical_validation, schedule_followup_call
-- recommended_next_step_label: short phrase e.g. "Send email addressing pricing and timeline"
-- objective: one clear commercial objective, e.g. "Re-anchor value", "Reduce pricing resistance", "Confirm timeline", "Move to demo"
-- key_topics: array of 2-4 short strings (specific topics to cover in email or call; be concrete)
-- strategic_reasoning: 1-2 sentences explaining why this step and why now
-- decision_factors: array of 2-4 short strings (e.g. "Intent: interested", "Source: email", "Deal stage: negotiation")
-- alternative_actions: array of 2-3 objects, each with action_type (same enum), label (string), confidence (0-100). Give lower confidence to less ideal options.
+- recommended_next_step_label: a compelling, specific action phrase (e.g. "Send a ROI-anchored follow-up highlighting time-to-value")
+- objective: one powerful commercial objective with clear outcome (e.g. "Eliminate pricing resistance by anchoring on 3x ROI within 90 days")
+- key_topics: array of 2-4 specific, high-impact topics to cover — name actual points, not generic labels. Be concrete and bold.
+- strategic_reasoning: 2-3 sentences. Explain WHY this step, WHY now, and what commercial risk exists if not acted on. Make it urgent and specific.
+- decision_factors: array of 2-4 short strings capturing the key signals driving this recommendation (e.g. "Meeting intent detected", "High-value prospect", "Competitor risk")
+- alternative_actions: array of 2-3 objects, each with action_type (same enum), label (string, specific and actionable), confidence (0-100 integer). Rank by effectiveness.
 
-Consider intent when choosing: do_not_contact → no execution; not_now → schedule follow-up; meeting_intent → prioritize calendar/demo; interested → move deal forward.
+Intent signals guide the recommendation:
+- do_not_contact → do NOT generate execution steps; flag clearly
+- not_now → recommend a perfectly timed re-engagement sequence
+- meeting_intent → strike while hot: get calendar booked immediately
+- interested → accelerate deal velocity with a value-packed next touch
+- forwarded → leverage the internal champion to expand deal scope
 
-Task:
+Task details:
 Title: {title}
 Description: {desc}
 Source: {source}
 Intent: {intent}{context_block}{knowledge_block}
 
-Output only valid JSON, no other text."""
+Output only valid JSON. No explanation, no markdown."""
     try:
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.2,
-            "max_tokens": 600,
-        }
-        async with httpx.AsyncClient(timeout=20.0) as client:
-            r = await client.post(url, headers=headers, json=payload)
-            r.raise_for_status()
-            data = r.json()
-        content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+        def _call():
+            c = _get_claude_client()
+            resp = c.chat.completions.create(
+                model="claude-haiku-4.6",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=6000,
+            )
+            return resp.choices[0].message.content or ""
+
+        content = await asyncio.to_thread(_call)
         content = content.strip()
         if content.startswith("```"):
             content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
@@ -679,7 +732,7 @@ async def suggest_script_for_item(
     objective = strategy.get("objective") or "Follow up"
     prepared = doc.get("prepared_action") or {}
     draft = prepared.get("draft_text") or ""
-    if key_topics and getattr(settings, "GROQ_API_KEY", None):
+    if key_topics and getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
         # Enrich with knowledge base for more grounded email drafts
         logger.info(f"✍️ [SUGGEST SCRIPT] item={item_id} — searching knowledge base for email draft enrichment...")
         search_text = (doc.get("title") or "") + " " + (doc.get("description") or "") + " " + " ".join(key_topics)
@@ -688,32 +741,36 @@ async def suggest_script_for_item(
         knowledge_block = ""
         if knowledge_context:
             knowledge_block = f"\n\nRelevant product/company knowledge (use to make the reply specific and accurate):\n{knowledge_context}\n"
-        prompt = f"""Write a professional B2B reply email (2-5 sentences) that:
-- Achieves this commercial objective: {objective}
-- Addresses these key topics in order: {', '.join(key_topics)}
-- Tone: professional, clear, action-oriented. No fluff.
-- Do not include subject line or greeting if the thread already has one; output only the body paragraphs.
-- If knowledge base info is provided, use specific facts (pricing, features, policies) to make the reply concrete.
+        prompt = f"""You are a world-class B2B sales writer known for crafting emails that get replies. Write a reply email body (3-6 sentences) that:
+
+COMMERCIAL GOAL: {objective}
+KEY TOPICS TO HIT (in this order): {', '.join(key_topics)}
+
+WRITING RULES:
+- Open with a pattern-interrupt or a compelling hook (not "I hope this email finds you well")
+- Be specific: reference their situation, not generic industry statements
+- Use active voice and strong verbs — make every sentence earn its place
+- One clear, confident call-to-action at the end (a question or a next-step invite)
+- Tone: sharp, confident, peer-to-peer. No corporate fluff, no hollow pleasantries.
+- If knowledge base facts are provided below, weave in 1-2 specific data points naturally
+- Length: 3-6 sentences total. No subject line. No greeting. Body only.
 
 Task: {doc.get('title', '')}
 Context: {doc.get('description', '')[:300]}{knowledge_block}
 
-Output only the email body text, no subject line."""
+Output ONLY the email body text. No labels, no subject, no greeting."""
         try:
-            import httpx as _httpx
-            url = "https://api.groq.com/openai/v1/chat/completions"
-            headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}", "Content-Type": "application/json"}
-            payload = {
-                "model": "llama-3.1-8b-instant",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.3,
-                "max_tokens": 400,
-            }
-            async with _httpx.AsyncClient(timeout=15.0) as client:
-                r = await client.post(url, headers=headers, json=payload)
-                r.raise_for_status()
-                data = r.json()
-            content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
+            def _call():
+                c = _get_claude_client()
+                resp = c.chat.completions.create(
+                    model="claude-haiku-4.6",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.4,
+                    max_tokens=6000,
+                )
+                return resp.choices[0].message.content or ""
+
+            content = await asyncio.to_thread(_call)
             draft = content.strip()
         except Exception as e:
             logger.warning(f"Suggest script AI failed: {e}")
@@ -1153,6 +1210,12 @@ async def analyze_new_items(
                 else:
                     due_at = now + timedelta(hours=24)
                 
+                subject = email.get('subject', 'your inquiry')
+                snippet = email.get('snippet', '')
+                from_email = email.get('from', '')
+
+                initial_draft = await _generate_initial_draft_for_email(subject, snippet, from_email)
+
                 todo_doc = {
                     "_id": ObjectId(),
                     "user_id": user_id,
@@ -1170,8 +1233,8 @@ async def analyze_new_items(
                     },
                     "prepared_action": {
                         "strategy_label": "Email Response",
-                        "explanation": "AI-suggested response based on email context",
-                        "draft_text": f"Thank you for your email regarding {email.get('subject', 'your inquiry')}. I'll review and get back to you shortly.",
+                        "explanation": "AI-generated draft based on email content.",
+                        "draft_text": initial_draft,
                     },
                     "created_at": now,
                     "updated_at": now,

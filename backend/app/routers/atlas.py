@@ -27,6 +27,7 @@ from app.services.tavily_service import get_tavily_service
 from app.services.company_data_pool import get_company_data_pool
 from app.services.linkedin_enrichment_service import get_linkedin_enrichment_service
 from bson import ObjectId
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,14 @@ except ImportError:
     WEAVIATE_FILTER_AVAILABLE = False
 
 router = APIRouter(prefix="/atlas", tags=["Atlas"])
+
+
+def _get_claude_client():
+    from openai import OpenAI
+    return OpenAI(
+        api_key=settings.ANTHROPIC_AUTH_TOKEN,
+        base_url=settings.ANTHROPIC_BASE_URL,
+    )
 
 
 class ContactSummary(BaseModel):
@@ -1778,8 +1787,8 @@ async def generate_meeting_preparation_with_ai(
     """Use AI to generate meeting preparation: key_points, risks_or_questions, suggested_angle."""
     from app.core.config import settings
 
-    if not settings.GROQ_API_KEY:
-        logger.warning("[AI-MEETING-PREP] Missing GROQ_API_KEY")
+    if not settings.ANTHROPIC_AUTH_TOKEN:
+        logger.warning("[AI-MEETING-PREP] Missing ANTHROPIC_AUTH_TOKEN")
         return {}
 
     past_events_text = ""
@@ -1829,34 +1838,26 @@ Return ONLY valid JSON:
 {{"key_points": [...], "risks_or_questions": [...], "suggested_angle": "..."}}"""
 
     try:
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {"role": "system", "content": "You are a helpful sales preparation assistant. Return ONLY valid JSON. No markdown. No extra text."},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.4,
-        }
+        def _sync_call() -> str:
+            client = _get_claude_client()
+            response = client.chat.completions.create(
+                model="claude-haiku-4.6",
+                messages=[
+                    {"role": "system", "content": "You are a helpful sales preparation assistant. Return ONLY valid JSON. No markdown. No extra text."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=8000,
+            )
+            return (response.choices[0].message.content or "").strip()
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
-
-        content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-        content = content.strip()
+        content = await asyncio.to_thread(_sync_call)
 
         if content.startswith("```"):
             lines = content.split("\n")
             content = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
         content = content.strip()
 
-        import json
         try:
             result = json.loads(content)
             return {
@@ -1888,8 +1889,8 @@ async def extract_company_info_with_ai(company_name: str, search_result: str) ->
     if not search_result:
         return {}
     
-    if not settings.GROQ_API_KEY:
-        logger.warning("[AI-EXTRACT] Missing GROQ_API_KEY")
+    if not settings.ANTHROPIC_AUTH_TOKEN:
+        logger.warning("[AI-EXTRACT] Missing ANTHROPIC_AUTH_TOKEN")
         return {"description": search_result[:500]}
     
     prompt = f"""Extract company information from the following text about "{company_name}".
@@ -1909,36 +1910,28 @@ Text:
 Return ONLY valid JSON, no markdown or explanation."""
 
     try:
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {"role": "system", "content": "Return ONLY valid JSON. No markdown. No extra text."},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.2,
-        }
-        
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(url, headers=headers, json=payload)
-            response.raise_for_status()
-            data = response.json()
-        
-        content = (((data or {}).get("choices") or [{}])[0].get("message") or {}).get("content") or ""
-        content = content.strip()
-        
+        def _sync_call() -> str:
+            client = _get_claude_client()
+            response = client.chat.completions.create(
+                model="claude-haiku-4.6",
+                messages=[
+                    {"role": "system", "content": "Return ONLY valid JSON. No markdown. No extra text."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=4000,
+            )
+            return (response.choices[0].message.content or "").strip()
+
+        content = await asyncio.to_thread(_sync_call)
+
         # Clean up potential markdown
         if content.startswith("```"):
             lines = content.split("\n")
             content = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
         content = content.strip()
-        
+
         # Parse JSON
-        import json
         try:
             return json.loads(content)
         except Exception:
@@ -2594,7 +2587,7 @@ async def generate_neuro_profile_ai(context_data: Dict[str, Any]) -> NeuroProfil
     - Personalized opening script
     - Risk alerts
     """
-    if not settings.GROQ_API_KEY and not settings.ANTHROPIC_API_KEY:
+    if not settings.ANTHROPIC_AUTH_TOKEN:
         logger.warning("[NEURO-PROFILE] No AI API configured, using fallback")
         return get_fallback_neuro_profile()
     
@@ -2659,30 +2652,22 @@ Generate a JSON response with this exact structure:
 IMPORTANT: Return ONLY valid JSON, no markdown, no explanations."""
 
     try:
-        # Try Groq first (faster)
-        if settings.GROQ_API_KEY:
-            async with aiohttp.ClientSession() as session:
-                headers = {"Authorization": f"Bearer {settings.GROQ_API_KEY}"}
-                payload = {
-                    "model": "mixtral-8x7b-32768",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "temperature": 0.7,
-                    "max_tokens": 1200,
-                }
-                async with session.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    json=payload,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=30),
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        content = data["choices"][0]["message"]["content"]
-                        profile_dict = json.loads(content)
-                        return NeuroProfileResponse(**profile_dict)
+        def _sync_call() -> str:
+            client = _get_claude_client()
+            response = client.chat.completions.create(
+                model="claude-haiku-4.6",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.4,
+                max_tokens=8000,
+            )
+            return (response.choices[0].message.content or "").strip()
+
+        content = await asyncio.to_thread(_sync_call)
+        profile_dict = json.loads(content)
+        return NeuroProfileResponse(**profile_dict)
     except Exception as e:
-        logger.error(f"[NEURO-PROFILE] Groq error: {e}")
-    
+        logger.error(f"[NEURO-PROFILE] Claude error: {e}")
+
     # Fallback: return default profile
     return get_fallback_neuro_profile()
 
