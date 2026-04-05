@@ -116,7 +116,6 @@ export default function ActionCardExpanded({
 
   const toneDrafts = task.prepared_action?.tone_drafts;
   const baseDraft = task.prepared_action?.draft_text ?? "";
-  const hasToneDrafts = !!(toneDrafts?.professional || toneDrafts?.warm || toneDrafts?.direct);
 
   const currentDraft = useMemo(() => {
     if (toneDrafts?.[selectedTone]) return toneDrafts[selectedTone]!;
