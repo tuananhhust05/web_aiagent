@@ -68,12 +68,20 @@ class ThreadMessage(BaseModel):
     timestamp: datetime
 
 
+class ToneDrafts(BaseModel):
+    """3-tone variants of the draft."""
+    professional: Optional[str] = None
+    warm: Optional[str] = None
+    direct: Optional[str] = None
+
+
 class PreparedAction(BaseModel):
     """AI-prepared action/draft."""
     strategy_label: str
     explanation: str
     draft_text: str
     variants: Optional[List[str]] = None
+    tone_drafts: Optional[ToneDrafts] = None
 
 
 class NextStepType(str, Enum):

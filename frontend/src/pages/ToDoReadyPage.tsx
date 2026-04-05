@@ -34,15 +34,9 @@ import ActionCard from '../components/atlas/action-card/ActionCard'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/dialog'
 
 const INTENT_CATEGORIES: { id: TodoCategoryFilter; label: string; color: string }[] = [
-  { id: 'all', label: 'All', color: 'bg-sky-100 text-sky-700' },
-  { id: 'no_categories', label: 'No categories', color: 'bg-slate-100 text-slate-600' },
   { id: 'interested', label: 'Interested', color: 'bg-emerald-100 text-emerald-700' },
-  { id: 'not_interested', label: 'Not interested', color: 'bg-amber-100 text-amber-700' },
-  { id: 'do_not_contact', label: 'Do not contact', color: 'bg-red-100 text-red-700' },
   { id: 'not_now', label: 'Not now', color: 'bg-sky-100 text-sky-600' },
-  { id: 'forwarded', label: 'Forwarded', color: 'bg-violet-100 text-violet-700' },
-  { id: 'meeting_intent', label: 'Meeting intent', color: 'bg-violet-200 text-violet-800' },
-  { id: 'non_in_target', label: 'Non in target', color: 'bg-pink-100 text-pink-700' },
+  { id: 'not_interested', label: 'Not interested', color: 'bg-amber-100 text-amber-700' },
 ]
 
 

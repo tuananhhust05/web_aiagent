@@ -25,7 +25,7 @@ from app.models.todo_item import (
     TodoSource, TodoStatus, TodoPriority, TodoTaskType, IntentCategory,
     DealIntelligence, PreparedAction, TaskStrategy, AlternativeAction, NextStepType,
     MemorySignal, MemorySignalType, MemorySignalsResponse,
-    EmailAnalysisState, MeetingAnalysisState,
+    EmailAnalysisState, MeetingAnalysisState, ToneDrafts,
 )
 from app.services.gmail_service import gmail_service
 
@@ -52,11 +52,76 @@ def _get_claude_client():
     )
 
 
-async def _generate_initial_draft_for_email(subject: str, snippet: str, from_email: str = "") -> str:
-    """Generate a vivid, context-aware draft reply for an incoming email using Claude.
-    Falls back to a minimal placeholder if Claude is unavailable."""
+async def _generate_three_tone_drafts(
+    subject: str,
+    snippet: str,
+    from_email: str = "",
+    key_topics: Optional[List[str]] = None,
+    objective: str = "Follow up",
+    knowledge_block: str = "",
+) -> dict:
+    """Generate 3 tone variants (professional, warm, direct) of a draft reply using Claude.
+    Returns a dict suitable for ToneDrafts. Falls back to empty dict if Claude unavailable."""
     if not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
-        return f"Thanks for reaching out about {subject}. I'll get back to you shortly."
+        return {}
+    sender_hint = f" from {from_email}" if from_email else ""
+    topics_hint = f"\nKey topics to address: {', '.join(key_topics)}" if key_topics else ""
+    prompt = f"""You are a world-class B2B sales writer. You received this email{sender_hint}:
+
+Subject: {subject}
+Preview: {snippet}
+Objective: {objective}{topics_hint}{knowledge_block}
+
+Write THREE distinct email reply bodies (3-5 sentences each). Each version must have a different tone:
+
+1. PROFESSIONAL: formal, polished, precise — peer-to-peer executive style
+2. WARM: friendly, empathetic, conversational — builds personal connection
+3. DIRECT: concise, confident, action-oriented — no fluff, straight to the point
+
+Rules for all versions:
+- NO greeting (no "Hi [Name]," or "Dear X,")
+- NO subject line
+- NO hollow openers ("I hope this email finds you well", "Thank you for your email")
+- End each with one clear call-to-action
+- Body paragraphs only
+
+Output ONLY valid JSON in this exact format (no markdown, no code block):
+{{
+  "professional": "... body ...",
+  "warm": "... body ...",
+  "direct": "... body ..."
+}}"""
+    try:
+        def _call():
+            c = _get_claude_client()
+            resp = c.chat.completions.create(
+                model="claude-haiku-4.6",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.6,
+                max_tokens=8000,
+            )
+            return resp.choices[0].message.content or ""
+        import json
+        content = await asyncio.to_thread(_call)
+        content = content.strip()
+        if content.startswith("```"):
+            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        result = json.loads(content)
+        return {
+            "professional": result.get("professional", ""),
+            "warm": result.get("warm", ""),
+            "direct": result.get("direct", ""),
+        }
+    except Exception as e:
+        logger.warning(f"Three-tone draft generation failed: {e}")
+        return {}
+
+
+async def _generate_initial_draft_for_email(subject: str, snippet: str, from_email: str = "") -> tuple:
+    """Generate draft reply + 3 tone variants. Returns (draft_text, tone_drafts_dict)."""
+    if not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
+        fallback = f"Thanks for reaching out about {subject}. I'll get back to you shortly."
+        return fallback, {}
 
     sender_hint = f" from {from_email}" if from_email else ""
     prompt = f"""You are a world-class B2B sales professional. You just received this email{sender_hint}:
@@ -73,6 +138,7 @@ Write a sharp, engaging reply email body (3-5 sentences) that:
 
 Output ONLY the email body text. No subject line. No greeting (e.g., "Hi [Name],"). Body paragraphs only."""
 
+    draft = ""
     try:
         def _call():
             c = _get_claude_client()
@@ -86,12 +152,15 @@ Output ONLY the email body text. No subject line. No greeting (e.g., "Hi [Name],
 
         content = await asyncio.to_thread(_call)
         draft = content.strip()
-        if draft:
-            return draft
     except Exception as e:
         logger.warning(f"Initial draft generation failed: {e}")
 
-    return f"Thanks for reaching out about {subject}. Let me review and come back to you with a thoughtful response."
+    if not draft:
+        draft = f"Thanks for reaching out about {subject}. Let me review and come back to you with a thoughtful response."
+
+    # Generate tone variants in parallel
+    tone_drafts = await _generate_three_tone_drafts(subject=subject, snippet=snippet, from_email=from_email)
+    return draft, tone_drafts
 
 
 async def _get_or_create_email_analysis_state(db, user_id: str) -> dict:
@@ -776,11 +845,25 @@ Output ONLY the email body text. No labels, no subject, no greeting."""
             logger.warning(f"Suggest script AI failed: {e}")
     if not draft:
         draft = f"Thank you for your message. Regarding: {', '.join(key_topics[:3]) if key_topics else 'your inquiry'}. I'll follow up shortly."
+
+    # Generate 3-tone variants
+    tone_drafts_dict = {}
+    if key_topics and getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
+        knowledge_block_for_tones = f"\n\nRelevant product/company knowledge:\n{knowledge_context}" if knowledge_context else ""
+        tone_drafts_dict = await _generate_three_tone_drafts(
+            subject=doc.get("title", ""),
+            snippet=doc.get("description", "")[:300],
+            key_topics=key_topics,
+            objective=objective,
+            knowledge_block=knowledge_block_for_tones,
+        )
+
     new_prepared = {
         **prepared,
         "strategy_label": strategy.get("recommended_next_step_label") or prepared.get("strategy_label", "Prepared Response"),
         "explanation": strategy.get("strategic_reasoning") or prepared.get("explanation", "AI-suggested draft from strategy."),
         "draft_text": draft,
+        "tone_drafts": tone_drafts_dict if tone_drafts_dict else prepared.get("tone_drafts"),
     }
     now = datetime.utcnow()
     await db.todo_items.update_one(
@@ -845,6 +928,22 @@ async def ensure_item_analyzed(
         )
         doc = await db.todo_items.find_one(query)
         logger.info(f"ensure-analyzed: set task_strategy for item {item_id}")
+
+    # 4) Generate tone_drafts if missing
+    doc = await db.todo_items.find_one(query)
+    prepared = doc.get("prepared_action") or {}
+    if not prepared.get("tone_drafts") and prepared.get("draft_text"):
+        tone_drafts_dict = await _generate_three_tone_drafts(
+            subject=doc.get("title", ""),
+            snippet=doc.get("description", "")[:300],
+        )
+        if tone_drafts_dict:
+            await db.todo_items.update_one(
+                query,
+                {"$set": {"prepared_action.tone_drafts": tone_drafts_dict, "updated_at": datetime.utcnow()}},
+            )
+            doc = await db.todo_items.find_one(query)
+            logger.info(f"ensure-analyzed: generated tone_drafts for item {item_id}")
 
     return _doc_to_response(doc)
 
@@ -1267,7 +1366,7 @@ async def analyze_new_items(
                 snippet = email.get('snippet', '')
                 from_email = email.get('from', '')
 
-                initial_draft = await _generate_initial_draft_for_email(subject, snippet, from_email)
+                initial_draft, initial_tone_drafts = await _generate_initial_draft_for_email(subject, snippet, from_email)
 
                 todo_doc = {
                     "_id": ObjectId(),
@@ -1288,6 +1387,7 @@ async def analyze_new_items(
                         "strategy_label": "Email Response",
                         "explanation": "AI-generated draft based on email content.",
                         "draft_text": initial_draft,
+                        "tone_drafts": initial_tone_drafts if initial_tone_drafts else None,
                     },
                     "created_at": now,
                     "updated_at": now,

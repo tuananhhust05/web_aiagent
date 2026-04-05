@@ -62,7 +62,7 @@ export default function ActionCardExpanded({
   onResolve?: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [showDraft, setShowDraft] = useState(false);
+  const [showDraft, setShowDraft] = useState(true);
   const [showOriginalEmail, setShowOriginalEmail] = useState(false);
   const [emailContent, setEmailContent] = useState<EmailSourceContent | null>(null);
   const [emailLoading, setEmailLoading] = useState(false);
@@ -309,7 +309,7 @@ export default function ActionCardExpanded({
                 onClick={() => setShowDraft(!showDraft)}
                 className="flex w-full items-center justify-between gap-3 text-left"
               >
-                <span className="text-xs font-bold uppercase tracking-[0.1em] text-foreground">
+                <span className="text-xs font-bold uppercase tracking-[0.12em] text-foreground">
                   AI Generated Draft
                 </span>
                 {showDraft ? (
@@ -321,20 +321,20 @@ export default function ActionCardExpanded({
 
               {showDraft && (
                 <div className="mt-4 space-y-4 min-w-0">
-                  {hasToneDrafts && (
+                  {(currentDraft || baseDraft) && (
                     <div>
-                      <span className="text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
                         Tone
                       </span>
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-2 flex flex-wrap gap-2">
                         {TONE_OPTIONS.map(({ key, label }) => (
                           <button
                             key={key}
                             onClick={() => setSelectedTone(key)}
-                            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                            className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
                               selectedTone === key
-                                ? "border-primary bg-primary text-primary-foreground"
-                                : "border-border bg-card text-muted-foreground hover:border-accent hover:text-foreground"
+                                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                                : "border-border bg-card text-foreground hover:border-primary/50 hover:text-primary"
                             }`}
                           >
                             {label}
@@ -372,10 +372,10 @@ export default function ActionCardExpanded({
                           setIsEditingDraft(true);
                         }
                       }}
-                      className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-xs font-bold uppercase tracking-[0.05em] transition-colors ${
+                      className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold uppercase tracking-wider transition-colors ${
                         isEditingDraft
                           ? "border-primary bg-primary/10 text-primary hover:bg-primary/20"
-                          : "border-border text-muted-foreground hover:border-accent hover:text-foreground"
+                          : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
                       }`}
                     >
                       <Pencil size={14} />
@@ -390,7 +390,7 @@ export default function ActionCardExpanded({
                           toast.success("Copied to clipboard");
                         }
                       }}
-                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-4 text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground transition-colors hover:border-accent hover:text-foreground"
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
                     >
                       <Copy size={14} />
                       Copy
@@ -410,7 +410,7 @@ export default function ActionCardExpanded({
                           task.intent_category === "do_not_contact" ||
                           !(editedDraft || currentDraft || baseDraft)
                         }
-                        className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-xs font-bold uppercase tracking-[0.05em] text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {sendEmailMutation.isPending ? (
                           <Loader2 size={14} className="animate-spin" />
@@ -424,7 +424,7 @@ export default function ActionCardExpanded({
 
                   <button
                     onClick={() => setShowFullDraft(!showFullDraft)}
-                    className="text-xs font-semibold text-primary hover:underline"
+                    className="text-xs font-semibold text-[#0d9488] hover:underline"
                   >
                     {showFullDraft ? "Collapse Draft" : "Show Full Draft"}
                   </button>
