@@ -10,7 +10,7 @@ import { TODO_READY_QUERY_KEY } from "./useRealActions";
 
 const ActionReadyHeader = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const { activeChannel, setActiveChannel, activeCategory, setActiveCategory, counts, clearFilters } = useActions();
+  const { activeChannel, setActiveChannel, activeCategory, setActiveCategory, clearFilters } = useActions();
   const [channelOpen, setChannelOpen] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

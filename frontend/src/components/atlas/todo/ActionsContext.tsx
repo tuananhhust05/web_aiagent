@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from "react";
 import { ActionCardData, SentimentBadge, Channel, ActionType } from "./types";
-import { mockActions, categories } from "./mockActions";
+import { mockActions } from "./mockActions";
 import { useRealActions } from "./useRealActions";
 
 const ACTION_PRIORITY: Record<ActionType, number> = {

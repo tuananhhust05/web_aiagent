@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertTriangle, Clock, Circle } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Circle } from "lucide-react";
 import ActionCard from "./ActionCard";
 import type { ActionCardData } from "./ActionCard";
 import DueDateFilterBar from "./DueDateFilterBar";

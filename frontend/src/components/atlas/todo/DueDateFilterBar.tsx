@@ -4,7 +4,7 @@ import { useLanguage } from "./LanguageContext";
 import type { DueDateFilter } from "./ActionsContext";
 
 const DueDateFilterBar = () => {
-  const { filteredActions, activeDueFilter, setActiveDueFilter, dueFilterCounts } = useActions();
+  const { activeDueFilter, setActiveDueFilter, dueFilterCounts } = useActions();
   const { t } = useLanguage();
 
   const filterOrder: DueDateFilter[] = [
