@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Clock, Mail, Phone, Calendar, Share2, CheckCircle2 } from "lucide-react";
 import { ActionCardData, ActionType } from "./types";
-import { useLanguage } from "@/context/LanguageContext";
+import { useLanguage } from "../LanguageContext";
 
 const ActionCardFront = ({
   data,

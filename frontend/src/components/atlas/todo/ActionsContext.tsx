@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from "react";
-import { ActionCardData, SentimentBadge, Channel, ActionType } from "@/components/atlas/action-card/types";
-import { mockActions, categories } from "@/data/mockActions";
+import { ActionCardData, SentimentBadge, Channel, ActionType } from "./types";
+import { mockActions, categories } from "./mockActions";
+import { useRealActions } from "./useRealActions";
 
 const ACTION_PRIORITY: Record<ActionType, number> = {
   email_response: 1,
@@ -58,6 +59,7 @@ interface ActionsContextType {
   dueFilterCounts: Record<DueDateFilter, number>;
   resolveAction: (id: string) => void;
   clearFilters: () => void;
+  isLoading: boolean;
   counts: {
     total: number;
     needsReview: number;
@@ -88,9 +90,12 @@ export const ActionsProvider = ({ children }: { children: ReactNode }) => {
   const [activeChannel, setActiveChannel] = useState<Channel | "all">("all");
   const [activeDueFilter, setActiveDueFilter] = useState<DueDateFilter>("all");
 
+  const { actions: liveActions, isLoading, completeItem } = useRealActions();
+
   const resolveAction = useCallback((id: string) => {
     setCompletedIds((prev) => new Set(prev).add(id));
-  }, []);
+    completeItem(id); // backend call, fire-and-forget
+  }, [completeItem]);
 
   const clearFilters = useCallback(() => {
     setActiveCategory("all");
@@ -99,12 +104,14 @@ export const ActionsProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const allActions = useMemo(() => {
-    return mockActions.map((a) => ({
+    // Only show mock data during initial load (liveActions not yet available)
+    const base = (isLoading && liveActions.length === 0) ? mockActions : liveActions;
+    return base.map((a) => ({
       ...a,
       status: completedIds.has(a.id) ? "completed" as const : a.status,
       isOverdue: completedIds.has(a.id) ? false : a.isOverdue,
     }));
-  }, [completedIds]);
+  }, [liveActions, isLoading, completedIds]);
 
   const needsReviewActions = useMemo(() => allActions.filter((a) => a.status !== "completed" && !a.isOverdue), [allActions]);
   const overdueActions = useMemo(() => allActions.filter((a) => a.isOverdue && getOverdueDays(a.dueLabel) > 5 && a.status !== "completed"), [allActions]);
@@ -158,11 +165,29 @@ export const ActionsProvider = ({ children }: { children: ReactNode }) => {
     if (activeChannel !== "all") {
       base = base.filter((a) => a.triggeredFrom === activeChannel);
     }
-    return categories.map((cat) => ({
-      key: cat.key,
-      label: cat.label,
-      count: cat.key === "all" ? base.length : base.filter((a) => a.category === cat.key).length,
-    }));
+
+    // Build dynamic category set from real data, ordered by priority
+    const categoryOrder = ["all", "interested", "meeting_intent", "not_now", "forwarded", "personal", "not_interested"];
+    const categoryLabels: Record<string, string> = {
+      all: "All",
+      interested: "Interested",
+      not_interested: "Not interested",
+      meeting_intent: "Meeting intent",
+      not_now: "Not now",
+      forwarded: "Forwarded",
+      personal: "Personal",
+    };
+
+    // Collect all unique category values that actually appear in the data
+    const presentCategories = new Set(base.map((a) => a.category));
+
+    return categoryOrder
+      .filter((key) => key === "all" || presentCategories.has(key as any))
+      .map((key) => ({
+        key,
+        label: categoryLabels[key] ?? key,
+        count: key === "all" ? base.length : base.filter((a) => a.category === key).length,
+      }));
   }, [baseByStatus, activeChannel]);
 
   const counts = useMemo(() => ({
@@ -188,6 +213,7 @@ export const ActionsProvider = ({ children }: { children: ReactNode }) => {
       dueFilterCounts,
       resolveAction,
       clearFilters,
+      isLoading,
       counts,
       categoryCounts,
     }}>

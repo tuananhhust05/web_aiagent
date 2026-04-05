@@ -1,7 +1,7 @@
 import { AlertTriangle, CheckCircle2, Circle, PanelLeftClose, PanelLeft } from "lucide-react";
 import { useState } from "react";
-import { useActions, FilterType } from "@/context/ActionsContext";
-import { useLanguage } from "@/context/LanguageContext";
+import { useActions, FilterType } from "./ActionsContext";
+import { useLanguage } from "./LanguageContext";
 
 const categoryKeys: Record<string, string> = {
   all: "all",
@@ -62,17 +62,17 @@ const ActionFilterSidebar = () => {
           {statusFilters.map((filter) => {
             const isActive = activeFilter === filter.filter;
             return (
-              <button key={filter.labelKey} onClick={() => setActiveFilter(filter.filter)} className={`relative flex w-full items-center gap-2.5 rounded-xl border p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${isActive ? "border-accent bg-gradient-to-r from-forskale-green/[0.06] to-accent/[0.06] shadow-md" : "border-border bg-card hover:border-accent"}`}>
-                <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${filter.colorClass}`}>{filter.icon}</div>
+              <button key={filter.labelKey} onClick={() => setActiveFilter(filter.filter)} className={`relative flex w-full items-center gap-2.5 rounded-xl border p-2.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${isActive && filter.filter !== "overdue" ? "border-transparent bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue shadow-md text-white" : "border-border bg-card hover:border-accent"}`}>
+                <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${isActive && filter.filter !== "overdue" ? "bg-white/20 text-white" : filter.colorClass}`}>{filter.icon}</div>
                 <div className="flex flex-1 flex-col min-w-0">
-                  <span className="text-sm font-semibold text-foreground truncate">{t(filter.labelKey)}</span>
-                  <span className="text-xs text-muted-foreground">{filter.count}{filter.countSuffix}</span>
+                  <span className={`text-sm font-semibold truncate ${isActive && filter.filter !== "overdue" ? "text-white" : "text-foreground"}`}>{t(filter.labelKey)}</span>
+                  <span className={`text-xs ${isActive && filter.filter !== "overdue" ? "text-white/70" : "text-muted-foreground"}`}>{filter.count}{filter.countSuffix}</span>
                 </div>
                 {filter.filter === "overdue" && counts.overdue > 0 && (
                   <div className="h-2.5 w-2.5 rounded-full bg-destructive animate-pulse shadow-[0_0_0_3px_hsl(var(--destructive)/0.2)]" />
                 )}
                 {isActive && filter.filter !== "overdue" && (
-                  <div className="h-2 w-2 rounded-full bg-accent shadow-[0_0_0_4px_hsl(var(--accent)/0.2)]" />
+                  <div className="h-2 w-2 rounded-full bg-white shadow-[0_0_0_4px_rgba(255,255,255,0.3)]" />
                 )}
               </button>
             );

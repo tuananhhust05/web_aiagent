@@ -2171,6 +2171,7 @@ export interface TodoItem {
   reviewed_at?: string | null
   interaction_summary?: string | null
   interaction_history?: InteractionHistoryItem[] | null
+  neuroscience_principles?: Array<{ title: string; explanation: string; highlighted_phrase: string }> | null
   triggered_from?: string | null
   attention_required?: boolean
   risk_label?: string | null

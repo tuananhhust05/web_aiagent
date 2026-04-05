@@ -1,4 +1,4 @@
-import { ActionCardData } from "@/components/atlas/action-card/types";
+import { ActionCardData } from "./types";
 const companies = {
   interested: [
     "TechVentures Corp", "GrowthScale Inc", "Innovation Labs", "DevTools Solutions", "FinTech Partners",

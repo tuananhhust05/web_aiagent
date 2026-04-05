@@ -158,6 +158,12 @@ class TodoItemResponse(TodoItemBase):
     thread_id: Optional[str] = None
     prepared_action: Optional[PreparedAction] = None
     task_strategy: Optional[TaskStrategy] = None
+    interaction_summary: Optional[str] = None
+    interaction_history: Optional[List[dict]] = None  # list of {type, time_ago, summary}
+    neuroscience_principles: Optional[List[dict]] = None  # list of {title, explanation, highlighted_phrase}
+    triggered_from: Optional[str] = None  # "Email" | "Meeting" | "Manual"
+    attention_required: Optional[bool] = None
+    risk_label: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

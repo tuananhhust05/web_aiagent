@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Brain, Mail, Phone, Calendar, ChevronRight } from "lucide-react";
 import { InteractionHistoryItem } from "./types";
-import { useLanguage } from "@/context/LanguageContext";
+import { useLanguage } from "../LanguageContext";
 
 const historyIcons: Record<string, typeof Mail> = {
   email: Mail,

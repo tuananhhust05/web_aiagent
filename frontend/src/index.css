@@ -93,6 +93,22 @@
     @apply bg-gray-50 text-gray-900;
   }
 
+  /* Custom scrollbar — matches action-ready-main */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--forskale-teal));
+  }
+
 }
 
 @layer components {

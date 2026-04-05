@@ -117,6 +117,116 @@ Output ONLY valid JSON in this exact format (no markdown, no code block):
         return {}
 
 
+async def _generate_neuroscience_principles(
+    draft_text: str,
+    title: str = "",
+    objective: str = "",
+) -> list:
+    """Generate 2-3 neuroscience/persuasion principles applied in the draft.
+    Returns list of {title, explanation, highlighted_phrase} dicts."""
+    if not draft_text or not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
+        return []
+    prompt = f"""You are an expert in behavioral psychology and B2B sales persuasion. Analyze this email draft and identify 2-3 specific neuroscience/persuasion principles that are (or should be) applied.
+
+Task objective: {objective or title}
+
+Email draft:
+---
+{draft_text[:2000]}
+---
+
+For each principle found, output:
+- title: the principle name (e.g. "Loss Aversion", "Social Proof", "Reciprocity", "Scarcity", "Authority", "Commitment & Consistency", "Anchoring")
+- explanation: 1-2 sentences on how this principle applies to THIS specific draft
+- highlighted_phrase: a short phrase (3-10 words) from the draft that embodies this principle. If no exact phrase exists, write a suggested phrase to add.
+
+Output ONLY valid JSON array (no markdown, no code block):
+[
+  {{"title": "...", "explanation": "...", "highlighted_phrase": "..."}},
+  ...
+]"""
+    try:
+        def _call():
+            c = _get_claude_client()
+            resp = c.chat.completions.create(
+                model="claude-haiku-4.6",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=2000,
+            )
+            return resp.choices[0].message.content or ""
+        import json
+        content = await asyncio.to_thread(_call)
+        content = content.strip()
+        if content.startswith("```"):
+            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        result = json.loads(content)
+        if isinstance(result, list):
+            return result[:3]
+        return []
+    except Exception as e:
+        logger.warning(f"Neuroscience principles generation failed: {e}")
+        return []
+
+
+async def _generate_interaction_summary(
+    full_context: str,
+    title: str = "",
+    source: str = "email",
+) -> tuple:
+    """Generate a 1-sentence interaction summary + chronological history list.
+    Returns (summary_str, history_list) where history_list items are {type, time_ago, summary}."""
+    if not full_context or not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
+        return "", []
+    prompt = f"""You are analyzing a B2B sales interaction. Based on the context below, produce:
+1. A single sharp sentence summarizing the prospect's current situation and key intent signal (max 25 words). Start with the prospect's company/name if known.
+2. A chronological history of interactions (max 3 items), each with:
+   - type: "email" | "call" | "meeting"
+   - time_ago: relative time string (e.g. "2 days ago", "Last week", "3 weeks ago")
+   - summary: 1 concise sentence describing what happened in that interaction
+
+Source type: {source}
+Task: {title}
+
+Context:
+---
+{full_context[:3000]}
+---
+
+Output ONLY valid JSON (no markdown, no code block):
+{{
+  "summary": "...",
+  "history": [
+    {{"type": "email", "time_ago": "...", "summary": "..."}},
+    ...
+  ]
+}}"""
+    try:
+        def _call():
+            c = _get_claude_client()
+            resp = c.chat.completions.create(
+                model="claude-haiku-4.6",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=2000,
+            )
+            return resp.choices[0].message.content or ""
+        import json
+        content = await asyncio.to_thread(_call)
+        content = content.strip()
+        if content.startswith("```"):
+            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        result = json.loads(content)
+        summary = result.get("summary", "") or ""
+        history = result.get("history", []) or []
+        if isinstance(history, list):
+            history = history[:3]
+        return summary, history
+    except Exception as e:
+        logger.warning(f"Interaction summary generation failed: {e}")
+        return "", []
+
+
 async def _generate_initial_draft_for_email(subject: str, snippet: str, from_email: str = "") -> tuple:
     """Generate draft reply + 3 tone variants. Returns (draft_text, tone_drafts_dict)."""
     if not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
@@ -216,6 +326,12 @@ def _doc_to_response(doc: dict) -> TodoItemResponse:
         task_strategy=_doc_to_task_strategy(doc.get("task_strategy")),
         intent_category=intent_category,
         reviewed_at=doc.get("reviewed_at"),
+        interaction_summary=doc.get("interaction_summary"),
+        interaction_history=doc.get("interaction_history"),
+        neuroscience_principles=doc.get("neuroscience_principles"),
+        triggered_from=doc.get("triggered_from"),
+        attention_required=doc.get("attention_required"),
+        risk_label=doc.get("risk_label"),
         created_at=doc.get("created_at", datetime.utcnow()),
         updated_at=doc.get("updated_at", datetime.utcnow()),
     )
@@ -945,6 +1061,43 @@ async def ensure_item_analyzed(
             doc = await db.todo_items.find_one(query)
             logger.info(f"ensure-analyzed: generated tone_drafts for item {item_id}")
 
+    # 5) Generate interaction_summary if missing
+    doc = await db.todo_items.find_one(query)
+    if not doc.get("interaction_summary") and full_context:
+        interaction_summary, interaction_history = await _generate_interaction_summary(
+            full_context,
+            title=doc.get("title") or "",
+            source=doc.get("source") or "email",
+        )
+        update_fields = {}
+        if interaction_summary:
+            update_fields["interaction_summary"] = interaction_summary
+        if interaction_history:
+            update_fields["interaction_history"] = interaction_history
+        if update_fields:
+            update_fields["updated_at"] = datetime.utcnow()
+            await db.todo_items.update_one(query, {"$set": update_fields})
+            logger.info(f"ensure-analyzed: generated interaction_summary for item {item_id}")
+
+    # 6) Generate neuroscience_principles if missing
+    doc = await db.todo_items.find_one(query)
+    prepared = doc.get("prepared_action") or {}
+    draft_text = prepared.get("draft_text") or ""
+    if not doc.get("neuroscience_principles") and draft_text:
+        strategy = doc.get("task_strategy") or {}
+        principles = await _generate_neuroscience_principles(
+            draft_text=draft_text,
+            title=doc.get("title") or "",
+            objective=(strategy.get("objective") or ""),
+        )
+        if principles:
+            await db.todo_items.update_one(
+                query,
+                {"$set": {"neuroscience_principles": principles, "updated_at": datetime.utcnow()}},
+            )
+            doc = await db.todo_items.find_one(query)
+            logger.info(f"ensure-analyzed: generated neuroscience_principles for item {item_id}")
+
     return _doc_to_response(doc)
 
 
@@ -1269,6 +1422,33 @@ async def _enrich_new_todos(db, user_id: str, new_todo_docs: list) -> None:
             if not strategy_dict:
                 strategy_dict = _default_task_strategy(doc)
             updates["task_strategy"] = strategy_dict
+
+            # 5) Generate interaction_summary + interaction_history
+            interaction_summary, interaction_history = await _generate_interaction_summary(
+                full_context or "",
+                title=doc.get("title") or "",
+                source=doc.get("source") or "email",
+            )
+            if interaction_summary:
+                updates["interaction_summary"] = interaction_summary
+            if interaction_history:
+                updates["interaction_history"] = interaction_history
+
+            # 6) Generate neuroscience_principles from the draft
+            prepared = doc.get("prepared_action") or {}
+            draft_text = prepared.get("draft_text") or ""
+            objective = (strategy_dict or {}).get("objective") or ""
+            if draft_text:
+                principles = await _generate_neuroscience_principles(
+                    draft_text=draft_text,
+                    title=doc.get("title") or "",
+                    objective=objective,
+                )
+                if principles:
+                    updates["neuroscience_principles"] = principles
+
+            # 7) Set triggered_from
+            updates["triggered_from"] = "Meeting" if doc.get("source") == TodoSource.MEETING.value else "Email"
 
             if updates:
                 updates["updated_at"] = now

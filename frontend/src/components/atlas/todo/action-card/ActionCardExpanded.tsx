@@ -14,10 +14,11 @@ import {
   Save,
   Brain,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { ActionCardData, AlternativeOption, NeurosciencePrinciple } from "./types";
 import NeurosciencePrinciples from "./NeurosciencePrinciples";
-import { useLanguage } from "@/context/LanguageContext";
+import { useLanguage } from "../LanguageContext";
 
 const defaultAlternatives: AlternativeOption[] = [
   { label: "Send email with design tips and case studies", confidence: 60, actionType: "email" },
@@ -64,12 +65,14 @@ const ActionCardExpanded = ({
   onToneChange,
   resolved,
   onResolve,
+  enriching,
 }: {
   data: ActionCardData;
   selectedTone: string;
   onToneChange: (tone: string) => void;
   resolved?: boolean;
   onResolve?: () => void;
+  enriching?: boolean;
 }) => {
   const [showOptions, setShowOptions] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -79,7 +82,8 @@ const ActionCardExpanded = ({
 
   const toneDraft = useMemo(() => {
     if (data.toneDrafts) {
-      const val = data.toneDrafts[selectedTone] ?? data.toneDrafts[activeToneKey.charAt(0).toUpperCase() + activeToneKey.slice(1)];
+      const drafts = data.toneDrafts as Record<string, string | undefined>;
+      const val = drafts[selectedTone] ?? drafts[activeToneKey.charAt(0).toUpperCase() + activeToneKey.slice(1)];
       if (val) return val;
     }
     return data.draftContent ?? defaultDrafts[activeToneKey];
@@ -125,6 +129,7 @@ const ActionCardExpanded = ({
                 {t("interactionSummary")}
               </span>
               <span className="rounded bg-primary/10 px-1 py-0.5 text-[8px] font-bold text-primary">AI</span>
+              {enriching && <Loader2 size={8} className="animate-spin text-primary/60" />}
             </div>
             <p className="text-xs leading-snug text-foreground">{data.interactionSummary}</p>
             {data.interactionHistory?.length ? (
@@ -178,18 +183,19 @@ const ActionCardExpanded = ({
             🤖 {t("toneDetectedAuto")}: {t(activeToneKey)}
           </p>
 
-          {/* Tone Tabs */}
-          <div className="flex border-b border-border mb-1.5">
+          {/* Tone Tabs — pill style */}
+          <div className="flex gap-1 mb-1.5">
             {toneKeys.map((tone) => (
               <button
                 key={tone}
                 onClick={() => onToneChange(tone)}
-                className={`relative whitespace-nowrap px-2.5 py-1 text-[10px] font-semibold transition-colors shrink-0 ${
-                  activeToneKey === tone ? "text-accent" : "text-muted-foreground hover:text-foreground"
+                className={`whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold transition-all shrink-0 ${
+                  activeToneKey === tone
+                    ? "bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {t(tone)}
-                {activeToneKey === tone && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent transition-all" />}
               </button>
             ))}
           </div>

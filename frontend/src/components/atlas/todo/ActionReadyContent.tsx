@@ -1,12 +1,30 @@
 import { CheckCircle2, AlertTriangle, Clock, Circle } from "lucide-react";
 import ActionCard from "./ActionCard";
+import type { ActionCardData } from "./ActionCard";
 import DueDateFilterBar from "./DueDateFilterBar";
-import { useActions } from "@/context/ActionsContext";
-import { useLanguage } from "@/context/LanguageContext";
+import { useActions } from "./ActionsContext";
+import { useLanguage } from "./LanguageContext";
+import { todoReadyAPI } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { TODO_READY_QUERY_KEY, mapTodoItemToCard } from "./useRealActions";
 
 const ActionReadyContent = () => {
-  const { filteredActions, activeFilter, resolveAction, counts } = useActions();
+  const { filteredActions, activeFilter, resolveAction, counts, isLoading } = useActions();
   const { t } = useLanguage();
+  const queryClient = useQueryClient();
+
+  const handleEnsureAnalyzed = async (id: string): Promise<ActionCardData | null> => {
+    try {
+      const res = await todoReadyAPI.ensureAnalyzed(id);
+      const item = res.data;
+      // invalidate the list query so next load is fresh
+      queryClient.invalidateQueries({ queryKey: TODO_READY_QUERY_KEY });
+      // map TodoItem → ActionCardData using the same mapper logic
+      return mapTodoItemToCard(item);
+    } catch (e) {
+      return null;
+    }
+  };
 
   const isCompleted = activeFilter === "completed";
   const isOverdue = activeFilter === "overdue";
@@ -48,19 +66,29 @@ const ActionReadyContent = () => {
           {/* Due Date Filter Pills */}
           <DueDateFilterBar />
 
-          {/* Task Cards Grid */}
-          <div className="grid gap-4 lg:grid-cols-2">
-            {filteredActions.map((action) => (
-              <ActionCard
-                key={action.id}
-                data={action}
-                onResolve={!isCompleted ? resolveAction : undefined}
-                resolved={isCompleted}
-              />
-            ))}
-          </div>
+          {/* Loading spinner */}
+          {isLoading && (
+            <div className="flex items-center justify-center py-20">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          )}
 
-          {filteredActions.length === 0 && (
+          {/* Task Cards Grid */}
+          {!isLoading && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {filteredActions.map((action) => (
+                <ActionCard
+                    key={action.id}
+                    data={action}
+                    onResolve={!isCompleted ? resolveAction : undefined}
+                    resolved={isCompleted}
+                    onEnsureAnalyzed={!isCompleted ? handleEnsureAnalyzed : undefined}
+                  />
+              ))}
+            </div>
+          )}
+
+          {!isLoading && filteredActions.length === 0 && (
             <div className="rounded-xl border border-dashed border-border bg-card px-5 py-8 text-center">
               {isOverdue && counts.overdue === 0 ? (
                 <>

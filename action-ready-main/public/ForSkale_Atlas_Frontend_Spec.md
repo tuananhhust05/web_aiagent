@@ -12,16 +12,15 @@
 4. [State Management (ActionsContext)](#4-state-management-actionscontext)
 5. [Component Deep Dives](#5-component-deep-dives)
    - 5.1 [AtlasSidebar](#51-atlassidebar)
-   - 5.2 [ActionReadyHeader](#52-actionreadyheader)
-   - 5.3 [ActionFilterSidebar](#53-actionfiltersidebar)
-   - 5.4 [ActionReadyContent](#54-actionreadycontent)
-   - 5.5 [ActionCard (Container)](#55-actioncard-container)
-   - 5.6 [ActionCardFront (Compact View)](#56-actioncardfront-compact-view)
-   - 5.7 [ActionCardExpanded (Detail View)](#57-actioncardexpanded-detail-view)
-   - 5.8 [InteractionSummary](#58-interactionsummary)
-   - 5.9 [AttentionRequiredSection](#59-attentionrequiredsection)
-   - 5.10 [AttentionRequiredCard](#510-attentionrequiredcard)
-   - 5.11 [UrgentBanner](#511-urgentbanner)
+   - 5.2 [StrategyComingSoonModal](#52-strategycomingsoonmodal)
+   - 5.3 [DashboardTopBar](#53-dashboardtopbar)
+   - 5.4 [ActionReadyHeader](#54-actionreadyheader)
+   - 5.5 [ActionFilterSidebar](#55-actionfiltersidebar)
+   - 5.6 [ActionReadyContent](#56-actionreadycontent)
+   - 5.7 [ActionCard (Container)](#57-actioncard-container)
+   - 5.8 [ActionCardFront (Compact View)](#58-actioncardfront-compact-view)
+   - 5.9 [ActionCardExpanded (Modal Detail View)](#59-actioncardexpanded-modal-detail-view)
+   - 5.10 [NeurosciencePrinciples](#510-neuroscienceprinciples)
 6. [User Interaction Flows](#6-user-interaction-flows)
 7. [Mock Data Reference](#7-mock-data-reference)
 8. [Visual Design Tokens](#8-visual-design-tokens)
@@ -31,44 +30,58 @@
 
 ## 1. Application Overview
 
-**ForSkale Atlas** is a sales enablement dashboard that surfaces AI-generated follow-up actions for sales reps. The primary view is called **"Action Ready"** — a flashcard-style execution queue where each card represents one pending sales task (email reply, call follow-up, or demo scheduling).
+**ForSkale Atlas** is a sales enablement dashboard that surfaces AI-generated follow-up actions for sales reps. The primary view is called **"Action Ready"** — an execution queue where each card represents one pending sales task (email reply, call follow-up, demo scheduling, or resource sharing).
 
 ### Core Concept
-- Actions are presented as **flashcards** with a compact front face and a detailed back face.
-- Users review one card at a time, flip it to see AI-generated drafts, then either **send**, **edit**, or mark as **completed**.
+- Actions are presented as **compact cards** in a grid layout.
+- Clicking a card opens a **premium centered modal** (glassmorphism, backdrop blur) displaying the full AI analysis and generated draft.
+- The modal acts as a **focused execution workspace** — not a small card flip, but a dedicated action review screen.
+- Users can review AI-generated drafts in multiple tones (Formal, Professional, Conversational), then **send**, **edit**, **save draft**, or mark as **completed**.
 - Cards are filtered by status: **Needs Review**, **Overdue** (>5 days), or **Completed**.
+- Cards can be further filtered by **category** and **channel** (Email, Meeting).
 
 ### Tech Stack
 - **React 18** + **TypeScript** + **Vite**
-- **Tailwind CSS** with custom design tokens
+- **Tailwind CSS** with custom HSL-based design tokens
 - **React Router** (single page at `/`)
 - **TanStack React Query** (available but not yet used for data fetching)
 - **shadcn/ui** component library
+- **Radix UI Dialog** for modal interaction
+- **i18n** via custom LanguageContext (EN/IT)
 
 ---
 
 ## 2. Page Layout & Component Tree
 
 ```
-<ActionsProvider>                    ← Global state (context)
-  <div className="flex min-h-screen">
-    ├── <AtlasSidebar />             ← Left nav (collapsible, 240px / 72px)
-    └── <div className="flex-1 flex flex-col">
-          ├── <ActionReadyHeader />  ← Top bar (search, filters, CTAs)
-          └── <div className="flex flex-1">
-                ├── <ActionFilterSidebar />  ← Filter rail (240px / 60px)
-                └── <ActionReadyContent />   ← Main card grid
-              </div>
-        </div>
-  </div>
-</ActionsProvider>
+<LanguageProvider>                   ← i18n context (EN/IT)
+  <ActionsProvider>                  ← Global state (context)
+    <div className="flex h-screen overflow-hidden">
+      ├── <AtlasSidebar />           ← Left nav (collapsible, 240px / 72px)
+      └── <div className="flex-1 flex flex-col">
+            ├── <DashboardTopBar />  ← Top utility bar
+            ├── <ActionReadyHeader />← Sticky header (search, filters, channel dropdown)
+            └── <div className="flex flex-1 overflow-hidden">
+                  ├── <ActionFilterSidebar />  ← Filter rail (250px / 60px)
+                  └── <ActionReadyContent />   ← Scrollable card grid
+                </div>
+          </div>
+    </div>
+  </ActionsProvider>
+</LanguageProvider>
 ```
 
 ### Layout Behavior
 | Breakpoint | AtlasSidebar | FilterSidebar | Content |
 |------------|--------------|---------------|---------|
 | < 1024px (mobile) | Hidden | Horizontal bar above content | Full width |
-| ≥ 1024px (desktop) | Visible (240px expanded / 72px collapsed) | Vertical rail (240px / 60px) | Remaining space |
+| ≥ 1024px (desktop) | Visible (240px expanded / 72px collapsed) | Vertical rail (250px / 60px) | Remaining space |
+
+### Scrolling Behavior
+- The root container is `h-screen overflow-hidden` — no page-level scroll.
+- The **header** is `sticky top-0 z-20 shrink-0` — always visible.
+- Only the **ActionReadyContent** area scrolls (`flex-1 overflow-y-auto`).
+- The sidebar and filter rail remain fixed in place.
 
 ---
 
@@ -78,75 +91,65 @@
 
 ```typescript
 interface ActionCardData {
-  id: string;                          // Unique identifier
-  type: ActionType;                    // "email_response" | "call_followup" | "schedule_demo"
-  title: string;                       // Card title (e.g., "Reply to: How to write the perfect prompt")
-  prospect: string;                    // Company/person name
-  sentiment: SentimentBadge;           // "interested" | "not_interested" | "not_now"
-  triggeredFrom: string;               // Source that triggered the action ("Email", "Meeting")
-  dueLabel: string;                    // Human-readable due text ("Due in 18h", "6 days overdue")
-  isOverdue?: boolean;                 // Whether this action is overdue
-  strategicStep?: string;              // AI-recommended next strategic step
-  objective?: string;                  // Goal of this action
-  keyTopics?: string[];                // List of discussion topics
-  whyThisStep?: string;                // AI explanation for why this action was chosen
-  draftContent: string;                // Default AI-generated email/message draft
-  toneOptions?: string[];              // Available tone options (default: ["Professional", "Warm", "Direct"])
-  toneDrafts?: Partial<Record<        // Tone-specific draft variations
-    "Professional" | "Warm" | "Direct",
-    string
-  >>;
-  decisionFactors?: {                  // AI decision factors
-    label: string;                     //   e.g., "Intent"
-    value: string;                     //   e.g., "not interested"
-  }[];
-  alternativeOptions?: AlternativeOption[];  // Other suggested actions with confidence %
-  interactionSummary?: string;         // AI-generated narrative of past interactions
-  interactionHistory?: InteractionHistoryItem[];  // Chronological interaction list
+  id: string;
+  type: ActionType;                    // "email_response" | "call_followup" | "schedule_demo" | "send_resources"
+  title: string;
+  prospect: string;                    // Company name
+  sentiment: SentimentBadge;
+  triggeredFrom: Channel;              // "Email" | "Meeting"
+  dueLabel: string;                    // "Due today", "6 days overdue", etc.
+  isOverdue?: boolean;
+  status: TaskStatus;                  // "needs_review" | "overdue" | "completed"
+  category: SentimentBadge;            // Used for category filtering
+  strategicStep?: string;
+  objective?: string;
+  keyTopics?: string[];
+  whyThisStep?: string;
+  draftContent: string;                // Default AI-generated draft
+  toneOptions?: string[];
+  toneDrafts?: Partial<Record<"Professional" | "Friendly" | "Direct", string>>;
+  decisionFactors?: { label: string; value: string }[];
+  alternativeOptions?: AlternativeOption[];
+  interactionSummary?: string;
+  interactionHistory?: InteractionHistoryItem[];
+  neurosciencePrinciples?: NeurosciencePrinciple[];
 }
 ```
 
 ### 3.2 Supporting Types
 
 ```typescript
-type ActionType = "email_response" | "call_followup" | "schedule_demo";
-type SentimentBadge = "interested" | "not_interested" | "not_now";
+type ActionType = "email_response" | "call_followup" | "schedule_demo" | "send_resources";
+type SentimentBadge = "interested" | "not_interested" | "not_now" | "meeting_intent" | "forwarded" | "personal";
+type Channel = "Email" | "Meeting";
+type TaskStatus = "needs_review" | "overdue" | "completed";
+
+interface NeurosciencePrinciple {
+  title: string;
+  explanation: string;
+  highlightedPhrase: string;
+}
 
 interface AlternativeOption {
-  label: string;       // e.g., "Send email with design tips and case studies"
+  label: string;
   confidence: number;  // 0-100 percentage
+  actionType?: "email" | "call" | "meeting" | "whatsapp" | "proposal";
 }
 
 interface InteractionHistoryItem {
   type: "email" | "call" | "meeting";
-  timeAgo: string;     // e.g., "2d ago", "1w ago"
-  summary: string;     // e.g., "Asked about pricing tiers"
+  timeAgo: string;
+  summary: string;
+}
+
+interface CategoryItem {
+  key: SentimentBadge | "all";
+  label: string;
+  count: number;
 }
 ```
 
-### 3.3 AttentionRequiredItem (Overdue Entity)
-
-```typescript
-interface AttentionRequiredItem {
-  id: string;
-  title: string;
-  type: "email" | "call";
-  prospect: string;
-  overdueLabel: string;                // e.g., "0 days overdue"
-  tags: string[];                      // Warning tags (e.g., "Pricing clarification promised 2 days ago")
-  decisionEngine: {
-    detectedSituation: string;         // AI-detected scenario
-    primaryRecommendation: string;     // e.g., "Send Email"
-    confidence: number;                // 0-100
-    decisionFactors: string[];         // List of factor descriptions
-    whyThis: string[];                 // Reasons for this recommendation
-    objective: string;                 // Goal
-  };
-  generatedDraft: string;             // Pre-generated response draft
-}
-```
-
-### 3.4 Filter Types
+### 3.3 Filter Types
 
 ```typescript
 type FilterType = "needs_review" | "overdue" | "completed";
@@ -162,57 +165,53 @@ The entire application state is managed via a single React Context (`ActionsCont
 
 ```typescript
 interface ActionsContextType {
-  pendingActions: ActionCardData[];     // Cards in "needs_review" queue
-  completedActions: ActionCardData[];   // Cards marked as done
-  filteredActions: ActionCardData[];    // Currently visible cards (based on filter)
-  activeFilter: FilterType;            // Current filter selection
+  allActions: ActionCardData[];
+  filteredActions: ActionCardData[];
+  activeFilter: FilterType;
   setActiveFilter: (filter: FilterType) => void;
-  resolveAction: (id: string) => void; // Mark a card as completed
+  activeCategory: SentimentBadge | "all";
+  setActiveCategory: (cat: SentimentBadge | "all") => void;
+  activeChannel: Channel | "all";
+  setActiveChannel: (ch: Channel | "all") => void;
+  resolveAction: (id: string) => void;
+  clearFilters: () => void;
+  counts: {
+    total: number;
+    needsReview: number;
+    overdue: number;
+    completed: number;
+    filtered: number;
+  };
+  categoryCounts: { key: string; label: string; count: number }[];
 }
 ```
-
-### Internal State
-
-| State Variable | Type | Initial Value | Description |
-|----------------|------|---------------|-------------|
-| `completedIds` | `Set<string>` | Empty set | Tracks which action IDs have been completed |
-| `activeFilter` | `FilterType` | `"needs_review"` | Current queue filter |
 
 ### Derived Data Logic
 
 ```
-Source data: mockActions[] (all 5 action cards)
+Source data: mockActions[] (50 action cards across 6 categories)
 
-pendingActions = mockActions where id NOT IN completedIds
-overdueActions = pendingActions where isOverdue === true AND dueLabel matches "> 5 days overdue"
-reviewActions  = pendingActions where id NOT IN overdueActions
-completedActions = mockActions where id IN completedIds
+allActions = mockActions with completedIds applied (status → "completed", isOverdue → false)
 
-filteredActions =
+needsReviewActions = allActions where status !== "completed" AND isOverdue !== true
+overdueActions     = allActions where isOverdue === true AND overdueDays > 5 AND status !== "completed"
+completedActions   = allActions where status === "completed" OR id IN completedIds
+
+baseByStatus =
   if activeFilter === "completed"    → completedActions
   if activeFilter === "overdue"      → overdueActions
-  if activeFilter === "needs_review" → reviewActions
-```
+  if activeFilter === "needs_review" → needsReviewActions
 
-### Overdue Detection Logic
-
-```typescript
-// Extracts number of days from dueLabel string
-function getOverdueDays(dueLabel: string): number {
-  const match = dueLabel.match(/(\d+)\s+days?\s+overdue/i);
-  return match ? Number(match[1]) : 0;
-}
-
-// A card appears in "Overdue" filter only if:
-//   1. isOverdue === true
-//   2. getOverdueDays(dueLabel) > 5
+filteredActions = baseByStatus
+  → filtered by activeCategory (if not "all")
+  → filtered by activeChannel (if not "all")
 ```
 
 ### resolveAction Flow
 
 ```
-User clicks "Complete" button
-  → resolveAction(cardId) called
+User clicks "Mark Complete" button
+  → resolveAction(cardId)
   → cardId added to completedIds Set
   → Card disappears from "Needs Review" / "Overdue"
   → Card appears in "Completed" queue (greyed out, 60% opacity)
@@ -231,30 +230,20 @@ User clicks "Complete" button
 | Variable | Type | Initial | Description |
 |----------|------|---------|-------------|
 | `collapsed` | `boolean` | `false` | Whether sidebar is minimized |
+| `strategyModalOpen` | `boolean` | `false` | Whether the Strategy Coming Soon modal is open |
 
-#### Layout Sections (top to bottom)
-1. **Collapse Toggle**: White circular button (8×8) at right edge, only visible on hover (`group-hover/sidebar:visible`). Chevron rotates 180° when collapsed.
-2. **Logo & Brand**: ForSkale logo (64×64px) with white glow drop-shadow. Brand name hidden when collapsed.
-3. **Gradient Divider**: Horizontal line fading from transparent → primary/20 → transparent.
-4. **Record CTA**: Green-to-blue gradient button. Shows only icon when collapsed.
-5. **Navigation Items** (6 items):
-   | Icon | Label | Active |
-   |------|-------|--------|
-   | CalendarDays | Meeting Intelligence | No |
-   | Video | Meeting Insights | No |
-   | BarChart3 | Performance | No |
-   | ClipboardCheck | Action Ready | **Yes** (hardcoded) |
-   | HelpCircle | Q&A Engine | No |
-   | BookOpen | Knowledge | No |
-6. **Invite Button**: UserPlus icon + "Invite" text.
-7. **User Card**: Avatar circle "JD" with gradient background, name "John Doe", email "john@forskale.ai".
+#### Navigation Items (8 items, in order)
 
-#### Interactions
-| Action | Result |
-|--------|--------|
-| Hover over sidebar | Collapse toggle button becomes visible |
-| Click collapse toggle | Sidebar width toggles between 240px ↔ 72px. Labels hide, only icons remain. Chevron rotates. |
-| Click nav item | Currently no routing (all `href="#"`) |
+| Icon | Label | Behavior |
+|------|-------|----------|
+| CalendarDays | Meeting Intelligence | External link |
+| Video | Meeting Insight | External link |
+| Target | Strategy | Opens "Coming Soon" modal |
+| ClipboardCheck | Action Ready | **Active** (highlighted with gradient) |
+| HelpCircle | QnA Engine | External link |
+| BarChart3 | Performance | External link |
+| BookOpen | Knowledge | External link |
+| RecordIcon | Record | External link |
 
 #### Width Values
 - Expanded: `w-60` (240px)
@@ -263,176 +252,121 @@ User clicks "Complete" button
 
 ---
 
-### 5.2 ActionReadyHeader
+### 5.2 StrategyComingSoonModal
+
+**File**: `src/components/atlas/StrategyComingSoonModal.tsx`
+**Purpose**: Modal dialog shown when clicking the "Strategy" navigation item.
+
+- Gradient header with ForSkale branding
+- Feature preview list
+- "Got it" button to close
+- Closes via X, backdrop click, or ESC
+
+---
+
+### 5.3 DashboardTopBar
+
+**File**: `src/components/atlas/DashboardTopBar.tsx`
+**Purpose**: Top utility bar above the action header.
+
+---
+
+### 5.4 ActionReadyHeader
 
 **File**: `src/components/atlas/ActionReadyHeader.tsx`
-**Purpose**: Top header bar with page title, search, and action buttons.
-
-#### State
-| Variable | Type | Initial | Description |
-|----------|------|---------|-------------|
-| `searchQuery` | `string` | `""` | Search input value (currently not wired to filtering) |
+**Purpose**: Sticky top header bar with page title, search, channel dropdown, and action buttons.
 
 #### Layout (left to right)
 
 **Left side:**
-- Eyebrow: "ACTION READY" (11px, forskale-blue, uppercase)
-- Title: "Execution flashcards for sales follow-up" (H1, 2xl, bold)
-- Subtitle: Description text (xs, muted)
+- Eyebrow: "ACTION READY" (uppercase, tracked)
+- Title: "Execution flashcards for sales follow-up"
+- Subtitle with task count when filters active
 
-**Right side (button row):**
-| Button | Icon | Style | Click Action |
-|--------|------|-------|--------------|
-| Search input | Search | Text input, 180px wide | Updates `searchQuery` state (no filtering yet) |
-| Filters | SlidersHorizontal | Outlined | **No action** (placeholder) |
-| Analyze New | Sparkles | Outlined | **No action** (placeholder) |
-| Paste Email | Mail | Green gradient, filled | **No action** (placeholder) |
+**Right side:**
+- Search input
+- Filters button
+- Channel dropdown (All / Email / Meeting)
+- Analyze New button
+- Paste Email button (green gradient CTA)
+
+#### Active Filter Pills
+When category or channel filters are active, pills appear below with X buttons and "Clear all" link.
 
 ---
 
-### 5.3 ActionFilterSidebar
+### 5.5 ActionFilterSidebar
 
 **File**: `src/components/atlas/ActionFilterSidebar.tsx`
-**Purpose**: Left filter rail to switch between action queues.
-
-#### State
-| Variable | Type | Initial | Description |
-|----------|------|---------|-------------|
-| `selectedCategory` | `string` | `"interested"` | Active sentiment category (no filtering implemented) |
-| `collapsed` | `boolean` | `false` | Whether filter sidebar is minimized |
+**Purpose**: Left filter rail to switch between status queues and categories.
 
 #### Two Display Modes
 
-**Expanded Mode** (240px):
-- Collapse button (PanelLeftClose icon, top-right)
-- Three status filter cards:
-
-| Filter | Icon | Count Source | Active Indicator |
-|--------|------|-------------|-----------------|
-| Needs Review | Circle | `pendingActions.length` | Green dot + gradient bg |
-| Overdue | AlertTriangle | Cards with `isOverdue && >5 days` | Green dot + gradient bg |
-| Completed | CheckCircle2 | `completedActions.length` | Green dot + gradient bg |
-
-- Category section (below filters):
-
-| Category | Count Logic |
-|----------|-------------|
-| Interested | Actions where `sentiment === "interested"` |
-| Not now | Actions where `sentiment === "not_now"` |
-| Not interested | Actions where `sentiment === "not_interested"` |
+**Expanded Mode** (250px):
+- Three status filter cards: Needs Review, Overdue, Completed
+- Categories list with count badges
 
 **Collapsed Mode** (60px):
-- Expand button (PanelLeft icon)
-- Three icon-only filter buttons (10×10 rounded squares)
-- Active filter has a small dot indicator
-
-#### Interactions
-| Action | Result |
-|--------|--------|
-| Click a status filter | Sets `activeFilter` in context → content area updates to show matching cards |
-| Click category pill | Updates local `selectedCategory` (visual only, no filtering on content grid yet) |
-| Click collapse/expand | Toggles between 240px and 60px width |
+- Icon-only filter buttons
 
 ---
 
-### 5.4 ActionReadyContent
+### 5.6 ActionReadyContent
 
 **File**: `src/components/atlas/ActionReadyContent.tsx`
-**Purpose**: Main content area displaying the action card grid.
+**Purpose**: Main scrollable content area displaying the action card grid.
 
-#### No Local State (reads from context)
-
-#### Layout
-1. **Queue Header**:
-   - Icon in colored circle (varies by filter)
-   - Eyebrow text (uppercase, e.g., "EXECUTION QUEUE")
-   - Title text (changes per filter)
-   - Card count badge (e.g., "5 cards")
-
-2. **Card Grid**: `grid gap-4 lg:grid-cols-2` — 2 columns on desktop, 1 on mobile.
-
-3. **Empty State**: Dashed border box with contextual message when no cards match.
-
-#### Filter-specific display:
-
-| Filter | Icon | Eyebrow | Title | Cards Shown |
-|--------|------|---------|-------|-------------|
-| needs_review | Circle (primary) | "EXECUTION QUEUE" | "One task. One action. Next card." | Non-overdue pending cards |
-| overdue | AlertTriangle (cyan) | "OVERDUE" | "One task. One action. Next card." | Overdue cards (>5 days) |
-| completed | CheckCircle2 (green) | "COMPLETED" | "Recently shipped actions" | Resolved cards |
-
-#### How Cards Render
-```
-filteredActions.map(action =>
-  <ActionCard
-    data={action}
-    onResolve={isCompleted ? undefined : resolveAction}  // No resolve in completed view
-    resolved={isCompleted}                                // Visual indicator
-  />
-)
-```
+- Queue header with icon, title, card count
+- Card grid: `grid gap-4 lg:grid-cols-2`
+- Empty state with contextual message
 
 ---
 
-### 5.5 ActionCard (Container)
+### 5.7 ActionCard (Container)
 
 **File**: `src/components/atlas/ActionCard.tsx`
-**Purpose**: Manages the 3D flip animation between compact and expanded views.
+**Purpose**: Container component that manages the modal-based interaction between compact card and expanded detail view.
 
 #### State
 | Variable | Type | Initial | Description |
 |----------|------|---------|-------------|
-| `expanded` | `boolean` | `false` | Whether card is flipped to show back |
-| `showDraft` | `boolean` | `false` | Whether AI draft section is open (in expanded view) |
-| `showFullDraft` | `boolean` | `false` | Whether full draft text is shown (vs truncated) |
-| `selectedTone` | `string` | `"Professional"` | Currently selected tone for draft |
+| `open` | `boolean` | `false` | Whether the detail modal is open |
+| `selectedTone` | `string` | `"professional"` | Currently selected tone for draft |
 | `resolving` | `boolean` | `false` | Animation state during resolve |
 
-#### 3D Flip Animation
-- Container has `perspective: 1200px`
-- Inner div uses `transform-style: preserve-3d`
-- Front face: `rotateY(0deg)` when not expanded, hidden via `display: none` when expanded
-- Back face: `rotateY(180deg)` always, shown via `display: block` when expanded
-- Transition: `600ms` with `cubic-bezier(0.4, 0.2, 0.2, 1)` easing
+#### Modal Behavior
+- Clicking the compact card opens a **Radix UI Dialog** modal
+- Modal uses `max-h-[80vh]`, `max-w-[1100px]`, `backdrop-blur-2xl`
+- Glassmorphism effect: `bg-card/80`, `border-border/40`, soft shadow
+- Scale-in animation on open, scale-out on close
+- Closes via X button, backdrop click, or ESC
+- `DialogTitle` hidden with `VisuallyHidden` for accessibility
 
 #### Resolve Animation
 ```
 handleResolve() called
   → resolving = true (immediately)
   → Card gets: opacity-0, translate-y-3, pointer-events-none (300ms CSS transition)
-  → After 320ms timeout: onResolve(id) fires → card removed from pending list
-```
-
-#### Open/Close Logic
-```
-handleOpen():
-  if already expanded → do nothing
-  reset showDraft = false, showFullDraft = false
-  set expanded = true
-
-handleClose():
-  if not expanded OR resolved → do nothing
-  reset showDraft = false, showFullDraft = false
-  set expanded = false
+  → After 320ms timeout: onResolve(id) fires → modal closes, card removed from pending list
 ```
 
 ---
 
-### 5.6 ActionCardFront (Compact View)
+### 5.8 ActionCardFront (Compact View)
 
 **File**: `src/components/atlas/action-card/ActionCardFront.tsx`
-**Purpose**: The compact flashcard face showing key info at a glance.
+**Purpose**: The compact card face shown in the grid.
 
-#### No Local State
-
-#### Visual Structure (top to bottom)
+#### Visual Structure
 
 ```
 ┌──────────────────────────────────────┐
-│█ [TYPE BADGE]              [✓ icon]  │  ← Priority bar (left edge, colored by type)
+│█ [TYPE BADGE] [OVERDUE badge]  [✓]  │  ← Priority bar + type + resolve icon
 │  PROSPECT NAME                       │  ← Uppercase, 10px, muted
-│  Card Title Text                     │  ← 14px (sm), bold, max 30 characters
-│  ⏰ Due in 18h                       │  ← Clock icon + due label (red if overdue)
+│  Card Title Text                     │  ← 14px, bold, max 30ch
+│  Objective (italic)                  │  ← Optional objective text
+│  ⏰ Due in 18h                       │  ← Clock icon + due label
+│  [Email] channel badge               │  ← Channel source badge
 │  ─────────────────────────────────   │  ← Border separator
 │  [  ✓ Complete  ]                    │  ← Full-width button (only if not resolved)
 └──────────────────────────────────────┘
@@ -444,227 +378,115 @@ handleClose():
 | email_response | Mail | "Email Response" | `--forskale-blue` |
 | call_followup | Phone | "Call Follow-up" | `--forskale-green` |
 | schedule_demo | Calendar | "Schedule Demo" | `--forskale-teal` |
+| send_resources | Share2 | "Send Resources" | `--forskale-cyan` |
 
 #### Interactions
 | Action | Result |
 |--------|--------|
-| Click anywhere on card body | Triggers `onOpen()` → card flips to expanded view |
-| Click on any `<button>` inside | Click does NOT propagate to card body (prevented via `.closest("button")` check) |
+| Click anywhere on card body | Opens modal with `ActionCardExpanded` |
 | Click "Complete" button | Triggers resolve animation → card moves to completed queue |
-
-#### Conditional Rendering
-- **Resolved state**: Shows green CheckCircle2 icon in top-right. No "Complete" button.
-- **Overdue state**: Clock icon turns red (`text-destructive`), due label text turns red + bold.
+| Hover (non-resolved) | Shows "Click to see" tooltip |
 
 ---
 
-### 5.7 ActionCardExpanded (Detail View)
+### 5.9 ActionCardExpanded (Modal Detail View)
 
 **File**: `src/components/atlas/action-card/ActionCardExpanded.tsx`
-**Purpose**: The detailed back face of the flashcard with full AI analysis and draft.
+**Purpose**: The full detail view inside the modal — a focused execution workspace.
 
 #### State
 | Variable | Type | Initial | Description |
 |----------|------|---------|-------------|
 | `showOptions` | `boolean` | `false` | Whether alternative options section is expanded |
+| `showHistory` | `boolean` | `false` | Whether interaction history timeline is visible |
 
-#### Visual Structure (top to bottom)
+#### Section Order (strict vertical hierarchy)
 
 ```
-┌──────────────────────────────────────────────┐
-│  PROSPECT NAME                    [✓ resolve]│
-│  Card Title (large)                          │
-│                                              │
-│  ┌─ INTERACTION SUMMARY ──────────────────┐  │  ← AI badge, narrative text
-│  │  🧠 AI: "Prospect showed initial...   │  │
-│  │  ▸ View full history                   │  │  ← Toggleable timeline
-│  └────────────────────────────────────────┘  │
-│                                              │
-│  💡 STRATEGIC NEXT STEP                      │
-│  "Schedule follow-up call to check-in..."    │
-│                                              │
-│  🎯 OBJECTIVE                                │
-│  "Re-establish interest"                     │
-│                                              │
-│  ┌─ DRAFT & OPTIONS PANEL ────────────────┐  │  ← Grey background section
-│  │                                        │  │
-│  │  ┌─ AI GENERATED DRAFT ─────────────┐  │  │  ← Collapsible
-│  │  │  ▾ Click to expand               │  │  │
-│  │  │  TONE: [Professional] [Warm] [Dir]│  │  │  ← Tone selector
-│  │  │  "Hi there, Thank you for..."     │  │  │  ← Draft text (6-line clamp)
-│  │  │  [✏ Edit] [▶ Send]               │  │  │  ← Action buttons
-│  │  │  Show Full Draft ↓                │  │  │  ← Expand/collapse link
-│  │  └──────────────────────────────────┘  │  │
-│  │                                        │  │
-│  │  ┌─ VIEW OTHER OPTIONS ─────────────┐  │  │  ← Collapsible
-│  │  │  ▾ Click to expand               │  │  │
-│  │  │  📞 Send email with tips    [60%] │  │  │
-│  │  │  📞 Share success story     [40%] │  │  │
-│  │  │  📞 Set a meeting          [20%] │  │  │
-│  │  └──────────────────────────────────┘  │  │
-│  │                                        │  │
-│  │  📋 KEY TOPICS                         │  │
-│  │  [1] Current project status            │  │
-│  │  [2] Potential pain points             │  │
-│  │                                        │  │
-│  │  WHY THIS STEP                         │  │
-│  │  "Since the intent is not_interested..." │  │
-│  │                                        │  │
-│  │  DECISION FACTORS                      │  │
-│  │  ┌──────┐ ┌──────┐ ┌──────┐           │  │
-│  │  │Intent│ │Source│ │Stage │           │  │
-│  │  │not...│ │email │ │aware.│           │  │
-│  │  └──────┘ └──────┘ └──────┘           │  │
-│  └────────────────────────────────────────┘  │
-│                                              │
-│  [ ✓ Completed ] ← full-width green button   │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  Card Title (lg, bold)                               │
+│  Objective (xs, italic, muted)                       │
+│                                                      │
+│  ┌─ 1. INTERACTION SUMMARY ───────────────────────┐  │
+│  │  🧠 Interaction Summary  [AI badge]            │  │
+│  │  "Recent activity with Company suggests..."     │  │
+│  │  ▸ See Complete Chronology                      │  │
+│  │    📧 2d ago — Last touchpoint...               │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  COMPANY: Legacy Systems Co    DEAL: Newsletter      │
+│                                                      │
+│  ┌─ 3. DRAFT READY TO SEND (HERO) ───────────────┐  │
+│  │  📧 Draft Ready to Send                        │  │
+│  │  🤖 Tone detected: Professional                │  │
+│  │  [Formal] [Professional] [Conversational]       │  │
+│  │  ┌────────────────────────────────────────┐     │  │
+│  │  │ Dear [Contact Name],                   │     │  │
+│  │  │ Thank you for your time...             │     │  │
+│  │  └────────────────────────────────────────┘     │  │
+│  │  [Send] [Edit] [Save Draft]                     │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  ┌─ 4. NEUROSCIENCE PRINCIPLES ───────────────────┐  │
+│  │  Loss Aversion · Social Proof                   │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  ┌─ 5. KEY TOPICS ────────────────────────────────┐  │
+│  │  [App Design] [Budget] [CFO] [Urgency]          │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  ┌─ 6. VIEW OTHER OPTIONS (collapsed) ────────────┐  │
+│  │  ▾ View Other Options                           │  │
+│  │  📧 Send email with tips            [60%]       │  │
+│  │  📄 Share success story             [40%]       │  │
+│  │  📅 Set a meeting                   [20%]       │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                      │
+│  ───────────────────── bottom bar ─────────────────  │
+│                              [✓ Mark Complete]       │
+└──────────────────────────────────────────────────────┘
 ```
 
-#### Tone Draft Logic
+#### Tone System
+- **Three tones**: Formal, Professional, Conversational
+- Tone is auto-detected based on prospect's previous communication style (backend logic)
+- User can switch manually via tab bar
+- Active tab has accent underline indicator
+- Draft content updates reactively per tone selection
 
+#### Tone Draft Resolution
 ```typescript
-// If toneDrafts has a variant for the selected tone, use it
-// Otherwise, fall back to a prefix + draftContent
-const toneDraft = data.toneDrafts?.[selectedTone] 
-  ?? `${draftPrefixes[selectedTone]}\n\n${data.draftContent}`;
-
-// Default prefixes:
-// Professional: "Hi there,\n\nThank you for reaching out."
-// Warm:         "Hi there,\n\nReally appreciate your note."
-// Direct:       "Hi there,\n\nQuick follow-up on this."
+// Priority: data.toneDrafts[selectedTone] → data.draftContent → hardcoded default
+const toneDraft = data.toneDrafts?.[selectedTone] ?? data.draftContent ?? defaultDrafts[activeToneKey];
 ```
 
-#### Alternative Options Fallback
-If `data.alternativeOptions` is empty or undefined, defaults to:
-```
-[
-  { label: "Send email with design tips and case studies", confidence: 60 },
-  { label: "Share a relevant app development success story", confidence: 40 },
-  { label: "Set a meeting", confidence: 20 },
-]
-```
+#### Draft Action Buttons (inside Draft section)
+| Button | Style | Action |
+|--------|-------|--------|
+| Send | Primary (filled bg-primary) | Placeholder |
+| Edit | Secondary (outlined border) | Placeholder |
+| Save Draft | Tertiary (outlined border) | Placeholder |
 
-#### Interactions
-| Action | Result |
-|--------|--------|
-| Click card body (not on button/input) | Flips card back to compact view (only if not resolved) |
-| Click ✓ icon (top-right) | Triggers resolve animation |
-| Click "AI Generated Draft" header | Toggles draft section open/closed |
-| Click tone button (Professional/Warm/Direct) | Switches draft text to that tone's version |
-| Click "Show Full Draft" | Removes 6-line clamp, shows full text |
-| Click "Collapse Draft" | Re-applies 6-line clamp |
-| Click "Edit" button | **No action** (placeholder for future) |
-| Click "Send" button | **No action** (placeholder for future) |
-| Click "View other options" header | Toggles alternative options list |
-| Click "Completed" (bottom button) | Triggers resolve animation |
+#### Bottom Bar
+- Only contains "Mark Complete" button (right-aligned)
+- Shows completed state badge when resolved
 
-#### Conditional Rendering
-| Condition | Effect |
-|-----------|--------|
-| `data.interactionSummary` exists | Shows InteractionSummary component |
-| `data.strategicStep` OR `data.objective` exists | Shows strategic step section |
-| `data.objective` exists | Shows objective section |
-| `data.keyTopics` has items | Shows key topics grid |
-| `data.whyThisStep` exists | Shows rationale section |
-| `data.decisionFactors` has items | Shows decision factors grid (3 columns on sm+) |
-| `resolved === true` | Shows green checkmark, hides resolve buttons, prevents flip-back |
-| `onResolve` is provided | Shows resolve button (top-right) and "Completed" button (bottom) |
+#### Neuroscience Principles
+- Dynamically generated based on meeting/negotiation context (backend/AI logic)
+- Compact pill-based layout
+- Expandable on click for explanation details
+- Each principle includes: title, explanation, highlighted phrase from draft
 
 ---
 
-### 5.8 InteractionSummary
+### 5.10 NeurosciencePrinciples
 
-**File**: `src/components/atlas/action-card/InteractionSummary.tsx`
-**Purpose**: AI-generated interaction narrative with expandable timeline.
+**File**: `src/components/atlas/action-card/NeurosciencePrinciples.tsx`
+**Purpose**: Displays AI-generated neuroscientific principles applied in the draft.
 
-#### State
-| Variable | Type | Initial | Description |
-|----------|------|---------|-------------|
-| `showHistory` | `boolean` | `false` | Whether full history timeline is visible |
-
-#### Visual Structure
-```
-┌─ INTERACTION SUMMARY (rounded border, muted bg) ─┐
-│  🧠 Interaction Summary  [AI badge]               │
-│  "Prospect showed initial curiosity about..."      │
-│                                                    │
-│  ▸ View full history   ← toggle link              │
-│    📧 2d ago — Asked about pricing tiers           │
-│    📧 5d ago — Downloaded prompt guide             │
-│    📅 1w ago — Initial discovery call — positive   │
-└────────────────────────────────────────────────────┘
-```
-
-#### History Item Icons
-| Type | Icon |
-|------|------|
-| email | Mail |
-| call | Phone |
-| meeting | Calendar |
-
-#### Interactions
-| Action | Result |
-|--------|--------|
-| Click "View full history" | Expands chronological timeline below summary |
-| Click "Hide history" | Collapses timeline. ChevronRight rotates 90° when open |
-
----
-
-### 5.9 AttentionRequiredSection
-
-**File**: `src/components/atlas/AttentionRequiredSection.tsx`
-**Purpose**: Banner showing overdue items requiring attention (uses static `attentionRequiredItems` data).
-
-> **Note**: This component is defined but **not currently rendered** in the page layout.
-
-#### No State
-
-#### Visual Structure
-- Warning icon + "Attention Required" header + count badge
-- Description text
-- Horizontal row of pill buttons, each showing truncated title + overdue label
-- Clicking pills: **No action** (placeholder)
-
----
-
-### 5.10 AttentionRequiredCard
-
-**File**: `src/components/atlas/AttentionRequiredCard.tsx`
-**Purpose**: Detailed card for an attention-required item with decision engine breakdown.
-
-> **Note**: This component is defined but **not currently rendered** in any parent.
-
-#### State
-| Variable | Type | Initial | Description |
-|----------|------|---------|-------------|
-| `expanded` | `boolean` | `false` | Whether generated draft is visible |
-
-#### Sections
-1. **Header**: Warning icon + "Attention Required (Today)"
-2. **Tags**: Horizontal pills with warning descriptions
-3. **Decision Engine** (always visible):
-   - Detected Situation
-   - Primary Recommendation + Confidence %
-   - Decision Factors (bulleted list)
-   - "Why this recommendation?" (bulleted list)
-   - Objective
-   - Action buttons: "Generate Script" + "View Other Options" (both placeholder)
-4. **Generated Draft** (collapsible): Pre-written response text
-5. **Footer**: Email/Phone icon + title + overdue label
-
----
-
-### 5.11 UrgentBanner
-
-**File**: `src/components/atlas/UrgentBanner.tsx`
-**Purpose**: Compact warning banner with hardcoded urgent items.
-
-> **Note**: This component is defined but **not currently rendered** in any parent.
-
-#### No State (static data)
-
-Displays 4 hardcoded urgent items as pill buttons + "Show more" link. All interactions are placeholders.
+- Compact card with expandable details
+- Each principle shows title, explanation, and highlighted phrase
+- Dynamic based on meeting context
 
 ---
 
@@ -674,140 +496,103 @@ Displays 4 hardcoded urgent items as pill buttons + "Show more" link. All intera
 
 ```
 1. User lands on "/"
-   → Page loads with ActionsProvider
-   → Default filter: "needs_review"
-   → All 5 mock actions shown in 2-column grid
+   → Page loads with ActionsProvider + LanguageProvider
+   → Default filter: "needs_review", category: "all", channel: "all"
+   → Matching action cards shown in 2-column grid
 
 2. User sees compact card (ActionCardFront)
-   → Shows: type badge, prospect name, title, due time, "Complete" button
+   → Shows: type badge, prospect name, title, objective, due time, channel badge, "Complete" button
 
 3. User clicks card body (not on button)
-   → ActionCard.handleOpen() fires
-   → expanded = true, showDraft/showFullDraft reset to false
-   → 3D flip animation (600ms) reveals ActionCardExpanded
+   → Modal opens with glassmorphism effect and backdrop blur
+   → ActionCardExpanded renders inside Dialog
 
-4. User reads expanded card
-   → Sees: interaction summary, strategic step, objective
-   → Draft section is collapsed by default
+4. User reads modal content
+   → Sees (in order): Interaction Summary (with AI badge), Company & Deal info,
+     AI Generated Draft (hero section), Neuroscience Principles, Key Topics, Other Options
 
-5. User clicks "AI Generated Draft" header
-   → showDraft toggles to true
-   → Draft text appears (truncated to 6 lines)
-   → Tone selector visible: Professional (selected), Warm, Direct
+5. User sees tone tabs in Draft section
+   → "professional" selected by default (auto-detected)
+   → Can switch to "formal" or "conversational"
 
-6. User clicks "Warm" tone button
-   → selectedTone = "Warm"
-   → Draft text switches to warm variant
+6. User clicks "Send" / "Edit" / "Save Draft"
+   → Placeholder actions (to be connected to backend)
 
-7. User clicks "Show Full Draft"
-   → showFullDraft = true
-   → Full draft text visible (no line clamp)
-
-8. User clicks "Completed" (bottom button)
-   → resolving = true
-   → Card fades out + slides down (300ms)
-   → After 320ms: resolveAction(id) called
-   → Card removed from pendingActions
-   → Card added to completedActions
-   → Card count updates in filter sidebar
-
-9. Card disappears from grid. Remaining cards reflow.
+7. User clicks "Mark Complete" (bottom bar)
+   → resolving = true → Card fades out (300ms)
+   → Modal closes → card moves to completed queue
 ```
 
-### Flow 2: Switching Filters
+### Flow 2: Filtering by Category and Channel
+
+```
+1. User clicks "Interested" in ActionFilterSidebar categories
+   → setActiveCategory("interested")
+   → filteredActions recalculated
+   → Filter pill appears in header
+
+2. User selects "Email" from channel dropdown
+   → setActiveChannel("Email")
+   → Further filtering applied
+
+3. User clicks "Clear all" in header
+   → clearFilters() → resets to "all"
+```
+
+### Flow 3: Switching Status Filters
 
 ```
 1. User clicks "Overdue" in ActionFilterSidebar
-   → setActiveFilter("overdue")
-   → filteredActions recalculated: only cards where isOverdue=true AND >5 days overdue
-   → Content header changes to "OVERDUE" eyebrow + AlertTriangle icon
-   → Grid shows matching cards (or empty state)
+   → Shows only overdue cards (>5 days)
 
 2. User clicks "Completed"
-   → Shows only resolved cards with 60% opacity
-   → No "Complete" buttons visible
-   → Cards cannot be flipped back (click does nothing)
+   → Shows resolved cards with 60% opacity
+   → Cards cannot be opened (modal disabled)
 ```
 
-### Flow 3: Sidebar Collapse
+### Flow 4: Strategy Modal
 
 ```
-1. User hovers over AtlasSidebar
-   → White circular button appears at right edge (ChevronLeft)
-
-2. User clicks the button
-   → collapsed = true
-   → Sidebar width: 240px → 72px (300ms transition)
-   → All text labels hide, only icons remain
-   → Chevron rotates 180°
-
-3. User hovers and clicks again
-   → collapsed = false → sidebar expands back to 240px
+1. User clicks "Strategy" in AtlasSidebar
+   → StrategyComingSoonModal opens
+2. User closes via "Got it" / X / backdrop / ESC
 ```
 
-### Flow 4: Filter Sidebar Collapse
+### Flow 5: Sidebar Collapse
 
 ```
-1. User clicks PanelLeftClose icon (top-right of filter sidebar)
-   → collapsed = true
-   → Width: 240px → 60px
-   → Filter cards become icon-only squares
-
-2. User clicks PanelLeft icon in collapsed view
-   → collapsed = false → expands back
-```
-
-### Flow 5: Viewing Alternative Options
-
-```
-1. In expanded card, user clicks "View other options"
-   → showOptions = true
-   → List of alternatives appears with confidence percentages
-   → Each alternative shows a Phone icon + label + percentage badge
-
-2. User clicks header again
-   → showOptions = false → list collapses
-```
-
-### Flow 6: Viewing Interaction History
-
-```
-1. In expanded card's InteractionSummary section
-   → AI narrative is always visible
-   → "View full history" link appears if history items exist
-
-2. User clicks "View full history"
-   → showHistory = true
-   → Chronological list appears: icon + time + summary
-   → ChevronRight rotates to 90°
-
-3. User clicks "Hide history"
-   → showHistory = false → timeline collapses
+1. User hovers over AtlasSidebar → toggle button appears
+2. Click → collapsed = true → 240px → 72px (icons only)
+3. Click again → expands back
 ```
 
 ---
 
 ## 7. Mock Data Reference
 
-### 7.1 Action Cards (5 total)
+### 7.1 Action Cards (~50 total)
 
-| ID | Type | Prospect | Sentiment | Due | Overdue? | Has Tones? | Has History? |
-|----|------|----------|-----------|-----|----------|------------|--------------|
-| 1  | email_response | Lovable | not_interested | Due in 18h | No | Yes (3) | Yes (3 items) |
-| 2  | email_response | Lovable | not_interested | 6 days overdue | Yes | Yes (3) | Yes (2 items) |
-| 3  | call_followup | Acme Corp | interested | Due in 19h | No | No | Yes (3 items) |
-| 4  | call_followup | TechStart Inc | interested | Due in 18h | No | No | No |
-| 5  | schedule_demo | Enterprise Co | interested | Due in 2 days | No | No | Yes (2 items) |
+| Category | Companies | Status Distribution |
+|----------|-----------|---------------------|
+| Interested | 21 | 60% review, 20% overdue, 20% completed |
+| Not interested | 16 | 50% review, 25% completed, 25% overdue |
+| Non in target | 6 | 67% review, 33% completed |
+| Meeting intent | 3 | 100% review |
+| Not now | 2 | 50% review, 50% completed |
+| Forwarded | 2 | 100% review |
 
-### 7.2 Attention Required Items (5 total)
+### 7.2 Categories (9 total)
 
-| ID  | Type  | Prospect       | Confidence |
-|------|-------|----------------|------------|
-| ar1  | email | Marco Bianchi  | 82%        |
-| ar2  | email | Sara Rossi     | 75%        |
-| ar3  | email | Luca Ferretti  | 88%        |
-| ar4  | email | Ritam Pramanik | 70%        |
-| ar5  | call  | Elena Marchetti| 79%        |
+All, Interested, Not interested, Non in target, Meeting intent, Not now, Forwarded, No categories, Do not contact
+
+### 7.3 Card Type Assignment (automatic by title keywords)
+
+| Keywords | Assigned Type |
+|----------|---------------|
+| schedule, book, set up, call | schedule_demo |
+| follow up, check-in | call_followup |
+| share, send, refer, suggest, provide | send_resources |
+| Other | email_response |
 
 ---
 
@@ -815,38 +600,37 @@ Displays 4 hardcoded urgent items as pill buttons + "Show more" link. All intera
 
 ### Color System (HSL-based CSS variables)
 
-| Token                 | Usage                      |
+| Token | Usage |
 |-----------------------|----------------------------|
-| `--background`        | Page background            |
-| `--foreground`        | Primary text               |
-| `--card`              | Card backgrounds           |
-| `--primary`           | Primary accent             |
-| `--muted`             | Muted backgrounds          |
-| `--muted-foreground`  | Secondary text             |
-| `--accent`            | Accent highlights          |
-| `--border`            | Borders                    |
-| `--destructive`       | Error/overdue states       |
-| `--forskale-green`    | Success, completion, call_followup type |
-| `--forskale-teal`     | Teal accent, schedule_demo type |
-| `--forskale-blue`     | Blue accent, email_response type |
-| `--forskale-cyan`     | Overdue/attention indicators |
-| `--sidebar-background`| Sidebar gradient end       |
-| `--sidebar-accent`    | Sidebar gradient start     |
-| `--sidebar-foreground`| Sidebar text               |
-| `--atlas-urgent`      | Attention required states  |
+| `--background` | Page background |
+| `--foreground` | Primary text |
+| `--card` | Card backgrounds |
+| `--primary` | Primary accent |
+| `--muted` | Muted backgrounds |
+| `--muted-foreground` | Secondary text |
+| `--accent` | Accent highlights, active states |
+| `--border` | Borders |
+| `--destructive` | Error/overdue states |
+| `--forskale-green` | Success, completion, gradient start |
+| `--forskale-teal` | Teal accent, gradient middle |
+| `--forskale-blue` | Blue accent, gradient end |
+| `--forskale-cyan` | send_resources type |
+| `--sidebar-background` | Sidebar gradient end |
+| `--sidebar-accent` | Sidebar gradient start |
+| `--secondary` | Content area background |
 
 ### Typography Scale
 
-| Element               | Size           | Weight  |
+| Element | Size | Weight |
 |-----------------------|----------------|---------|
-| Page title (H1)       | text-2xl (24px)| Bold    |
-| Section heading (H2)  | text-lg (18px) | Bold    |
-| Card title (compact)  | text-sm (14px) | Bold    |
-| Card title (expanded) | text-lg (18px) | Bold    |
-| Body text             | text-sm (14px) | Normal  |
-| Labels & metadata     | text-xs (12px) | Semibold|
-| Eyebrow text          | text-[11px] or text-[10px] | Bold, uppercase, tracked |
-| Tiny labels           | text-[10px] or text-[9px]  | Bold    |
+| Page title (H1) | text-2xl (24px) | Bold |
+| Modal title | text-lg (18px) | Bold |
+| Card title (compact) | text-sm (14px) | Bold |
+| Body text | text-sm (14px) | Normal |
+| Draft text | text-[13px] | Normal (mono) |
+| Labels & metadata | text-xs (12px) | Semibold |
+| Eyebrow text | text-[11px] / text-[10px] | Bold, uppercase, tracked |
+| Tiny labels | text-[10px] / text-[9px] | Bold |
 
 ---
 
@@ -860,16 +644,16 @@ Returns list of action cards for the current user.
 **Response**: `ActionCardData[]`
 
 **Query Parameters**:
-| Param     | Type                                         | Description          |
+| Param | Type | Description |
 |-----------|----------------------------------------------|----------------------|
-| `status`  | `"pending" | "overdue" | "completed"`         | Filter by status     |
-| `sentiment` | `SentimentBadge`                            | Filter by sentiment  |
-| `search`  | `string`                                     | Full-text search on title/prospect |
+| `status` | `"pending" \| "overdue" \| "completed"` | Filter by status |
+| `category` | `SentimentBadge` | Filter by category |
+| `channel` | `Channel` | Filter by channel |
+| `search` | `string` | Full-text search |
 
 ### PATCH /api/actions/:id/resolve
 Marks an action as completed.
 
-**Request Body**: None (or `{ resolvedAt: ISO8601 }`)
 **Response**: Updated `ActionCardData`
 
 ### GET /api/actions/:id/draft
@@ -878,9 +662,9 @@ Returns AI-generated drafts for all tones.
 **Response**:
 ```json
 {
-  "Professional": "...",
-  "Warm": "...",
-  "Direct": "..."
+  "formal": "...",
+  "professional": "...",
+  "conversational": "..."
 }
 ```
 
@@ -890,17 +674,8 @@ Sends the selected draft.
 **Request Body**:
 ```json
 {
-  "tone": "Professional",
-  "content": "...",   // Possibly edited by user
+  "tone": "professional",
+  "content": "...",
   "channel": "email"
 }
 ```
-
-### GET /api/attention-required
-Returns overdue items needing intervention.
-
-**Response**: `AttentionRequiredItem[]`
-
----
-
-*End of specification. Generated from ForSkale Atlas frontend codebase.*
