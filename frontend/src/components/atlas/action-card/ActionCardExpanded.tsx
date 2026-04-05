@@ -14,7 +14,6 @@ import {
   Share2,
   ArrowUpRight,
   Loader2,
-  Copy,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { TodoItem, DraftTone, EmailSourceContent } from "../../../lib/api";
@@ -331,10 +330,10 @@ export default function ActionCardExpanded({
                           <button
                             key={key}
                             onClick={() => setSelectedTone(key)}
-                            className={`rounded-full border px-4 py-1.5 text-sm font-medium transition-colors ${
+                            className={`rounded-lg border px-4 py-1.5 text-sm font-medium transition-colors ${
                               selectedTone === key
-                                ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                                : "border-border bg-card text-foreground hover:border-primary/50 hover:text-primary"
+                                ? "border-forskale-blue bg-forskale-blue text-white shadow-sm"
+                                : "border-border bg-card text-foreground hover:border-forskale-blue/50 hover:text-forskale-blue"
                             }`}
                           >
                             {label}
@@ -344,21 +343,21 @@ export default function ActionCardExpanded({
                     </div>
                   )}
 
-                  <p
-                    className={`whitespace-pre-line break-words text-sm leading-relaxed text-foreground ${
-                      showFullDraft ? "" : "line-clamp-6"
-                    }`}
-                  >
-                    {currentDraft || baseDraft}
-                  </p>
-
-                  {isEditingDraft && (
+                  {isEditingDraft ? (
                     <textarea
                       value={editedDraft || currentDraft || baseDraft}
                       onChange={(e) => setEditedDraft(e.target.value)}
                       className="w-full min-h-[120px] rounded-lg border border-border bg-card p-3 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 resize-y"
                       onClick={(e) => e.stopPropagation()}
                     />
+                  ) : (
+                    <p
+                      className={`whitespace-pre-line break-words text-sm leading-relaxed text-foreground ${
+                        showFullDraft ? "" : "line-clamp-6"
+                      }`}
+                    >
+                      {currentDraft || baseDraft}
+                    </p>
                   )}
 
                   <div className="flex flex-wrap gap-2">
@@ -372,28 +371,14 @@ export default function ActionCardExpanded({
                           setIsEditingDraft(true);
                         }
                       }}
-                      className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold uppercase tracking-wider transition-colors ${
+                      className={`inline-flex h-10 items-center gap-2 rounded-lg border px-4 text-sm font-semibold uppercase tracking-wider transition-colors ${
                         isEditingDraft
-                          ? "border-primary bg-primary/10 text-primary hover:bg-primary/20"
+                          ? "border-forskale-blue bg-forskale-blue/10 text-forskale-blue hover:bg-forskale-blue/20"
                           : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
                       }`}
                     >
                       <Pencil size={14} />
                       {isEditingDraft ? "Done" : "Edit"}
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const textToCopy = editedDraft || currentDraft || baseDraft;
-                        if (textToCopy) {
-                          navigator.clipboard.writeText(textToCopy);
-                          toast.success("Copied to clipboard");
-                        }
-                      }}
-                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
-                    >
-                      <Copy size={14} />
-                      Copy
                     </button>
                     {task.source === "email" && (
                       <button
@@ -410,7 +395,7 @@ export default function ActionCardExpanded({
                           task.intent_category === "do_not_contact" ||
                           !(editedDraft || currentDraft || baseDraft)
                         }
-                        className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-4 text-xs font-semibold uppercase tracking-wider text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex h-10 items-center gap-2 rounded-lg bg-forskale-blue px-5 text-sm font-semibold uppercase tracking-wider text-white transition-colors hover:bg-forskale-blue/90 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {sendEmailMutation.isPending ? (
                           <Loader2 size={14} className="animate-spin" />
