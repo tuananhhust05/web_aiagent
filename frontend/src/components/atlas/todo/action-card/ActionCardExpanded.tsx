@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,
   ChevronUp,
@@ -19,6 +20,9 @@ import {
 import { ActionCardData, AlternativeOption, NeurosciencePrinciple } from "./types";
 import NeurosciencePrinciples from "./NeurosciencePrinciples";
 import { useLanguage } from "../LanguageContext";
+import { todoReadyAPI } from "@/lib/api";
+import toast from "react-hot-toast";
+import { TODO_READY_QUERY_KEY } from "../useRealActions";
 
 const defaultAlternatives: AlternativeOption[] = [
   { label: "Send email with design tips and case studies", confidence: 60, actionType: "email" },
@@ -76,7 +80,46 @@ const ActionCardExpanded = ({
 }) => {
   const [showOptions, setShowOptions] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [isEditingDraft, setIsEditingDraft] = useState(false);
+  const [editedDraft, setEditedDraft] = useState("");
   const { t } = useLanguage();
+
+  const queryClient = useQueryClient();
+
+  const sendEmailMutation = useMutation({
+    mutationFn: () => todoReadyAPI.sendEmail(data.id, editedDraft || toneDraft),
+    onSuccess: (res) => {
+      const result = res.data;
+      if (result.needs_reauthorization && result.auth_url) {
+        window.location.href = result.auth_url;
+        return;
+      }
+      toast.success("Email sent!");
+      queryClient.invalidateQueries({ queryKey: TODO_READY_QUERY_KEY });
+    },
+    onError: () => {
+      toast.error("Failed to send email. Please try again.");
+    },
+  });
+
+  const saveDraftMutation = useMutation({
+    mutationFn: () =>
+      todoReadyAPI.updateItem(data.id, {
+        prepared_action: {
+          strategy_label: "",
+          explanation: "",
+          draft_text: editedDraft,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Draft saved");
+      setIsEditingDraft(false);
+      queryClient.invalidateQueries({ queryKey: TODO_READY_QUERY_KEY });
+    },
+    onError: () => {
+      toast.error("Failed to save draft.");
+    },
+  });
 
   const activeToneKey = toneToKey[selectedTone] ?? "professional";
 
@@ -201,23 +244,74 @@ const ActionCardExpanded = ({
           </div>
 
           <div className="rounded-md bg-muted/30 p-2.5">
-            <p className="whitespace-pre-line break-words text-[13px] leading-relaxed text-foreground font-mono">
-              {toneDraft}
-            </p>
+            {isEditingDraft ? (
+              <textarea
+                value={editedDraft}
+                onChange={(e) => setEditedDraft(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full min-h-[120px] rounded-md border border-border bg-card p-2 text-[13px] leading-relaxed text-foreground font-mono focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 resize-y"
+              />
+            ) : (
+              <p className="whitespace-pre-line break-words text-[13px] leading-relaxed text-foreground font-mono">
+                {editedDraft || toneDraft}
+              </p>
+            )}
           </div>
 
           {/* Draft Action Buttons — inside draft section */}
           <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-border/50">
-            <button className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-[10px] font-bold uppercase tracking-[0.05em] text-primary-foreground transition-colors hover:bg-primary/90">
-              <Send size={10} />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const draftContent = editedDraft || toneDraft;
+                if (!sendEmailMutation.isPending && draftContent) {
+                  sendEmailMutation.mutate();
+                }
+              }}
+              disabled={sendEmailMutation.isPending || !(editedDraft || toneDraft)}
+              className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-[10px] font-bold uppercase tracking-[0.05em] text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {sendEmailMutation.isPending ? (
+                <Loader2 size={10} className="animate-spin" />
+              ) : (
+                <Send size={10} />
+              )}
               {t("send")}
             </button>
-            <button className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[10px] font-bold uppercase tracking-[0.05em] text-muted-foreground transition-colors hover:border-accent hover:text-foreground">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isEditingDraft) {
+                  setIsEditingDraft(false);
+                } else {
+                  setEditedDraft(toneDraft);
+                  setIsEditingDraft(true);
+                }
+              }}
+              className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-bold uppercase tracking-[0.05em] transition-colors ${
+                isEditingDraft
+                  ? "border-primary bg-primary/10 text-primary hover:bg-primary/20"
+                  : "border-border text-muted-foreground hover:border-accent hover:text-foreground"
+              }`}
+            >
               <Pencil size={10} />
-              {t("edit")}
+              {isEditingDraft ? t("done") ?? "Done" : t("edit")}
             </button>
-            <button className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[10px] font-bold uppercase tracking-[0.05em] text-muted-foreground transition-colors hover:border-accent hover:text-foreground">
-              <Save size={10} />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isEditingDraft && editedDraft !== toneDraft) {
+                  saveDraftMutation.mutate();
+                }
+              }}
+              disabled={!isEditingDraft || editedDraft === toneDraft || saveDraftMutation.isPending}
+              className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[10px] font-bold uppercase tracking-[0.05em] text-muted-foreground transition-colors hover:border-accent hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saveDraftMutation.isPending ? (
+                <Loader2 size={10} className="animate-spin" />
+              ) : (
+                <Save size={10} />
+              )}
               {t("saveDraft")}
             </button>
           </div>
