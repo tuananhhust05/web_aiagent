@@ -295,7 +295,7 @@ const ActionCardExpanded = ({
               }`}
             >
               <Pencil size={10} />
-              {isEditingDraft ? t("done") ?? "Done" : t("edit")}
+              {isEditingDraft ? "Done" : t("edit")}
             </button>
             <button
               onClick={(e) => {
