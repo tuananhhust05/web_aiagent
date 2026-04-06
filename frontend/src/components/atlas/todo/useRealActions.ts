@@ -77,6 +77,8 @@ export function mapTodoItemToCard(item: TodoItem): ActionCardData {
           Direct: item.prepared_action.tone_drafts.direct ?? undefined,
         }
       : undefined,
+    // Created at (for inbox-arrival ordering)
+    createdAt: item.created_at ? new Date(item.created_at).toISOString() : undefined,
     // Interaction
     interactionSummary: item.interaction_summary ?? undefined,
     interactionHistory: (item.interaction_history ?? []).map((h) => ({
@@ -114,6 +116,13 @@ export function useRealActions() {
   })
 
   const actions: ActionCardData[] = (data?.items ?? []).map(mapTodoItemToCard)
+  // Debug: log the raw API response and mapped actions
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[useRealActions] raw items:', data?.items?.length ?? 0, 'mapped actions:', actions.length)
+    if (data?.items?.length) {
+      console.log('[useRealActions] first item status:', data.items[0]?.status, 'due_at:', data.items[0]?.due_at)
+    }
+  }
 
   const { mutate: completeItem } = useMutation({
     mutationFn: (id: string) => todoReadyAPI.completeItem(id).then((r) => r.data),

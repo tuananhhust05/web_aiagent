@@ -10,7 +10,7 @@ import { TODO_READY_QUERY_KEY } from "./useRealActions";
 
 const ActionReadyHeader = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const { activeChannel, setActiveChannel, activeCategory, setActiveCategory, clearFilters } = useActions();
+  const { activeChannel, setActiveChannel, activeCategory, setActiveCategory, clearFilters, counts } = useActions();
   const [channelOpen, setChannelOpen] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -27,7 +27,12 @@ const ActionReadyHeader = () => {
       if (data.new_todos_created > 0) {
         toast.success(`${data.new_todos_created} new action${data.new_todos_created !== 1 ? "s" : ""} created`);
       } else {
-        toast.success("Analysis complete — no new actions");
+        const existingCount = counts.total;
+        if (existingCount > 0) {
+          toast.success(`Không có action mới — đang có ${existingCount} action cũ cần xử lý`);
+        } else {
+          toast.success("Phân tích xong — không có action mới");
+        }
       }
     },
     onError: () => {

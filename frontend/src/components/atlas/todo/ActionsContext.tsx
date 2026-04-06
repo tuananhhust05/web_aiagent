@@ -24,10 +24,18 @@ function parseDueDays(dueLabel: string): number {
 
 function sortByPriority(cards: ActionCardData[]): ActionCardData[] {
   return [...cards].sort((a, b) => {
+    // Primary: newest email first (createdAt DESC)
+    const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    if (ta !== tb) return tb - ta;
+    // Secondary tiebreaker: soonest due date
+    const da = parseDueDays(a.dueLabel);
+    const db = parseDueDays(b.dueLabel);
+    if (da !== db) return da - db;
+    // Tertiary tiebreaker: action type priority
     const pa = ACTION_PRIORITY[a.type] ?? 99;
     const pb = ACTION_PRIORITY[b.type] ?? 99;
-    if (pa !== pb) return pa - pb;
-    return parseDueDays(a.dueLabel) - parseDueDays(b.dueLabel);
+    return pa - pb;
   });
 }
 
@@ -42,7 +50,12 @@ function classifyByDueDate(dueLabel: string): DueDateFilter {
   if (n.includes("in 2 days")) return "in2days";
   if (n.includes("in 3 days")) return "in3days";
   if (n.includes("in 4 days")) return "in4days";
-  return "overdue_due";
+  // Items due in 5+ days: still future tasks, show in "in4days" bucket (closest future bucket)
+  if (n.startsWith("due in ")) return "in4days";
+  // Items overdue: show in overdue_due
+  if (n.includes("overdue")) return "overdue_due";
+  // Unknown/fallback: treat as today so it's never invisible
+  return "today";
 }
 
 interface ActionsContextType {
@@ -78,11 +91,6 @@ export const useActions = () => {
   return ctx;
 };
 
-const getOverdueDays = (dueLabel: string) => {
-  const match = dueLabel.match(/(\d+)\s+days?\s+overdue/i);
-  return match ? Number(match[1]) : 0;
-};
-
 export const ActionsProvider = ({ children }: { children: ReactNode }) => {
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
   const [activeFilter, setActiveFilter] = useState<FilterType>("needs_review");
@@ -114,7 +122,7 @@ export const ActionsProvider = ({ children }: { children: ReactNode }) => {
   }, [liveActions, isLoading, completedIds]);
 
   const needsReviewActions = useMemo(() => allActions.filter((a) => a.status !== "completed" && !a.isOverdue), [allActions]);
-  const overdueActions = useMemo(() => allActions.filter((a) => a.isOverdue && getOverdueDays(a.dueLabel) > 5 && a.status !== "completed"), [allActions]);
+  const overdueActions = useMemo(() => allActions.filter((a) => a.isOverdue && a.status !== "completed"), [allActions]);
   const completedActions = useMemo(() => allActions.filter((a) => a.status === "completed" || completedIds.has(a.id)), [allActions, completedIds]);
 
   const baseByStatus = useMemo(() => {

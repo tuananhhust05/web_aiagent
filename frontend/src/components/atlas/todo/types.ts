@@ -31,6 +31,7 @@ export interface ActionCardData {
   dueLabel: string;
   isOverdue?: boolean;
   status: TaskStatus;
+  createdAt?: string;
   category: SentimentBadge;
   strategicStep?: string;
   objective?: string;
