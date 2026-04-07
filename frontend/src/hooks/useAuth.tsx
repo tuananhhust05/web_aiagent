@@ -38,7 +38,7 @@ interface AuthContextType {
   signOut: () => void
   updateUser: (userData: User) => void
   resetPassword: (email: string) => Promise<{ error: any }>
-  updatePassword: (password: string) => Promise<{ error: any }>
+  updatePassword: (current_password: string, new_password: string) => Promise<{ error: any }>
   refreshUser: () => void
 }
 
@@ -142,9 +142,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('user', JSON.stringify(userData))
   }
 
-  const updatePassword = async (password: string) => {
+  const updatePassword = async (current_password: string, new_password: string) => {
     try {
-      await authAPI.changePassword({ current_password: '', new_password: password })
+      await authAPI.changePassword({ current_password, new_password })
       return { error: null }
     } catch (error: any) {
       return { error }

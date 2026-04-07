@@ -172,11 +172,15 @@ export default function Profile() {
   const onPasswordSubmit = async (data: PasswordForm) => {
     setIsPasswordLoading(true)
     try {
-      await authAPI.changePassword(data)
+      await authAPI.changePassword({ current_password: data.current_password, new_password: data.new_password })
       toast.success('Password changed successfully!')
       resetPasswordForm()
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Failed to change password')
+      const detail = error.response?.data?.detail
+      const msg = typeof detail === 'object' && detail !== null
+        ? detail.message || 'Failed to change password'
+        : detail || 'Failed to change password'
+      toast.error(msg)
     } finally {
       setIsPasswordLoading(false)
     }

@@ -16,6 +16,7 @@ import {
   Brain,
   ChevronRight,
   Loader2,
+  X,
 } from "lucide-react";
 import { ActionCardData, AlternativeOption, NeurosciencePrinciple } from "./types";
 import NeurosciencePrinciples from "./NeurosciencePrinciples";
@@ -23,6 +24,7 @@ import { useLanguage } from "../LanguageContext";
 import { todoReadyAPI } from "@/lib/api";
 import toast from "react-hot-toast";
 import { TODO_READY_QUERY_KEY } from "../useRealActions";
+import GmailRichEditor, { plainToHtml, htmlToPlain } from "./GmailRichEditor";
 
 const defaultAlternatives: AlternativeOption[] = [
   { label: "Send email with design tips and case studies", confidence: 60, actionType: "email" },
@@ -81,13 +83,35 @@ const ActionCardExpanded = ({
   const [showOptions, setShowOptions] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [isEditingDraft, setIsEditingDraft] = useState(false);
-  const [editedDraft, setEditedDraft] = useState("");
+  // editedDraft stores HTML when editor is open; empty string means "use toneDraft"
+  const [editedDraftHtml, setEditedDraftHtml] = useState("");
   const { t } = useLanguage();
 
   const queryClient = useQueryClient();
 
+  // ── Resolve the current plain-text draft for this tone ─────────────────────
+  const activeToneKey = toneToKey[selectedTone] ?? "professional";
+
+  const toneDraft = useMemo(() => {
+    if (data.toneDrafts) {
+      const drafts = data.toneDrafts as Record<string, string | undefined>;
+      const val =
+        drafts[selectedTone] ??
+        drafts[activeToneKey.charAt(0).toUpperCase() + activeToneKey.slice(1)];
+      if (val) return val;
+    }
+    return data.draftContent ?? defaultDrafts[activeToneKey];
+  }, [data.draftContent, data.toneDrafts, selectedTone, activeToneKey]);
+
+  // HTML version of current content (for display + sending)
+  const currentHtml = editedDraftHtml || plainToHtml(toneDraft);
+
+  // Plain-text version for API calls
+  const currentPlain = editedDraftHtml ? htmlToPlain(editedDraftHtml) : toneDraft;
+
+  // ── Mutations ───────────────────────────────────────────────────────────────
   const sendEmailMutation = useMutation({
-    mutationFn: () => todoReadyAPI.sendEmail(data.id, editedDraft || toneDraft),
+    mutationFn: () => todoReadyAPI.sendEmail(data.id, currentPlain),
     onSuccess: (res) => {
       const result = res.data;
       if (result.needs_reauthorization && result.auth_url) {
@@ -108,7 +132,7 @@ const ActionCardExpanded = ({
         prepared_action: {
           strategy_label: "",
           explanation: "",
-          draft_text: editedDraft,
+          draft_text: currentPlain,
         },
       }),
     onSuccess: () => {
@@ -121,18 +145,9 @@ const ActionCardExpanded = ({
     },
   });
 
-  const activeToneKey = toneToKey[selectedTone] ?? "professional";
-
-  const toneDraft = useMemo(() => {
-    if (data.toneDrafts) {
-      const drafts = data.toneDrafts as Record<string, string | undefined>;
-      const val = drafts[selectedTone] ?? drafts[activeToneKey.charAt(0).toUpperCase() + activeToneKey.slice(1)];
-      if (val) return val;
-    }
-    return data.draftContent ?? defaultDrafts[activeToneKey];
-  }, [data.draftContent, data.toneDrafts, selectedTone, activeToneKey]);
-
-  const alternativeOptions = data.alternativeOptions?.length ? data.alternativeOptions : defaultAlternatives;
+  const alternativeOptions = data.alternativeOptions?.length
+    ? data.alternativeOptions
+    : defaultAlternatives;
 
   const principles: NeurosciencePrinciple[] = data.neurosciencePrinciples?.length
     ? data.neurosciencePrinciples
@@ -149,12 +164,35 @@ const ActionCardExpanded = ({
         },
       ];
 
+  const handleEditToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isEditingDraft) {
+      // "Done" — keep edited content, close editor
+      setIsEditingDraft(false);
+    } else {
+      // Open editor — seed with current HTML
+      setEditedDraftHtml(plainToHtml(toneDraft));
+      setIsEditingDraft(true);
+    }
+  };
+
+  const handleDiscard = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditedDraftHtml("");
+    setIsEditingDraft(false);
+  };
+
+  const isDirty =
+    isEditingDraft && editedDraftHtml !== "" && htmlToPlain(editedDraftHtml) !== toneDraft;
+
   return (
     <div className="relative flex flex-col">
       {/* Header — title + objective */}
       <div className="flex items-start justify-between px-5 pt-4 pb-1.5">
         <div className="space-y-0.5 min-w-0 pr-6">
-          <h3 className="text-lg font-bold leading-snug text-foreground break-words">{data.title}</h3>
+          <h3 className="text-lg font-bold leading-snug text-foreground break-words">
+            {data.title}
+          </h3>
           {data.objective && (
             <p className="text-xs text-muted-foreground italic">{data.objective}</p>
           )}
@@ -171,7 +209,9 @@ const ActionCardExpanded = ({
               <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                 {t("interactionSummary")}
               </span>
-              <span className="rounded bg-primary/10 px-1 py-0.5 text-[8px] font-bold text-primary">AI</span>
+              <span className="rounded bg-primary/10 px-1 py-0.5 text-[8px] font-bold text-primary">
+                AI
+              </span>
               {enriching && <Loader2 size={8} className="animate-spin text-primary/60" />}
             </div>
             <p className="text-xs leading-snug text-foreground">{data.interactionSummary}</p>
@@ -181,7 +221,10 @@ const ActionCardExpanded = ({
                   onClick={() => setShowHistory((prev) => !prev)}
                   className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-primary hover:underline"
                 >
-                  <ChevronRight size={10} className={`transition-transform ${showHistory ? "rotate-90" : ""}`} />
+                  <ChevronRight
+                    size={10}
+                    className={`transition-transform ${showHistory ? "rotate-90" : ""}`}
+                  />
                   {showHistory ? t("hideHistory") : t("seeCompleteChronology")}
                 </button>
                 {showHistory && (
@@ -189,7 +232,10 @@ const ActionCardExpanded = ({
                     {data.interactionHistory.map((item, i) => {
                       const Icon = actionTypeIcons[item.type] || Mail;
                       return (
-                        <div key={i} className="flex items-start gap-2 text-[10px] text-muted-foreground">
+                        <div
+                          key={i}
+                          className="flex items-start gap-2 text-[10px] text-muted-foreground"
+                        >
                           <Icon size={10} className="mt-0.5 shrink-0 text-primary/60" />
                           <span className="shrink-0 font-medium">{item.timeAgo}</span>
                           <span className="text-foreground/80">{item.summary}</span>
@@ -206,11 +252,15 @@ const ActionCardExpanded = ({
         {/* 2. Company & Deal Info */}
         <div className="flex items-center gap-4 px-1 text-[10px]">
           <span>
-            <span className="font-bold uppercase tracking-[0.1em] text-muted-foreground">COMPANY: </span>
+            <span className="font-bold uppercase tracking-[0.1em] text-muted-foreground">
+              COMPANY:{" "}
+            </span>
             <span className="font-semibold text-foreground">{data.prospect}</span>
           </span>
           <span>
-            <span className="font-bold uppercase tracking-[0.1em] text-muted-foreground">DEAL: </span>
+            <span className="font-bold uppercase tracking-[0.1em] text-muted-foreground">
+              DEAL:{" "}
+            </span>
             <span className="font-semibold text-foreground">{data.title}</span>
           </span>
         </div>
@@ -231,7 +281,12 @@ const ActionCardExpanded = ({
             {toneKeys.map((tone) => (
               <button
                 key={tone}
-                onClick={() => onToneChange(tone)}
+                onClick={() => {
+                  onToneChange(tone);
+                  // Reset edited content when switching tone
+                  setEditedDraftHtml("");
+                  setIsEditingDraft(false);
+                }}
                 className={`whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold transition-all shrink-0 ${
                   activeToneKey === tone
                     ? "bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white shadow-sm"
@@ -243,32 +298,33 @@ const ActionCardExpanded = ({
             ))}
           </div>
 
-          <div className="rounded-md bg-muted/30 p-2.5">
+          {/* Editor / Read-only view */}
+          <div className="rounded-md bg-muted/30 overflow-hidden">
             {isEditingDraft ? (
-              <textarea
-                value={editedDraft}
-                onChange={(e) => setEditedDraft(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full min-h-[120px] rounded-md border border-border bg-card p-2 text-[13px] leading-relaxed text-foreground font-mono focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/10 resize-y"
+              <GmailRichEditor
+                value={editedDraftHtml}
+                onChange={setEditedDraftHtml}
+                minHeight={160}
               />
             ) : (
-              <p className="whitespace-pre-line break-words text-[13px] leading-relaxed text-foreground font-mono">
-                {editedDraft || toneDraft}
-              </p>
+              <div
+                className="px-3 py-2.5 text-[13px] leading-relaxed text-foreground"
+                dangerouslySetInnerHTML={{ __html: currentHtml }}
+              />
             )}
           </div>
 
           {/* Draft Action Buttons — inside draft section */}
-          <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-border/50">
+          <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-border/50">
+            {/* Send */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                const draftContent = editedDraft || toneDraft;
-                if (!sendEmailMutation.isPending && draftContent) {
+                if (!sendEmailMutation.isPending && currentPlain) {
                   sendEmailMutation.mutate();
                 }
               }}
-              disabled={sendEmailMutation.isPending || !(editedDraft || toneDraft)}
+              disabled={sendEmailMutation.isPending || !currentPlain}
               className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-primary px-3 text-[10px] font-bold uppercase tracking-[0.05em] text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {sendEmailMutation.isPending ? (
@@ -278,16 +334,10 @@ const ActionCardExpanded = ({
               )}
               {t("send")}
             </button>
+
+            {/* Edit / Done toggle */}
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (isEditingDraft) {
-                  setIsEditingDraft(false);
-                } else {
-                  setEditedDraft(toneDraft);
-                  setIsEditingDraft(true);
-                }
-              }}
+              onClick={handleEditToggle}
               className={`inline-flex h-7 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-bold uppercase tracking-[0.05em] transition-colors ${
                 isEditingDraft
                   ? "border-primary bg-primary/10 text-primary hover:bg-primary/20"
@@ -297,14 +347,14 @@ const ActionCardExpanded = ({
               <Pencil size={10} />
               {isEditingDraft ? "Done" : t("edit")}
             </button>
+
+            {/* Save Draft */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (isEditingDraft && editedDraft !== toneDraft) {
-                  saveDraftMutation.mutate();
-                }
+                if (isDirty) saveDraftMutation.mutate();
               }}
-              disabled={!isEditingDraft || editedDraft === toneDraft || saveDraftMutation.isPending}
+              disabled={!isDirty || saveDraftMutation.isPending}
               className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[10px] font-bold uppercase tracking-[0.05em] text-muted-foreground transition-colors hover:border-accent hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {saveDraftMutation.isPending ? (
@@ -314,6 +364,17 @@ const ActionCardExpanded = ({
               )}
               {t("saveDraft")}
             </button>
+
+            {/* Discard changes — only visible while editing with changes */}
+            {isEditingDraft && isDirty && (
+              <button
+                onClick={handleDiscard}
+                className="inline-flex h-7 items-center gap-1 rounded-lg border border-border px-2.5 text-[10px] font-bold uppercase tracking-[0.05em] text-muted-foreground transition-colors hover:border-destructive hover:text-destructive"
+              >
+                <X size={10} />
+                Discard
+              </button>
+            )}
           </div>
         </div>
 
@@ -329,7 +390,10 @@ const ActionCardExpanded = ({
             </div>
             <div className="flex flex-wrap gap-1">
               {data.keyTopics.map((topic) => (
-                <span key={topic} className="rounded-full bg-amber-100/80 dark:bg-amber-900/30 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                <span
+                  key={topic}
+                  className="rounded-full bg-amber-100/80 dark:bg-amber-900/30 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300"
+                >
                   {topic}
                 </span>
               ))}
@@ -340,9 +404,18 @@ const ActionCardExpanded = ({
         {/* 6. View Other Options */}
         <div className="rounded-lg border border-border bg-secondary/50 p-1.5">
           <div className="rounded-lg border border-border bg-card px-2.5 py-1.5">
-            <button onClick={() => setShowOptions((prev) => !prev)} className="flex w-full items-center justify-between gap-2 text-left">
-              <span className="text-[11px] font-semibold text-foreground">{t("viewOtherOptions")}</span>
-              {showOptions ? <ChevronUp size={13} className="text-muted-foreground" /> : <ChevronDown size={13} className="text-muted-foreground" />}
+            <button
+              onClick={() => setShowOptions((prev) => !prev)}
+              className="flex w-full items-center justify-between gap-2 text-left"
+            >
+              <span className="text-[11px] font-semibold text-foreground">
+                {t("viewOtherOptions")}
+              </span>
+              {showOptions ? (
+                <ChevronUp size={13} className="text-muted-foreground" />
+              ) : (
+                <ChevronDown size={13} className="text-muted-foreground" />
+              )}
             </button>
 
             {showOptions && (
@@ -350,7 +423,10 @@ const ActionCardExpanded = ({
                 {alternativeOptions.map((option) => {
                   const OptionIcon = actionTypeIcons[option.actionType || "email"] || Mail;
                   return (
-                    <div key={option.label} className="flex items-center justify-between gap-2 rounded-md bg-secondary px-2 py-1.5 text-[11px]">
+                    <div
+                      key={option.label}
+                      className="flex items-center justify-between gap-2 rounded-md bg-secondary px-2 py-1.5 text-[11px]"
+                    >
                       <div className="flex items-start gap-1.5 text-foreground">
                         <OptionIcon size={11} className="mt-0.5 shrink-0 text-accent" />
                         <span>{option.label}</span>
