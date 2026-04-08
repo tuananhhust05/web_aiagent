@@ -24,8 +24,8 @@ import {
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface GmailRichEditorProps {
-  value: string;          // HTML string
+export interface GmailRichTextEditorProps {
+  value: string;
   onChange: (html: string) => void;
   readOnly?: boolean;
   minHeight?: number;
@@ -37,10 +37,8 @@ export interface GmailRichEditorProps {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Convert plain-text (with \n) to minimal HTML for initial display */
 export function plainToHtml(text: string): string {
   if (!text) return "";
-  // If it already looks like HTML, return as-is
   if (/<[a-z][\s\S]*>/i.test(text)) return text;
   return text
     .split("\n")
@@ -48,17 +46,14 @@ export function plainToHtml(text: string): string {
     .join("");
 }
 
-/** Strip HTML tags to get plain text (for sending / saving as plain) */
 export function htmlToPlain(html: string): string {
   if (!html) return "";
-  // Replace block-level closes with newlines
   const withNewlines = html
     .replace(/<\/p>/gi, "\n")
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/div>/gi, "\n")
     .replace(/<\/li>/gi, "\n")
     .replace(/<[^>]+>/g, "");
-  // Decode HTML entities
   const el = document.createElement("textarea");
   el.innerHTML = withNewlines;
   return el.value.replace(/\n{3,}/g, "\n\n").trim();
@@ -128,7 +123,7 @@ const ToolbarBtn = ({
     title={title}
     disabled={disabled}
     onMouseDown={(e) => {
-      e.preventDefault(); // keep focus in editor
+      e.preventDefault();
       onClick(e);
     }}
     className={`inline-flex h-6 w-6 items-center justify-center rounded transition-colors text-[11px]
@@ -172,7 +167,6 @@ const FontDropdown = ({ currentFont, onSelect }: FontDropdownProps) => {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -183,8 +177,6 @@ const FontDropdown = ({ currentFont, onSelect }: FontDropdownProps) => {
     setTimeout(() => document.addEventListener("mousedown", handler), 0);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
-
-  const displayName = currentFont || "Font";
 
   return (
     <div ref={dropdownRef} className="relative">
@@ -198,7 +190,7 @@ const FontDropdown = ({ currentFont, onSelect }: FontDropdownProps) => {
         className="flex h-6 items-center gap-1 rounded border border-border bg-card px-1.5 text-[10px] text-foreground hover:border-primary focus:outline-none cursor-pointer min-w-[68px] max-w-[80px]"
         style={{ fontFamily: currentFont || "inherit" }}
       >
-        <span className="truncate flex-1 text-left">{displayName}</span>
+        <span className="truncate flex-1 text-left">{currentFont || "Font"}</span>
         <svg width="8" height="8" viewBox="0 0 8 8" className="shrink-0 text-muted-foreground">
           <path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" />
         </svg>
@@ -206,11 +198,9 @@ const FontDropdown = ({ currentFont, onSelect }: FontDropdownProps) => {
 
       {open && (
         <div
-          className="absolute top-full left-0 z-[100] mt-0.5 w-44 rounded-md border border-border bg-card shadow-xl
-            animate-in slide-in-from-top-1 fade-in-0 duration-150 overflow-hidden"
+          className="absolute top-full left-0 z-[100] mt-0.5 w-44 rounded-md border border-border bg-card shadow-xl animate-in slide-in-from-top-1 fade-in-0 duration-150 overflow-hidden"
           onMouseDown={(e) => e.preventDefault()}
         >
-          {/* Scrollable list with gradient fade */}
           <div className="relative">
             <ul className="max-h-48 overflow-y-auto py-0.5">
               {FONT_FAMILIES.map((font) => {
@@ -242,7 +232,6 @@ const FontDropdown = ({ currentFont, onSelect }: FontDropdownProps) => {
                 );
               })}
             </ul>
-            {/* Gradient fade at bottom to hint scrollability */}
             <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-card to-transparent" />
           </div>
         </div>
@@ -265,7 +254,7 @@ const BG_COLORS = [
   "#FCE7F3", "#FEE2E2", "#E0F2FE", "#D1FAE5", "#FDF4FF",
 ];
 
-export function GmailRichEditor({
+export function GmailRichTextEditor({
   value,
   onChange,
   readOnly = false,
@@ -274,33 +263,11 @@ export function GmailRichEditor({
   onBlur,
   attachments = [],
   onAttachmentsChange,
-}: GmailRichEditorProps) {
+}: GmailRichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const savedRangeRef = useRef<Range | null>(null);
   const [showColorPicker, setShowColorPicker] = useState<"text" | "bg" | null>(null);
   const [currentFont, setCurrentFont] = useState<string>("");
-
-  // ── Save/Restore selection (used by <select> controls that steal focus) ───────
-  const saveSelection = useCallback(() => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      savedRangeRef.current = sel.getRangeAt(0).cloneRange();
-    }
-  }, []);
-
-  const restoreSelection = useCallback(() => {
-    const range = savedRangeRef.current;
-    if (!range) return;
-    editorRef.current?.focus();
-    const sel = window.getSelection();
-    if (sel) {
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-  }, []);
-
-  // ── Sync initial value into editor ──────────────────────────────────────────
   const lastHtml = useRef<string>("");
 
   useEffect(() => {
@@ -313,7 +280,6 @@ export function GmailRichEditor({
     }
   }, [value]);
 
-  // ── Emit changes ─────────────────────────────────────────────────────────────
   const handleInput = useCallback(() => {
     const el = editorRef.current;
     if (!el) return;
@@ -322,42 +288,33 @@ export function GmailRichEditor({
     onChange(html);
   }, [onChange]);
 
-  // ── execCommand wrapper ───────────────────────────────────────────────────────
   const exec = useCallback(
-    (command: string, value?: string) => {
+    (command: string, val?: string) => {
       editorRef.current?.focus();
-      document.execCommand(command, false, value ?? "");
+      document.execCommand(command, false, val ?? "");
       handleInput();
     },
     [handleInput]
   );
 
-  // ── Query active state ────────────────────────────────────────────────────────
   const isActive = (command: string) => {
-    try {
-      return document.queryCommandState(command);
-    } catch {
-      return false;
-    }
+    try { return document.queryCommandState(command); } catch { return false; }
   };
 
-  // ── Force re-render on selection change + track active font ──────────────────
   const [, forceUpdate] = useState(0);
   const onSelectionChange = useCallback(() => {
     forceUpdate((n) => n + 1);
     try {
       const fontName = document.queryCommandValue("fontName");
       setCurrentFont(fontName ? fontName.replace(/['"]/g, "") : "");
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }, []);
+
   useEffect(() => {
     document.addEventListener("selectionchange", onSelectionChange);
     return () => document.removeEventListener("selectionchange", onSelectionChange);
   }, [onSelectionChange]);
 
-  // ── Color picker close on outside click ─────────────────────────────────────
   useEffect(() => {
     if (!showColorPicker) return;
     const handler = () => setShowColorPicker(null);
@@ -365,22 +322,16 @@ export function GmailRichEditor({
     return () => document.removeEventListener("mousedown", handler);
   }, [showColorPicker]);
 
-  // ── Apply font family via FontDropdown ────────────────────────────────────────
-  const applyFont = useCallback(
-    (font: string) => {
-      editorRef.current?.focus();
-      exec("fontName", font);
-      setCurrentFont(font);
-    },
-    [exec]
-  );
+  const applyFont = useCallback((font: string) => {
+    editorRef.current?.focus();
+    exec("fontName", font);
+    setCurrentFont(font);
+  }, [exec]);
 
-  // ── File attachment ───────────────────────────────────────────────────────────
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || !onAttachmentsChange) return;
-    const newFiles = Array.from(files);
-    onAttachmentsChange([...attachments, ...newFiles]);
+    onAttachmentsChange([...attachments, ...Array.from(files)]);
     e.target.value = "";
   };
 
@@ -400,148 +351,69 @@ export function GmailRichEditor({
   }
 
   return (
-    <div
-      className="rounded-md border border-border bg-card overflow-hidden"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {/* ── Toolbar ── */}
+    <div className="rounded-md border border-border bg-card overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-0.5 border-b border-border bg-muted/40 px-1.5 py-1">
-        {/* Font Family — custom dropdown */}
         <FontDropdown currentFont={currentFont} onSelect={applyFont} />
 
-        {/* Font Size */}
         <select
           title="Font size"
-          className="h-6 w-16 rounded border border-border bg-card px-1 text-[11px] text-foreground cursor-pointer hover:border-primary focus:outline-none"
-          onFocus={saveSelection}
+          className="h-6 w-12 rounded border border-border bg-card px-1 text-[10px] text-foreground cursor-pointer hover:border-primary focus:outline-none"
+          onMouseDown={(e) => e.preventDefault()}
           onChange={(e) => {
-            restoreSelection();
+            editorRef.current?.focus();
             const px = e.target.value;
-            if (!px) return;
             exec("fontSize", "7");
-            const fonts = editorRef.current?.querySelectorAll("font[size='7']");
-            fonts?.forEach((el) => {
+            editorRef.current?.querySelectorAll("font[size='7']").forEach((el) => {
               (el as HTMLElement).removeAttribute("size");
               (el as HTMLElement).style.fontSize = `${px}px`;
             });
             handleInput();
-            (e.target as HTMLSelectElement).value = "";
           }}
         >
           <option value="">Size</option>
-          {FONT_SIZES.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
+          {FONT_SIZES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
 
         <ToolbarSep />
-
-        {/* Bold / Italic / Underline / Strikethrough */}
-        <ToolbarBtn title="Bold (Ctrl+B)" active={isActive("bold")} onClick={() => exec("bold")}>
-          <Bold size={11} />
-        </ToolbarBtn>
-        <ToolbarBtn title="Italic (Ctrl+I)" active={isActive("italic")} onClick={() => exec("italic")}>
-          <Italic size={11} />
-        </ToolbarBtn>
-        <ToolbarBtn title="Underline (Ctrl+U)" active={isActive("underline")} onClick={() => exec("underline")}>
-          <Underline size={11} />
-        </ToolbarBtn>
-        <ToolbarBtn title="Strikethrough" active={isActive("strikeThrough")} onClick={() => exec("strikeThrough")}>
-          <Strikethrough size={11} />
-        </ToolbarBtn>
-
+        <ToolbarBtn title="Bold" active={isActive("bold")} onClick={() => exec("bold")}><Bold size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Italic" active={isActive("italic")} onClick={() => exec("italic")}><Italic size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Underline" active={isActive("underline")} onClick={() => exec("underline")}><Underline size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Strikethrough" active={isActive("strikeThrough")} onClick={() => exec("strikeThrough")}><Strikethrough size={11} /></ToolbarBtn>
         <ToolbarSep />
 
         {/* Text Color */}
         <div className="relative">
-          <button
-            type="button"
-            title="Text color"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setShowColorPicker((v) => (v === "text" ? null : "text"));
-            }}
-            className="inline-flex h-6 w-6 flex-col items-center justify-center rounded hover:bg-muted cursor-pointer"
-          >
+          <button type="button" title="Text color" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setShowColorPicker((v) => (v === "text" ? null : "text")); }} className="inline-flex h-6 w-6 flex-col items-center justify-center rounded hover:bg-muted cursor-pointer">
             <span className="text-[10px] font-bold leading-none text-foreground">A</span>
-            <span
-              className="h-1 w-4 rounded-sm"
-              style={{ backgroundColor: "#3B82F6" }}
-            />
+            <span className="h-1 w-4 rounded-sm" style={{ backgroundColor: "#3B82F6" }} />
           </button>
           {showColorPicker === "text" && (
-            <div
-              className="absolute top-7 left-0 z-50 rounded-md border border-border bg-card p-2 shadow-lg"
-              onMouseDown={(e) => e.stopPropagation()}
-            >
+            <div className="absolute top-7 left-0 z-50 rounded-md border border-border bg-card p-2 shadow-lg" onMouseDown={(e) => e.stopPropagation()}>
               <p className="mb-1 text-[9px] font-bold uppercase text-muted-foreground">Text Color</p>
               <div className="grid grid-cols-5 gap-1">
                 {TEXT_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    title={c}
-                    className="h-5 w-5 rounded border border-border/50 hover:scale-110 transition-transform cursor-pointer"
-                    style={{ backgroundColor: c }}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      exec("foreColor", c);
-                      setShowColorPicker(null);
-                    }}
-                  />
+                  <button key={c} type="button" className="h-5 w-5 rounded border border-border/50 hover:scale-110 transition-transform cursor-pointer" style={{ backgroundColor: c }}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); exec("foreColor", c); setShowColorPicker(null); }} />
                 ))}
               </div>
             </div>
           )}
         </div>
 
-        {/* Background Color */}
+        {/* BG Color */}
         <div className="relative">
-          <button
-            type="button"
-            title="Highlight color"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setShowColorPicker((v) => (v === "bg" ? null : "bg"));
-            }}
-            className="inline-flex h-6 w-6 flex-col items-center justify-center rounded hover:bg-muted cursor-pointer"
-          >
-            <span
-              className="h-4 w-4 rounded-sm border border-border/60 text-[8px] flex items-center justify-center font-bold"
-              style={{ backgroundColor: "#FEF3C7" }}
-            >
-              H
-            </span>
+          <button type="button" title="Highlight" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setShowColorPicker((v) => (v === "bg" ? null : "bg")); }} className="inline-flex h-6 w-6 flex-col items-center justify-center rounded hover:bg-muted cursor-pointer">
+            <span className="h-4 w-4 rounded-sm border border-border/60 text-[8px] flex items-center justify-center font-bold" style={{ backgroundColor: "#FEF3C7" }}>H</span>
           </button>
           {showColorPicker === "bg" && (
-            <div
-              className="absolute top-7 left-0 z-50 rounded-md border border-border bg-card p-2 shadow-lg"
-              onMouseDown={(e) => e.stopPropagation()}
-            >
+            <div className="absolute top-7 left-0 z-50 rounded-md border border-border bg-card p-2 shadow-lg" onMouseDown={(e) => e.stopPropagation()}>
               <p className="mb-1 text-[9px] font-bold uppercase text-muted-foreground">Highlight</p>
               <div className="grid grid-cols-5 gap-1">
                 {BG_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    title={c === "transparent" ? "None" : c}
-                    className="h-5 w-5 rounded border border-border/50 hover:scale-110 transition-transform cursor-pointer"
-                    style={{ backgroundColor: c === "transparent" ? "white" : c }}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      exec("hiliteColor", c === "transparent" ? "transparent" : c);
-                      setShowColorPicker(null);
-                    }}
-                  >
-                    {c === "transparent" && (
-                      <span className="text-[8px] text-muted-foreground">✕</span>
-                    )}
+                  <button key={c} type="button" className="h-5 w-5 rounded border border-border/50 hover:scale-110 transition-transform cursor-pointer" style={{ backgroundColor: c === "transparent" ? "white" : c }}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); exec("hiliteColor", c === "transparent" ? "transparent" : c); setShowColorPicker(null); }}>
+                    {c === "transparent" && <span className="text-[8px] text-muted-foreground">✕</span>}
                   </button>
                 ))}
               </div>
@@ -550,126 +422,45 @@ export function GmailRichEditor({
         </div>
 
         <ToolbarSep />
-
-        {/* Alignment */}
-        <ToolbarBtn title="Align left" active={isActive("justifyLeft")} onClick={() => exec("justifyLeft")}>
-          <AlignLeft size={11} />
-        </ToolbarBtn>
-        <ToolbarBtn title="Align center" active={isActive("justifyCenter")} onClick={() => exec("justifyCenter")}>
-          <AlignCenter size={11} />
-        </ToolbarBtn>
-        <ToolbarBtn title="Align right" active={isActive("justifyRight")} onClick={() => exec("justifyRight")}>
-          <AlignRight size={11} />
-        </ToolbarBtn>
-        <ToolbarBtn title="Justify" active={isActive("justifyFull")} onClick={() => exec("justifyFull")}>
-          <AlignJustify size={11} />
-        </ToolbarBtn>
-
+        <ToolbarBtn title="Align left" active={isActive("justifyLeft")} onClick={() => exec("justifyLeft")}><AlignLeft size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Align center" active={isActive("justifyCenter")} onClick={() => exec("justifyCenter")}><AlignCenter size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Align right" active={isActive("justifyRight")} onClick={() => exec("justifyRight")}><AlignRight size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Justify" active={isActive("justifyFull")} onClick={() => exec("justifyFull")}><AlignJustify size={11} /></ToolbarBtn>
         <ToolbarSep />
-
-        {/* Lists */}
-        <ToolbarBtn
-          title="Bullet list"
-          active={isActive("insertUnorderedList")}
-          onClick={() => exec("insertUnorderedList")}
-        >
-          <List size={11} />
-        </ToolbarBtn>
-        <ToolbarBtn
-          title="Numbered list"
-          active={isActive("insertOrderedList")}
-          onClick={() => exec("insertOrderedList")}
-        >
-          <ListOrdered size={11} />
-        </ToolbarBtn>
-
-        {/* Indent / Outdent */}
-        <ToolbarBtn title="Indent" onClick={() => exec("indent")}>
-          <Indent size={11} />
-        </ToolbarBtn>
-        <ToolbarBtn title="Outdent" onClick={() => exec("outdent")}>
-          <Outdent size={11} />
-        </ToolbarBtn>
-
+        <ToolbarBtn title="Bullet list" active={isActive("insertUnorderedList")} onClick={() => exec("insertUnorderedList")}><List size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Numbered list" active={isActive("insertOrderedList")} onClick={() => exec("insertOrderedList")}><ListOrdered size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Indent" onClick={() => exec("indent")}><Indent size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Outdent" onClick={() => exec("outdent")}><Outdent size={11} /></ToolbarBtn>
         <ToolbarSep />
-
-        {/* Blockquote */}
-        <ToolbarBtn
-          title="Blockquote"
-          onClick={() => {
-            const sel = window.getSelection();
-            if (!sel || sel.rangeCount === 0) return;
-            const range = sel.getRangeAt(0);
-            const bq = document.createElement("blockquote");
-            bq.style.cssText =
-              "border-left: 3px solid #6B7280; margin: 4px 0 4px 8px; padding-left: 8px; color: #6B7280;";
-            try {
-              range.surroundContents(bq);
-            } catch {
-              bq.appendChild(range.extractContents());
-              range.insertNode(bq);
-            }
-            handleInput();
-          }}
-        >
-          <Quote size={11} />
-        </ToolbarBtn>
-
-        {/* Horizontal rule */}
-        <ToolbarBtn title="Horizontal line" onClick={() => exec("insertHorizontalRule")}>
-          <Minus size={11} />
-        </ToolbarBtn>
-
-        {/* Link / Unlink */}
-        <ToolbarBtn
-          title="Insert link"
-          onClick={() => {
-            const url = prompt("Enter URL:");
-            if (url) exec("createLink", url);
-          }}
-        >
-          <Link size={11} />
-        </ToolbarBtn>
-        <ToolbarBtn title="Remove link" onClick={() => exec("unlink")}>
-          <Unlink size={11} />
-        </ToolbarBtn>
-
+        <ToolbarBtn title="Blockquote" onClick={() => {
+          const sel = window.getSelection();
+          if (!sel || sel.rangeCount === 0) return;
+          const range = sel.getRangeAt(0);
+          const bq = document.createElement("blockquote");
+          bq.style.cssText = "border-left: 3px solid #6B7280; margin: 4px 0 4px 8px; padding-left: 8px; color: #6B7280;";
+          try { range.surroundContents(bq); } catch { bq.appendChild(range.extractContents()); range.insertNode(bq); }
+          handleInput();
+        }}><Quote size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Horizontal line" onClick={() => exec("insertHorizontalRule")}><Minus size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Insert link" onClick={() => { const url = prompt("Enter URL:"); if (url) exec("createLink", url); }}><Link size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Remove link" onClick={() => exec("unlink")}><Unlink size={11} /></ToolbarBtn>
         <ToolbarSep />
+        <ToolbarBtn title="Undo" onClick={() => exec("undo")}><Undo2 size={11} /></ToolbarBtn>
+        <ToolbarBtn title="Redo" onClick={() => exec("redo")}><Redo2 size={11} /></ToolbarBtn>
 
-        {/* Undo / Redo */}
-        <ToolbarBtn title="Undo (Ctrl+Z)" onClick={() => exec("undo")}>
-          <Undo2 size={11} />
-        </ToolbarBtn>
-        <ToolbarBtn title="Redo (Ctrl+Y)" onClick={() => exec("redo")}>
-          <Redo2 size={11} />
-        </ToolbarBtn>
-
-        {/* Attachment button */}
         {onAttachmentsChange && (
           <>
             <ToolbarSep />
-            <ToolbarBtn
-              title="Attach file"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Paperclip size={11} />
-            </ToolbarBtn>
+            <ToolbarBtn title="Attach file" onClick={() => fileInputRef.current?.click()}><Paperclip size={11} /></ToolbarBtn>
           </>
         )}
       </div>
 
-      {/* Hidden file input */}
       {onAttachmentsChange && (
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={handleFileChange}
-        />
+        <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
       )}
 
-      {/* ── Editor area ── */}
+      {/* Editor */}
       <div
         ref={editorRef}
         contentEditable
@@ -678,45 +469,23 @@ export function GmailRichEditor({
         onFocus={onFocus}
         onBlur={onBlur}
         onKeyDown={(e) => {
-          if (e.key === "Tab") {
-            e.preventDefault();
-            exec(e.shiftKey ? "outdent" : "indent");
-          }
+          if (e.key === "Tab") { e.preventDefault(); exec(e.shiftKey ? "outdent" : "indent"); }
         }}
         className="w-full px-3 py-2.5 text-[13px] leading-relaxed text-foreground focus:outline-none"
-        style={{
-          minHeight,
-          fontFamily: "inherit",
-          overflowY: "auto",
-          wordBreak: "break-word",
-        }}
+        style={{ minHeight, fontFamily: "inherit", overflowY: "auto", wordBreak: "break-word" }}
         spellCheck
       />
 
-      {/* ── Attachment chips ── */}
+      {/* Attachment chips */}
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5 border-t border-border/50 bg-muted/20 px-2.5 py-2">
           {attachments.map((file, index) => (
-            <div
-              key={`${file.name}-${index}`}
-              className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] shadow-sm hover:border-primary/40 transition-colors"
-            >
+            <div key={`${file.name}-${index}`} className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] shadow-sm hover:border-primary/40 transition-colors">
               <span className="shrink-0">{getFileIcon(file)}</span>
-              <span
-                className="text-foreground font-medium max-w-[150px] truncate"
-                title={file.name}
-              >
-                {truncateFilename(file.name)}
-              </span>
-              <span className="text-muted-foreground shrink-0">
-                {formatFileSize(file.size)}
-              </span>
-              <button
-                type="button"
-                title="Remove attachment"
-                onClick={() => removeAttachment(index)}
-                className="ml-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-muted-foreground/20 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors cursor-pointer"
-              >
+              <span className="text-foreground font-medium max-w-[150px] truncate" title={file.name}>{truncateFilename(file.name)}</span>
+              <span className="text-muted-foreground shrink-0">{formatFileSize(file.size)}</span>
+              <button type="button" title="Remove" onClick={() => removeAttachment(index)}
+                className="ml-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-muted-foreground/20 text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors cursor-pointer">
                 <X size={8} />
               </button>
             </div>
@@ -727,4 +496,4 @@ export function GmailRichEditor({
   );
 }
 
-export default GmailRichEditor;
+export default GmailRichTextEditor;

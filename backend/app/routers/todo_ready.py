@@ -6,7 +6,7 @@ Implements the To-Do Ready feature with:
 - Memory signals (SLA breach, promises, overdue)
 - CRUD for todo items
 """
-from fastapi import APIRouter, HTTPException, Depends, Query, Request
+from fastapi import APIRouter, HTTPException, Depends, Query, Request, Form, File, UploadFile
 from typing import Optional, List, Literal
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -1105,15 +1105,18 @@ async def ensure_item_analyzed(
 async def send_email_for_task(
     item_id: str,
     request: Request,
+    draft_text: Optional[str] = Form(None),
+    attachments: List[UploadFile] = File(default=[]),
     current_user: UserResponse = Depends(get_current_active_user),
 ):
     """
     Send the prepared email reply for a task.
     Uses the user's Gmail account (Google OAuth token) to send the email.
 
-    Accepts optional JSON body: { "draft_text": "..." }
-    If draft_text is provided in body, it overrides the stored draft (for edited drafts).
-    
+    Accepts multipart/form-data with:
+      - draft_text (form field, optional): overrides stored draft if provided
+      - attachments (file field, optional): files to attach to the email
+
     If the user doesn't have send permission, returns needs_reauthorization=true
     with the auth_url to reconnect Gmail.
     """
@@ -1122,15 +1125,6 @@ async def send_email_for_task(
     
     db = get_database()
     user_id = str(current_user.id)
-
-    # Parse optional request body for edited draft
-    body_draft_text: Optional[str] = None
-    try:
-        body = await request.json()
-        if isinstance(body, dict):
-            body_draft_text = body.get("draft_text")
-    except Exception:
-        pass  # No body or invalid JSON is fine — we fall back to stored draft
     
     try:
         oid = ObjectId(item_id)
@@ -1150,16 +1144,16 @@ async def send_email_for_task(
     if task.get("source") != TodoSource.EMAIL.value:
         raise HTTPException(status_code=400, detail="This task is not from an email")
     
-    # Get the draft text — prefer body override, then stored draft
+    # Get the draft text — prefer form override, then stored draft
     prepared_action = task.get("prepared_action", {})
-    draft_text = body_draft_text or prepared_action.get("draft_text")
-    if not draft_text:
+    effective_draft_text = draft_text or prepared_action.get("draft_text")
+    if not effective_draft_text:
         raise HTTPException(status_code=400, detail="No draft text to send")
 
     # If user passed an edited draft, persist it back to the task for audit trail
-    if body_draft_text and body_draft_text != prepared_action.get("draft_text"):
+    if draft_text and draft_text != prepared_action.get("draft_text"):
         await db.todo_items.update_one(query, {"$set": {
-            "prepared_action.draft_text": body_draft_text,
+            "prepared_action.draft_text": draft_text,
             "updated_at": datetime.utcnow(),
         }})
         logger.info(f"[SEND EMAIL] Updated draft_text for task {item_id} before sending")
@@ -1222,9 +1216,10 @@ async def send_email_for_task(
             user_id=user_id,
             to=to_email,
             subject=subject,
-            body=draft_text,
+            body=effective_draft_text,
             reply_to_message_id=source_id,
             thread_id=original_email.get("thread_id"),
+            attachments=attachments if attachments else None,
         )
         
         # Mark task as done after sending

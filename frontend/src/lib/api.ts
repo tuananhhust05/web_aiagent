@@ -2304,9 +2304,19 @@ export const todoReadyAPI = {
   getSourceContent: (taskId: string) =>
     api.get<TaskSourceContent>(`/api/todo-ready/items/${taskId}/source-content`),
 
-  /** Send email for a task (optionally with edited draft text) */
-  sendEmail: (taskId: string, draftText?: string) =>
-    api.post<SendEmailResponse>(`/api/todo-ready/items/${taskId}/send-email`, draftText ? { draft_text: draftText } : undefined),
+  /** Send email for a task (optionally with edited draft text and file attachments) */
+  sendEmail: (taskId: string, draftText?: string, attachments?: File[]) => {
+    const form = new FormData();
+    if (draftText) form.append("draft_text", draftText);
+    if (attachments?.length) {
+      attachments.forEach((file) => form.append("attachments", file));
+    }
+    return api.post<SendEmailResponse>(
+      `/api/todo-ready/items/${taskId}/send-email`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+  },
 
   /** Check if Gmail has send permission */
   checkGmailSendStatus: () =>

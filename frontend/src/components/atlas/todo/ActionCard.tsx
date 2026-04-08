@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import ActionCardFront from "./action-card/ActionCardFront";
 import ActionCardExpanded from "./action-card/ActionCardExpanded";
 import { ActionCardData } from "./types";
@@ -25,6 +25,11 @@ const ActionCard = ({
   const [enrichedData, setEnrichedData] = useState<ActionCardData | null>(null);
   const [enriching, setEnriching] = useState(false);
 
+  // Track dirty state from ActionCardExpanded
+  const isDirtyRef = useRef(false);
+  // Reference to ActionCardExpanded's showUnsavedDialog trigger
+  const triggerUnsavedRef = useRef<(() => void) | null>(null);
+
   const handleResolve = () => {
     setResolving(true);
     setTimeout(() => {
@@ -49,6 +54,16 @@ const ActionCard = ({
     }
   };
 
+  // Intercept Dialog close — if dirty, block and let ActionCardExpanded handle the dialog
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && isDirtyRef.current && triggerUnsavedRef.current) {
+      // Block close; trigger unsaved dialog inside ActionCardExpanded
+      triggerUnsavedRef.current();
+      return;
+    }
+    setOpen(nextOpen);
+  };
+
   return (
     <>
       <article
@@ -62,9 +77,9 @@ const ActionCard = ({
         />
       </article>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
-          className="action-ready-modal max-h-[80vh] w-[95vw] max-w-[1100px] overflow-y-auto rounded-[20px] border border-border/40 bg-card/80 p-0 shadow-[0_20px_80px_hsl(var(--foreground)/0.25)] backdrop-blur-2xl data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 sm:rounded-[24px]"
+          className="action-ready-modal max-h-[80vh] w-[95vw] max-w-[1100px] overflow-hidden rounded-[20px] border border-border/40 bg-card/80 p-0 shadow-[0_20px_80px_hsl(var(--foreground)/0.25)] backdrop-blur-2xl data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 sm:rounded-[24px]"
         >
           <span className="sr-only">
             <DialogTitle>{data.title}</DialogTitle>
@@ -76,6 +91,12 @@ const ActionCard = ({
             resolved={resolved}
             onResolve={!resolved ? handleResolve : undefined}
             enriching={enriching}
+            onDirtyChange={(dirty) => {
+              isDirtyRef.current = dirty;
+            }}
+            onRegisterUnsavedTrigger={(fn) => {
+              triggerUnsavedRef.current = fn;
+            }}
           />
         </DialogContent>
       </Dialog>

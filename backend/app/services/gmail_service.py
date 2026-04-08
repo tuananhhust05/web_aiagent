@@ -428,6 +428,7 @@ class GmailService:
         body: str,
         reply_to_message_id: Optional[str] = None,
         thread_id: Optional[str] = None,
+        attachments=None,
     ) -> Dict:
         """
         Send an email using the user's Gmail account.
@@ -439,6 +440,7 @@ class GmailService:
             body: Email body (plain text)
             reply_to_message_id: If replying, the original message ID
             thread_id: If replying, the thread ID to keep conversation together
+            attachments: Optional list of FastAPI UploadFile objects to attach
             
         Returns:
             Dict with id, threadId, labelIds of the sent message
@@ -448,12 +450,33 @@ class GmailService:
             raise Exception("Failed to get valid access token. Please re-authenticate with Google.")
         
         import base64
+        from email.mime.multipart import MIMEMultipart
         from email.mime.text import MIMEText
-        
-        # Create email message
-        message = MIMEText(body)
+        from email.mime.base import MIMEBase
+        from email import encoders
+
+        # Create email message — use MIMEMultipart only when there are attachments
+        if attachments:
+            message = MIMEMultipart()
+            message.attach(MIMEText(body, 'plain'))
+        else:
+            message = MIMEText(body, 'plain')
+
         message['to'] = to
         message['subject'] = subject
+
+        # Attach files
+        if attachments:
+            for upload in attachments:
+                file_bytes = await upload.read()
+                part = MIMEBase('application', 'octet-stream')
+                part.set_payload(file_bytes)
+                encoders.encode_base64(part)
+                part.add_header(
+                    'Content-Disposition',
+                    f'attachment; filename="{upload.filename}"',
+                )
+                message.attach(part)
         
         # If replying, add headers to keep in same thread
         if reply_to_message_id:
