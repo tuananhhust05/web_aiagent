@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast'
 import { Toaster as SonnerToaster } from 'sonner'
 import App from './App.tsx'
 import { AuthProvider } from './hooks/useAuth'
+import { SidebarProvider } from './hooks/useSidebar'
 import { LanguageProvider } from './i18n/LanguageContext'
 import './index.css'
 import './styles/button-overrides.css'
@@ -25,6 +26,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <LanguageProvider>
           <AuthProvider>
+            <SidebarProvider>
             <App />
             <Toaster
               position="top-right"
@@ -37,6 +39,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
               }}
             />
             <SonnerToaster position="top-right" richColors />
+            </SidebarProvider>
           </AuthProvider>
         </LanguageProvider>
       </BrowserRouter>

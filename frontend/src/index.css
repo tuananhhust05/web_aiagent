@@ -468,3 +468,52 @@
   background: hsla(210 33% 98% / 0.8);
   color: hsl(215 25% 27%);
 }
+
+/* ─── Sidebar collapse animation ─────────────────────────────────────────── */
+[data-sidebar-collapsed="true"] {
+  --sidebar-width: 60px;
+}
+[data-sidebar-collapsed="false"] {
+  --sidebar-width: 240px;
+}
+
+/* ─── Home button premium glow ───────────────────────────────────────────── */
+.forskale-home-capsule {
+  background: linear-gradient(145deg, hsl(197 86% 64% / 0.14), hsl(174 56% 55% / 0.10), hsl(197 86% 64% / 0.06));
+  border: 1px solid hsl(197 86% 64% / 0.35);
+  box-shadow:
+    0 0 20px hsl(197 86% 64% / 0.18),
+    0 0 40px hsl(174 56% 55% / 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 hsl(197 86% 64% / 0.18);
+  backdrop-filter: blur(8px);
+  transition: all 0.3s ease;
+}
+.forskale-home-capsule:hover {
+  background: linear-gradient(145deg, hsl(197 86% 64% / 0.22), hsl(174 56% 55% / 0.16), hsl(197 86% 64% / 0.10));
+  border-color: hsl(197 86% 64% / 0.50);
+  box-shadow:
+    0 0 28px hsl(197 86% 64% / 0.28),
+    0 0 48px hsl(174 56% 55% / 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.30),
+    inset 0 1px 0 hsl(197 86% 64% / 0.25);
+  transform: translateY(-1px);
+}
+
+/* ─── Gradient utilities ─────────────────────────────────────────────────── */
+.forskale-gradient-bg {
+  background: linear-gradient(135deg, hsl(var(--forskale-green)), hsl(var(--forskale-teal)), hsl(var(--forskale-blue)));
+}
+
+/* ─── Scale-in animation for settings submenu ────────────────────────────── */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in {
+  animation: scale-in 0.15s ease-out;
+}
+
+aside img[alt="ForSkale"] {
+  transition: width 300ms ease, height 300ms ease;
+}
