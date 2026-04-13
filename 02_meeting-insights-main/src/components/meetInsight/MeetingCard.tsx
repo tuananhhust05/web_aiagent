@@ -1,7 +1,8 @@
+import React from 'react';
 import { Mic, Link2, Briefcase, Check, X } from 'lucide-react';
-import type { MeetingCall } from '@/types/meeting';
-import { companyInitials, avatarColors, STATUS_COLORS, getCognitiveState, isWon, isLost } from '@/lib/meetingUtils';
-import { useT } from '@/components/meetInsight/LanguageContext';
+import type { MeetingCall } from '../../types/meeting';
+import { companyInitials, avatarColors, STATUS_COLORS, getCognitiveState, isWon, isLost } from '../../lib/meetingUtils';
+import { useT } from '@/i18n/LanguageContext';
 
 interface Props {
   meeting: MeetingCall;
@@ -28,9 +29,8 @@ export function MeetingCard({ meeting: m, isSelected, onClick }: Props) {
 
   return (
     <div
-      onClick={onClick}
       className={[
-        'w-full relative flex items-center gap-4 px-4 py-3 rounded-xl text-left transition-all border cursor-pointer',
+        'w-full relative flex items-center gap-4 px-4 py-3 rounded-xl text-left transition-all border',
         isSelected
           ? 'border-[hsl(var(--forskale-teal)/0.4)] shadow-md'
           : 'hover:shadow-sm',
@@ -109,7 +109,7 @@ export function MeetingCard({ meeting: m, isSelected, onClick }: Props) {
         </div>
       </div>
 
-      {/* Right side: NEW badge + eval badge + CTA button */}
+      {/* Right side: eval badge + NEW + CTA button */}
       <div className="flex items-center gap-3 flex-shrink-0">
         <div className="flex flex-col items-end gap-1.5">
           {m.freshInsight && (

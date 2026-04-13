@@ -265,16 +265,13 @@ The Smart Summary tab has a tooltip: *"Cross-meeting intelligence that tracks de
 
 **Component**: `src/components/call-insights/EnablementTab.tsx`
 
-Header shows title "Enablement & Skills Development" left-aligned. Two sub-tab buttons are **centered** below the header:
+Two sub-sections toggled by internal tabs:
+1. **Feedback** (`FeedbackTab`) – Performance metrics grid, coaching feedback (What went well / Where to improve)
+2. **Playbook** (`PlaybookTab`) – Template selection, rule-by-rule analysis, multi-LLM analysis engine
 
-1. **Feedback** (`FeedbackContent`, inline) – Performance metrics grid, AI coaching feedback (Strengths / Areas for Improvement), progress tracking with time-range filter
-2. **Analyze Meeting** (`PlaybookTab`) – Automatically starts multi-LLM analysis on mount (no manual trigger button)
-
-### Analyze Meeting Flow:
-- Clicking the "Analyze Meeting" tab immediately launches the analysis modal (`AdvancedAnalysisModal`)
-- States: `analyzing` → `complete` (no intermediate "initial" state)
-- On completion: shows Deal Health Score card with semi-circle gauge, top methodology badge, coach summary, and top-3 methodology scores
-- Action buttons: "View Full Coaching Report" (opens `DetailedAnalysisDashboard`), "Re-analyze", "Export Report"
+### Playbook Analysis Flow:
+- "Analyze this meeting" button triggers multi-LLM consensus engine
+- States: Loading → Compact results → Minimized
 - **DetailedAnalysisDashboard**: 7 sections including Deal Health Header, Action Plan, Key Behaviors, Sales Approaches, Unique Techniques, Conversation Effectiveness, Benchmarking
 - **Model Consensus Panel**: Defaults collapsed, shows methodology and agreement level
 

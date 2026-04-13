@@ -1,12 +1,15 @@
 import { TrendingUp, ThumbsUp, Zap, Sparkles, GraduationCap, MessageSquare, BookOpen } from "lucide-react";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n/LanguageContext";
-import { Badge } from "@/components/ui/badge";
+
 import { mockMetrics, mockCoachWell, mockCoachImprove } from "@/data/mockData";
 import PlaybookTab from "./PlaybookTab";
+import SparkleAttraction, { SparklesIcon } from "./SparkleAttraction";
+import PlaybookAnalysisLoader from "./PlaybookAnalysisLoader";
+import { useEnablementState } from "@/hooks/useEnablementState";
 
-type SubTab = "feedback" | "playbook";
+type SubTab = "feedback" | "analyze";
 
 const statusColor = (rating: string) => {
   if (rating === "Great!") return "text-[hsl(var(--forskale-purple))]";
@@ -131,58 +134,124 @@ const FeedbackContent = () => {
   );
 };
 
-const subTabs: { id: SubTab; label: string; icon: React.ElementType }[] = [
-  { id: "feedback", label: "Feedback", icon: MessageSquare },
-  { id: "playbook", label: "Analyze Meeting", icon: BookOpen },
-];
+interface EnablementTabProps {
+  meetingId?: string;
+}
 
-const EnablementTab = () => {
+const EnablementTab = ({ meetingId = "default" }: EnablementTabProps) => {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>("feedback");
+  const { state, startAnalysis, completeAnalysis } = useEnablementState(meetingId);
+  const isPristine = state === "pristine";
+  const isLoading = state === "loading";
+  const isComplete = state === "complete";
   const t = useT();
+
+  const handleAnalyzeClick = () => {
+    setActiveSubTab("analyze");
+    if (isPristine) {
+      startAnalysis();
+    }
+  };
+
+  const handleReanalyze = useCallback(() => {
+    startAnalysis();
+  }, [startAnalysis]);
+
+  const handleLoaderComplete = useCallback(() => {
+    completeAnalysis();
+  }, [completeAnalysis]);
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-[hsl(var(--badge-purple-bg))] flex items-center justify-center">
-            <GraduationCap className="h-4.5 w-4.5 text-[hsl(var(--forskale-purple))]" />
-          </div>
-          <div>
-            <h2 className="text-lg font-heading font-bold text-foreground">{t("enablement.title")}</h2>
-            <p className="text-xs text-muted-foreground">{t("enablement.subtitle")}</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-[hsl(var(--badge-purple-bg))] flex items-center justify-center">
+          <GraduationCap className="h-4.5 w-4.5 text-[hsl(var(--forskale-purple))]" />
         </div>
+        <div>
+          <h2 className="text-lg font-heading font-bold text-foreground">{t("enablement.title")}</h2>
+          <p className="text-xs text-muted-foreground">{t("enablement.subtitle")}</p>
+        </div>
+      </div>
 
-        {/* Sub-tab navigation — centered */}
-        <div className="flex justify-center gap-2">
-          {subTabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeSubTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSubTab(tab.id)}
-                className={cn(
-                  "inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold rounded-lg transition-all duration-200",
-                  isActive
-                    ? "forskale-gradient-bg text-white shadow-md shadow-[hsl(var(--forskale-teal)/0.3)]"
-                    : "bg-muted text-muted-foreground hover:text-foreground hover:bg-accent border border-border"
-                )}
-              >
-                <Icon className={cn("h-4 w-4", isActive && "text-white")} />
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+      {/* Sub-tab navigation — centered */}
+      <div className="flex justify-center gap-3">
+        {/* Feedback button */}
+        <button
+          onClick={() => setActiveSubTab("feedback")}
+          className={cn(
+            "inline-flex items-center gap-2 px-10 py-3 text-sm font-bold rounded-full transition-all duration-200",
+            activeSubTab === "feedback"
+              ? "forskale-gradient-bg text-white shadow-md shadow-[hsl(var(--forskale-teal)/0.3)]"
+              : "bg-card text-muted-foreground hover:text-foreground border border-border hover:border-[hsl(var(--forskale-teal)/0.4)]"
+          )}
+        >
+          <MessageSquare className={cn("h-4 w-4", activeSubTab === "feedback" && "text-white")} />
+          Feedback
+        </button>
+
+        {/* Analysis button with sparkle attraction */}
+        <SparkleAttraction isActive={isPristine} variant="button">
+          <button
+            onClick={handleAnalyzeClick}
+            disabled={isLoading}
+            className={cn(
+              "inline-flex items-center gap-2 px-10 py-3 text-sm font-bold rounded-full transition-all duration-200",
+              activeSubTab === "analyze" || isComplete
+                ? "bg-[hsl(var(--forskale-purple))] text-white shadow-md shadow-[hsl(var(--forskale-purple)/0.3)]"
+                : isPristine
+                  ? "bg-[hsl(var(--forskale-purple))] text-white shadow-md shadow-[hsl(var(--forskale-purple)/0.3)] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsla(270,60%,55%,0.4)]"
+                  : "bg-card text-muted-foreground hover:text-foreground border border-border hover:border-[hsl(var(--forskale-purple)/0.4)]"
+            )}
+          >
+            {isLoading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <BookOpen className="h-4 w-4 text-white" />
+                Analysis
+              </>
+            )}
+          </button>
+        </SparkleAttraction>
       </div>
 
       {/* Sub-tab content */}
       <div className="animate-in fade-in duration-200">
         {activeSubTab === "feedback" && <FeedbackContent />}
-        {activeSubTab === "playbook" && <PlaybookTab />}
+        {activeSubTab === "analyze" && (
+          <>
+            {/* First-time encouragement banner */}
+            {isPristine && (
+              <div className="rounded-2xl border border-dashed border-[hsl(var(--forskale-teal)/0.4)] bg-[hsl(var(--forskale-teal)/0.04)] p-6 text-center animate-in fade-in duration-300">
+                <div className="flex justify-center mb-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[hsl(var(--forskale-green)/0.15)] to-[hsl(var(--forskale-teal)/0.15)] flex items-center justify-center">
+                    <SparklesIcon className="h-6 w-6 text-[hsl(var(--forskale-teal))]" />
+                  </div>
+                </div>
+                <p className="text-sm font-semibold text-foreground mb-2">
+                  Ready to unlock your meeting insights?
+                </p>
+                <p className="text-xs text-muted-foreground mb-4 max-w-md mx-auto">
+                  Click <strong>Analysis</strong> to run ForSkale AI and uncover key topics, action items, sentiment, and more from your conversation.
+                </p>
+              </div>
+            )}
+
+            {/* Show full PlaybookTab only after analysis is complete */}
+            {isComplete && <PlaybookTab forceComplete onReanalyze={handleReanalyze} />}
+          </>
+        )}
       </div>
+
+      {/* Loading Modal */}
+      <PlaybookAnalysisLoader
+        isOpen={isLoading}
+        onComplete={handleLoaderComplete}
+      />
     </div>
   );
 };

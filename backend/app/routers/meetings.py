@@ -277,6 +277,98 @@ class MeetingComment(BaseModel):
     updated_at: datetime
 
 
+class InterestPulseResponse(BaseModel):
+    meeting_id: str
+    source: Literal["computed", "cache", "none"] = "none"
+    interest_percent: Optional[int] = None          # 0-100, từ interest_score trong DB
+    interest_percent_range: Optional[str] = None    # "10-20%" | "20-30%" | ... | "90%+"
+    cognitive_state: Optional[str] = None           # "Attention" | "Curiosity" | ... | "Decision" | "Lost"
+    crm_stage_suggestion: Optional[str] = None
+    ui_color_theme: Optional[str] = None            # "red" | "orange" | "amber" | "teal" | "green"
+    psychology_label: Optional[str] = None
+    pulse_score: Optional[int] = None               # 0-100 meeting quality
+    win_probability: Optional[int] = None           # 0-100 deal health
+    risk_level: Optional[str] = None               # "Low" | "Medium" | "High" | "Critical"
+    risk_reason: Optional[str] = None
+    computed_at: Optional[datetime] = None
+    message: Optional[str] = None
+
+
+INTEREST_PULSE_BANDS = [
+    # (min_exclusive, max_inclusive, range_str, cognitive_state, crm_stage, color, psychology, default_pulse, default_win_prob, risk)
+    (90, 100, "90%+",  "Decision",           "Closed Won",      "green",  "Decision made",                95, 90, "Low"),
+    (80,  90, "80-90%","Hard Commitment",     "Closing/Won",     "green",  "Ready to commit",              88, 80, "Low"),
+    (70,  80, "70-80%","Validation",          "Negotiation",     "teal",   "Validating fit and consensus", 80, 72, "Low"),
+    (60,  70, "60-70%","Evaluation",          "Proposal",        "teal",   "They're comparing options",    72, 62, "Medium"),
+    (50,  60, "50-60%","Trust",               "Demo",            "teal",   "They trust your solution",     65, 52, "Medium"),
+    (40,  50, "40-50%","Problem Recognition", "Discovery/Demo",  "amber",  "They see the problem",         55, 42, "Medium"),
+    (30,  40, "30-40%","Interest",            "Discovery",       "amber",  "They're engaged",              45, 35, "Medium"),
+    (20,  30, "20-30%","Curiosity",           "Qualified Lead",  "orange", "They want to know more",       35, 25, "High"),
+    (10,  20, "10-20%","Attention",           "Lead/Prospect",   "orange", "They notice you exist",        20, 15, "High"),
+    ( 0,  10, "10-20%","Attention",           "Lead/Prospect",   "red",    "They notice you exist",        10,  8, "Critical"),
+]
+
+
+def _compute_interest_pulse(meeting_doc: dict) -> dict:
+    """Map interest_score (0-100) to InterestPulse fields."""
+    # Lấy interest_score từ doc hoặc từ atlas_evaluation
+    score = meeting_doc.get("interest_score")
+    if score is None:
+        eval_data = meeting_doc.get("atlas_evaluation") or {}
+        score = eval_data.get("interest_score") or eval_data.get("interest_percent")
+
+    if score is None:
+        return {"source": "none", "message": "No interest score available"}
+
+    score = max(0, min(100, int(score)))
+
+    # Special case: score = 0 → Lost
+    if score == 0:
+        return {
+            "source": "computed",
+            "interest_percent": 0,
+            "interest_percent_range": "0%",
+            "cognitive_state": "Lost",
+            "crm_stage_suggestion": "Closed Lost",
+            "ui_color_theme": "red",
+            "psychology_label": "Deal lost",
+            "pulse_score": 0,
+            "win_probability": 0,
+            "risk_level": "Critical",
+            "risk_reason": "Deal lost",
+            "computed_at": datetime.utcnow().isoformat(),
+        }
+
+    # Find band
+    for (lo, hi, range_str, cog, crm, color, psych, pulse, win_prob, risk) in INTEREST_PULSE_BANDS:
+        if lo < score <= hi:
+            # Try to get better pulse_score / win_probability from atlas_evaluation
+            eval_data = meeting_doc.get("atlas_evaluation") or {}
+            actual_pulse = eval_data.get("pulse_score") or eval_data.get("playbook_score_pct") or pulse
+            actual_win = eval_data.get("win_probability") or win_prob
+            risk_reason = eval_data.get("risk_reason") or f"{risk} risk"
+            # No em-dashes allowed in risk_reason
+            risk_reason = risk_reason.replace("\u2013", "-").replace("\u2014", "-")
+
+            return {
+                "source": "computed",
+                "interest_percent": score,
+                "interest_percent_range": range_str,
+                "cognitive_state": cog,
+                "crm_stage_suggestion": crm,
+                "ui_color_theme": color,
+                "psychology_label": psych,
+                "pulse_score": int(actual_pulse) if actual_pulse else pulse,
+                "win_probability": int(actual_win) if actual_win else win_prob,
+                "risk_level": risk,
+                "risk_reason": risk_reason,
+                "computed_at": datetime.utcnow().isoformat(),
+            }
+
+    # Fallback
+    return {"source": "none", "message": "Score out of range"}
+
+
 @router.get("/{meeting_id}/comments", response_model=List[MeetingComment])
 async def list_meeting_comments(
     meeting_id: str,
@@ -1828,6 +1920,27 @@ async def get_meeting(
     except Exception as e:
         print(f"Error in get_meeting: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+@router.get("/{meeting_id}/interest-pulse", response_model=InterestPulseResponse)
+async def get_meeting_interest_pulse(
+    meeting_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_database),
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    """Compute InterestPulse for a meeting based on interest_score and atlas_evaluation."""
+    try:
+        oid = ObjectId(meeting_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid meeting_id")
+
+    doc = await db.meetings.find_one({"_id": oid, "user_id": current_user.id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    pulse_data = _compute_interest_pulse(doc)
+    return InterestPulseResponse(meeting_id=meeting_id, **pulse_data)
+
 
 def _native_meeting_id_from_link(link: str, platform: str) -> Optional[str]:
     """Extract canonical meeting ID from link for deduplication."""

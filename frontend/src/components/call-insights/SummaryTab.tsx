@@ -1,569 +1,425 @@
-import {
-  Sparkles,
-  Clock,
-  AlertTriangle,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle,
-  ArrowRight,
-  Compass,
-  TrendingUp,
-  TrendingDown,
-  Minus,
-  RefreshCw,
-  FileText,
-  Lightbulb,
-  CheckSquare,
-  HelpCircle,
-} from "lucide-react";
-import { useState } from "react";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import {
-  mockSummary,
-  mockDealEvolution,
-  mockThenVsNow,
-  mockChangeAlerts,
-  mockEnhancedTopics,
-  mockStrategicRecommendations,
-  mockDealHealth,
-} from "@/data/mockData";
-import type {
-  MeetingSmartSummary,
-  SmartSummaryDealHealth,
-  SmartSummaryDealEvolution,
-  SmartSummaryThenVsNow,
-  SmartSummaryChangeAlert,
-  SmartSummaryEnhancedTopic,
-  SmartSummaryStrategicRecommendation,
-} from "@/lib/api";
+import { useState, useEffect } from "react";
+import { Sparkles, Clock, AlertTriangle, CheckCircle2, Info, Trophy } from "lucide-react";
+import { getBandByPct } from "@/lib/interestModel";
+import { type PlaybookAnalysis } from "@/data/playbookAnalysisData";
+import AdvancedAnalysisModal from "./AdvancedAnalysisModal";
+import KeyMomentsSection from "./KeyMomentsSection";
+import type { MeetingSmartSummary, MeetingInterestPulse } from "@/lib/api";
 
-// --- Sub-components ---
+// ── Mock fallback data ──
 
-const SyncStatus = () => (
-  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-    <RefreshCw className="h-3 w-3 text-status-great animate-none" />
-    <span className="text-status-great font-medium">Synced with CRM</span>
-    <span>•</span>
-    <span>Last updated: 2 min ago</span>
+const MOCK_INTEREST_PCT = 55;
+
+const mockMeetingHistory = [
+  { id: "m1", dateLabel: "Jan 10", interestPct: 15, outcome: "Initial outreach" },
+  { id: "m2", dateLabel: "Jan 24", interestPct: 28, outcome: "First conversation" },
+  { id: "m3", dateLabel: "Feb 8",  interestPct: 42, outcome: "Pain points identified" },
+  { id: "m4", dateLabel: "Feb 22", interestPct: 55, outcome: "Solution presented" },
+];
+
+const mockChanges = [
+  { topic: "Budget",           before: "CFO confirmed allocation",  now: "Need to check with finance team", direction: "risk"     as const },
+  { topic: "Decision Authority", before: "Marco has signing authority", now: "Board needs to review",           direction: "risk"     as const },
+  { topic: "Implementation",   before: "Concerned about complexity",   now: "Phased rollout accepted",         direction: "positive" as const },
+];
+
+const mockActions = [
+  { priority: "CRITICAL"    as const, title: "Re-qualify Budget Authority",    why: "Budget status shifted from confirmed to uncertain",       timeline: "Schedule CFO call within 48 hours"      },
+  { priority: "IMPORTANT"   as const, title: "Address Implementation Concerns", why: "Raised in 2 consecutive meetings without full resolution", timeline: "Send case study within 24 hours"         },
+  { priority: "OPPORTUNITY" as const, title: "Engage Finance Team",              why: "Positive mention indicates buying intent",                timeline: "Prepare ROI materials this week"        },
+];
+
+// ── Analyze Meeting Button ──
+const AnalyzeMeetingButton = ({ onClick }: { onClick: () => void }) => (
+  <div className="flex items-center justify-center py-12">
+    <button
+      onClick={onClick}
+      className="group relative inline-flex items-center gap-2.5 px-6 py-3.5 forskale-gradient-bg text-white text-sm font-semibold rounded-xl shadow-[0_4px_20px_hsl(var(--forskale-green)/0.35)] hover:-translate-y-0.5 hover:shadow-[0_8px_30px_hsl(var(--forskale-green)/0.45)] transition-all duration-300 overflow-hidden"
+    >
+      <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      <span className="absolute inset-0 rounded-xl animate-pulse opacity-30 bg-[hsl(var(--forskale-green)/0.4)]" />
+      <Sparkles className="h-5 w-5 relative z-10 animate-spin" style={{ animationDuration: '3s' }} />
+      <span className="relative z-10">Analyze Meeting</span>
+    </button>
   </div>
 );
 
-const DealHealthBar = ({ label, value, trend }: { label: string; value: number; trend: "up" | "down" | "stable" }) => {
-  const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
-  const trendColor = trend === "up" ? "text-status-great" : trend === "down" ? "text-destructive" : "text-muted-foreground";
-  return (
-    <div className="flex-1 min-w-[120px]">
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-[11px] font-medium text-muted-foreground">{label}</span>
-        <div className="flex items-center gap-1">
-          <span className="text-xs font-bold text-foreground">{value}%</span>
-          <TrendIcon className={cn("h-3 w-3", trendColor)} />
-        </div>
-      </div>
-      <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-        <div
-          className="h-full rounded-full bg-[hsl(var(--forskale-teal))] transition-all duration-1000 ease-out"
-          style={{ width: `${value}%` }}
-        />
-      </div>
-    </div>
-  );
-};
+// ── Section 1: Interest Pulse ──
+interface InterestPulseProps {
+  interestPct?: number;
+  winProbability?: number | null;
+  riskLevel?: string | null;
+  riskReason?: string | null;
+  cognitiveState?: string | null;
+  psychologyLabel?: string | null;
+  uiColorTheme?: string | null;
+  pulseScore?: number | null;
+}
 
-const DealHealthDashboard = ({ health }: { health?: SmartSummaryDealHealth | null }) => {
-  const h = health ?? {
-    engagement: mockDealHealth.engagement,
-    momentum: mockDealHealth.momentum,
-    risk_level: mockDealHealth.riskLevel.label,
-    risk_trend: mockDealHealth.riskLevel.trend,
-    win_probability: mockDealHealth.winProbability,
+const InterestPulse = ({ interestPct = MOCK_INTEREST_PCT, winProbability, riskLevel, riskReason, cognitiveState, psychologyLabel, pulseScore }: InterestPulseProps) => {
+  const band = getBandByPct(interestPct);
+  const targetScore = Math.min(Math.round(interestPct * 1.4), 100); // rough gauge score
+
+  // ── Derived values — must be declared BEFORE useEffect to avoid TDZ ──
+  const displayCognitiveState = cognitiveState || band.cognitiveState;
+  const displayPsychology = psychologyLabel || band.psychology;
+  const displayTargetScore = pulseScore != null ? Math.min(Math.round(pulseScore), 100) : targetScore;
+  const winPct = winProbability != null ? Math.round(winProbability) : null;
+  const riskText = riskLevel || "Medium";
+
+  const [displayScore, setDisplayScore] = useState(0);
+  const [textVisible, setTextVisible] = useState(false);
+  const [gaugeActive, setGaugeActive] = useState(false);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setTextVisible(true), 100);
+    const t2 = setTimeout(() => setGaugeActive(true), 400);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, []);
+
+  useEffect(() => {
+    if (!gaugeActive) return;
+    const duration = 1200;
+    const startTime = performance.now();
+    const animate = (now: number) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayScore(Math.round(displayTargetScore * eased));
+      if (progress < 1) requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+  }, [gaugeActive, displayTargetScore]);
+
+  const radius = 50;
+  const circumference = Math.PI * radius;
+  const dashValue = gaugeActive ? (displayScore / 100) * circumference : 0;
+
+  const getScoreLabel = (s: number) => {
+    if (s >= 80) return "Excellent";
+    if (s >= 60) return "Good";
+    if (s >= 40) return "Fair";
+    return "Needs Work";
   };
-  const riskColor =
-    h.risk_level === "Low"
-      ? "text-status-great"
-      : h.risk_level === "Medium"
-      ? "text-[hsl(var(--forskale-cyan))]"
-      : "text-destructive";
-  return (
-    <div className="rounded-lg border border-border bg-card p-4 shadow-card">
-      <div className="flex items-center gap-2 mb-3">
-        <TrendingUp className="h-4 w-4 text-[hsl(var(--forskale-teal))]" />
-        <span className="text-xs font-bold text-foreground">Deal Health Snapshot</span>
-      </div>
-      <div className="flex flex-wrap gap-4">
-        <DealHealthBar label="Engagement" value={h.engagement.value} trend={h.engagement.trend} />
-        <DealHealthBar label="Momentum" value={h.momentum.value} trend={h.momentum.trend} />
-        <div className="flex-1 min-w-[120px]">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[11px] font-medium text-muted-foreground">Risk Level</span>
-            <span className={cn("text-xs font-bold", riskColor)}>{h.risk_level} ↗</span>
-          </div>
-          <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-            <div className="h-full rounded-full bg-destructive/60 transition-all duration-1000" style={{ width: "55%" }} />
-          </div>
-        </div>
-        <DealHealthBar label="Win Probability" value={h.win_probability.value} trend={h.win_probability.trend} />
-      </div>
-    </div>
-  );
-};
-
-const DealEvolutionSection = ({ evolution }: { evolution?: SmartSummaryDealEvolution[] | null }) => {
-  const meetings = evolution?.length
-    ? evolution
-    : mockDealEvolution.map((m) => ({
-        id: m.id,
-        date: m.date,
-        type: m.type,
-        outcome: m.outcome,
-        is_current: m.isCurrent,
-      }));
 
   return (
-    <div className="rounded-xl border border-[hsl(var(--forskale-teal)/0.2)] bg-gradient-to-br from-[hsl(var(--forskale-teal)/0.03)] to-card p-5 shadow-card">
-      <div className="flex items-center gap-2 mb-1">
-        <Clock className="h-4 w-4 text-[hsl(var(--forskale-teal))]" />
-        <h3 className="text-base font-heading font-bold text-foreground">Deal Evolution</h3>
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="w-2 h-2 rounded-full bg-[hsl(var(--forskale-teal))] animate-pulse" />
+        <h3 className="text-base font-bold text-foreground">Interest Pulse</h3>
+        <span className="text-xs text-muted-foreground ml-1">where the buyer is right now</span>
       </div>
-      <p className="text-xs text-muted-foreground mb-4">How this opportunity has progressed across meetings</p>
 
-      <div className="relative flex items-center gap-0 mb-6 overflow-x-auto pb-2">
-        {meetings.map((m, i) => (
-          <div key={m.id} className="flex items-center flex-1 min-w-[120px]">
-            <div className="flex flex-col items-center text-center flex-1">
-              <div className={cn(
-                "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all",
-                m.is_current
-                  ? "bg-[hsl(var(--forskale-teal))] border-[hsl(var(--forskale-teal))] text-white shadow-md"
-                  : "bg-card border-border text-muted-foreground"
-              )}>
-                {i + 1}
-              </div>
-              <span className={cn("text-[10px] font-semibold mt-1.5", m.is_current ? "text-foreground" : "text-muted-foreground")}>{m.date}</span>
-              <span className="text-[10px] text-muted-foreground">{m.type}</span>
-              <span className={cn("text-[10px] mt-0.5", m.is_current ? "text-[hsl(var(--forskale-teal))] font-medium" : "text-muted-foreground")}>{m.outcome}</span>
-            </div>
-            {i < meetings.length - 1 && (
-              <div className="w-8 h-0.5 bg-border shrink-0 mx-1" />
+      <div className="rounded-xl border border-[hsl(145,92%,91%)] bg-[hsl(143,85%,96%)] p-6">
+        <div className="flex items-center justify-between">
+          <div
+            className="flex flex-col justify-center transition-all duration-500"
+            style={{ opacity: textVisible ? 1 : 0, transform: textVisible ? 'translateY(0)' : 'translateY(10px)' }}
+          >
+            <h4 className="text-2xl font-bold text-[hsl(140,100%,27%)] mb-1">{displayCognitiveState}</h4>
+            <p className="text-sm text-[hsl(140,100%,27%)]/70 mb-2">{interestPct}% interest</p>
+            <p className="text-sm font-medium text-[hsl(140,100%,27%)]">{displayPsychology}</p>
+            {psychologyLabel && psychologyLabel !== band.psychology && (
+              <p className="text-xs italic text-[hsl(140,100%,27%)]/60 mt-1">{psychologyLabel}</p>
             )}
           </div>
-        ))}
-      </div>
-    </div>
-  );
-};
 
-const ChangeDetectionSection = ({ alerts }: { alerts?: SmartSummaryChangeAlert[] | null }) => {
-  const displayAlerts = alerts?.length
-    ? alerts
-    : mockChangeAlerts.map((a) => ({
-        id: a.id,
-        severity: a.severity,
-        title: a.title,
-        category: a.category,
-        previous_state: a.previous.state,
-        previous_date: a.previous.date,
-        current_state: a.current.state,
-        impact_analysis: a.impactAnalysis,
-        recommended_actions: a.recommendedActions,
-      }));
-
-  if (!displayAlerts.length) return null;
-
-  const severityStyles: Record<string, string> = {
-    critical: "border-destructive/40 bg-destructive/5",
-    warning: "border-destructive/20 bg-destructive/5",
-    info: "border-[hsl(var(--forskale-cyan)/0.3)] bg-[hsl(var(--forskale-cyan)/0.05)]",
-    positive: "border-[hsl(var(--forskale-green)/0.3)] bg-[hsl(var(--forskale-green)/0.05)]",
-  };
-  const severityIcon: Record<string, string> = {
-    critical: "🔴",
-    warning: "⚠️",
-    info: "🔄",
-    positive: "✅",
-  };
-
-  return (
-    <div className="space-y-2">
-      {displayAlerts.map((alert) => (
-        <div key={alert.id} className={cn("rounded-xl border-2 p-4 shadow-card", severityStyles[alert.severity])}>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-base">{severityIcon[alert.severity]}</span>
-            <h4 className="text-sm font-heading font-bold text-foreground">
-              {alert.severity === "warning" ? "Strategic Shift Detected" : alert.title}
-            </h4>
-            <Badge variant="outline" className="text-[9px] h-4 font-bold tracking-wider">
-              {alert.category}
-            </Badge>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs mb-3">
-            <div>
-              <span className="text-muted-foreground font-medium">Previous ({alert.previous_date}):</span>
-              <p className="text-foreground mt-0.5">"{alert.previous_state}"</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground font-medium">Current (Today):</span>
-              <p className="text-foreground mt-0.5">"{alert.current_state}"</p>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground italic mb-3">{alert.impact_analysis}</p>
-          <div className="space-y-1">
-            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Recommended Actions</div>
-            {alert.recommended_actions.map((action, j) => (
-              <div key={j} className="flex items-center gap-2 text-xs text-foreground">
-                <ArrowRight className="h-3 w-3 text-[hsl(var(--forskale-teal))] shrink-0" />
-                {action}
+          <div className="flex flex-col items-center">
+            <div className="relative" style={{ width: 120, height: 70 }}>
+              <svg viewBox="0 0 120 68" className="w-full h-full">
+                <path d="M 10 58 A 50 50 0 0 1 110 58" fill="none" stroke="white" strokeWidth="8" strokeLinecap="round" />
+                <path
+                  d="M 10 58 A 50 50 0 0 1 110 58"
+                  fill="none"
+                  stroke="hsl(97,72%,48%)"
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray={`${dashValue} ${circumference}`}
+                  style={{ transition: 'stroke-dasharray 1.2s cubic-bezier(0.22, 1, 0.36, 1)' }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-end justify-center pb-1">
+                <div className="flex items-baseline gap-0.5">
+                  <span className="text-[32px] leading-none font-bold tabular-nums text-[hsl(97,72%,38%)]">{displayScore}</span>
+                  <span className="text-sm text-[hsl(140,100%,27%)]/60">/100</span>
+                </div>
               </div>
-            ))}
+            </div>
+            <div className="text-center mt-1.5">
+              <span className="text-xs font-semibold text-[hsl(97,72%,38%)] block">{getScoreLabel(displayScore)}</span>
+              <div className="flex items-center justify-center gap-1 mt-0.5">
+                <Trophy className="h-3 w-3 text-[hsl(97,72%,48%)]" />
+                <span className="text-[10px] font-medium text-[hsl(97,72%,48%)]">Great job!</span>
+              </div>
+            </div>
           </div>
         </div>
-      ))}
-    </div>
-  );
-};
-
-const badgeConfig: Record<string, { label: string; className: string }> = {
-  new: { label: "🆕 NEW", className: "bg-[hsl(var(--forskale-green)/0.1)] text-status-great border-[hsl(var(--forskale-green)/0.3)]" },
-  revisited: { label: "🔄 REVISITED", className: "bg-[hsl(var(--forskale-cyan)/0.1)] text-[hsl(var(--forskale-cyan))] border-[hsl(var(--forskale-cyan)/0.3)]" },
-  resolved: { label: "✅ RESOLVED", className: "bg-[hsl(var(--forskale-green)/0.1)] text-status-great border-[hsl(var(--forskale-green)/0.3)]" },
-  shifted: { label: "⚠️ SHIFTED", className: "bg-destructive/10 text-destructive border-destructive/30" },
-  trending: { label: "📈 TRENDING", className: "bg-accent text-accent-foreground border-border" },
-};
-
-const sentimentIcon = {
-  improving: { icon: TrendingUp, color: "text-status-great", label: "Improving" },
-  declining: { icon: TrendingDown, color: "text-destructive", label: "Declining" },
-  stable: { icon: Minus, color: "text-muted-foreground", label: "Stable" },
-};
-
-const EnhancedTopicsSection = ({ topics }: { topics?: SmartSummaryEnhancedTopic[] | null }) => {
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
-
-  const displayTopics = topics?.length
-    ? topics
-    : mockEnhancedTopics.map((t) => ({
-        title: t.title,
-        badge: t.badge,
-        meeting_count: t.meetingCount,
-        sentiment_trend: t.sentimentTrend,
-        timeline: t.timeline.map((e) => ({ date: e.date, quote: e.quote, sentiment: e.sentiment })),
-        status: t.status,
-        next_step: t.nextStep,
-      }));
-
-  return (
-    <div className="rounded-xl border border-border bg-card p-5 shadow-card">
-      <div className="flex items-center gap-2 mb-1">
-        <FileText className="h-4 w-4 text-[hsl(var(--forskale-teal))]" />
-        <h3 className="text-base font-heading font-bold text-foreground">Discussion Topics</h3>
       </div>
-      <p className="text-xs text-muted-foreground mb-4">Topic evolution across your meetings</p>
-      <div className="space-y-2">
-        {displayTopics.map((topic, i) => {
-          const badge = badgeConfig[topic.badge];
-          const sentiment = sentimentIcon[topic.sentiment_trend];
-          const SentimentIcon = sentiment.icon;
-          const isOpen = expanded[i];
-          return (
-            <div key={i} className="rounded-lg border border-border bg-secondary/30">
-              <button
-                className="w-full flex items-center gap-2 px-3 py-2.5 text-left"
-                onClick={() => setExpanded((p) => ({ ...p, [i]: !p[i] }))}
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-foreground">{topic.title}</span>
-                    <Badge variant="outline" className={cn("text-[9px] h-4 font-bold", badge.className)}>
-                      {badge.label}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
-                    <span>{topic.meeting_count}</span>
-                    <span>•</span>
-                    <SentimentIcon className={cn("h-3 w-3", sentiment.color)} />
-                    <span>{sentiment.label}</span>
-                  </div>
-                </div>
-                {isOpen ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
-              </button>
-              {isOpen && (
-                <div className="px-3 pb-3 space-y-2 animate-fade-in border-t border-border pt-2">
-                  <div className="space-y-1.5">
-                    {topic.timeline.map((entry, j) => {
-                      const dotColor = entry.sentiment === "positive" ? "bg-status-great" : entry.sentiment === "negative" ? "bg-destructive" : "bg-muted-foreground";
-                      return (
-                        <div key={j} className="flex items-start gap-2 text-xs">
-                          <span className={cn("w-1.5 h-1.5 rounded-full mt-1.5 shrink-0", dotColor)} />
-                          <div>
-                            <span className="font-medium text-muted-foreground">{entry.date}:</span>
-                            <span className="text-foreground ml-1">"{entry.quote}"</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="flex items-center gap-4 text-[11px] pt-1">
-                    <span className="text-muted-foreground"><strong>Status:</strong> {topic.status}</span>
-                    <span className="text-[hsl(var(--forskale-teal))]"><strong>Next:</strong> {topic.next_step}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
 
-const ThenVsNowSection = ({ items }: { items?: SmartSummaryThenVsNow[] | null }) => {
-  const displayItems = items?.length
-    ? items
-    : mockThenVsNow.map((t) => ({
-        topic: t.topic,
-        then_date: t.then.date,
-        then_status: t.then.status,
-        then_sentiment: t.then.sentiment,
-        now_status: t.now.status,
-        now_sentiment: t.now.sentiment,
-        impact: t.impact,
-        indicator: t.indicator,
-      }));
-
-  const indicatorColors: Record<string, string> = {
-    green: "border-[hsl(var(--forskale-green)/0.3)] bg-[hsl(var(--forskale-green)/0.05)]",
-    amber: "border-destructive/20 bg-destructive/5",
-    red: "border-destructive/30 bg-destructive/10",
-    blue: "border-[hsl(var(--forskale-cyan)/0.3)] bg-[hsl(var(--forskale-cyan)/0.05)]",
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Then vs Now</div>
-      {displayItems.map((item, i) => (
-        <div key={i} className={cn("rounded-lg border p-3", indicatorColors[item.indicator])}>
-          <div className="font-semibold text-sm text-foreground mb-2">{item.topic}</div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-            <div>
-              <span className="text-muted-foreground font-medium">Then ({item.then_date}):</span>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {item.then_sentiment === "positive" ? <CheckCircle className="h-3 w-3 text-status-great shrink-0" /> : <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
-                <span className="text-foreground">{item.then_status}</span>
-              </div>
-            </div>
-            <div>
-              <span className="text-muted-foreground font-medium">Now (Today):</span>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                {item.now_sentiment === "positive" ? <CheckCircle className="h-3 w-3 text-status-great shrink-0" /> : <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
-                <span className="text-foreground">{item.now_status}</span>
-              </div>
-            </div>
-          </div>
-          <div className="mt-2 text-[11px] text-muted-foreground italic">
-            <strong>Impact:</strong> {item.impact}
-          </div>
+      <div className="grid grid-cols-2 gap-3 mt-4">
+        <div className="rounded-lg bg-[hsl(var(--forskale-green)/0.08)] border border-[hsl(var(--forskale-green)/0.2)] p-3">
+          <p className="text-[11px] text-muted-foreground">Win probability</p>
+          <p className="text-xl font-bold text-[hsl(var(--forskale-green))]">{winPct != null ? `${winPct}%` : "72%"}</p>
         </div>
-      ))}
-    </div>
-  );
-};
-
-const StrategicDirectionSection = ({ recommendations }: { recommendations?: SmartSummaryStrategicRecommendation[] | null }) => {
-  const displayRecs = recommendations?.length
-    ? recommendations
-    : mockStrategicRecommendations;
-
-  const priorityStyles: Record<string, { emoji: string; label: string; className: string }> = {
-    critical: { emoji: "🔴", label: "CRITICAL", className: "bg-destructive/10 text-destructive border-destructive/30" },
-    important: { emoji: "🟡", label: "IMPORTANT", className: "bg-[hsl(var(--forskale-cyan)/0.1)] text-[hsl(var(--forskale-cyan))] border-[hsl(var(--forskale-cyan)/0.3)]" },
-    opportunity: { emoji: "🟢", label: "OPPORTUNITY", className: "bg-[hsl(var(--forskale-green)/0.1)] text-status-great border-[hsl(var(--forskale-green)/0.3)]" },
-  };
-
-  return (
-    <div className="rounded-xl border-2 border-[hsl(var(--forskale-teal)/0.4)] bg-gradient-to-br from-[hsl(var(--forskale-teal)/0.03)] to-[hsl(var(--forskale-green)/0.03)] p-5 shadow-card">
-      <div className="flex items-center gap-2 mb-1">
-        <Compass className="h-5 w-5 text-[hsl(var(--forskale-teal))]" />
-        <h3 className="text-base font-heading font-bold text-foreground">Strategic Direction</h3>
+        <div className="rounded-lg bg-amber-500/[0.08] border border-amber-500/20 p-3">
+          <p className="text-[11px] text-muted-foreground">Risk level</p>
+          <p className="text-sm font-bold text-amber-500">{riskText}</p>
+          {riskReason && (
+            <p className="text-[10px] text-muted-foreground mt-1 leading-tight">{riskReason}</p>
+          )}
+        </div>
       </div>
-      <p className="text-xs text-muted-foreground mb-4">Based on deal state, conversation patterns, and historical context</p>
-      <div className="space-y-3">
-        {displayRecs.map((rec, i) => {
-          const style = priorityStyles[rec.priority];
-          return (
-            <div key={i} className="rounded-lg border border-border bg-card p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm">{style.emoji}</span>
-                <Badge variant="outline" className={cn("text-[9px] h-4 font-bold tracking-wider", style.className)}>
-                  {style.label}
-                </Badge>
-                <span className="text-sm font-semibold text-foreground">{rec.title}</span>
-              </div>
-              <div className="space-y-1.5 text-xs">
-                <div><span className="text-muted-foreground font-medium">Why:</span> <span className="text-foreground">{rec.why}</span></div>
-                <div><span className="text-muted-foreground font-medium">Impact:</span> <span className="text-foreground">{rec.impact}</span></div>
-                <div><span className="text-muted-foreground font-medium">Timeline:</span> <span className="text-[hsl(var(--forskale-teal))] font-medium">{rec.timeline}</span></div>
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <div className="flex-1 bg-secondary rounded-full h-1">
-                  <div className="h-1 rounded-full bg-[hsl(var(--forskale-teal))]" style={{ width: `${rec.confidence}%`, transition: "width 0.8s ease-out" }} />
-                </div>
-                <span className="text-[10px] text-muted-foreground">{rec.confidence}% confidence</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-const CurrentMeetingContext = ({ insights }: { insights?: any }) => {
-  const [open, setOpen] = useState(false);
-  const [expandedQA, setExpandedQA] = useState<Record<number, boolean>>({});
-
-  const summary = insights?.summary ?? mockSummary;
-  const keyTakeaways: string[] = summary?.key_takeaways ?? summary?.keyTakeaways ?? [];
-  const nextSteps: { assignee: string; action?: string; description?: string }[] = insights?.next_steps ?? mockSummary.nextSteps;
-  const questionsAndObjections: { question: string; answer: string; timestamp?: string; time?: string }[] =
-    insights?.questions_and_objections ?? mockSummary.questionsAndObjections;
-  const summaryText: string = typeof summary === "string" ? summary : summary?.text ?? "";
-
-  return (
-    <div className="rounded-xl border border-border bg-card shadow-card">
-      <button className="w-full flex items-center gap-2.5 px-4 py-3.5 text-left" onClick={() => setOpen(!open)}>
-        <FileText className="h-4 w-4 text-[hsl(var(--forskale-teal))]" />
-        <span className="text-sm font-semibold text-foreground flex-1">Current Meeting Context</span>
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Raw data</span>
-        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
-      </button>
-      {open && (
-        <div className="px-4 pb-4 border-t border-border pt-3 space-y-4 animate-fade-in">
-          <div>
-            <div className="flex items-center gap-1.5 mb-1.5">
-              <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-xs font-semibold text-foreground">Summary</span>
-            </div>
-            <p className="text-sm text-muted-foreground leading-relaxed">{summaryText}</p>
-          </div>
-          {keyTakeaways.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Lightbulb className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-semibold text-foreground">Key Takeaways</span>
-              </div>
-              <ul className="space-y-1">
-                {keyTakeaways.map((t, i) => (
-                  <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                    <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-[hsl(var(--forskale-green))] shrink-0" />
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {nextSteps.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <CheckSquare className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-semibold text-foreground">Next Steps</span>
-              </div>
-              <div className="space-y-1.5">
-                {nextSteps.map((step, i) => (
-                  <div key={i} className="flex items-start gap-3 text-sm">
-                    <input type="checkbox" className="mt-1 rounded border-border accent-[hsl(var(--forskale-teal))]" />
-                    <div>
-                      <span className="text-status-great font-medium">{step.assignee}</span>
-                      <span className="text-foreground ml-1">{step.action ?? step.description ?? ""}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {questionsAndObjections.length > 0 && (
-            <div>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <HelpCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-xs font-semibold text-foreground">Questions & Objections</span>
-              </div>
-              <div className="space-y-1.5">
-                {questionsAndObjections.map((qa, i) => (
-                  <div key={i} className="bg-secondary rounded-lg">
-                    <button className="w-full flex items-center justify-between px-3 py-2 text-left" onClick={() => setExpandedQA(p => ({ ...p, [i]: !p[i] }))}>
-                      <span className="text-sm text-foreground">{qa.question}</span>
-                      {expandedQA[i] ? <ChevronUp className="h-3 w-3 text-muted-foreground ml-2 shrink-0" /> : <ChevronDown className="h-3 w-3 text-muted-foreground ml-2 shrink-0" />}
-                    </button>
-                    {expandedQA[i] && (
-                      <div className="px-3 pb-2.5 space-y-0.5 animate-fade-in">
-                        <div className="text-[11px] text-status-great font-medium">Your answer at {qa.time ?? qa.timestamp}</div>
-                        <div className="text-sm text-muted-foreground">{qa.answer}</div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+      {cognitiveState && (
+        <div className="mt-2">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[hsl(var(--forskale-teal)/0.1)] border border-[hsl(var(--forskale-teal)/0.2)] text-[10px] font-semibold text-[hsl(var(--forskale-teal))]">
+            {cognitiveState}
+          </span>
         </div>
       )}
     </div>
   );
 };
 
-// --- Main Component ---
-
-interface SummaryTabProps {
-  smartSummary?: MeetingSmartSummary | null;
-  atlasInsights?: any;
+// ── Section 2: Interest Evolution ──
+interface EvolutionItem {
+  id: string;
+  dateLabel: string;
+  interestPct: number;
+  outcome: string;
 }
 
-const SummaryTab = ({ smartSummary, atlasInsights }: SummaryTabProps) => {
-  return (
-    <TooltipProvider>
-      <div className="space-y-5">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-[hsl(var(--forskale-teal))]" />
-              <h2 className="text-base sm:text-xl font-heading font-bold text-foreground">Smart Summary</h2>
-              <Badge variant="outline" className="text-[9px] h-4 font-bold tracking-wider bg-[hsl(var(--forskale-teal)/0.1)] text-[hsl(var(--forskale-teal))] border-[hsl(var(--forskale-teal)/0.3)]">
-                Smart S
-              </Badge>
+const InterestEvolution = ({ history }: { history: EvolutionItem[] }) => (
+  <div className="rounded-xl border border-border bg-card p-5">
+    <div className="flex items-center gap-2 mb-1">
+      <Clock className="h-4 w-4 text-[hsl(var(--forskale-teal))]" />
+      <h3 className="text-base font-bold text-foreground">Interest Evolution</h3>
+    </div>
+    <p className="text-xs text-muted-foreground mb-5">How buyer interest shifted across meetings</p>
+
+    <div className="flex items-start justify-between relative">
+      <div className="absolute top-5 left-8 right-8 h-[1px] bg-border" />
+      {history.map((m, i) => {
+        const b = getBandByPct(m.interestPct);
+        const isActive = i === history.length - 1;
+        return (
+          <div key={m.id} className="flex flex-col items-center gap-2 z-10" style={{ flex: 1 }}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border-2 ${isActive ? `${b.bgClass} ${b.textClass} border-current` : "bg-card text-muted-foreground border-border"}`}>
+              {i + 1}
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">Multi-layered deal intelligence</p>
+            <p className="text-[10px] text-muted-foreground text-center">{m.dateLabel}</p>
+            <p className={`text-[11px] font-semibold text-center ${isActive ? b.textClass : "text-foreground"}`}>{b.cognitiveState}</p>
+            <p className="text-[10px] text-muted-foreground text-center">{m.interestPct}%</p>
+            <p className="text-[10px] text-muted-foreground text-center leading-tight">{m.outcome}</p>
           </div>
-          <SyncStatus />
+        );
+      })}
+    </div>
+  </div>
+);
+
+// ── Section 3: What Changed ──
+interface ChangeItem {
+  topic: string;
+  before: string;
+  now: string;
+  direction: "risk" | "positive";
+}
+
+const WhatChanged = ({ changes }: { changes: ChangeItem[] }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-border bg-card">
+      <button onClick={() => setOpen(v => !v)} className="p-5 w-full text-left cursor-pointer rounded-xl hover:bg-muted/30 transition-colors">
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-bold text-foreground">What Changed</h3>
+          <span className="relative flex items-center justify-center w-5 h-5">
+            <span className="absolute inset-0 rounded-full bg-[hsl(var(--forskale-teal)/0.15)] animate-pulse" />
+            <Info className="h-3.5 w-3.5 text-[hsl(var(--forskale-teal))] relative z-10" />
+          </span>
         </div>
+        <p className="text-xs text-muted-foreground mt-1">Since your last meeting</p>
+      </button>
+      {open && (
+        <div className="grid grid-cols-3 gap-3 px-5 pb-5 animate-in fade-in slide-in-from-top-1 duration-200">
+          {changes.map((c) => (
+            <div key={c.topic} className={`rounded-lg p-3 border ${c.direction === "risk" ? "bg-destructive/5 border-destructive/20" : "bg-[hsl(var(--forskale-green)/0.06)] border-[hsl(var(--forskale-green)/0.2)]"}`}>
+              <p className="text-[11px] font-bold text-foreground mb-2">{c.topic}</p>
+              <div className="space-y-1.5">
+                <div>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Before</p>
+                  <p className="text-[11px] text-foreground">{c.before}</p>
+                </div>
+                <div className="h-px bg-border" />
+                <div>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Now</p>
+                  <div className="flex items-center gap-1">
+                    {c.direction === "risk"
+                      ? <AlertTriangle className="h-3 w-3 text-destructive flex-shrink-0" />
+                      : <CheckCircle2 className="h-3 w-3 text-[hsl(var(--forskale-green))] flex-shrink-0" />
+                    }
+                    <p className="text-[11px] text-foreground">{c.now}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
-        {/* Deal Health */}
-        <DealHealthDashboard health={smartSummary?.deal_health} />
+// ── Section 4: What to Do Next ──
+interface ActionItem {
+  priority: "CRITICAL" | "IMPORTANT" | "OPPORTUNITY";
+  title: string;
+  why: string;
+  timeline: string;
+}
 
-        {/* Section 1: Deal Evolution */}
-        <DealEvolutionSection evolution={smartSummary?.deal_evolution} />
+const WhatToDoNext = ({ actions }: { actions: ActionItem[] }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border-2 border-[hsl(var(--forskale-teal)/0.3)] bg-gradient-to-br from-[hsl(var(--forskale-teal)/0.04)] to-transparent">
+      <button onClick={() => setOpen(v => !v)} className="p-5 w-full text-left cursor-pointer rounded-xl hover:bg-[hsl(var(--forskale-teal)/0.06)] transition-colors">
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-bold text-foreground">What to Do Next</h3>
+          <span className="relative flex items-center justify-center w-5 h-5">
+            <span className="absolute inset-0 rounded-full bg-[hsl(var(--forskale-teal)/0.15)] animate-pulse" />
+            <Info className="h-3.5 w-3.5 text-[hsl(var(--forskale-teal))] relative z-10" />
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">Your most important moves</p>
+      </button>
+      {open && (
+        <div className="space-y-3 px-5 pb-5 animate-in fade-in slide-in-from-top-1 duration-200">
+          {actions.map((a, i) => (
+            <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-card border border-border">
+              <span className={`w-2 h-2 rounded-full flex-shrink-0 mt-1.5 ${a.priority === "CRITICAL" ? "bg-destructive" : a.priority === "IMPORTANT" ? "bg-amber-500" : "bg-[hsl(var(--forskale-green))]"}`} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${a.priority === "CRITICAL" ? "bg-destructive/10 text-destructive" : a.priority === "IMPORTANT" ? "bg-amber-500/10 text-amber-600" : "bg-[hsl(var(--forskale-green)/0.1)] text-[hsl(var(--forskale-green))]"}`}>
+                    {a.priority}
+                  </span>
+                  <p className="text-sm font-semibold text-foreground">{a.title}</p>
+                </div>
+                <p className="text-[11px] text-muted-foreground">{a.why}</p>
+                <p className="text-[11px] text-[hsl(var(--forskale-teal))] mt-1 font-medium">{a.timeline}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
-        {/* Section 2: Then vs Now */}
-        {(smartSummary?.then_vs_now?.length || mockThenVsNow.length > 0) && (
-          <div className="rounded-xl border border-[hsl(var(--forskale-teal)/0.2)] bg-gradient-to-br from-[hsl(var(--forskale-teal)/0.03)] to-card p-5 shadow-card">
-            <ThenVsNowSection items={smartSummary?.then_vs_now} />
-          </div>
-        )}
+// ── Helpers to map real API data ──
+function buildEvolutionFromSummary(summary: MeetingSmartSummary): EvolutionItem[] {
+  if (summary.deal_evolution && summary.deal_evolution.length > 0) {
+    return summary.deal_evolution.map((e, i) => ({
+      id: e.id || `ev-${i}`,
+      dateLabel: e.date ? new Date(e.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : `Meeting ${i + 1}`,
+      interestPct: 20 + i * 10, // approximate progression; no exact pct in API
+      outcome: e.outcome || e.type || "",
+    }));
+  }
+  return mockMeetingHistory;
+}
 
-        {/* Section 3: Change Detection */}
-        <ChangeDetectionSection alerts={smartSummary?.change_alerts} />
+function buildChangesFromSummary(summary: MeetingSmartSummary): ChangeItem[] {
+  if (summary.then_vs_now && summary.then_vs_now.length > 0) {
+    return summary.then_vs_now.slice(0, 6).map(c => ({
+      topic: c.topic,
+      before: c.then_status,
+      now: c.now_status,
+      direction: (c.now_sentiment === "negative" || c.indicator === "red" || c.indicator === "amber") ? "risk" : "positive",
+    }));
+  }
+  return mockChanges;
+}
 
-        {/* Section 4: Enhanced Discussion Topics */}
-        <EnhancedTopicsSection topics={smartSummary?.enhanced_topics} />
+function buildActionsFromSummary(summary: MeetingSmartSummary): ActionItem[] {
+  if (summary.strategic_recommendations && summary.strategic_recommendations.length > 0) {
+    return summary.strategic_recommendations.slice(0, 4).map(r => ({
+      priority: r.priority === "critical" ? "CRITICAL" : r.priority === "important" ? "IMPORTANT" : "OPPORTUNITY",
+      title: r.title,
+      why: r.why,
+      timeline: r.timeline,
+    }));
+  }
+  return mockActions;
+}
 
-        {/* Section 5: Current Meeting Context (collapsed raw data) */}
-        <CurrentMeetingContext insights={atlasInsights} />
+// ── Main Component ──
+type AnalysisState = "pristine" | "loading" | "complete";
 
-        {/* Section 6: Strategic Direction */}
-        <StrategicDirectionSection recommendations={smartSummary?.strategic_recommendations} />
-      </div>
-    </TooltipProvider>
+interface SummaryTabProps {
+  autoAnalyze?: boolean;
+  smartSummary?: MeetingSmartSummary | null;
+  atlasInsights?: any;
+  interestPulse?: MeetingInterestPulse | null;
+}
+
+const SummaryTab = ({ autoAnalyze = false, smartSummary, atlasInsights: _atlasInsights, interestPulse }: SummaryTabProps) => {
+  const hasRealData = !!smartSummary;
+
+  // If real data is available, go straight to complete
+  const [analysisState, setAnalysisState] = useState<AnalysisState>(() => {
+    if (hasRealData) return "complete";
+    if (autoAnalyze) return "loading";
+    return "pristine";
+  });
+
+  // When real data arrives mid-session, upgrade state to complete
+  useEffect(() => {
+    if (hasRealData && analysisState !== "complete") {
+      setAnalysisState("complete");
+    }
+  }, [hasRealData, analysisState]);
+
+  const handleAnalysisComplete = (_result: PlaybookAnalysis) => {
+    setAnalysisState("complete");
+  };
+
+  // Derived values from real data or mock fallback
+  const interestPct = interestPulse?.interest_percent ?? smartSummary?.deal_health?.engagement?.value ?? MOCK_INTEREST_PCT;
+  const winProbability = interestPulse?.win_probability ?? smartSummary?.deal_health?.win_probability?.value ?? null;
+  const riskLevel = interestPulse?.risk_level ?? smartSummary?.deal_health?.risk_level ?? null;
+  const history = smartSummary ? buildEvolutionFromSummary(smartSummary) : mockMeetingHistory;
+  const changes = smartSummary ? buildChangesFromSummary(smartSummary) : mockChanges;
+  const actions = smartSummary ? buildActionsFromSummary(smartSummary) : mockActions;
+
+  return (
+    <div className="space-y-5">
+      {analysisState === "pristine" && (
+        <AnalyzeMeetingButton onClick={() => setAnalysisState("loading")} />
+      )}
+
+      {analysisState === "complete" && (
+        <>
+          <InterestPulse
+            interestPct={interestPct}
+            winProbability={winProbability}
+            riskLevel={riskLevel}
+            riskReason={interestPulse?.risk_reason ?? null}
+            cognitiveState={interestPulse?.cognitive_state ?? null}
+            psychologyLabel={interestPulse?.psychology_label ?? null}
+            uiColorTheme={interestPulse?.ui_color_theme ?? null}
+            pulseScore={interestPulse?.pulse_score ?? null}
+          />
+          <KeyMomentsSection />
+          <InterestEvolution history={history} />
+          <WhatChanged changes={changes} />
+          <WhatToDoNext actions={actions} />
+        </>
+      )}
+
+      <AdvancedAnalysisModal
+        isOpen={analysisState === "loading"}
+        onComplete={handleAnalysisComplete}
+        onViewDetailed={() => setAnalysisState("complete")}
+      />
+    </div>
   );
 };
 

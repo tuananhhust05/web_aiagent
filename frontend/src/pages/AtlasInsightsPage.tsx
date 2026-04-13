@@ -1,44 +1,42 @@
 // ============================================================
 // AtlasInsightsPage.tsx
-// UI copied from dream-schematic-deck-main/src/pages/CallInsights.tsx
-// Real API logic restored and integrated into new MeetingInsightDashboard UI
+// UI from 02_meeting-insights-main/CallInsights.tsx + real API logic
 // ============================================================
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Users, Target, GraduationCap, Sparkles, LayoutDashboard, RefreshCw, Loader2, Video } from "lucide-react";
+import { Users, GraduationCap, Sparkles, LayoutDashboard, RefreshCw, Loader2, Video } from "lucide-react";
 import { Link } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import TranscriptPanel from "@/components/call-insights/TranscriptPanel";
-import TranscriptSuccessModal from "@/components/call-insights/TranscriptSuccessModal";
 import EvaluationTab from "@/components/call-insights/EvaluationTab";
 import EnablementTab from "@/components/call-insights/EnablementTab";
 import SummaryTab from "@/components/call-insights/SummaryTab";
 import StrategyModal from "@/components/call-insights/StrategyModal";
+import TranscriptPanel from "@/components/call-insights/TranscriptPanel";
+import TranscriptSuccessModal from "@/components/call-insights/TranscriptSuccessModal";
 import { mockTranscript } from "@/data/mockData";
 import { MeetingInsightDashboard } from "@/pages/MeetingInsightDashboard";
 import { MeetLangProvider, tMeet, type MeetLang } from "@/components/meetInsight/LanguageContext";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { meetingsAPI } from "@/lib/api";
-import type { MeetingEvaluation, MeetingFeedback, MeetingSmartSummary, MeetingPlaybookAnalysis } from "@/lib/api";
+import type { MeetingEvaluation, MeetingFeedback, MeetingSmartSummary, MeetingPlaybookAnalysis, MeetingInterestPulse } from "@/lib/api";
 import type { TranscriptEntry } from "@/data/mockData";
 import type { MeetingCall } from "@/types/meeting";
 import { useAuth } from "@/hooks/useAuth";
 
 type TabType = "evaluation" | "enablement" | "summary";
+type MeetingsListState = "loading" | "empty" | "ready" | "error";
 
 const AtlasInsightsPage = () => {
   const [selectedCall, setSelectedCall] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>("evaluation");
+  const [activeTab, setActiveTab] = useState<TabType>("summary");
   const [transcriptCollapsed, setTranscriptCollapsed] = useState(true);
   const [showTranscriptModal, setShowTranscriptModal] = useState(false);
   const [strategyModalOpen, setStrategyModalOpen] = useState(false);
-  const [language, setLanguage] = useState<MeetLang>("EN");
+  const [language, setLanguage] = useState<MeetLang>("IT");
 
   const { user } = useAuth();
   const userName = user?.first_name || user?.username || "Andrea";
 
   // ── Meetings list state ──
-  type MeetingsListState = "loading" | "empty" | "ready" | "error";
   const [meetingsListState, setMeetingsListState] = useState<MeetingsListState>("loading");
   const [realMeetings, setRealMeetings] = useState<MeetingCall[]>([]);
   const [usingRealData, setUsingRealData] = useState(false);
@@ -50,6 +48,7 @@ const AtlasInsightsPage = () => {
   const [playbookAnalysis, setPlaybookAnalysis] = useState<MeetingPlaybookAnalysis | null>(null);
   const [smartSummary, setSmartSummary] = useState<MeetingSmartSummary | null>(null);
   const [atlasInsights, setAtlasInsights] = useState<any>(null);
+  const [interestPulse, setInterestPulse] = useState<MeetingInterestPulse | null>(null);
   const [loadingInsights, setLoadingInsights] = useState(false);
   const [reanalyzeLoading, setReanalyzeLoading] = useState(false);
 
@@ -60,16 +59,21 @@ const AtlasInsightsPage = () => {
     smartSummary: MeetingSmartSummary | null;
     atlasInsights: any;
     transcriptEntries: TranscriptEntry[];
+    interestPulse: MeetingInterestPulse | null;
   }>>({});
 
   const shownTranscriptIds = useRef<Set<string>>(
     new Set(JSON.parse(sessionStorage.getItem('shownTranscriptIds') || '[]'))
   );
 
-  const tabs: { id: TabType; labelKey: "tab.evaluation" | "tab.enablement" | "tab.summary"; icon: React.ElementType }[] = [
-    { id: "evaluation", labelKey: "tab.evaluation", icon: Target },
-    { id: "summary",    labelKey: "tab.summary",    icon: Sparkles },
-    { id: "enablement", labelKey: "tab.enablement", icon: GraduationCap },
+  const tabs: {
+    id: TabType;
+    labelKey: "tab.evaluation" | "tab.enablement" | "tab.summary";
+    subtitleKey: "tab.evaluation.subtitle" | "tab.enablement.subtitle" | "tab.summary.subtitle";
+    icon: React.ElementType;
+  }[] = [
+    { id: "summary",    labelKey: "tab.summary",    subtitleKey: "tab.summary.subtitle",    icon: Sparkles },
+    { id: "enablement", labelKey: "tab.enablement", subtitleKey: "tab.enablement.subtitle", icon: GraduationCap },
   ];
 
   // ── Helpers ──
@@ -165,6 +169,7 @@ const AtlasInsightsPage = () => {
       setSmartSummary(cached.smartSummary);
       setAtlasInsights(cached.atlasInsights);
       setTranscriptEntries(cached.transcriptEntries);
+      setInterestPulse(cached.interestPulse);
       return;
     }
 
@@ -174,6 +179,7 @@ const AtlasInsightsPage = () => {
     setPlaybookAnalysis(null);
     setSmartSummary(null);
     setAtlasInsights(null);
+    setInterestPulse(null);
     setTranscriptEntries([]);
 
     let fetchedTranscript: TranscriptEntry[] = [];
@@ -202,36 +208,39 @@ const AtlasInsightsPage = () => {
       }
     } catch {}
 
-    const [evalRes, feedbackRes, playbookRes, summaryRes, insightsRes] = await Promise.allSettled([
+    const [evalRes, feedbackRes, playbookRes, summaryRes, insightsRes, pulseRes] = await Promise.allSettled([
       meetingsAPI.getMeetingEvaluation(meetingId),
       meetingsAPI.getMeetingFeedback(meetingId),
       meetingsAPI.getMeetingPlaybookAnalysis(meetingId),
       meetingsAPI.getMeetingSmartSummary(meetingId),
       meetingsAPI.getAtlasMeetingInsights(meetingId),
+      meetingsAPI.getMeetingInterestPulse(meetingId),
     ]);
 
-    const newEval = evalRes.status === "fulfilled" ? (evalRes.value as any).data : null;
+    const newEval     = evalRes.status     === "fulfilled" ? (evalRes.value     as any).data : null;
     const newFeedback = feedbackRes.status === "fulfilled" ? (feedbackRes.value as any).data : null;
     const newPlaybook = playbookRes.status === "fulfilled" ? (playbookRes.value as any).data : null;
-    const newSummary = summaryRes.status === "fulfilled" ? (summaryRes.value as any).data : null;
+    const newSummary  = summaryRes.status  === "fulfilled" ? (summaryRes.value  as any).data : null;
     const newInsights = insightsRes.status === "fulfilled" ? (insightsRes.value as any).data : null;
+    const newPulse    = pulseRes.status    === "fulfilled" ? (pulseRes.value    as any).data : null;
 
     meetingCache.current[meetingId] = {
-      evaluation: newEval,
-      feedback: newFeedback,
+      evaluation:       newEval,
+      feedback:         newFeedback,
       playbookAnalysis: newPlaybook,
-      smartSummary: newSummary,
-      atlasInsights: newInsights,
+      smartSummary:     newSummary,
+      atlasInsights:    newInsights,
       transcriptEntries: fetchedTranscript,
+      interestPulse:    newPulse,
     };
 
-    if (newEval) setEvaluation(newEval);
+    if (newEval)     setEvaluation(newEval);
     if (newFeedback) setFeedback(newFeedback);
     if (newPlaybook) setPlaybookAnalysis(newPlaybook);
-    if (newSummary) setSmartSummary(newSummary);
+    if (newSummary)  setSmartSummary(newSummary);
     if (newInsights) setAtlasInsights(newInsights);
+    if (newPulse)    setInterestPulse(newPulse);
 
-    // Update evalStatus in realMeetings list
     if (newEval) {
       setRealMeetings(prev => prev.map(m =>
         m.id === meetingId
@@ -265,11 +274,12 @@ const AtlasInsightsPage = () => {
 
   // ── Derived values for detail header ──
   const selectedMeeting = realMeetings.find(m => m.id === selectedCall);
-  const meetingTitle = selectedMeeting?.title || "Select a meeting";
+  const meetingTitle = selectedMeeting?.title || "Meeting";
   const meetingDate = selectedMeeting?.date
     ? new Date(selectedMeeting.date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
     : "";
-  const playbookScorePct = evaluation?.playbook_score_pct ??
+  const playbookScorePct =
+    (evaluation as any)?.playbook_score_pct ??
     (playbookAnalysis?.overall_score != null ? playbookAnalysis.overall_score : null);
   const meetingCountThisMonth = realMeetings.filter(m => {
     if (!m.date) return false;
@@ -280,6 +290,7 @@ const AtlasInsightsPage = () => {
 
   const handleSelectMeeting = (id: string) => {
     setSelectedCall(id);
+    setActiveTab("summary");
     setShowTranscriptModal(true);
   };
 
@@ -289,7 +300,6 @@ const AtlasInsightsPage = () => {
     setShowTranscriptModal(false);
   };
 
-  // ── Loading / Error / Empty screens ──
   if (meetingsListState === "loading") {
     return (
       <div className="flex flex-1 items-center justify-center bg-background h-screen">
@@ -344,17 +354,27 @@ const AtlasInsightsPage = () => {
         {selectedCall === null ? (
           <div className="flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ease-in-out">
             <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-2 bg-card border-b border-border">
-              <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+              <span className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
                 {tMeet("topbar.title", language)}
               </span>
               <div className="flex items-center rounded-full border border-border bg-muted p-0.5">
                 <button
                   onClick={() => setLanguage("IT")}
-                  className={cn("px-3.5 py-1 rounded-full text-xs font-semibold uppercase transition-all duration-200", language === "IT" ? "bg-[hsl(var(--forskale-teal))] text-white shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                  className={cn(
+                    "px-3.5 py-1 rounded-full text-sm font-semibold uppercase transition-all duration-200",
+                    language === "IT"
+                      ? "bg-[hsl(var(--forskale-teal))] text-white shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
                 >IT</button>
                 <button
                   onClick={() => setLanguage("EN")}
-                  className={cn("px-3.5 py-1 rounded-full text-xs font-semibold uppercase transition-all duration-200", language === "EN" ? "bg-[hsl(var(--forskale-teal))] text-white shadow-sm" : "text-muted-foreground hover:text-foreground")}
+                  className={cn(
+                    "px-3.5 py-1 rounded-full text-sm font-semibold uppercase transition-all duration-200",
+                    language === "EN"
+                      ? "bg-[hsl(var(--forskale-teal))] text-white shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
                 >EN</button>
               </div>
             </div>
@@ -368,18 +388,47 @@ const AtlasInsightsPage = () => {
           <>
             <div className="flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ease-in-out">
               <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-2 bg-card border-b border-border">
-                <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                <span className="text-sm font-medium uppercase tracking-widest text-muted-foreground">
                   {tMeet("topbar.title", language)}
                 </span>
-                <div className="flex items-center rounded-full border border-border bg-muted p-0.5">
+                <div className="flex items-center gap-3">
                   <button
-                    onClick={() => setLanguage("IT")}
-                    className={cn("px-3.5 py-1 rounded-full text-xs font-semibold uppercase transition-all duration-200", language === "IT" ? "bg-[hsl(var(--forskale-teal))] text-white shadow-sm" : "text-muted-foreground hover:text-foreground")}
-                  >IT</button>
-                  <button
-                    onClick={() => setLanguage("EN")}
-                    className={cn("px-3.5 py-1 rounded-full text-xs font-semibold uppercase transition-all duration-200", language === "EN" ? "bg-[hsl(var(--forskale-teal))] text-white shadow-sm" : "text-muted-foreground hover:text-foreground")}
-                  >EN</button>
+                    type="button"
+                    onClick={() => void handleReanalyzeTranscript()}
+                    disabled={!selectedCall || reanalyzeLoading || loadingInsights}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full pl-3 pr-3.5 py-1.5 text-xs font-semibold tracking-tight",
+                      "border border-[hsl(var(--forskale-teal)/0.35)] bg-[hsl(var(--forskale-teal)/0.07)] text-[hsl(var(--forskale-teal))]",
+                      "hover:bg-[hsl(var(--forskale-teal)/0.14)] hover:border-[hsl(var(--forskale-teal)/0.45)] transition-colors",
+                      "disabled:opacity-45 disabled:pointer-events-none"
+                    )}
+                  >
+                    {reanalyzeLoading || loadingInsights
+                      ? <RefreshCw className="h-3 w-3 shrink-0 animate-spin opacity-90" />
+                      : <Sparkles className="h-3 w-3 shrink-0 opacity-90" />
+                    }
+                    <span>{language === "IT" ? "Rigenera" : "Regenerate"}</span>
+                  </button>
+                  <div className="flex items-center rounded-full border border-border bg-muted p-0.5">
+                    <button
+                      onClick={() => setLanguage("IT")}
+                      className={cn(
+                        "px-3.5 py-1 rounded-full text-sm font-semibold uppercase transition-all duration-200",
+                        language === "IT"
+                          ? "bg-[hsl(var(--forskale-teal))] text-white shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >IT</button>
+                    <button
+                      onClick={() => setLanguage("EN")}
+                      className={cn(
+                        "px-3.5 py-1 rounded-full text-sm font-semibold uppercase transition-all duration-200",
+                        language === "EN"
+                          ? "bg-[hsl(var(--forskale-teal))] text-white shadow-sm"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >EN</button>
+                  </div>
                 </div>
               </div>
 
@@ -387,59 +436,32 @@ const AtlasInsightsPage = () => {
                 <div className="flex items-center gap-2 mb-4">
                   <button
                     onClick={handleBackToOverview}
-                    className="inline-flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
+                    className="inline-flex items-center gap-1.5 px-2 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent rounded-md transition-colors"
                   >
-                    <LayoutDashboard className="h-3.5 w-3.5" />
-                    {tMeet("detail.overview", language)}
+                    <LayoutDashboard className="h-4 w-4" /> {tMeet("detail.overview", language)}
                   </button>
                 </div>
 
-                <div className="flex items-start sm:items-center justify-between mb-4 gap-4">
-                  <h1 className="text-lg sm:text-2xl font-heading font-bold text-foreground tracking-tight leading-tight line-clamp-2 min-w-0 flex-1">
+                <div className="flex items-center justify-between mb-4 gap-4">
+                  <h1 className="text-3xl font-heading font-bold text-foreground tracking-tight leading-tight line-clamp-2 min-w-0 flex-1">
                     {meetingTitle}
                   </h1>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-muted-foreground mb-4">
+                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
                   {playbookScorePct != null && (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[hsl(var(--forskale-green)/0.08)] border border-[hsl(var(--forskale-green)/0.2)] text-status-great font-semibold">
                       <span className="w-1.5 h-1.5 rounded-full bg-status-great" />
                       {playbookScorePct}% {tMeet("detail.playbook", language)}
                     </span>
                   )}
-                  {meetingDate && <span className="tabular-nums">{meetingDate}</span>}
+                  {meetingDate && <span>{meetingDate}</span>}
                   {transcriptEntries.length > 0 && (
                     <span className="inline-flex items-center gap-1.5">
-                      <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+                      <Users className="h-4 w-4" />
                       {new Set(transcriptEntries.map(e => e.speaker)).size} {tMeet("detail.speakers", language)}
                     </span>
                   )}
-                  <TooltipProvider delayDuration={300}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => void handleReanalyzeTranscript()}
-                          disabled={!selectedCall || reanalyzeLoading || loadingInsights}
-                          className={cn(
-                            "ml-auto inline-flex items-center gap-2 rounded-full pl-3 pr-3.5 py-1.5 text-[11px] sm:text-xs font-semibold tracking-tight",
-                            "border border-[hsl(var(--forskale-teal)/0.35)] bg-[hsl(var(--forskale-teal)/0.07)] text-[hsl(var(--forskale-teal))]",
-                            "hover:bg-[hsl(var(--forskale-teal)/0.14)] hover:border-[hsl(var(--forskale-teal)/0.45)] transition-colors",
-                            "disabled:opacity-45 disabled:pointer-events-none"
-                          )}
-                        >
-                          {reanalyzeLoading || loadingInsights
-                            ? <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin opacity-90" />
-                            : <Sparkles className="h-3.5 w-3.5 shrink-0 opacity-90" />
-                          }
-                          <span>{language === "IT" ? "Rigenera insights" : "Regenerate insights"}</span>
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="bottom" align="end" className="max-w-[280px] text-xs leading-relaxed">
-                        Re-run full AI analysis on the transcript.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
                 </div>
 
                 <div>
@@ -456,21 +478,23 @@ const AtlasInsightsPage = () => {
                             isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                           )}
                         >
-                          <Icon className={cn("h-3.5 w-3.5", isActive ? "text-foreground" : "text-muted-foreground")} />
-                          <span className={cn("text-sm transition-all", tab.id === "evaluation" ? "font-bold" : "font-semibold")}>
+                          <Icon className={cn("h-4 w-4", isActive ? "text-foreground" : "text-muted-foreground")} />
+                          <span className="text-base font-semibold transition-all">
                             {tMeet(tab.labelKey, language)}
                           </span>
-                          {isActive && <span className="absolute bottom-0 left-0 right-0 h-[3px] forskale-gradient-bg rounded-full" />}
+                          {isActive && (
+                            <span className="absolute bottom-0 left-0 right-0 h-[3px] forskale-gradient-bg rounded-full" />
+                          )}
                         </button>
                       );
                     })}
                     {/* Strategize button */}
-                    <div className="pb-3 flex items-center">
+                    <div className="pb-3 flex items-center ml-auto">
                       <button
                         onClick={() => setStrategyModalOpen(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md bg-[hsl(var(--forskale-teal))] text-white hover:bg-[hsl(var(--forskale-teal)/0.9)] transition-all hover:scale-[1.02]"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-md bg-[hsl(var(--forskale-teal))] text-white hover:bg-[hsl(var(--forskale-teal)/0.9)] transition-all hover:scale-[1.02]"
                       >
-                        <Sparkles className="h-3 w-3" />
+                        <Sparkles className="h-3.5 w-3.5" />
                         {language === "IT" ? "Strategizza" : "Strategize"}
                       </button>
                     </div>
@@ -478,32 +502,38 @@ const AtlasInsightsPage = () => {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto atlas-scrollbar p-4 sm:p-8 bg-background transition-all duration-300 ease-in-out">
+              <div className="flex-1 overflow-y-auto atlas-scrollbar p-8 bg-background transition-all duration-300 ease-in-out">
                 {loadingInsights ? (
                   <div className="flex items-center justify-center py-24">
-                    <div className="text-sm text-muted-foreground">Analyzing meeting...</div>
+                    <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                      <Loader2 className="h-7 w-7 animate-spin text-[hsl(var(--forskale-teal))]" />
+                      <p className="text-sm">{language === "IT" ? "Analisi in corso..." : "Analyzing meeting..."}</p>
+                    </div>
                   </div>
                 ) : (
                   <>
-                    {activeTab === "evaluation" && (
+                    <div className={activeTab === "evaluation" ? "" : "hidden"}>
                       <EvaluationTab
                         evaluation={evaluation}
                         onOpenStrategyModal={() => setStrategyModalOpen(true)}
                       />
-                    )}
-                    {activeTab === "enablement" && (
+                    </div>
+                    <div className={activeTab === "enablement" ? "" : "hidden"}>
                       <EnablementTab
+                        meetingId={selectedCall || "default"}
                         feedback={feedback}
                         playbookAnalysis={playbookAnalysis}
                         meetingCount={meetingCountThisMonth || undefined}
                       />
-                    )}
-                    {activeTab === "summary" && (
+                    </div>
+                    <div className={activeTab === "summary" ? "" : "hidden"}>
                       <SummaryTab
                         smartSummary={smartSummary}
                         atlasInsights={atlasInsights}
+                        interestPulse={interestPulse}
+                        autoAnalyze={!smartSummary && !loadingInsights}
                       />
-                    )}
+                    </div>
                   </>
                 )}
               </div>
@@ -524,7 +554,11 @@ const AtlasInsightsPage = () => {
             />
           </>
         )}
-        <StrategyModal isOpen={strategyModalOpen} onClose={() => setStrategyModalOpen(false)} meetingId={selectedCall ?? undefined} />
+        <StrategyModal
+          isOpen={strategyModalOpen}
+          onClose={() => setStrategyModalOpen(false)}
+          meetingId={selectedCall ?? undefined}
+        />
       </div>
     </MeetLangProvider>
   );

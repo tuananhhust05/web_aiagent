@@ -25,7 +25,7 @@ export function CompanyTimeline({ timeline, onSelectMeeting }: Props) {
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border/60">
         <span className="text-[14px] font-semibold text-foreground">{timeline.company}</span>
         <span className="text-[13px] text-muted-foreground">Meeting Timeline</span>
-        <div className="flex items-center gap-3 ml-auto text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-3 ml-auto text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
             <span className="w-2 h-2 rounded-full bg-[hsl(var(--forskale-green))]" /> Call
           </span>
@@ -58,7 +58,7 @@ export function CompanyTimeline({ timeline, onSelectMeeting }: Props) {
 
       {/* Footer */}
       <div className="flex items-center gap-2 px-4 py-2 border-t border-border/60">
-        <span className="text-[11px] text-muted-foreground flex-1">{timeline.dateRange}</span>
+        <span className="text-xs text-muted-foreground flex-1">{timeline.dateRange}</span>
         <div className="flex gap-1">
           <button
             onClick={() => setOffset((o) => Math.max(0, o - 1))}
@@ -117,32 +117,32 @@ function TimelineCard({ meeting: m, onSelect }: { meeting: MeetingCall; onSelect
       ].join(' ')}
     >
       {/* Date */}
-      <span className="text-[11px] text-muted-foreground tabular-nums">
+      <span className="text-xs text-muted-foreground tabular-nums">
         {format(parseISO(m.date), 'MMM d, yyyy')}
       </span>
 
       {/* Cognitive state band */}
       <div className={`inline-flex flex-col items-start rounded-lg border px-2.5 py-1 leading-tight self-start ${bandBg}`}>
-        <span className="text-[11px] font-semibold">
+        <span className="text-xs font-semibold">
           {won && <Check className="h-2.5 w-2.5 inline mr-0.5" />}
           {lost && <X className="h-2.5 w-2.5 inline mr-0.5" />}
           {cogState.label}
         </span>
-        <span className="text-[10px] opacity-70">{cogState.range}</span>
+        <span className="text-[11px] opacity-70">{cogState.range}</span>
       </div>
 
       {/* Title */}
-      <span className={`text-[12px] font-semibold leading-tight line-clamp-2 ${lost ? 'text-muted-foreground' : 'text-foreground'}`}>
+      <span className={`text-[13px] font-semibold leading-tight line-clamp-2 ${lost ? 'text-muted-foreground' : 'text-foreground'}`}>
         {m.title}
       </span>
 
       {/* Source + eval */}
       <div className="flex items-center gap-2 mt-auto">
-        <span className={`flex items-center gap-1 text-[11px] font-medium ${sourceTextColor}`}>
+        <span className={`flex items-center gap-1 text-xs font-medium ${sourceTextColor}`}>
           <span className={`w-1.5 h-1.5 rounded-full ${sourceDotColor}`} />
           {m.sourceType}
         </span>
-        <span className={`text-[11px] font-medium ${statusColor.text}`}>
+        <span className={`text-xs font-medium ${statusColor.text}`}>
           {m.evalStatus === 'Evaluated' ? '✓ Eval' : m.evalStatus}
         </span>
       </div>

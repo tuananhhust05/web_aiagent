@@ -1,15 +1,15 @@
 import { useState, useCallback } from "react";
-import { Check, ChevronDown, ChevronUp, Download, RefreshCw, Sparkles, Trophy, TrendingUp, AlertTriangle } from "lucide-react";
+import { Download, RefreshCw, Sparkles, Trophy, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { mockPlaybookRules, mockPlaybookMetrics } from "@/data/mockData";
-import { mockMethodologyScores, type PlaybookAnalysis } from "@/data/playbookAnalysisData";
-import AdvancedAnalysisModal from "./AdvancedAnalysisModal";
-import DetailedAnalysisDashboard from "./DetailedAnalysisDashboard";
+import { mockMethodologyScores, mockPlaybookAnalysis, type PlaybookAnalysis } from "@/data/playbookAnalysisData";
 import type { MeetingPlaybookAnalysis } from "@/lib/api";
 
-type AnalysisState = "initial" | "analyzing" | "complete";
+import DetailedAnalysisDashboard from "./DetailedAnalysisDashboard";
+import PlaybookAnalysisLoader from "./PlaybookAnalysisLoader";
+
+type AnalysisState = "initial" | "loading" | "complete";
 
 const getScoreColor = (score: number) => {
   if (score >= 70) return "text-status-great";
@@ -68,72 +68,48 @@ const DealHealthGauge = ({ score }: { score: number }) => {
 };
 
 interface PlaybookTabProps {
+  forceComplete?: boolean;
   playbookAnalysis?: MeetingPlaybookAnalysis | null;
+  onReanalyze?: () => void;
 }
 
-const PlaybookTab = ({ playbookAnalysis }: PlaybookTabProps) => {
-  const [expandedRules, setExpandedRules] = useState<Record<string, boolean>>({});
-  const [analysisState, setAnalysisState] = useState<AnalysisState>("initial");
-  const [analysisResult, setAnalysisResult] = useState<PlaybookAnalysis | null>(null);
+const PlaybookTab = ({ forceComplete, playbookAnalysis: realPlaybook, onReanalyze }: PlaybookTabProps) => {
+  const [analysisState, setAnalysisState] = useState<AnalysisState>(forceComplete ? "complete" : "initial");
+  const [analysisResult, setAnalysisResult] = useState<PlaybookAnalysis | null>(forceComplete ? mockPlaybookAnalysis : null);
   const [showDetailed, setShowDetailed] = useState(false);
 
-  const realRules = playbookAnalysis?.rules?.length
-    ? playbookAnalysis.rules.map((r, i) => ({
-        id: r.rule_id ?? String(i),
-        label: r.label,
-        passed: r.passed,
-        weight: 20,
-        isKeyDriver: false,
-        whatYouSaid: r.what_you_said ?? "No relevant quote found in transcript.",
-        whatYouShouldSay: r.what_you_should_say ?? "",
-      }))
-    : null;
-
-  const displayRules = realRules ?? mockPlaybookRules;
-
-  const realMetrics = playbookAnalysis?.dimension_scores
-    ? Object.entries(playbookAnalysis.dimension_scores).map(([label, value]) => ({
-        label,
-        value: `${value}%`,
-      }))
-    : null;
-
-  const displayMetrics = realMetrics ?? mockPlaybookMetrics;
-  const overallScore = playbookAnalysis?.overall_score ?? null;
-
-  const handleAnalysisComplete = useCallback((result: PlaybookAnalysis) => {
-    setAnalysisResult(result);
+  const handleLoaderComplete = useCallback(() => {
+    setAnalysisResult(mockPlaybookAnalysis);
     setAnalysisState("complete");
-  }, []);
-
-  const handleViewDetailed = useCallback((result: PlaybookAnalysis) => {
-    setAnalysisResult(result);
-    setAnalysisState("complete");
-    setShowDetailed(true);
   }, []);
 
   const handleReanalyze = useCallback(() => {
-    setAnalysisState("analyzing");
-    setAnalysisResult(null);
-    setShowDetailed(false);
-  }, []);
-
-  const toggleRule = (id: string) => setExpandedRules((p) => ({ ...p, [id]: !p[id] }));
+    if (onReanalyze) {
+      onReanalyze();
+    } else {
+      setAnalysisState("loading");
+      setAnalysisResult(null);
+      setShowDetailed(false);
+    }
+  }, [onReanalyze]);
 
   const sorted = [...mockMethodologyScores].sort((a, b) => b.overallScore - a.overallScore);
   const top = sorted[0];
-  const score = analysisResult?.consensusScore
-    ? Math.round(analysisResult.consensusScore)
-    : overallScore != null
-    ? overallScore
-    : top.overallScore;
+  // Prefer real playbook score when available
+  const score = realPlaybook?.overall_score != null
+    ? Math.round(realPlaybook.overall_score)
+    : analysisResult?.consensusScore
+      ? Math.round(analysisResult.consensusScore)
+      : top.overallScore;
+  // Coaching summary from real data if available
+  const coachingSummary = realPlaybook?.coaching_summary || null;
 
   // Generate coach summary from analysis
   const getCoachSummary = () => {
     const topMethod = sorted[0];
     const missed = topMethod.elementsDetected.filter(e => !e.detected);
     const strong = topMethod.elementsDetected.filter(e => e.detected && e.score >= 80);
-    
+
     let summary = `Strong discovery call with clear next steps`;
     if (strong.length > 0) summary += ` — great ${strong[0].name.toLowerCase()} identification`;
     if (missed.length > 0) summary += `, but you missed identifying the ${missed[0].name.toLowerCase()}.`;
@@ -145,11 +121,11 @@ const PlaybookTab = ({ playbookAnalysis }: PlaybookTabProps) => {
     <div className="space-y-5">
       {/* Deal Health Header */}
       <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
-        {analysisState === "initial" && !playbookAnalysis && (
+        {analysisState === "initial" && (
           <div className="flex items-center gap-3 p-4 flex-wrap">
             <div className="relative" />
             <button
-              onClick={() => setAnalysisState("analyzing")}
+              onClick={() => setAnalysisState("loading")}
               className="ml-auto inline-flex items-center gap-2 px-4 py-2.5 forskale-gradient-bg text-white text-sm font-semibold rounded-lg shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.4)] transition-all"
             >
               <Sparkles className="h-4 w-4" />
@@ -158,7 +134,7 @@ const PlaybookTab = ({ playbookAnalysis }: PlaybookTabProps) => {
           </div>
         )}
 
-        {((analysisState === "complete" && analysisResult) || (playbookAnalysis && analysisState !== "analyzing")) && (
+        {analysisState === "complete" && analysisResult && (
           <div className="p-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
             {/* Deal Health Score Card */}
             <div className="bg-[hsl(var(--forskale-green)/0.06)] border border-[hsl(var(--forskale-green)/0.2)] rounded-xl p-5 mb-4">
@@ -187,11 +163,11 @@ const PlaybookTab = ({ playbookAnalysis }: PlaybookTabProps) => {
                       🎯 {top.name} Approach
                     </Badge>
                     <Badge variant="outline" className="text-[10px] border-border text-muted-foreground">
-                      {analysisResult?.methodologies?.length ?? 0} methods analyzed
+                      {analysisResult.methodologies.length} methods analyzed
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground leading-relaxed">
-                    {getCoachSummary()}
+                    {coachingSummary || getCoachSummary()}
                   </p>
                 </div>
               </div>
@@ -225,7 +201,7 @@ const PlaybookTab = ({ playbookAnalysis }: PlaybookTabProps) => {
                 <RefreshCw className="h-3.5 w-3.5" />
                 Re-analyze
               </button>
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 opacity-40 pointer-events-none blur-[0.5px]" disabled>
                 <Download className="h-3.5 w-3.5" />
                 Export Report
               </Button>
@@ -234,101 +210,10 @@ const PlaybookTab = ({ playbookAnalysis }: PlaybookTabProps) => {
         )}
       </div>
 
-      {/* Metrics */}
-      <div className="flex gap-3 flex-wrap">
-        {displayMetrics.map((m) => {
-          const val = parseInt(m.value);
-          return (
-            <div
-              key={m.label}
-              className={cn(
-                "rounded-xl border px-4 py-2.5 text-center min-w-[120px] bg-card shadow-card transition-all hover:-translate-y-0.5 hover:shadow-card-md",
-                val >= 80
-                  ? "border-[hsl(var(--forskale-green)/0.2)]"
-                  : val >= 20
-                    ? "border-[hsl(var(--forskale-cyan)/0.2)]"
-                    : "border-border",
-              )}
-            >
-              <div className="text-[11px] text-muted-foreground">{m.label}</div>
-              <div
-                className={cn(
-                  "text-lg font-bold font-heading",
-                  val >= 80 ? "text-status-great" : val >= 20 ? "text-status-okay" : "text-muted-foreground",
-                )}
-              >
-                {m.value}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Rules with coaching enhancements */}
-      <div className="space-y-2">
-        {displayRules.map((rule) => (
-          <div
-            key={rule.id}
-            className="border border-border rounded-xl overflow-hidden bg-card shadow-card transition-all hover:shadow-card-md"
-          >
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-left" onClick={() => toggleRule(rule.id)}>
-              {rule.passed ? (
-                <Check className="h-4 w-4 text-status-great shrink-0" />
-              ) : (
-                <AlertTriangle className="h-4 w-4 text-status-needs-work shrink-0" />
-              )}
-              <span className="text-sm text-foreground flex-1 font-medium">{rule.label}</span>
-              {rule.isKeyDriver && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] h-5 border-[hsl(var(--forskale-green)/0.3)] text-status-great bg-[hsl(var(--badge-green-bg))]"
-                >
-                  Key Driver
-                </Badge>
-              )}
-              {!rule.passed && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] h-5 border-status-needs-work/30 text-status-needs-work bg-status-needs-work/5"
-                >
-                  Missed Opportunity
-                </Badge>
-              )}
-              {expandedRules[rule.id] ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-              )}
-            </button>
-
-            {expandedRules[rule.id] && (
-              <div className="px-4 pb-4 border-t border-border pt-3 space-y-3 animate-fade-in">
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-1">What you said</div>
-                  <div className="bg-secondary rounded-lg p-3 text-xs text-foreground leading-relaxed">
-                    {rule.whatYouSaid}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
-                    <Sparkles className="h-3 w-3 text-[hsl(var(--forskale-green))]" />
-                    Coaching tip — try this next time
-                  </div>
-                  <div className="bg-[hsl(var(--badge-green-bg))] rounded-lg p-3 text-xs text-foreground leading-relaxed border border-[hsl(var(--forskale-green)/0.2)]">
-                    {rule.whatYouShouldSay}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
       {/* Analysis Modals */}
-      <AdvancedAnalysisModal
-        isOpen={analysisState === "analyzing"}
-        onComplete={handleAnalysisComplete}
-        onViewDetailed={handleViewDetailed}
+      <PlaybookAnalysisLoader
+        isOpen={analysisState === "loading"}
+        onComplete={handleLoaderComplete}
       />
 
       <DetailedAnalysisDashboard

@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
 import type { DateGroup } from '@/types/meeting';
 import { buildCompanyTimelines } from '@/lib/meetingUtils';
@@ -46,31 +46,30 @@ export function DateGroupAccordion({ group, onToggle, onSelectMeeting, onMarkVie
             : 'bg-[hsl(var(--forskale-teal))]',
         ].join(' ')} />
 
-        <span className="text-[12px] font-bold text-foreground flex-1 text-left tracking-tight">
+        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 shadow-sm border border-border/50">
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        </div>
+
+        <span className="text-[14px] font-bold text-foreground text-left tracking-tight">
           {translatedLabel}
         </span>
-
-        {/* "N new" badge — only when there are fresh insights */}
-        {group.freshInsightCount > 0 && (
-          <span className="text-[10px] font-semibold bg-[hsl(var(--forskale-teal))] text-white px-1.5 py-0.5 rounded-full mr-1 leading-none">
-            {group.freshInsightCount} {t('date.new')}
-          </span>
-        )}
-
-        {/* Total meeting count */}
-        <span className="text-[10px] text-muted-foreground mr-1 tabular-nums">
+        <span className="w-5 h-5 rounded-full bg-[hsl(var(--forskale-teal))] text-white text-[11px] font-bold flex items-center justify-center flex-shrink-0">
           {group.meetings.length}
         </span>
 
-        {group.expanded
-          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-        }
+        <span className="flex-1" />
+
+        {/* "N new" badge — only when there are fresh insights */}
+        {group.freshInsightCount > 0 && (
+          <span className="text-[11px] font-semibold bg-[hsl(var(--forskale-teal))] text-white px-1.5 py-0.5 rounded-full mr-1 leading-none">
+            {group.freshInsightCount} {t('date.new')}
+          </span>
+        )}
       </button>
 
       {/* Collapsed body */}
       {!group.expanded && (
-        <div className="flex items-center gap-3 px-4 py-2 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-3 px-4 py-2 text-[12px] text-muted-foreground">
           {[...new Set(group.meetings.map((m) => m.company))].map((c) => (
             <span key={c}>{c}</span>
           ))}

@@ -1,13 +1,14 @@
 import { useState, useCallback } from "react";
-import { Download, RefreshCw, Trophy, TrendingUp } from "lucide-react";
+import { Download, RefreshCw, Sparkles, Trophy, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { mockMethodologyScores, type PlaybookAnalysis } from "@/data/playbookAnalysisData";
-import AdvancedAnalysisModal from "./AdvancedAnalysisModal";
-import DetailedAnalysisDashboard from "./DetailedAnalysisDashboard";
+import { mockMethodologyScores, mockPlaybookAnalysis, type PlaybookAnalysis } from "@/data/playbookAnalysisData";
 
-type AnalysisState = "analyzing" | "complete";
+import DetailedAnalysisDashboard from "./DetailedAnalysisDashboard";
+import PlaybookAnalysisLoader from "./PlaybookAnalysisLoader";
+
+type AnalysisState = "initial" | "loading" | "complete";
 
 const getScoreColor = (score: number) => {
   if (score >= 70) return "text-status-great";
@@ -65,27 +66,30 @@ const DealHealthGauge = ({ score }: { score: number }) => {
   );
 };
 
-const PlaybookTab = () => {
-  const [analysisState, setAnalysisState] = useState<AnalysisState>("analyzing");
-  const [analysisResult, setAnalysisResult] = useState<PlaybookAnalysis | null>(null);
+interface PlaybookTabProps {
+  forceComplete?: boolean;
+  onReanalyze?: () => void;
+}
+
+const PlaybookTab = ({ forceComplete, onReanalyze }: PlaybookTabProps) => {
+  const [analysisState, setAnalysisState] = useState<AnalysisState>(forceComplete ? "complete" : "initial");
+  const [analysisResult, setAnalysisResult] = useState<PlaybookAnalysis | null>(forceComplete ? mockPlaybookAnalysis : null);
   const [showDetailed, setShowDetailed] = useState(false);
 
-  const handleAnalysisComplete = useCallback((result: PlaybookAnalysis) => {
-    setAnalysisResult(result);
+  const handleLoaderComplete = useCallback(() => {
+    setAnalysisResult(mockPlaybookAnalysis);
     setAnalysisState("complete");
-  }, []);
-
-  const handleViewDetailed = useCallback((result: PlaybookAnalysis) => {
-    setAnalysisResult(result);
-    setAnalysisState("complete");
-    setShowDetailed(true);
   }, []);
 
   const handleReanalyze = useCallback(() => {
-    setAnalysisState("analyzing");
-    setAnalysisResult(null);
-    setShowDetailed(false);
-  }, []);
+    if (onReanalyze) {
+      onReanalyze();
+    } else {
+      setAnalysisState("loading");
+      setAnalysisResult(null);
+      setShowDetailed(false);
+    }
+  }, [onReanalyze]);
 
   const sorted = [...mockMethodologyScores].sort((a, b) => b.overallScore - a.overallScore);
   const top = sorted[0];
@@ -108,6 +112,18 @@ const PlaybookTab = () => {
     <div className="space-y-5">
       {/* Deal Health Header */}
       <div className="bg-card rounded-xl border border-border shadow-card overflow-hidden">
+        {analysisState === "initial" && (
+          <div className="flex items-center gap-3 p-4 flex-wrap">
+            <div className="relative" />
+            <button
+              onClick={() => setAnalysisState("loading")}
+              className="ml-auto inline-flex items-center gap-2 px-4 py-2.5 forskale-gradient-bg text-white text-sm font-semibold rounded-lg shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.4)] transition-all"
+            >
+              <Sparkles className="h-4 w-4" />
+              Analyze this meeting
+            </button>
+          </div>
+        )}
 
         {analysisState === "complete" && analysisResult && (
           <div className="p-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -176,7 +192,7 @@ const PlaybookTab = () => {
                 <RefreshCw className="h-3.5 w-3.5" />
                 Re-analyze
               </button>
-              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+              <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 opacity-40 pointer-events-none blur-[0.5px]" disabled>
                 <Download className="h-3.5 w-3.5" />
                 Export Report
               </Button>
@@ -185,13 +201,12 @@ const PlaybookTab = () => {
         )}
       </div>
 
-
       {/* Analysis Modals */}
-      <AdvancedAnalysisModal
-        isOpen={analysisState === "analyzing"}
-        onComplete={handleAnalysisComplete}
-        onViewDetailed={handleViewDetailed}
+      <PlaybookAnalysisLoader
+        isOpen={analysisState === "loading"}
+        onComplete={handleLoaderComplete}
       />
+
 
       <DetailedAnalysisDashboard
         analysis={analysisResult || ({} as PlaybookAnalysis)}

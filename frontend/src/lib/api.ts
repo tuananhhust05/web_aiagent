@@ -495,6 +495,23 @@ export type SmartSummaryStrategicRecommendation = {
   confidence: number
 }
 
+export interface MeetingInterestPulse {
+  meeting_id: string;
+  source: "computed" | "cache" | "none";
+  interest_percent?: number | null;
+  interest_percent_range?: string | null;
+  cognitive_state?: string | null;
+  crm_stage_suggestion?: string | null;
+  ui_color_theme?: "red" | "orange" | "amber" | "teal" | "green" | null;
+  psychology_label?: string | null;
+  pulse_score?: number | null;
+  win_probability?: number | null;
+  risk_level?: "Low" | "Medium" | "High" | "Critical" | null;
+  risk_reason?: string | null;
+  computed_at?: string | null;
+  message?: string | null;
+}
+
 export type MeetingSmartSummary = {
   meeting_id: string
   source: 'llm' | 'cache' | 'none'
@@ -1721,6 +1738,9 @@ export const meetingsAPI = {
 
   getMeetingSmartSummary: (id: string, params?: { force_refresh?: boolean }) =>
     api.get<MeetingSmartSummary>(`/api/meetings/${id}/smart-summary`, { params }),
+
+  getMeetingInterestPulse: (meetingId: string) =>
+    api.get(`/meetings/${meetingId}/interest-pulse`),
 
   getNextMeetingStrategy: (id: string, params?: { force_refresh?: boolean }) =>
     api.post<NextMeetingStrategy>(`/api/meetings/${id}/strategy-next-meeting`, null, { params }),

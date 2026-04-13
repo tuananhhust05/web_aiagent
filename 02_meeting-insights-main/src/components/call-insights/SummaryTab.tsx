@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { Sparkles, Clock, AlertTriangle, CheckCircle2, Info } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Sparkles, Clock, AlertTriangle, CheckCircle2, Info, Trophy } from "lucide-react";
 import { getBandByPct } from "@/lib/interestModel";
-import { Badge } from "@/components/ui/badge";
+import { type PlaybookAnalysis } from "@/data/playbookAnalysisData";
+import AdvancedAnalysisModal from "./AdvancedAnalysisModal";
+import KeyMomentsSection from "./KeyMomentsSection";
 
 // --- Mock Data ---
 
@@ -56,9 +58,61 @@ const actions = [
   },
 ];
 
-// --- Section 1: Interest Pulse ---
+// --- Analyze Meeting Button with sparkle/shimmer/glow ---
+const AnalyzeMeetingButton = ({ onClick }: { onClick: () => void }) => (
+  <div className="flex items-center justify-center py-12">
+    <button
+      onClick={onClick}
+      className="group relative inline-flex items-center gap-2.5 px-6 py-3.5 forskale-gradient-bg text-white text-sm font-semibold rounded-xl shadow-[0_4px_20px_hsl(var(--forskale-green)/0.35)] hover:-translate-y-0.5 hover:shadow-[0_8px_30px_hsl(var(--forskale-green)/0.45)] transition-all duration-300 overflow-hidden"
+    >
+      <span className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+      <span className="absolute inset-0 rounded-xl animate-pulse opacity-30 bg-[hsl(var(--forskale-green)/0.4)]" />
+      <Sparkles className="h-5 w-5 relative z-10 animate-spin" style={{ animationDuration: '3s' }} />
+      <span className="relative z-10">Analyze Meeting</span>
+    </button>
+  </div>
+);
+
+// --- Section 1: Interest Pulse with Animated Gauge ---
 const InterestPulse = () => {
   const band = getBandByPct(currentInterestPct);
+  const targetScore = 80;
+  const [displayScore, setDisplayScore] = useState(0);
+  const [textVisible, setTextVisible] = useState(false);
+  const [gaugeActive, setGaugeActive] = useState(false);
+
+  useEffect(() => {
+    const textTimer = setTimeout(() => setTextVisible(true), 100);
+    const gaugeTimer = setTimeout(() => setGaugeActive(true), 400);
+    return () => { clearTimeout(textTimer); clearTimeout(gaugeTimer); };
+  }, []);
+
+  useEffect(() => {
+    if (!gaugeActive) return;
+    const duration = 1200;
+    const startTime = performance.now();
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayScore(Math.round(targetScore * eased));
+      if (progress < 1) requestAnimationFrame(animate);
+    };
+    requestAnimationFrame(animate);
+  }, [gaugeActive]);
+
+  const radius = 50;
+  const circumference = Math.PI * radius;
+  const dashValue = gaugeActive ? (displayScore / 100) * circumference : 0;
+  const strokeDasharray = `${dashValue} ${circumference}`;
+
+  const getScoreLabel = (score: number) => {
+    if (score >= 80) return 'Excellent';
+    if (score >= 60) return 'Good';
+    if (score >= 40) return 'Fair';
+    return 'Needs Work';
+  };
+
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="flex items-center gap-2 mb-4">
@@ -67,22 +121,59 @@ const InterestPulse = () => {
         <span className="text-xs text-muted-foreground ml-1">where the buyer is right now</span>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className={`flex-1 rounded-lg p-4 ${band.bgClass} border ${band.borderClass}`}>
-          <p className={`text-2xl font-bold ${band.textClass}`}>{band.cognitiveState}</p>
-          <p className="text-xs text-muted-foreground mt-1">{band.rangeLabel} interest</p>
-          <p className={`text-xs font-medium mt-2 ${band.textClass}`}>{band.psychology}</p>
-        </div>
+      <div className="rounded-xl border border-[hsl(145,92%,91%)] bg-[hsl(143,85%,96%)] p-6">
+        <div className="flex items-center justify-between">
+          <div
+            className="flex flex-col justify-center transition-all duration-500"
+            style={{ opacity: textVisible ? 1 : 0, transform: textVisible ? 'translateY(0)' : 'translateY(10px)' }}
+          >
+            <h4 className="text-2xl font-bold text-[hsl(140,100%,27%)] mb-1">Trust</h4>
+            <p className="text-sm text-[hsl(140,100%,27%)]/70 mb-2">50-60% interest</p>
+            <p className="text-sm font-medium text-[hsl(140,100%,27%)]">They trust your solution</p>
+          </div>
 
-        <div className="grid grid-cols-1 gap-3 w-48">
-          <div className="rounded-lg bg-[hsl(var(--forskale-green)/0.08)] border border-[hsl(var(--forskale-green)/0.2)] p-3">
-            <p className="text-[11px] text-muted-foreground">Win probability</p>
-            <p className="text-xl font-bold text-[hsl(var(--forskale-green))]">72%</p>
+          <div className="flex flex-col items-center">
+            <div className="relative" style={{ width: 120, height: 70 }}>
+              <svg viewBox="0 0 120 68" className="w-full h-full">
+                <path d="M 10 58 A 50 50 0 0 1 110 58" fill="none" stroke="white" strokeWidth="8" strokeLinecap="round" />
+                <path
+                  d="M 10 58 A 50 50 0 0 1 110 58"
+                  fill="none"
+                  stroke="hsl(97,72%,48%)"
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray={strokeDasharray}
+                  style={{ transition: 'stroke-dasharray 1.2s cubic-bezier(0.22, 1, 0.36, 1)' }}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-end justify-center pb-1">
+                <div className="text-center">
+                  <div className="flex items-baseline justify-center gap-0.5">
+                    <span className="text-[32px] leading-none font-bold tabular-nums text-[hsl(97,72%,38%)]">{displayScore}</span>
+                    <span className="text-sm text-[hsl(140,100%,27%)]/60">/100</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="text-center mt-1.5">
+              <span className="text-xs font-semibold text-[hsl(97,72%,38%)] block">{getScoreLabel(displayScore)}</span>
+              <div className="flex items-center justify-center gap-1 mt-0.5">
+                <Trophy className="h-3 w-3 text-[hsl(97,72%,48%)]" />
+                <span className="text-[10px] font-medium text-[hsl(97,72%,48%)]">Great job!</span>
+              </div>
+            </div>
           </div>
-          <div className="rounded-lg bg-amber-500/[0.08] border border-amber-500/20 p-3">
-            <p className="text-[11px] text-muted-foreground">Risk level</p>
-            <p className="text-sm font-bold text-amber-500">Medium — budget unclear</p>
-          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mt-4">
+        <div className="rounded-lg bg-[hsl(var(--forskale-green)/0.08)] border border-[hsl(var(--forskale-green)/0.2)] p-3">
+          <p className="text-[11px] text-muted-foreground">Win probability</p>
+          <p className="text-xl font-bold text-[hsl(var(--forskale-green))]">72%</p>
+        </div>
+        <div className="rounded-lg bg-amber-500/[0.08] border border-amber-500/20 p-3">
+          <p className="text-[11px] text-muted-foreground">Risk level</p>
+          <p className="text-sm font-bold text-amber-500">Medium — budget unclear</p>
         </div>
       </div>
     </div>
@@ -242,25 +333,39 @@ const WhatToDoNext = () => {
 };
 
 // --- Main Component ---
-const SummaryTab = () => {
+type AnalysisState = "pristine" | "loading" | "complete";
+
+interface SummaryTabProps {
+  autoAnalyze?: boolean;
+}
+
+const SummaryTab = ({ autoAnalyze = false }: SummaryTabProps) => {
+  const [analysisState, setAnalysisState] = useState<AnalysisState>(autoAnalyze ? "loading" : "pristine");
+
+  const handleAnalysisComplete = (_result: PlaybookAnalysis) => {
+    setAnalysisState("complete");
+  };
+
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center gap-2">
-        <Sparkles className="h-5 w-5 text-[hsl(var(--forskale-teal))]" />
-        <h2 className="text-xl font-bold text-foreground">Smart S</h2>
-        {/* <Badge
-          variant="outline"
-          className="text-[9px] h-4 font-bold tracking-wider bg-[hsl(var(--forskale-teal)/0.1)] text-[hsl(var(--forskale-teal))] border-[hsl(var(--forskale-teal)/0.3)]"
-        >
-          Smart S
-        </Badge> */}
-      </div>
+      {analysisState === "pristine" && (
+        <AnalyzeMeetingButton onClick={() => setAnalysisState("loading")} />
+      )}
 
-      <InterestPulse />
-      <InterestEvolution />
-      <WhatChanged />
-      <WhatToDoNext />
+      {analysisState === "complete" && (
+        <>
+          <InterestPulse />
+          <KeyMomentsSection />
+          <InterestEvolution />
+          <WhatChanged />
+          <WhatToDoNext />
+        </>
+      )}
+
+      <AdvancedAnalysisModal
+        isOpen={analysisState === "loading"}
+        onComplete={handleAnalysisComplete}
+      />
     </div>
   );
 };

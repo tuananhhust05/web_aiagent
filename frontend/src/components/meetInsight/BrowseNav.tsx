@@ -87,7 +87,7 @@ export function BrowseNav({
       {/* Row A — Browse mode with search */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
             {t('browse.browse')}
           </p>
 
@@ -103,7 +103,7 @@ export function BrowseNav({
                   onSearch?.(e.target.value);
                 }}
                 placeholder={t('browse.searchPlaceholder')}
-                className="text-[12px] bg-transparent border-none outline-none flex-1 min-w-0 text-foreground placeholder:text-muted-foreground"
+                className="text-sm bg-transparent border-none outline-none flex-1 min-w-0 text-foreground placeholder:text-muted-foreground"
               />
               <button
                 className="flex-shrink-0 p-0.5"
@@ -165,7 +165,7 @@ export function BrowseNav({
 
       {/* Row B — Companies */}
       <div>
-        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium mb-2">
+        <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-2">
           {t('browse.companies')}
         </p>
 

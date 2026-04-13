@@ -26,16 +26,16 @@ function companyAvgInterest(meetings: MeetingCall[], company: string): number | 
 
 function getDotColor(score: number | null): string {
   if (score == null) return 'bg-muted-foreground/30';
-  if (score === 0) return 'bg-[#EF4444]';           // Lost — Red
-  if (score >= 90) return 'bg-[#639922]';            // Decision — Green
-  if (score >= 80) return 'bg-[#639922]';            // Hard Commitment — Green
-  if (score >= 70) return 'bg-[#1D9E75]';            // Validation — Teal
-  if (score >= 60) return 'bg-[#1D9E75]';            // Evaluation — Teal
-  if (score >= 50) return 'bg-[#1D9E75]';            // Trust — Teal
-  if (score >= 40) return 'bg-[#BA7517]';            // Problem Recognition — Amber
-  if (score >= 30) return 'bg-[#BA7517]';            // Interest — Amber
-  if (score >= 20) return 'bg-[#E97B1E]';            // Curiosity — Orange
-  return 'bg-[#EF4444]';                             // Attention — Red/Orange
+  if (score === 0) return 'bg-[#EF4444]';
+  if (score >= 90) return 'bg-[#639922]';
+  if (score >= 80) return 'bg-[#639922]';
+  if (score >= 70) return 'bg-[#1D9E75]';
+  if (score >= 60) return 'bg-[#1D9E75]';
+  if (score >= 50) return 'bg-[#1D9E75]';
+  if (score >= 40) return 'bg-[#BA7517]';
+  if (score >= 30) return 'bg-[#BA7517]';
+  if (score >= 20) return 'bg-[#E97B1E]';
+  return 'bg-[#EF4444]';
 }
 
 function getPillStyle(score: number | null, isActive: boolean) {
@@ -87,7 +87,7 @@ export function BrowseNav({
       {/* Row A — Browse mode with search */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
+          <p className="text-[12px] text-muted-foreground uppercase tracking-wider font-medium">
             {t('browse.browse')}
           </p>
 
@@ -103,7 +103,7 @@ export function BrowseNav({
                   onSearch?.(e.target.value);
                 }}
                 placeholder={t('browse.searchPlaceholder')}
-                className="text-[12px] bg-transparent border-none outline-none flex-1 min-w-0 text-foreground placeholder:text-muted-foreground"
+                className="text-[13px] bg-transparent border-none outline-none flex-1 min-w-0 text-foreground placeholder:text-muted-foreground"
               />
               <button
                 className="flex-shrink-0 p-0.5"
@@ -119,7 +119,7 @@ export function BrowseNav({
           ) : (
             <button
               onClick={() => setSearchActive(true)}
-              className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-[hsl(var(--forskale-teal))] px-2.5 py-1 rounded-lg border border-border hover:border-[hsl(var(--forskale-teal)/0.3)] hover:bg-[hsl(var(--forskale-teal)/0.06)] transition-colors"
+              className="flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-[hsl(var(--forskale-teal))] px-2.5 py-1 rounded-lg border border-border hover:border-[hsl(var(--forskale-teal)/0.3)] hover:bg-[hsl(var(--forskale-teal)/0.06)] transition-colors"
             >
               <Search className="h-3.5 w-3.5" />
               {t('browse.search')}
@@ -133,7 +133,7 @@ export function BrowseNav({
               key={m.id}
               onClick={() => onBrowseModeChange(m.id)}
               className={[
-                'inline-flex items-center rounded-full text-[12px] font-medium px-3 py-1.5 border transition-all cursor-pointer whitespace-nowrap',
+                'inline-flex items-center rounded-full text-[13px] font-medium px-3 py-1.5 border transition-all cursor-pointer whitespace-nowrap',
                 browseMode === m.id
                   ? 'bg-[#E1F5EE] text-[#085041] border-[#1D9E75]'
                   : 'bg-card text-muted-foreground border-border hover:bg-accent',
@@ -143,11 +143,11 @@ export function BrowseNav({
             </button>
           ))}
 
-          {/* Unviewed insights button with glowing red dot */}
+          {/* Unviewed insights button */}
           <button
             onClick={() => onBrowseModeChange('unviewed')}
             className={[
-              'inline-flex items-center gap-1.5 rounded-full text-[12px] font-medium px-3 py-1.5 border transition-all cursor-pointer whitespace-nowrap',
+              'inline-flex items-center gap-1.5 rounded-full text-[13px] font-medium px-3 py-1.5 border transition-all cursor-pointer whitespace-nowrap',
               browseMode === 'unviewed'
                 ? 'bg-destructive/10 text-destructive border-destructive/40'
                 : 'bg-card text-muted-foreground border-border hover:bg-accent',
@@ -158,29 +158,26 @@ export function BrowseNav({
               <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive" />
             </span>
             {t('browse.unviewedInsights')}
-            <span className="text-[10px] opacity-70">({unreviewedCount})</span>
+            <span className="text-[11px] opacity-70">({unreviewedCount})</span>
           </button>
         </div>
       </div>
 
       {/* Row B — Companies */}
       <div>
-        <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium mb-2">
+        <p className="text-[12px] text-muted-foreground uppercase tracking-wider font-medium mb-2">
           {t('browse.companies')}
         </p>
 
-        {/* Pills row with pagination */}
         <div className="flex items-center gap-2">
-          {/* Fixed-width pill strip */}
           <div
             className="flex items-center gap-2 overflow-hidden"
             style={{ width: '680px', minWidth: '680px', maxWidth: '680px' }}
           >
-            {/* All pill */}
             <button
               onClick={() => onCompanyChange('all')}
               className={[
-                'inline-flex items-center gap-1.5 rounded-full text-[12px] font-medium px-3 py-1.5 border transition-all cursor-pointer whitespace-nowrap flex-shrink-0',
+                'inline-flex items-center gap-1.5 rounded-full text-[13px] font-medium px-3 py-1.5 border transition-all cursor-pointer whitespace-nowrap flex-shrink-0',
                 selectedCompany === 'all'
                   ? 'bg-foreground text-background border-foreground'
                   : 'bg-card text-muted-foreground border-border hover:bg-accent',
@@ -199,19 +196,18 @@ export function BrowseNav({
                   key={c}
                   onClick={() => onCompanyChange(c)}
                   className={[
-                    'inline-flex items-center gap-1.5 rounded-full text-[12px] font-medium px-3 py-1.5 border transition-all cursor-pointer whitespace-nowrap flex-shrink-0',
+                    'inline-flex items-center gap-1.5 rounded-full text-[13px] font-medium px-3 py-1.5 border transition-all cursor-pointer whitespace-nowrap flex-shrink-0',
                     getPillStyle(avg, isActive),
                   ].join(' ')}
                 >
                   <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isActive ? getDotColor(avg) : 'bg-muted-foreground/30'}`} />
                   {c}
-                  <span className="text-[10px] opacity-60">{count}</span>
+                  <span className="text-[11px] opacity-60">{count}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* Arrows */}
           {showPagination && (
             <div className="flex items-center gap-1 flex-shrink-0">
               <button
@@ -233,7 +229,6 @@ export function BrowseNav({
         </div>
       </div>
 
-      {/* Separator */}
       <div className="h-px bg-border" />
     </div>
   );
