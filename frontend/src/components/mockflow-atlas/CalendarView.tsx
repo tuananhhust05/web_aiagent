@@ -422,8 +422,29 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
   const [view, setView] = useState<"week" | "month">("week");
   const [syncing, setSyncing] = useState(false);
   const [weekAnchor, setWeekAnchor] = useState<Date>(() => getMonday(new Date()));
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const liveMeetings = externalMeetings ?? MOCK_MEETINGS;
+
+  useEffect(() => {
+    if (view === "week" && scrollContainerRef.current) {
+      if (scrollContainerRef.current.scrollTop === 0) {
+        let targetHour = 8;
+        if (liveMeetings.length > 0) {
+          const earliestMeetingHour = Math.min(...liveMeetings.map(m => m.startHour));
+          targetHour = Math.max(0, Math.floor(earliestMeetingHour) - 1);
+        } else {
+          targetHour = Math.max(0, new Date().getHours() - 1);
+        }
+        // Use timeout to ensure DOM is fully rendered before scrolling
+        setTimeout(() => {
+          if (scrollContainerRef.current && scrollContainerRef.current.scrollTop === 0) {
+            scrollContainerRef.current.scrollTo({ top: (targetHour * 64) + 150, behavior: 'smooth' });
+          }
+        }, 100);
+      }
+    }
+  }, [view, weekAnchor, liveMeetings]);
 
   const weekDates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekAnchor);
@@ -551,7 +572,7 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
       {/* Content */}
       {view === "week" ? (
         /* Week View */
-        <div className="flex flex-1 overflow-auto scrollbar-thin">
+        <div ref={scrollContainerRef} className="flex flex-1 overflow-auto scrollbar-thin">
           <div className="w-12 sm:w-20 flex-shrink-0 border-r border-border bg-muted/50 pt-16">
             {HOURS.map((h) => (
               <div key={h} className="relative h-16 border-b border-border/50 pr-1 sm:pr-2 text-right">

@@ -3,7 +3,7 @@ import { X } from 'lucide-react'
 
 /**
  * Lightweight welcome — inspired by Slack (concise, one CTA) and Notion (clean, minimal).
- * Optional chime; no heavy hero so it feels like a quick "What's Atlas?" card.
+ * Optional chime; no heavy hero so it feels like a quick "What's ForSkale?" card.
  */
 function playChime() {
   try {
@@ -49,7 +49,7 @@ function getHeadline(role: AtlasWelcomeRole): string {
     case 'sales_manager':
     case 'exploring':
     default:
-      return "Atlas is your sales coach. Let's do your first negotiation."
+      return "ForSkale is your sales coach. Let's do your first negotiation."
   }
 }
 
@@ -72,7 +72,7 @@ export default function AtlasWelcomeModal({ onClose, userName, role: propRole }:
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
-      aria-label="Welcome to Atlas"
+      aria-label="Welcome to ForSkale"
     >
       <div
         className={`relative bg-white rounded-2xl shadow-xl border border-gray-200 max-w-md w-full mx-4 overflow-hidden transition-all duration-300 ${

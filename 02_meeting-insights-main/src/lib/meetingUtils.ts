@@ -164,7 +164,7 @@ export const STATUS_COLORS: Record<string, { text: string; border: string; bg: s
 
 export const COMPANY_AVATAR_COLORS: Record<string, { bg: string; text: string }> = {
   Lavazza:      { bg: 'bg-amber-500/15',   text: 'text-amber-600' },
-  'Atlas Corp': { bg: 'bg-[hsl(var(--forskale-blue)/0.15)]', text: 'text-[hsl(var(--forskale-blue))]' },
+  'ForSkale Corp': { bg: 'bg-[hsl(var(--forskale-blue)/0.15)]', text: 'text-[hsl(var(--forskale-blue))]' },
   Nestlé:       { bg: 'bg-[hsl(var(--forskale-teal)/0.15)]', text: 'text-[hsl(var(--forskale-teal))]' },
   Unilever:     { bg: 'bg-[hsl(var(--forskale-green)/0.15)]', text: 'text-[hsl(var(--forskale-green))]' },
   Ferrero:      { bg: 'bg-red-500/15',     text: 'text-red-600' },

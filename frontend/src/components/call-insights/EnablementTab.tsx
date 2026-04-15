@@ -289,7 +289,7 @@ const EnablementTab = ({
           ) : (
             <Sparkles className="h-4 w-4 animate-spin" style={{ animationDuration: '3s' }} />
           )}
-          Analysis
+          Report
         </button>
       </div>
 

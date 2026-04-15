@@ -67,13 +67,13 @@ export default function AISalesCopilotPage() {
                   <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
                     <BarChart3 className="h-5 w-5 text-blue-600" />
                   </div>
-                  <h1 className="text-3xl font-semibold tracking-tight text-gray-900">Atlas</h1>
+                  <h1 className="text-3xl font-semibold tracking-tight text-gray-900">ForSkale</h1>
                 </div>
 
                 {/* Greeting */}
                 <div>
                   <p className="text-lg text-gray-800">
-                    Hello, I'm Atlas, your <span className="font-semibold">Atlas</span>.
+                    Hello, I'm ForSkale, your <span className="font-semibold">ForSkale</span>.
                   </p>
                   <p className="text-sm text-gray-500 mt-1">
                     I'm here to help you close your deals.
@@ -84,20 +84,20 @@ export default function AISalesCopilotPage() {
                 <div className="inline-flex items-center gap-2 bg-sky-50 border border-sky-100 rounded-2xl px-4 py-2">
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
                   <p className="text-sm text-gray-700">
-                    Deals Atlas is pushing today:{' '}
+                    Deals ForSkale is pushing today:{' '}
                     <span className="font-semibold text-gray-900">{dealsCount}</span>
                   </p>
                 </div>
               </div>
 
-              {/* Right: Atlas Image */}
+              {/* Right: ForSkale Image */}
               <div className="relative z-10 flex-shrink-0 ml-6">
                 <div className="relative w-48 h-48 md:w-56 md:h-56 bg-white rounded-2xl">
-                  {/* Atlas Image */}
+                  {/* ForSkale Image */}
                   <img
                     style={{position:'absolute',right:'-20px'}}
                     src="/images/ai_sales_coach.png"
-                    alt="Atlas"
+                    alt="ForSkale"
                     className="relative w-full h-full object-contain object-center"
                     onError={(e) => {
                       // Fallback if image doesn't exist
@@ -177,7 +177,7 @@ export default function AISalesCopilotPage() {
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No Campaigns Found</h3>
             <p className="text-gray-500">
-              Create a campaign first to use Atlas.
+              Create a campaign first to use ForSkale.
             </p>
           </div>
         ) : (

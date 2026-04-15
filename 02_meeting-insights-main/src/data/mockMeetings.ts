@@ -11,8 +11,8 @@ export const MOCK_MEETINGS: MeetingCall[] = [
   // ── TODAY (daysAgo(0)) ──────────────────────────────────────────────
   {
     id: 'call-atlas-security',
-    title: 'Atlas Demo – Security Deep Dive',
-    company: 'Atlas Corp',
+    title: 'ForSkale Demo – Security Deep Dive',
+    company: 'ForSkale Corp',
     date: daysAgo(0, 9, 45),
     duration: '18:45',
     interestScore: 45,
@@ -61,8 +61,8 @@ export const MOCK_MEETINGS: MeetingCall[] = [
   // ── YESTERDAY (daysAgo(1)) ─────────────────────────────────────────
   {
     id: 'call-atlas-workflow',
-    title: 'Atlas Workflow Overview – Platform Capabilities',
-    company: 'Atlas Corp',
+    title: 'ForSkale Workflow Overview – Platform Capabilities',
+    company: 'ForSkale Corp',
     date: daysAgo(1, 12, 30),
     duration: '12:30',
     interestScore: 55,
@@ -80,8 +80,8 @@ export const MOCK_MEETINGS: MeetingCall[] = [
   // ── 2 DAYS AGO (daysAgo(2)) ────────────────────────────────────────
   {
     id: 'call-atlas-qa',
-    title: 'Atlas Demo – Q&A Follow-up',
-    company: 'Atlas Corp',
+    title: 'ForSkale Demo – Q&A Follow-up',
+    company: 'ForSkale Corp',
     date: daysAgo(2, 8, 15),
     duration: '8:15',
     interestScore: 65,

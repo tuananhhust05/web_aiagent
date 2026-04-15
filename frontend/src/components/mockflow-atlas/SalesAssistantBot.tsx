@@ -237,7 +237,7 @@ export function SalesAssistantBot() {
               className="flex items-center justify-between px-6 py-4"
               style={{ background: "linear-gradient(135deg, #7ED957 0%, #06B6D4 50%, #1C4E80 100%)" }}
             >
-              <h2 className="text-white font-bold text-lg">Atlas Sales Coach</h2>
+              <h2 className="text-white font-bold text-lg">ForSkale Sales Coach</h2>
               <button onClick={handleClose} className="text-white/80 hover:text-white transition-colors">
                 <X className="h-5 w-5" />
               </button>

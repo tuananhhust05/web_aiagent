@@ -16,7 +16,7 @@ interface SectionCopy {
 const SECTION_COPY: Record<AtlasSectionId, SectionCopy> = {
   calendar: {
     title: 'Meeting Intelligence',
-    why: 'Your meetings live here so Atlas can prep you and follow up.',
+    why: 'Your meetings live here so ForSkale can prep you and follow up.',
     result: 'See the week, join with one click, AI context ready for every call.',
   },
   calls: {
@@ -46,7 +46,7 @@ const SECTION_COPY: Record<AtlasSectionId, SectionCopy> = {
   },
   record: {
     title: 'Record',
-    why: 'Add meetings by link or record live for Atlas to analyze.',
+    why: 'Add meetings by link or record live for ForSkale to analyze.',
     result: 'Every important conversation captured and analyzed.',
   },
 }

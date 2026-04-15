@@ -212,7 +212,7 @@ const EnablementTab = ({ meetingId = "default" }: EnablementTabProps) => {
             ) : (
               <>
                 <BookOpen className="h-4 w-4 text-white" />
-                Analysis
+                Report
               </>
             )}
           </button>
@@ -236,7 +236,7 @@ const EnablementTab = ({ meetingId = "default" }: EnablementTabProps) => {
                   Ready to unlock your meeting insights?
                 </p>
                 <p className="text-xs text-muted-foreground mb-4 max-w-md mx-auto">
-                  Click <strong>Analysis</strong> to run ForSkale AI and uncover key topics, action items, sentiment, and more from your conversation.
+                  Click <strong>Report</strong> to run ForSkale AI and uncover key topics, action items, sentiment, and more from your conversation.
                 </p>
               </div>
             )}

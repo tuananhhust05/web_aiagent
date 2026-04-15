@@ -63,7 +63,7 @@ const Login = () => {
           }
 
           if (isNew) {
-            toast.success(`Welcome to Atlas, ${userData.first_name}!`)
+            toast.success(`Welcome to ForSkale, ${userData.first_name}!`)
           } else {
             toast.success(`Welcome back, ${userData.first_name}!`)
           }

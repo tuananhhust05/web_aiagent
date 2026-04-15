@@ -53,9 +53,9 @@ export interface PlaybookTemplate {
 
 export const mockCalls: CallItem[] = [
   { id: "1", title: "Lavazza A Modo Mio – Intro", date: "Mar 24, 2026", duration: "4:02", company: "Lavazza", product: "A Modo Mio", negotiationStage: "Discovery", dataSource: "call", dataCompleteness: 85 },
-  { id: "2", title: "Atlas Workflow Overview", date: "Mar 24, 2026", duration: "12:30", company: "Atlas Corp", product: "Atlas Platform", negotiationStage: "Demo", dataSource: "both", dataCompleteness: 92 },
-  { id: "3", title: "Atlas Demo – Security Deep Dive", date: "Mar 23, 2026", duration: "18:45", company: "Atlas Corp", product: "Atlas Platform", negotiationStage: "Demo", dataSource: "call", dataCompleteness: 78 },
-  { id: "4", title: "Atlas Demo – Q&A Follow-up", date: "Mar 23, 2026", duration: "8:15", company: "Atlas Corp", product: "Atlas Platform", negotiationStage: "Proposal", dataSource: "call", dataCompleteness: 65 },
+  { id: "2", title: "ForSkale Workflow Overview", date: "Mar 24, 2026", duration: "12:30", company: "ForSkale Corp", product: "ForSkale Platform", negotiationStage: "Demo", dataSource: "both", dataCompleteness: 92 },
+  { id: "3", title: "ForSkale Demo – Security Deep Dive", date: "Mar 23, 2026", duration: "18:45", company: "ForSkale Corp", product: "ForSkale Platform", negotiationStage: "Demo", dataSource: "call", dataCompleteness: 78 },
+  { id: "4", title: "ForSkale Demo – Q&A Follow-up", date: "Mar 23, 2026", duration: "8:15", company: "ForSkale Corp", product: "ForSkale Platform", negotiationStage: "Proposal", dataSource: "call", dataCompleteness: 65 },
   { id: "5", title: "Nestlé Supply Chain Review", date: "Mar 22, 2026", duration: "22:10", company: "Nestlé", product: "Supply Chain Suite", negotiationStage: "Negotiation", dataSource: "both", dataCompleteness: 95 },
   { id: "6", title: "Nestlé – Pricing Discussion", date: "Mar 22, 2026", duration: "15:00", company: "Nestlé", product: "Supply Chain Suite", negotiationStage: "Negotiation", dataSource: "crm", dataCompleteness: 70 },
   { id: "7", title: "Unilever First Contact", date: "Mar 21, 2026", duration: "6:30", company: "Unilever", product: "Distribution Hub", negotiationStage: "Discovery", dataSource: "call", dataCompleteness: 55 },

@@ -41,7 +41,7 @@ const steps = [
   {
     icon: Check,
     title: "You're all set!",
-    description: 'Atlas Intelligence is ready to support you. Start from Call Insights or Record.',
+    description: 'ForSkale Intelligence is ready to support you. Start from Call Insights or Record.',
   },
 ]
 
@@ -78,13 +78,13 @@ export default function AtlasIntroTour({ onComplete }: AtlasIntroTourProps) {
       className="fixed inset-0 z-[99] flex items-center justify-center bg-black/40 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
-      aria-label="Atlas introduction tour"
+      aria-label="ForSkale introduction tour"
     >
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
         <div className="p-6 pb-4">
           <div className="flex items-center gap-2 text-blue-600 mb-4">
             <Sparkles className="h-5 w-5" />
-            <span className="text-sm font-semibold uppercase tracking-wide">Atlas introduction tour</span>
+            <span className="text-sm font-semibold uppercase tracking-wide">ForSkale introduction tour</span>
           </div>
           <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-blue-50 text-blue-600 mb-4">
             <Icon className="h-7 w-7" />

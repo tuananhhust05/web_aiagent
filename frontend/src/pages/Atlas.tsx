@@ -162,7 +162,7 @@ export default function Atlas() {
           setActiveCallId(list[0].id)
         }
       } catch (e: any) {
-        console.error('Failed to load calls for Atlas', e)
+        console.error('Failed to load calls for ForSkale', e)
         toast.error(e.response?.data?.detail || 'Failed to load call history')
       } finally {
         setCallsLoading(false)
@@ -237,14 +237,14 @@ export default function Atlas() {
     if (recordMode === 'join') {
       return (
         <p className="text-sm text-gray-700">
-          Atlas Assistant will join your meeting as a participant to record the conversation
+          ForSkale Assistant will join your meeting as a participant to record the conversation
           and generate summaries, to-dos, and insights.
         </p>
       )
     }
     return (
       <p className="text-sm text-gray-700">
-        Atlas will start recording audio from your computer speakers for all
+        ForSkale will start recording audio from your computer speakers for all
         participants in the meeting, without joining as a visible participant.
       </p>
     )
@@ -252,10 +252,10 @@ export default function Atlas() {
 
   return (
     <div className="flex w-screen h-screen bg-gray-50 overflow-hidden">
-      {/* Atlas Sidebar */}
+      {/* ForSkale Sidebar */}
       <aside className="w-64 bg-[#0B1220] text-white flex flex-col">
         <div className="px-5 py-4 border-b border-white/10">
-          <div className="text-xs uppercase tracking-widest text-blue-300 mb-1">Atlas</div>
+          <div className="text-xs uppercase tracking-widest text-blue-300 mb-1">ForSkale</div>
           <div className="text-sm text-blue-100">by ForSkale</div>
         </div>
 
@@ -714,7 +714,7 @@ export default function Atlas() {
                   </p>
                   <div className="rounded-lg border border-dashed border-gray-300 bg-white p-4 text-sm text-gray-600">
                     Configure playbooks, discovery templates, and objection handling scripts
-                    that Atlas will use to coach your sales team.
+                    that ForSkale will use to coach your sales team.
                   </div>
                 </div>
               )}
@@ -830,7 +830,7 @@ export default function Atlas() {
           <div className="p-6 space-y-4 h-full overflow-y-auto">
             <h1 className="text-xl font-semibold text-gray-900">Knowledge</h1>
             <p className="text-sm text-gray-600 mb-4">
-              Configure templates and knowledge bases used by Atlas during calls.
+              Configure templates and knowledge bases used by ForSkale during calls.
             </p>
             <div className="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-500 space-y-2">
               <p>Manage playbooks, discovery templates, and objection handling content.</p>
@@ -845,13 +845,13 @@ export default function Atlas() {
         {activeSection === 'record' && (
           <div className="p-6 space-y-6 h-full overflow-y-auto">
             <h1 className="text-xl font-semibold text-gray-900">Record</h1>
-            <p className="text-sm text-gray-600">Configure how Atlas records your meetings.</p>
+            <p className="text-sm text-gray-600">Configure how ForSkale records your meetings.</p>
 
             <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-4">
               <div className="space-y-2">
                 <h2 className="text-sm font-semibold text-gray-900">Recording Mode</h2>
                 <p className="text-xs text-gray-500">
-                  Choose how Atlas should participate in your meetings.
+                  Choose how ForSkale should participate in your meetings.
                 </p>
               </div>
 
@@ -871,7 +871,7 @@ export default function Atlas() {
                       <span>Join Meeting</span>
                     </div>
                     <p className="text-xs text-gray-500">
-                      Atlas Assistant joins the meeting as a participant to record.
+                      ForSkale Assistant joins the meeting as a participant to record.
                     </p>
                   </div>
                 </label>
@@ -891,7 +891,7 @@ export default function Atlas() {
                       <span>Don&apos;t Join Meeting</span>
                     </div>
                     <p className="text-xs text-gray-500">
-                      Atlas records all speakers&apos; audio directly from your computer
+                      ForSkale records all speakers&apos; audio directly from your computer
                       speakers.
                     </p>
                   </div>
@@ -918,7 +918,7 @@ export default function Atlas() {
               <div>
                 <h2 className="text-lg font-semibold text-gray-900 mb-1">
                   {recordMode === 'join'
-                    ? 'Add Atlas Assistant to join meeting to record'
+                    ? 'Add ForSkale Assistant to join meeting to record'
                     : 'Start recording from computer speakers'}
                 </h2>
                 <div className="text-xs text-gray-500 flex items-center gap-1">

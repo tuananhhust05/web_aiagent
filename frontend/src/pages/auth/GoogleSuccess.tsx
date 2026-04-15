@@ -58,7 +58,7 @@ const GoogleSuccess: React.FC = () => {
           toast.success(`Welcome back, ${userData.first_name}!`)
         }
 
-        // Redirect after delay to Atlas
+        // Redirect after delay to ForSkale
         setTimeout(() => {
           navigate('/atlas/calendar')
         }, 1500)

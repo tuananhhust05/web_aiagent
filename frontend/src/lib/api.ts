@@ -927,7 +927,7 @@ export const campaignGoalsAPI = {
   clearGoalTodoCache: (goalId: string) =>
     api.delete(`/api/campaign-goals/${goalId}/todo-items/cache`),
 
-  // Chat with Atlas
+  // Chat with ForSkale
   chatWithSalesCoach: (goalId: string, data: {
     question: string
     context?: any
@@ -1163,7 +1163,7 @@ export interface GoogleCalendarEvent {
   }>
 }
 
-// Atlas meeting context for calendar detail panel
+// ForSkale meeting context for calendar detail panel
 export interface AtlasMeetingContext {
   contact?: {
     id: string
@@ -1523,7 +1523,7 @@ export const atlasAPI = {
   // Extract Q&A from meeting or transcript
   extractQna: (data: { meeting_id?: string; transcript?: string }) =>
     api.post<{ success: boolean; message: string; extracted_count: number; qna_ids: string[] }>('/api/atlas/qna/extract', data),
-  // Atlas Knowledge – documents by category (product-info | pricing-plan | objection-handling | competitive-intel | customer-faqs | company-policies)
+  // ForSkale Knowledge – documents by category (product-info | pricing-plan | objection-handling | competitive-intel | customer-faqs | company-policies)
   getKnowledgeDocuments: (category: string) =>
     api.get<AtlasKnowledgeDocument[]>(`/api/atlas/knowledge/${category}/documents`),
   uploadKnowledgeDocument: (category: string, file: File) => {
@@ -1812,7 +1812,7 @@ export const meetingsAPI = {
       }
     }>('/api/meetings/insights/speaking-scores', { params: params ?? { days: 5 } }),
 
-  /** To-Do items insights across meetings for Atlas /todo (day or week). */
+  /** To-Do items insights across meetings for ForSkale /todo (day or week). */
   getTodoInsights: (params?: { range_type?: 'day' | 'week' }) =>
     api.get<{
       range_type: 'day' | 'week'
@@ -2050,14 +2050,14 @@ export const vexaAPI = {
     api.post('/api/vexa/bots', {
       platform: 'google_meet',
       native_meeting_id: nativeMeetingId,
-      bot_name: 'Atlas Assistant',
+      bot_name: 'ForSkale Assistant',
     }),
   joinTeams: (nativeMeetingId: string, passcode: string) =>
     api.post('/api/vexa/bots', {
       platform: 'teams',
       native_meeting_id: nativeMeetingId,
       passcode,
-      bot_name: 'Atlas Assistant',
+      bot_name: 'ForSkale Assistant',
     }),
   getGoogleMeetTranscription: (googleMeetId: string) =>
     api.get(`/api/vexa/transcripts/google_meet/${googleMeetId}`),

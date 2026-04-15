@@ -169,7 +169,7 @@ export default function ExecutionCard({
             </span>
             <span className="inline-flex items-center gap-1 text-[10px] text-slate-400">
               <Sparkles className="h-2.5 w-2.5" />
-              Prepared by Atlas
+              Prepared by ForSkale
             </span>
           </div>
           <p className={cn(

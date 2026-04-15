@@ -146,12 +146,6 @@ const scenes: Record<SceneKey, KeyMomentsScene> = {
   },
 };
 
-const tabs: { key: SceneKey; label: string }[] = [
-  { key: "up", label: "Interest ↑ increased" },
-  { key: "down", label: "Interest ↓ decreased" },
-  { key: "flat", label: "Interest → stable" },
-];
-
 const MomentIcon = ({ color }: { color: string }) => {
   const bgClass = iconBgMap[color as keyof typeof iconBgMap] || iconBgMap.green;
   const textClass = iconColorMap[color as keyof typeof iconColorMap] || iconColorMap.green;
@@ -164,31 +158,13 @@ const MomentIcon = ({ color }: { color: string }) => {
 };
 
 const KeyMomentsSection = () => {
-  const [activeScene, setActiveScene] = useState<SceneKey>("up");
+  const [activeScene] = useState<SceneKey>("up");
   const scene = scenes[activeScene];
   const config = statusConfig[scene.status];
   const StatusIcon = config.Icon;
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
-      {/* Tabs */}
-      <div className="flex gap-1 mb-4">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveScene(tab.key)}
-            className={cn(
-              "text-sm font-medium px-3.5 py-1.5 rounded-full border transition-all cursor-pointer",
-              activeScene === tab.key
-                ? "bg-[#E1F5EE] text-[#085041] border-[rgba(15,110,86,0.4)]"
-                : "bg-transparent text-muted-foreground border-border hover:bg-muted/50"
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {/* Header */}
       <div className="flex items-center gap-2 flex-wrap mb-1.5">
         <StatusIcon className="h-[17px] w-[17px] flex-shrink-0" style={{ color: config.iconStroke }} />

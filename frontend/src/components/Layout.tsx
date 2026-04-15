@@ -45,7 +45,7 @@ interface NavigationItem {
 const settingsNavigation: NavigationItem[] = [
   { name: 'Agent', href: '/agent', icon: Mic },
   { name: 'RAG', href: '/ragclient', icon: FileText },
-  { name: 'RAG Atlas', href: '/rag-sales-coach', icon: Brain },
+  { name: 'RAG ForSkale', href: '/rag-sales-coach', icon: Brain },
 ]
 
 // More Functions submenu items
@@ -72,7 +72,7 @@ const mainNavigation: NavigationItem[] = [
   { name: 'Renewals', href: '/renewals', icon: UserCheck },
   { name: 'Up / Cross Sell', href: '/upsell', icon: ArrowUpRight },
   { name: 'Marketing Data', href: '/marketing-data', icon: Database },
-  { name: 'Atlas', href: '/atlas', icon: Brain },
+  { name: 'ForSkale', href: '/atlas', icon: Brain },
 ]
 
 // Main dropdown navigation (simplified)

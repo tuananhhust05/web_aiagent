@@ -103,7 +103,7 @@ const AIActionCard: React.FC<AIActionCardProps> = ({
       <div className="h-full flex items-center justify-center bg-white/80 backdrop-blur-xl rounded-3xl border border-slate-100 shadow-sm">
         <div className="text-center text-slate-400">
           <Brain className="h-10 w-10 mx-auto mb-3" />
-          <p className="text-sm">Select a prospect from the list to see Atlas&apos;s suggestion.</p>
+          <p className="text-sm">Select a prospect from the list to see ForSkale&apos;s suggestion.</p>
         </div>
       </div>
     )

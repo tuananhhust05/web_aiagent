@@ -18,7 +18,7 @@ const supplementSchema = z.object({
   terms_accepted: z.boolean().refine((val) => val === true, 'You must accept the Terms of Service'),
   gdpr_consent: z.boolean().refine((val) => val === true, 'You must consent to data processing'),
   workspace_role: z.enum(['owner', 'member', 'personal'], {
-    required_error: 'Please choose how you want to use Atlas.',
+    required_error: 'Please choose how you want to use ForSkale.',
   }),
   company_id: z.string().optional(),
   company_name: z.string().optional(),
@@ -204,7 +204,7 @@ export default function SupplementProfile() {
         company_country: data.company_country || undefined,
       })
       updateUser(response.data)
-      toast.success('Profile updated. Welcome to Atlas!')
+      toast.success('Profile updated. Welcome to ForSkale!')
       navigate('/atlas/calendar', { state: { showWelcome: isNewUser }, replace: true })
     } catch (error: any) {
       const message = error.response?.data?.detail || 'Failed to save profile'
@@ -610,7 +610,7 @@ export default function SupplementProfile() {
               ) : (
                 <>
                   <Check className="h-5 w-5" />
-                  Continue to Atlas
+                  Continue to ForSkale
                 </>
               )}
             </button>

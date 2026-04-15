@@ -31,7 +31,7 @@ export default function AtlasLayout() {
     if (loading) return // Wait for auth check to complete
     const token = localStorage.getItem('token')
     if (!token || !user) {
-      console.warn('🔒 [Atlas] Token expired or user not authenticated — redirecting to login')
+      console.warn('🔒 [ForSkale] Token expired or user not authenticated — redirecting to login')
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       navigate('/login', { replace: true })

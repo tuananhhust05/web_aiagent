@@ -181,7 +181,7 @@ export default function AISalesCopilotDetailPage() {
             />
           </div>
           <div className="col-span-1">
-            {/* Atlas coach side panel – closer to reference design */}
+            {/* ForSkale coach side panel – closer to reference design */}
             <div className="h-full bg-white/90 backdrop-blur-xl rounded-3xl border border-sky-100 shadow-xl shadow-sky-100/70 flex flex-col">
               {/* Header bar */}
               <div className="px-4 py-3 border-b border-sky-100 flex items-center justify-between">
@@ -190,8 +190,8 @@ export default function AISalesCopilotDetailPage() {
                     <BarChart3 className="h-4 w-4 text-blue-600" />
                   </div>
                   <div className="leading-tight">
-                    <p className="text-xs font-semibold text-gray-900">Atlas</p>
-                    <p className="text-[11px] text-slate-500">Atlas</p>
+                    <p className="text-xs font-semibold text-gray-900">ForSkale</p>
+                    <p className="text-[11px] text-slate-500">ForSkale</p>
                   </div>
                 </div>
               </div>
@@ -369,7 +369,7 @@ export default function AISalesCopilotDetailPage() {
                 {coachChoice === 'yes' && (
                   <div className="mt-3 flex items-start gap-2 text-[11px] text-slate-500">
                     <ChevronRight className="h-3 w-3 text-blue-500 mt-0.5" />
-                    <span>Great choice. Atlas will keep surfacing follow‑ups that tap into curiosity and emotional memory.</span>
+                    <span>Great choice. ForSkale will keep surfacing follow‑ups that tap into curiosity and emotional memory.</span>
                   </div>
                 )}
               </div>

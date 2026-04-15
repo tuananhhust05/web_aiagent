@@ -29,11 +29,11 @@ const tourSteps = [
   { icon: BarChart3, title: 'Insights', description: 'Track performance and trends across your calls.' },
   { icon: Radio, title: 'Record', description: 'Record meetings directly or from a meeting link.' },
   { icon: BookOpen, title: 'Knowledge', description: 'Upload documents so AI has context (Trial plan includes upload for proof of concept).' },
-  { icon: Check, title: "You're all set!", description: 'Atlas Intelligence is ready to support you.' },
+  { icon: Check, title: "You're all set!", description: 'ForSkale Intelligence is ready to support you.' },
 ]
 
 /**
- * Intermediate page: Welcome (chime + AI welcome) + Atlas intro tour → then navigate to /supplement-profile.
+ * Intermediate page: Welcome (chime + AI welcome) + ForSkale intro tour → then navigate to /supplement-profile.
  * Used whenever the user needs to complete profile (terms/gdpr or profile info).
  */
 export default function WelcomeTour() {
@@ -77,7 +77,7 @@ export default function WelcomeTour() {
             <Sparkles className="h-8 w-8" />
           </div>
           <h1 className="text-2xl font-semibold mb-2">
-            Welcome to Atlas Intelligence
+            Welcome to ForSkale Intelligence
           </h1>
           <p className="text-blue-100 text-lg">
             Your sales coach
@@ -94,7 +94,7 @@ export default function WelcomeTour() {
           <div className="p-6 pb-4">
             <div className="flex items-center gap-2 text-blue-600 mb-4">
               <Sparkles className="h-5 w-5" />
-              <span className="text-sm font-semibold uppercase tracking-wide">Atlas introduction tour</span>
+              <span className="text-sm font-semibold uppercase tracking-wide">ForSkale introduction tour</span>
             </div>
             <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-blue-50 text-blue-600 mb-4">
               <Icon className="h-7 w-7" />

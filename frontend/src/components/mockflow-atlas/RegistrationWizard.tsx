@@ -26,7 +26,7 @@ export function RegistrationWizard({ open, onClose, onConnect }: RegistrationWiz
           </div>
           <DialogTitle className="text-center">Connect your calendar</DialogTitle>
           <DialogDescription className="text-center">
-            Atlas needs access to your Google Calendar to auto-record meetings and share insights.
+            ForSkale needs access to your Google Calendar to auto-record meetings and share insights.
           </DialogDescription>
         </DialogHeader>
         <ul className="my-4 space-y-2 text-sm text-muted-foreground">

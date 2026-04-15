@@ -146,7 +146,7 @@ function App() {
       <Route path="/terms" element={<Terms />} />
       <Route path="/auth/google/calendar/callback" element={<GoogleCalendarCallback />} />
       <Route path="/auth/google/gmail/callback" element={<GoogleGmailCallback />} />
-      {/* Atlas uses its own full-page layout (no global Layout); calendar has its own URL */}
+      {/* ForSkale uses its own full-page layout (no global Layout); calendar has its own URL */}
       <Route path="/atlas" element={<AtlasLayout />}>
         <Route index element={<Navigate to="/atlas/calendar" replace />} />
         <Route path="calendar" element={<AtlasCalendarPage />} />

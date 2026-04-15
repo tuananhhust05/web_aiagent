@@ -195,7 +195,7 @@ export function VoiceStrategySession({ meetingTitle, company, participants, onCl
       <div className="flex justify-between items-start p-8 pb-0 z-10">
         <div className="flex flex-col gap-1">
           <span className="text-white/90 text-sm font-semibold uppercase tracking-wider">
-            Atlas Strategy Session
+            ForSkale Strategy Session
           </span>
           <span className="text-white/60 text-xs">{meetingTitle}</span>
         </div>

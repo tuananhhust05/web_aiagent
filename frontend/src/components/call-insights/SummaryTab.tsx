@@ -139,8 +139,8 @@ const InterestPulse = ({ interestPct = MOCK_INTEREST_PCT, winProbability, riskLe
               </svg>
               <div className="absolute inset-0 flex items-end justify-center pb-1">
                 <div className="flex items-baseline gap-0.5">
-                  <span className="text-[32px] leading-none font-bold tabular-nums text-[hsl(97,72%,38%)]">{displayScore}</span>
-                  <span className="text-sm text-[hsl(140,100%,27%)]/60">/100</span>
+                  <span className="text-[26px] leading-none font-bold tabular-nums text-[hsl(97,72%,38%)]">{displayScore}</span>
+                  <span className="text-xs text-[hsl(140,100%,27%)]/60">/100</span>
                 </div>
               </div>
             </div>

@@ -62,7 +62,7 @@ export default function OAuthDone() {
           return
         }
         if (isNew) {
-          toast.success(`Welcome to Atlas, ${userData.first_name || 'there'}!`)
+          toast.success(`Welcome to ForSkale, ${userData.first_name || 'there'}!`)
         } else {
           toast.success(`Welcome back, ${userData.first_name || 'there'}!`)
         }
@@ -83,7 +83,7 @@ export default function OAuthDone() {
           <Sparkles className="h-8 w-8 text-white" />
         </div>
         <h1 className="text-xl font-semibold text-gray-900 mb-2">Completing sign-in</h1>
-        <p className="text-gray-600 font-light mb-6">Taking you to Atlas...</p>
+        <p className="text-gray-600 font-light mb-6">Taking you to ForSkale...</p>
         <LoadingSpinner size="lg" />
       </div>
     </div>

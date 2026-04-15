@@ -36,7 +36,7 @@ const AISalesCoachWithTodo: React.FC<AISalesCoachWithTodoProps> = ({
         goalDescription={goalDescription}
       />
 
-      {/* Atlas Chat with context from todo items */}
+      {/* ForSkale Chat with context from todo items */}
       <AISalesCoachChat
         goalId={goalId}
         goalName={goalName}

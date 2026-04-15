@@ -1,5 +1,5 @@
 /**
- * Atlas Initial Onboarding – progress per user.
+ * ForSkale Initial Onboarding – progress per user.
  * Persisted so it resumes after refresh or relogin.
  */
 

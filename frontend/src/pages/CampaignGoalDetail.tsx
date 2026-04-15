@@ -308,9 +308,7 @@ const CampaignGoalDetail: React.FC = () => {
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/50'
               }`}
             >
-              <Brain className="h-4 w-4" />
-              Atlas
-            </button>
+              <Brain className="h-4 w-4" />ForSkale</button>
           </nav>
         </div>
 
@@ -335,7 +333,7 @@ const CampaignGoalDetail: React.FC = () => {
           </>
         )}
 
-        {/* Atlas Tab */}
+        {/* ForSkale Tab */}
         {mainTab === 'ai-coach' && goal && (
           <AISalesCoachWithTodo
             goalId={goalId!}

@@ -117,7 +117,7 @@ export default function ExecutionReplyLab({
                   <Sparkles className="h-4 w-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-blue-900">Atlas Recommendation</p>
+                  <p className="text-sm font-semibold text-blue-900">ForSkale Recommendation</p>
                   <p className="text-sm text-blue-700 mt-0.5">
                     Send within 6 hours to maintain momentum.
                   </p>
@@ -181,7 +181,7 @@ export default function ExecutionReplyLab({
                 <h3 className="text-sm font-semibold text-slate-900">Prepared Reply</h3>
                 <span className="inline-flex items-center gap-1 text-xs text-slate-400">
                   <Sparkles className="h-3 w-3" />
-                  Prepared by Atlas
+                  Prepared by ForSkale
                 </span>
               </div>
               

@@ -1,6 +1,6 @@
 import { Mic, Link2, Briefcase, Check, X } from 'lucide-react';
 import type { MeetingCall } from '@/types/meeting';
-import { companyInitials, avatarColors, STATUS_COLORS, getCognitiveState, isWon, isLost } from '@/lib/meetingUtils';
+import { meetingInitials, avatarColors, STATUS_COLORS, getCognitiveState, isWon, isLost } from '@/lib/meetingUtils';
 import { useT } from '@/components/meetInsight/LanguageContext';
 
 interface Props {
@@ -43,7 +43,7 @@ export function MeetingCard({ meeting: m, isSelected, onClick }: Props) {
     >
       {/* Left: avatar */}
       <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[12px] font-bold ${avatar.bg} ${avatar.text}`}>
-        {companyInitials(m.company)}
+        {meetingInitials(m.title)}
       </div>
 
       {/* Middle: info */}
