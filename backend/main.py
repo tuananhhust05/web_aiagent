@@ -36,7 +36,7 @@ def ensure_requirements_installed():
 # Install requirements on startup
 ensure_requirements_installed()
 
-from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies, uploads, prioritized_prospects, meetings, calendar, atlas, playbooks, vexa, todo_ready, enablement
+from app.routers import auth, contacts, users, crm, offers, calls, webhook, campaigns, integrations, groups, contacts_import, stats, rag, emails, telegram, whatsapp, inbox, convention_activities, deals, campaign_goals, renewals, csm, upsell, workflows, gmail, campaign_workflow_scripts, companies, uploads, prioritized_prospects, meetings, calendar, atlas, playbooks, vexa, todo_ready, enablement, strategy, iam, admin
 
 # Import pipelines separately with error handling
 try:
@@ -54,10 +54,17 @@ from app.services.telegram_listener import telegram_listener
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    from app.routers.admin import initialize_default_admin
+
     print("🔧 [DEBUG] FastAPI lifespan startup")
     await init_db()
     print("🔧 [DEBUG] Database initialized")
+
+    try:
+        result = await initialize_default_admin()
+        print(f"✅ [IAM] {result.get('message', 'Admin initialization complete')}")
+    except Exception as e:
+        print(f"⚠️ [WARNING] Failed to initialize default admin: {e}")
     
     # Start Telegram listener with error handling
     try:
@@ -158,6 +165,9 @@ app.include_router(prioritized_prospects.router, prefix="/api/prioritized-prospe
 app.include_router(vexa.router, prefix="/api/vexa", tags=["Vexa Proxy"])
 app.include_router(todo_ready.router, prefix="/api/todo-ready", tags=["To-Do Ready"])
 app.include_router(enablement.router, prefix="/api/enablement", tags=["Enablement Feedback"])
+app.include_router(strategy.router, prefix="/api/strategy", tags=["Strategy"])
+app.include_router(iam.router, prefix="/api/iam", tags=["IAM"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 
 # Add pipelines router if import succeeded
 # if pipelines:

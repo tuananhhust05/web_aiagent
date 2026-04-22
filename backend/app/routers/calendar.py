@@ -126,3 +126,90 @@ async def get_calendar_events_with_meeting_link(
     events = await list_calendar_events(user_id, time_min=dt_min, time_max=dt_max)
     filtered = [e for e in events if _event_has_meeting_link(e)]
     return {"events": filtered}
+
+
+@router.post("/sync")
+async def sync_calendar_events_endpoint(
+    current_user: UserResponse = Depends(get_current_active_user),
+    time_min: str | None = Query(None, description="ISO datetime for range start"),
+    time_max: str | None = Query(None, description="ISO datetime for range end"),
+):
+    """
+    POST /api/user/calendar/sync
+    Auto-sync calendar events and cache them for Atlas.
+
+    Returns:
+      { "success": true, "newMeetingsCount": number }
+    """
+    db = get_database()
+    user_id = str(current_user.id)
+
+    dt_min = None
+    dt_max = None
+    if time_min:
+        try:
+            dt_min = datetime.fromisoformat(time_min.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    if time_max:
+        try:
+            dt_max = datetime.fromisoformat(time_max.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+
+    events = await list_calendar_events(user_id, time_min=dt_min, time_max=dt_max)
+
+    event_ids = [e.get("id") for e in events if e.get("id")]
+    existing_ids = set()
+    if event_ids:
+        cursor = db["calendar_events_cache"].find(
+            {"user_id": user_id, "event_id": {"$in": event_ids}},
+            {"event_id": 1},
+        )
+        async for doc in cursor:
+            eid = doc.get("event_id")
+            if eid:
+                existing_ids.add(eid)
+
+    new_meetings_count = 0
+    now = datetime.utcnow()
+
+    for ev in events:
+        eid = ev.get("id")
+        if not eid:
+            continue
+
+        attendees_data = []
+        for att in ev.get("attendees") or []:
+            if att.get("self"):
+                continue
+            attendees_data.append(
+                {
+                    "email": att.get("email"),
+                    "displayName": att.get("displayName"),
+                    "responseStatus": att.get("responseStatus"),
+                }
+            )
+
+        start_data = ev.get("start") or {}
+        end_data = ev.get("end") or {}
+        doc = {
+            "user_id": user_id,
+            "event_id": eid,
+            "event_title": (ev.get("summary") or "").strip() or None,
+            "event_start": start_data.get("dateTime") or start_data.get("date") or None,
+            "event_end": end_data.get("dateTime") or end_data.get("date") or None,
+            "attendees": attendees_data,
+            "updated_at": now,
+        }
+
+        await db["calendar_events_cache"].update_one(
+            {"user_id": user_id, "event_id": eid},
+            {"$set": doc},
+            upsert=True,
+        )
+
+        if eid not in existing_ids:
+            new_meetings_count += 1
+
+    return {"success": True, "newMeetingsCount": new_meetings_count}

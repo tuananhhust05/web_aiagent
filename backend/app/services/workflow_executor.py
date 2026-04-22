@@ -461,7 +461,7 @@ class WorkflowExecutor:
             elif channel == 'telegram':
                 telegram_username = contact.get("telegram_username")
                 if telegram_username:
-                    # Kiểm tra và thêm @ nếu chưa có
+                    # Check and add @ if missing
                     if not telegram_username.startswith('@'):
                         telegram_username = f"@{telegram_username}"
                         logger.info(f"📝 [WORKFLOW] Added @ prefix to telegram_username: {telegram_username}")
@@ -469,7 +469,7 @@ class WorkflowExecutor:
                     user_id = campaign.get("user_id")
                     logger.info(f"📤 [WORKFLOW] Sending Telegram message to {telegram_username} for contact {name} (user_id: {user_id})")
                     
-                    # Sử dụng hàm send_message_to_user thay vì API call
+                    # Use send_message_to_user function instead of API call
                     success = await send_message_to_user(
                         recipient=telegram_username,
                         message=call_script,

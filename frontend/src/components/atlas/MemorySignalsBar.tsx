@@ -8,9 +8,9 @@ export interface MemorySignalsBarProps {
   onSelectTask: (taskId: string) => void
 }
 
-/** Chỉ 1 dòng: số item tối đa hiển thị (phần còn lại vào "Show more"). */
+/** Single row: maximum number of visible items (the rest go into "Show more"). */
 const MAX_VISIBLE_ITEMS = 4
-/** Giới hạn ký tự mỗi item trên strip. */
+/** Character limit for each item on the strip. */
 const MAX_LABEL_CHARS = 22
 
 function truncateLabel(label: string, max: number): string {
@@ -110,7 +110,7 @@ export default function MemorySignalsBar({ signals, onSelectTask }: MemorySignal
         <span className="text-xs font-semibold text-red-800">Attention Required</span>
       </div>
 
-      {/* Row 2: Chỉ 1 dòng, không xuống dòng; mỗi item giới hạn ký tự */}
+      {/* Row 2: Single line, no wrapping; each item has a character limit */}
       <div className="flex flex-nowrap gap-2 items-center overflow-hidden">
         {displayedSignals.map((s) => (
           <button

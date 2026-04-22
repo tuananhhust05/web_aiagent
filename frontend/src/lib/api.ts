@@ -67,8 +67,11 @@ api.interceptors.request.use(
     console.log('🌐 [API Request] Full URL:', fullUrl)
     console.log('🌐 [API Request]  BaseURL:', config.baseURL)
     console.log('🌐 [API Request] URL path:', config.url)
-    
-    const token = localStorage.getItem('token')
+
+    const requestPath = config.url || ''
+    const token = requestPath.includes('/admin/')
+      ? localStorage.getItem('admin_token')
+      : localStorage.getItem('token')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
@@ -88,11 +91,16 @@ api.interceptors.response.use(
       const isAuthEndpoint =
         requestUrl.includes('/auth/login') || requestUrl.includes('/auth/register')
       if (!isAuthEndpoint) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        // Delete is_login cookie when token expires
-        deleteCookie('is_login')
-        window.location.href = '/login'
+        const isAdminRequest = requestUrl.includes('/admin/')
+        if (isAdminRequest) {
+          localStorage.removeItem('admin_token')
+          localStorage.removeItem('admin_user')
+        } else {
+          localStorage.removeItem('token')
+          localStorage.removeItem('user')
+          deleteCookie('is_login')
+        }
+        window.location.href = isAdminRequest ? '/admin/login' : '/login'
       }
     }
     return Promise.reject(error)
@@ -1034,6 +1042,55 @@ export const dealsAPI = {
   getCampaigns: () => api.get('/api/deals/campaigns/list'),
 }
 
+// ── Strategy API ──────────────────────────────────────────────────────────────
+
+export interface StrategyTaskCard {
+  id: number
+  title: string
+  priority: 'Critical' | 'High' | 'Medium'
+  guardrail_ref: string
+  interest_impact: string
+  timing_constraint: string
+  success_criteria: string
+  reasoning: string
+  how_steps: string[]
+}
+
+export interface StrategyBriefing {
+  deal_id: string
+  interest_score: number
+  cognitive_stage: string
+  stage_index: number
+  guardrails: {
+    allowed_actions: string[]
+    blocked_actions: string[]
+    active_guardrails: string[]
+  }
+  rule_of_one_blocker: {
+    title: string
+    friction_level: 'HIGH' | 'MEDIUM' | 'LOW'
+    blocking_percent: number
+    why_it_matters: string
+    how_to_remove: string[]
+  } | null
+  task_cards: StrategyTaskCard[]
+  narrative: string
+  cognitive_state_explanation: string
+  top_priorities: string[]
+  risk_warnings: string[]
+  adaptation_strategy: string
+  generated_at: string
+  cache_hit: boolean
+  ai_error?: boolean
+}
+
+export const strategyAPI = {
+  generateBriefing: (dealId: string, forceRefresh = false) =>
+    api.post<StrategyBriefing>(`/api/strategy/briefing/${dealId}`, { force_refresh: forceRefresh }),
+  clearCache: (dealId: string) =>
+    api.delete(`/api/strategy/briefing/${dealId}/cache`),
+}
+
 // Pipelines API
 export const pipelinesAPI = {
   // Get all pipelines
@@ -1140,6 +1197,8 @@ export const calendarAPI = {
     api.get<{ events: GoogleCalendarEvent[] }>('/api/user/calendar/events', { params }),
   getEventsWithMeetingLink: (params?: { time_min?: string; time_max?: string }) =>
     api.get<{ events: GoogleCalendarEvent[] }>('/api/user/calendar/events-with-meeting-link', { params }),
+  sync: (params?: { time_min?: string; time_max?: string }) =>
+    api.post<{ success: boolean; newMeetingsCount: number }>('/api/user/calendar/sync', null, { params }),
 }
 
 export interface GoogleCalendarEvent {
@@ -1427,7 +1486,7 @@ export const atlasAPI = {
     }),
   getMeetingHistoryByEmail: (email: string) =>
     api.get<MeetingHistoryByEmailResponse>('/api/atlas/meeting-history-by-email', { params: { email } }),
-  /** Lưu danh sách meeting khi load lịch; trùng id thì update */
+  /** Save meeting list when loading calendar; update if id already exists */
   syncCalendarEvents: (events: Array<{ 
     id?: string
     summary?: string
@@ -1679,6 +1738,14 @@ export const meetingsAPI = {
     search?: string;
     platform?: MeetingPlatform;
   }) => api.get('/api/meetings', { params }),
+
+  getParticipantEmails: () =>
+    api.get<{ emails: Array<{ email: string; name?: string; company?: string; meeting_count: number; last_meeting_date?: string }> }>(
+      '/api/meetings/participant-emails'
+    ),
+
+  getMeetingHistoryByEmail: (email: string) =>
+    api.get('/api/atlas/meeting-history-by-email', { params: { email } }),
 
   /** Get meeting by link (404 if not found). Use to check before creating from calendar Bot join. */
   getMeetingByLink: (link: string) =>

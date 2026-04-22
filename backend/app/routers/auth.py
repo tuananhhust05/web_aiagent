@@ -14,6 +14,8 @@ from app.models.user import (
     UserCreate, UserLogin, UserResponse, Token, PasswordReset, PasswordResetConfirm, PasswordChange,
     GoogleAuthRequest, GoogleAuthResponse, GoogleUserInfo
 )
+from app.models.iam import AuditAction, AuditLogCreate
+from app.routers.iam import write_audit_log
 from app.core.config import settings
 from app.services.email import send_password_reset_email, generate_reset_token
 from app.services.google_auth import google_auth_service
@@ -373,7 +375,16 @@ async def change_password(
             }
         }
     )
-    
+
+    await write_audit_log(AuditLogCreate(
+        user_id=str(current_user.id),
+        action=AuditAction.PASSWORD_CHANGE,
+        resource_type="user",
+        resource_id=str(current_user.id),
+        status="success",
+        details={"action": "user_password_change"}
+    ))
+
     return {"message": "Password changed successfully"}
 
 @router.post("/accept-terms")

@@ -1,0 +1,357 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);font-size:13px;color:var(--color-text-primary)}
+.wrap{padding:0 0 24px}
+.nav{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px;padding:14px 16px;background:var(--color-background-secondary);border-radius:10px;border:0.5px solid var(--color-border-tertiary)}
+.nav-btn{padding:5px 12px;font-size:12px;border-radius:20px;border:0.5px solid var(--color-border-secondary);background:var(--color-background-primary);cursor:pointer;color:var(--color-text-secondary);transition:all .15s;font-family:var(--font-sans)}
+.nav-btn:hover{background:var(--color-background-primary);color:var(--color-text-primary);border-color:var(--color-border-primary)}
+.nav-btn.active{font-weight:500;color:var(--color-text-primary)}
+.journey{display:none}.journey.visible{display:block}
+.journey-title{font-size:15px;font-weight:500;margin-bottom:4px}
+.journey-sub{font-size:12px;color:var(--color-text-secondary);margin-bottom:16px}
+svg{display:block;width:100%;overflow:visible}
+</style>
+
+<div class="wrap">
+<div class="nav" id="nav"></div>
+<div id="journeys"></div>
+</div>
+
+<script>
+const JOURNEYS = [
+  {
+    id:'login', label:'Login flow', color:'#185FA5',
+    sub:'A.8.5 — What happens when a user clicks "Sign in"',
+    nodes:[
+      {id:'s1', x:290, y:20,  w:100, h:36, label:'User enters\nemail + password', c:'gray'},
+      {id:'s2', x:290, y:96,  w:100, h:36, label:'POST /auth/login', c:'blue'},
+      {id:'d1', x:270, y:172, w:140, h:36, label:'Account exists\n& not locked?', c:'amber', diamond:true},
+      {id:'s3', x:100, y:248, w:110, h:36, label:'Return error\n+ increment fails', c:'red'},
+      {id:'d2', x:270, y:248, w:140, h:36, label:'5+ failed\nattempts?', c:'amber', diamond:true},
+      {id:'s4', x:100, y:324, w:110, h:36, label:'Lock account\n30–60 min', c:'red'},
+      {id:'d3', x:270, y:324, w:140, h:36, label:'Password\nexpired?', c:'amber', diamond:true},
+      {id:'s5', x:470, y:324, w:110, h:36, label:'Force password\nchange screen', c:'coral'},
+      {id:'d4', x:270, y:400, w:140, h:36, label:'MFA\nenabled?', c:'amber', diamond:true},
+      {id:'s6', x:470, y:400, w:110, h:36, label:'Issue MFA\nchallenge', c:'purple'},
+      {id:'s7', x:290, y:476, w:100, h:36, label:'Create session\ntoken', c:'green'},
+      {id:'s8', x:290, y:552, w:100, h:36, label:'Return JWT\n+ user info', c:'green'},
+    ],
+    edges:[
+      {f:'s1',t:'s2'},{f:'s2',t:'d1'},
+      {f:'d1',t:'s3',label:'No',side:'left'},{f:'d1',t:'d2',label:'Yes'},
+      {f:'d2',t:'s4',label:'Yes',side:'left'},{f:'d2',t:'d3',label:'No'},
+      {f:'d3',t:'s5',label:'Yes',side:'right'},{f:'d3',t:'d4',label:'No'},
+      {f:'d4',t:'s6',label:'Yes',side:'right'},{f:'d4',t:'s7',label:'No'},
+      {f:'s6',t:'s7',label:'Verified',bent:true},{f:'s7',t:'s8'},
+    ]
+  },
+  {
+    id:'mfa', label:'MFA verification', color:'#534AB7',
+    sub:'A.8.5 — After credentials pass, MFA step',
+    nodes:[
+      {id:'m1', x:270, y:20,  w:140, h:36, label:'MFA challenge issued\n(5-min TTL in Redis)', c:'purple'},
+      {id:'m2', x:270, y:96,  w:140, h:36, label:'User enters\n6-digit TOTP code', c:'gray'},
+      {id:'m3', x:270, y:172, w:140, h:36, label:'POST /auth/mfa/verify', c:'blue'},
+      {id:'d1', x:270, y:248, w:140, h:36, label:'Challenge\nstill valid?', c:'amber', diamond:true},
+      {id:'e1', x:80,  y:248, w:110, h:36, label:'Error: expired\nor invalid', c:'red'},
+      {id:'d2', x:270, y:324, w:140, h:36, label:'TOTP matches\n(±30s window)?', c:'amber', diamond:true},
+      {id:'e2', x:80,  y:324, w:110, h:36, label:'Increment fail\nlog event', c:'red'},
+      {id:'m4', x:270, y:400, w:140, h:36, label:'Delete challenge\nfrom Redis', c:'teal'},
+      {id:'m5', x:270, y:476, w:140, h:36, label:'Create session\nmfa_verified=true', c:'green'},
+      {id:'m6', x:270, y:552, w:140, h:36, label:'Audit: AUTH.\nLOGIN_SUCCESS', c:'green'},
+    ],
+    edges:[
+      {f:'m1',t:'m2'},{f:'m2',t:'m3'},{f:'m3',t:'d1'},
+      {f:'d1',t:'e1',label:'No',side:'left'},{f:'d1',t:'d2',label:'Yes'},
+      {f:'d2',t:'e2',label:'No',side:'left'},{f:'d2',t:'m4',label:'Yes'},
+      {f:'m4',t:'m5'},{f:'m5',t:'m6'},
+    ]
+  },
+  {
+    id:'password', label:'Password change', color:'#854F0B',
+    sub:'A.5.17 — All rules enforced on every password update',
+    nodes:[
+      {id:'p1', x:270, y:20,  w:140, h:36, label:'User submits\nnew password', c:'gray'},
+      {id:'p2', x:270, y:96,  w:140, h:36, label:'Length ≥14 +\ncomplexity check', c:'amber'},
+      {id:'e1', x:80,  y:96,  w:110, h:36, label:'Reject + show\nerror message', c:'red'},
+      {id:'p3', x:270, y:172, w:140, h:36, label:'zxcvbn strength\nscore ≥3?', c:'amber', diamond:true},
+      {id:'e2', x:80,  y:172, w:110, h:36, label:'Reject: too\npredictable', c:'red'},
+      {id:'p4', x:270, y:248, w:140, h:36, label:'Check last 12\npassword hashes', c:'amber'},
+      {id:'e3', x:80,  y:248, w:110, h:36, label:'Reject: reuse\nof old password', c:'red'},
+      {id:'p5', x:270, y:324, w:140, h:36, label:'bcrypt hash\n(cost 12)', c:'blue'},
+      {id:'p6', x:270, y:400, w:140, h:36, label:'Update DB +\npush to history', c:'green'},
+      {id:'p7', x:270, y:476, w:140, h:36, label:'Revoke ALL\ncurrent sessions', c:'coral'},
+      {id:'p8', x:270, y:552, w:140, h:36, label:'Set expiry:\n90d / 30d privileged', c:'green'},
+    ],
+    edges:[
+      {f:'p1',t:'p2'},{f:'p2',t:'e1',label:'Fail',side:'left'},{f:'p2',t:'p3',label:'Pass'},
+      {f:'p3',t:'e2',label:'No',side:'left'},{f:'p3',t:'p4',label:'Yes'},
+      {f:'p4',t:'e3',label:'Match',side:'left'},{f:'p4',t:'p5',label:'No match'},
+      {f:'p5',t:'p6'},{f:'p6',t:'p7'},{f:'p7',t:'p8'},
+    ]
+  },
+  {
+    id:'provision', label:'Provision user', color:'#27500A',
+    sub:'A.5.16, A.5.18 — New hire request → account creation',
+    nodes:[
+      {id:'v1', x:270, y:20,  w:140, h:36, label:'HR clicks\n"Provision user"', c:'gray'},
+      {id:'v2', x:270, y:96,  w:140, h:36, label:'Submit request:\nemail, role, reason', c:'blue'},
+      {id:'v3', x:270, y:172, w:140, h:36, label:'Justification\nentered?', c:'amber', diamond:true},
+      {id:'e1', x:80,  y:172, w:110, h:36, label:'Block: required\nfor all grants', c:'red'},
+      {id:'v4', x:270, y:248, w:140, h:36, label:'Request stored\nstatus=pending', c:'gray'},
+      {id:'v5', x:270, y:324, w:140, h:36, label:'Manager approves\nvia dashboard', c:'blue'},
+      {id:'v6', x:270, y:400, w:140, h:36, label:'Account created\ntemp password', c:'green'},
+      {id:'v7', x:270, y:476, w:140, h:36, label:'Onboarding\nchecklist created', c:'teal'},
+      {id:'v8', x:270, y:552, w:140, h:36, label:'Temp pw sent\nvia secure email', c:'green'},
+    ],
+    edges:[
+      {f:'v1',t:'v2'},{f:'v2',t:'v3'},
+      {f:'v3',t:'e1',label:'Missing',side:'left'},{f:'v3',t:'v4',label:'Present'},
+      {f:'v4',t:'v5'},{f:'v5',t:'v6'},{f:'v6',t:'v7'},{f:'v7',t:'v8'},
+    ]
+  },
+  {
+    id:'onboard', label:'Onboarding checklist', color:'#1D9E75',
+    sub:'A.6.1, A.6.2, A.6.3, A.8.5 — All steps before account is active',
+    nodes:[
+      {id:'o1', x:270, y:20,  w:140, h:36, label:'Account in\npending_activation', c:'gray'},
+      {id:'o2', x:270, y:96,  w:140, h:36, label:'Background check\nrecorded (A.6.1)', c:'teal'},
+      {id:'o3', x:270, y:172, w:140, h:36, label:'NDA + AUP\nsigned (A.6.2)', c:'teal'},
+      {id:'o4', x:270, y:248, w:140, h:36, label:'Day-1 security\nbriefing (A.6.3)', c:'teal'},
+      {id:'o5', x:270, y:324, w:140, h:36, label:'Equipment issued\nform signed', c:'teal'},
+      {id:'o6', x:270, y:400, w:140, h:36, label:'MFA enrolled\n(A.8.5)', c:'purple'},
+      {id:'o7', x:270, y:476, w:140, h:36, label:'All 6 steps\ncomplete?', c:'amber', diamond:true},
+      {id:'e1', x:80,  y:476, w:110, h:36, label:'Cannot activate\nuntil complete', c:'red'},
+      {id:'o8', x:270, y:552, w:140, h:36, label:'Account activated\nstatus=active', c:'green'},
+    ],
+    edges:[
+      {f:'o1',t:'o2'},{f:'o2',t:'o3'},{f:'o3',t:'o4'},{f:'o4',t:'o5'},{f:'o5',t:'o6'},{f:'o6',t:'o7'},
+      {f:'o7',t:'e1',label:'No',side:'left'},{f:'o7',t:'o8',label:'Yes'},
+    ]
+  },
+  {
+    id:'offboard', label:'Offboarding', color:'#791F1F',
+    sub:'A.6.5 — Departure triggers immediate full deprovisioning',
+    nodes:[
+      {id:'f1', x:270, y:20,  w:140, h:36, label:'HR clicks\n"Offboard user"', c:'gray'},
+      {id:'f2', x:270, y:96,  w:140, h:36, label:'Enter last day\n(target date)', c:'blue'},
+      {id:'d1', x:270, y:172, w:140, h:36, label:'≥5 days\nnotice?', c:'amber', diamond:true},
+      {id:'e1', x:80,  y:172, w:110, h:36, label:'Reject: min 5\ndays required', c:'red'},
+      {id:'f3', x:270, y:248, w:140, h:36, label:'Status set to\noffboarding', c:'coral'},
+      {id:'f4', x:270, y:324, w:140, h:36, label:'Midnight auto-exec\non last day', c:'amber'},
+      {id:'f5', x:270, y:400, w:140, h:36, label:'All sessions\nrevoked', c:'red'},
+      {id:'f6', x:270, y:460, w:140, h:36, label:'MFA disabled +\nAPI keys revoked', c:'red'},
+      {id:'f7', x:270, y:520, w:140, h:36, label:'Status set to\ndeprovisioned', c:'red'},
+      {id:'f8', x:270, y:580, w:140, h:36, label:'3-way sign-off:\nHR + IT + Manager', c:'teal'},
+    ],
+    edges:[
+      {f:'f1',t:'f2'},{f:'f2',t:'d1'},
+      {f:'d1',t:'e1',label:'No',side:'left'},{f:'d1',t:'f3',label:'Yes'},
+      {f:'f3',t:'f4'},{f:'f4',t:'f5'},{f:'f5',t:'f6'},{f:'f6',t:'f7'},{f:'f7',t:'f8'},
+    ]
+  },
+  {
+    id:'rolechange', label:'Role change', color:'#3C3489',
+    sub:'A.5.18 — Every access change requires approval + removes old permissions',
+    nodes:[
+      {id:'r1', x:270, y:20,  w:140, h:36, label:'Manager submits\nrole change', c:'gray'},
+      {id:'r2', x:270, y:96,  w:140, h:36, label:'Justification\nrequired', c:'amber', diamond:true},
+      {id:'e1', x:80,  y:96,  w:110, h:36, label:'Blocked: all\nchanges need reason', c:'red'},
+      {id:'r3', x:270, y:172, w:140, h:36, label:'Request stored\npending approval', c:'gray'},
+      {id:'r4', x:270, y:248, w:140, h:36, label:'Admin approves\nin dashboard', c:'blue'},
+      {id:'r5', x:270, y:324, w:140, h:36, label:'Old role permissions\nremoved instantly', c:'coral'},
+      {id:'r6', x:270, y:400, w:140, h:36, label:'New role\nassigned', c:'green'},
+      {id:'r7', x:270, y:476, w:140, h:36, label:'All sessions\nrevoked', c:'amber'},
+      {id:'r8', x:270, y:552, w:140, h:36, label:'User re-auths\nnew perms active', c:'green'},
+    ],
+    edges:[
+      {f:'r1',t:'r2'},{f:'r2',t:'e1',label:'Missing',side:'left'},{f:'r2',t:'r3',label:'Present'},
+      {f:'r3',t:'r4'},{f:'r4',t:'r5'},{f:'r5',t:'r6'},{f:'r6',t:'r7'},{f:'r7',t:'r8'},
+    ]
+  },
+  {
+    id:'rbac', label:'Permission check', color:'#0F6E56',
+    sub:'A.5.15 — Every API request runs through this chain',
+    nodes:[
+      {id:'a1', x:270, y:20,  w:140, h:36, label:'API request\narrives', c:'gray'},
+      {id:'a2', x:270, y:96,  w:140, h:36, label:'Extract Bearer\ntoken', c:'blue'},
+      {id:'d1', x:270, y:172, w:140, h:36, label:'Token hash\nin sessions table?', c:'amber', diamond:true},
+      {id:'e1', x:80,  y:172, w:110, h:36, label:'401 Unauthorized', c:'red'},
+      {id:'d2', x:270, y:248, w:140, h:36, label:'Inactivity <\n15 min?', c:'amber', diamond:true},
+      {id:'e2', x:80,  y:248, w:110, h:36, label:'401 Session\ntimed out', c:'red'},
+      {id:'d3', x:270, y:324, w:140, h:36, label:'mfa_verified\n= true?', c:'amber', diamond:true},
+      {id:'e3', x:80,  y:324, w:110, h:36, label:'401 MFA\nrequired', c:'red'},
+      {id:'d4', x:270, y:400, w:140, h:36, label:'Role has\npermission?', c:'amber', diamond:true},
+      {id:'e4', x:80,  y:400, w:110, h:36, label:'403 Forbidden\n+ audit log', c:'red'},
+      {id:'a3', x:270, y:476, w:140, h:36, label:'Request\nprocessed', c:'green'},
+      {id:'a4', x:270, y:552, w:140, h:36, label:'Audit event\nlogged', c:'teal'},
+    ],
+    edges:[
+      {f:'a1',t:'a2'},{f:'a2',t:'d1'},
+      {f:'d1',t:'e1',label:'No',side:'left'},{f:'d1',t:'d2',label:'Yes'},
+      {f:'d2',t:'e2',label:'No',side:'left'},{f:'d2',t:'d3',label:'Yes'},
+      {f:'d3',t:'e3',label:'No',side:'left'},{f:'d3',t:'d4',label:'Yes'},
+      {f:'d4',t:'e4',label:'No',side:'left'},{f:'d4',t:'a3',label:'Yes'},
+      {f:'a3',t:'a4'},
+    ]
+  },
+  {
+    id:'review', label:'Access review', color:'#3B6D11',
+    sub:'A.5.18 — Quarterly review cycle with enforcement',
+    nodes:[
+      {id:'q1', x:270, y:20,  w:140, h:36, label:'Cron: daily check\nfor overdue reviews', c:'gray'},
+      {id:'q2', x:270, y:96,  w:140, h:36, label:'Review due date\nreached?', c:'amber', diamond:true},
+      {id:'q3', x:80,  y:96,  w:110, h:36, label:'No action\ntoday', c:'gray'},
+      {id:'q4', x:270, y:172, w:140, h:36, label:'Mark overdue +\nalert reviewer', c:'coral'},
+      {id:'q5', x:270, y:248, w:140, h:36, label:'Reviewer opens\nreview in dashboard', c:'blue'},
+      {id:'q6', x:270, y:324, w:140, h:36, label:'Decision per user:\nRetain / Downgrade\n/ Revoke', c:'blue'},
+      {id:'d1', x:270, y:420, w:140, h:36, label:'Decision\n= Revoke?', c:'amber', diamond:true},
+      {id:'q7', x:470, y:420, w:110, h:36, label:'Revoke role +\nsessions now', c:'red'},
+      {id:'q8', x:270, y:496, w:140, h:36, label:'Sign off review\n(all users done)', c:'teal'},
+      {id:'q9', x:270, y:572, w:140, h:36, label:'Audit evidence\nexported to report', c:'green'},
+    ],
+    edges:[
+      {f:'q1',t:'q2'},{f:'q2',t:'q3',label:'No',side:'left'},{f:'q2',t:'q4',label:'Yes'},
+      {f:'q4',t:'q5'},{f:'q5',t:'q6'},{f:'q6',t:'d1'},
+      {f:'d1',t:'q7',label:'Yes',side:'right'},{f:'d1',t:'q8',label:'No / Retain'},
+      {f:'q7',t:'q8',bent:true},{f:'q8',t:'q9'},
+    ]
+  },
+  {
+    id:'audit', label:'Audit log write', color:'#D4537E',
+    sub:'A.8.15 — Every security event creates an immutable, chained record',
+    nodes:[
+      {id:'l1', x:270, y:20,  w:140, h:36, label:'Security event\noccurs', c:'gray'},
+      {id:'l2', x:270, y:96,  w:140, h:36, label:'AuditService.log(\n{eventType, actor…})', c:'blue'},
+      {id:'l3', x:270, y:172, w:140, h:36, label:'Fetch last hash\nfrom audit_logs', c:'teal'},
+      {id:'l4', x:270, y:248, w:140, h:36, label:'SHA-256:\ntime|type|outcome\n|actor|prev_hash', c:'purple'},
+      {id:'l5', x:270, y:344, w:140, h:36, label:'INSERT into\naudit_logs', c:'green'},
+      {id:'l6', x:270, y:420, w:140, h:36, label:'DB rules block\nUPDATE + DELETE', c:'teal'},
+      {id:'l7', x:270, y:496, w:140, h:36, label:'Mirror to\nWinston JSONL', c:'gray'},
+      {id:'l8', x:270, y:572, w:140, h:36, label:'SIEM ingest\n(if configured)', c:'gray'},
+    ],
+    edges:[
+      {f:'l1',t:'l2'},{f:'l2',t:'l3'},{f:'l3',t:'l4'},{f:'l4',t:'l5'},
+      {f:'l5',t:'l6'},{f:'l6',t:'l7'},{f:'l7',t:'l8'},
+    ]
+  },
+];
+
+const COLOR_MAP = {
+  gray:   {fill:'#F1EFE8',stroke:'#5F5E5A',text:'#2C2C2A',sub:'#5F5E5A'},
+  blue:   {fill:'#E6F1FB',stroke:'#185FA5',text:'#0C447C',sub:'#185FA5'},
+  green:  {fill:'#EAF3DE',stroke:'#3B6D11',text:'#27500A',sub:'#3B6D11'},
+  amber:  {fill:'#FAEEDA',stroke:'#854F0B',text:'#633806',sub:'#854F0B'},
+  red:    {fill:'#FCEBEB',stroke:'#A32D2D',text:'#791F1F',sub:'#A32D2D'},
+  purple: {fill:'#EEEDFE',stroke:'#534AB7',text:'#3C3489',sub:'#534AB7'},
+  teal:   {fill:'#E1F5EE',stroke:'#0F6E56',text:'#085041',sub:'#0F6E56'},
+  coral:  {fill:'#FAECE7',stroke:'#993C1D',text:'#712B13',sub:'#993C1D'},
+  pink:   {fill:'#FBEAF0',stroke:'#993556',text:'#72243E',sub:'#993556'},
+};
+
+function buildSVG(j) {
+  const nodeMap = {};
+  j.nodes.forEach(n => nodeMap[n.id]=n);
+
+  const maxY = Math.max(...j.nodes.map(n=>n.y+n.h));
+  const H = maxY + 60;
+
+  const cx = n => n.x + n.w/2;
+  const cy = n => n.y + n.h/2;
+  const top = n => ({x:cx(n), y:n.y});
+  const bot = n => ({x:cx(n), y:n.y+n.h});
+  const left = n => ({x:n.x, y:cy(n)});
+  const right = n => ({x:n.x+n.w, y:cy(n)});
+
+  let svg = `<svg width="100%" viewBox="0 0 680 ${H}" role="img"><title>${j.label} flow</title><desc>${j.sub}</desc>
+<defs><marker id="arr" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>`;
+
+  // Draw edges first
+  j.edges.forEach(e => {
+    const fn = nodeMap[e.f], tn = nodeMap[e.t];
+    if(!fn||!tn) return;
+    const col = '#888780';
+    let d = '';
+    if(e.side==='left') {
+      const s = bot(fn), en = top(tn);
+      const mx = Math.min(fn.x, tn.x) - 28;
+      d = `M${s.x},${s.y} L${s.x},${s.y+12} L${mx},${s.y+12} L${mx},${en.y-12} L${en.x},${en.y-12} L${en.x},${en.y}`;
+    } else if(e.side==='right') {
+      const s = bot(fn), en = top(tn);
+      const mx = Math.max(fn.x+fn.w, tn.x+tn.w) + 28;
+      d = `M${s.x},${s.y} L${s.x},${s.y+12} L${mx},${s.y+12} L${mx},${en.y-12} L${en.x},${en.y-12} L${en.x},${en.y}`;
+    } else if(e.bent) {
+      const s = right(fn), en = top(tn);
+      d = `M${s.x},${s.y} L${s.x+20},${s.y} L${s.x+20},${en.y-10} L${en.x},${en.y-10} L${en.x},${en.y}`;
+    } else {
+      const s = bot(fn), en = top(tn);
+      d = `M${s.x},${s.y} L${en.x},${en.y}`;
+    }
+    svg += `<path d="${d}" fill="none" stroke="${col}" stroke-width="1" marker-end="url(#arr)"/>`;
+    if(e.label) {
+      const mid = e.side==='left'
+        ? {x: Math.min(fn.x, tn.x)-36, y: fn.y+fn.h+24}
+        : e.side==='right'
+        ? {x: Math.max(fn.x+fn.w, tn.x+tn.w)+36, y: fn.y+fn.h+24}
+        : {x: (cx(fn)+cx(tn))/2+8, y: (fn.y+fn.h+tn.y)/2};
+      svg += `<text x="${mid.x}" y="${mid.y}" text-anchor="middle" font-size="10" fill="#888780" font-family="var(--font-sans)">${e.label}</text>`;
+    }
+  });
+
+  // Draw nodes
+  j.nodes.forEach(n => {
+    const clr = COLOR_MAP[n.c] || COLOR_MAP.gray;
+    const lines = n.label.split('\n');
+    const totalH = lines.length === 1 ? n.h : n.h + (lines.length-1)*2;
+
+    if(n.diamond) {
+      const cx2=n.x+n.w/2, cy2=n.y+n.h/2, hw=n.w/2, hh=n.h/2+4;
+      svg += `<polygon points="${cx2},${n.y-4} ${n.x+n.w+4},${cy2} ${cx2},${n.y+n.h+4} ${n.x-4},${cy2}"
+        fill="${clr.fill}" stroke="${clr.stroke}" stroke-width="1"/>`;
+      lines.forEach((line,i) => {
+        const ly = cy2 + (i-(lines.length-1)/2)*15;
+        svg += `<text x="${cx2}" y="${ly}" text-anchor="middle" dominant-baseline="central" font-size="${lines.length>1?10:11}" fill="${clr.text}" font-family="var(--font-sans)" font-weight="500">${line}</text>`;
+      });
+    } else {
+      svg += `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="8"
+        fill="${clr.fill}" stroke="${clr.stroke}" stroke-width="1"/>`;
+      lines.forEach((line,i) => {
+        const baseY = n.y + n.h/2 + (i-(lines.length-1)/2)*15;
+        svg += `<text x="${n.x+n.w/2}" y="${baseY}" text-anchor="middle" dominant-baseline="central"
+          font-size="${lines.length>1?10:11}" fill="${clr.text}" font-family="var(--font-sans)"
+          font-weight="${i===0?'500':'400'}">${line}</text>`;
+      });
+    }
+  });
+
+  svg += '</svg>';
+  return svg;
+}
+
+const nav = document.getElementById('nav');
+const container = document.getElementById('journeys');
+
+JOURNEYS.forEach((j,i) => {
+  const btn = document.createElement('button');
+  btn.className = 'nav-btn' + (i===0?' active':'');
+  btn.textContent = j.label;
+  btn.style.borderColor = i===0 ? j.color : '';
+  btn.style.color = i===0 ? j.color : '';
+  btn.onclick = () => {
+    document.querySelectorAll('.nav-btn').forEach(b=>{b.classList.remove('active');b.style.borderColor='';b.style.color='';});
+    btn.classList.add('active');
+    btn.style.borderColor = j.color;
+    btn.style.color = j.color;
+    document.querySelectorAll('.journey').forEach(el=>el.classList.remove('visible'));
+    document.getElementById('j-'+j.id).classList.add('visible');
+  };
+  nav.appendChild(btn);
+
+  const div = document.createElement('div');
+  div.className = 'journey' + (i===0?' visible':'');
+  div.id = 'j-'+j.id;
+  div.innerHTML = `<div class="journey-title">${j.label}</div><div class="journey-sub">${j.sub}</div>${buildSVG(j)}`;
+  container.appendChild(div);
+});
+</script>

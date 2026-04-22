@@ -1,0 +1,710 @@
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);color:var(--color-text-primary);font-size:14px}
+.g-wrap{padding:4px 0 32px}
+.g-search{width:100%;padding:10px 14px;font-size:13px;border:0.5px solid var(--color-border-secondary);border-radius:10px;background:var(--color-background-primary);color:var(--color-text-primary);font-family:var(--font-sans);margin-bottom:16px;outline:none}
+.g-search:focus{border-color:var(--color-border-primary)}
+.g-cats{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px}
+.g-cat{padding:4px 12px;font-size:12px;border-radius:20px;border:0.5px solid var(--color-border-secondary);background:var(--color-background-secondary);cursor:pointer;color:var(--color-text-secondary);transition:all .15s;font-family:var(--font-sans)}
+.g-cat:hover,.g-cat.on{color:var(--color-text-primary);border-color:var(--color-border-primary);background:var(--color-background-primary);font-weight:500}
+.g-count{font-size:12px;color:var(--color-text-tertiary);margin-bottom:14px}
+.g-section{margin-bottom:28px}
+.g-section-title{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--color-text-tertiary);margin-bottom:10px;padding-bottom:6px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.g-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:10px;padding:14px 16px;cursor:pointer;transition:border-color .15s}
+.g-card:hover{border-color:var(--color-border-secondary)}
+.g-card.expanded{border-color:var(--color-border-primary)}
+.g-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.g-term{font-size:13px;font-weight:500;line-height:1.4;flex:1}
+.g-badge{font-size:10px;padding:2px 7px;border-radius:20px;white-space:nowrap;flex-shrink:0;font-weight:500;margin-top:1px}
+.g-short{font-size:12px;color:var(--color-text-secondary);margin-top:5px;line-height:1.5}
+.g-detail{display:none;margin-top:12px;padding-top:12px;border-top:0.5px solid var(--color-border-tertiary)}
+.g-card.expanded .g-detail{display:block}
+.g-def{font-size:13px;line-height:1.7;color:var(--color-text-primary);margin-bottom:10px}
+.g-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.g-tag{font-size:11px;padding:2px 8px;border-radius:20px;background:var(--color-background-secondary);color:var(--color-text-secondary);border:0.5px solid var(--color-border-tertiary)}
+.g-iso{font-size:11px;padding:2px 8px;border-radius:20px;background:#EEEDFE;color:#3C3489;border:0.5px solid #AFA9EC;font-weight:500}
+.g-flow{font-size:11px;padding:2px 8px;border-radius:20px;background:#E1F5EE;color:#085041;border:0.5px solid #5DCAA5}
+.g-example{margin-top:10px;padding:10px 12px;background:var(--color-background-secondary);border-radius:8px;font-size:12px;color:var(--color-text-secondary);line-height:1.6}
+.g-example strong{color:var(--color-text-primary);font-weight:500}
+.g-none{color:var(--color-text-tertiary);font-size:13px;padding:24px 0;text-align:center}
+.chevron{font-size:12px;color:var(--color-text-tertiary);margin-top:2px;transition:transform .15s;flex-shrink:0}
+.g-card.expanded .chevron{transform:rotate(180deg)}
+</style>
+
+<div class="g-wrap">
+<input class="g-search" type="search" placeholder="Search terms, definitions, ISO controls…" id="search" oninput="render()">
+<div class="g-cats" id="cats"></div>
+<div class="g-count" id="count"></div>
+<div id="out"></div>
+</div>
+
+<script>
+const TERMS = [
+
+  // ── AUTHENTICATION ─────────────────────────────────────────────────────
+  {
+    term: 'Login flow',
+    cat: 'Authentication',
+    badge: 'Flow',
+    badgeColor: '#185FA5',
+    short: 'The full sequence from entering credentials to receiving a session token.',
+    def: 'The login flow is the complete journey a user takes to prove their identity and gain access to the system. It is not just username + password — it involves a chain of checks: does the account exist? Is it locked? Has the password expired? Is MFA enabled? Only when all gates pass does the server create a session and return a token to the browser. Every step is logged to the audit trail.',
+    example: 'A user types their email and password and clicks Sign in. The server checks the database, finds the account active and unlocked, sees the password has not expired, checks that MFA is enabled, and issues a 5-minute MFA challenge. The user enters their TOTP code. The server verifies it and creates a session. The browser receives a token it will attach to every future request.',
+    iso: ['A.8.5'],
+    flows: ['Login flow', 'MFA verification'],
+  },
+  {
+    term: 'Bearer token',
+    cat: 'Authentication',
+    badge: 'Concept',
+    badgeColor: '#888780',
+    short: 'A secret string the browser sends with every request to prove who it is.',
+    def: 'A Bearer token is a long random string (48 bytes of randomness in this system) returned after a successful login. The browser stores it and sends it in the Authorization header of every subsequent request: "Authorization: Bearer abc123…". The server never stores the raw token — it stores a SHA-256 hash of it. If the token is stolen, the server can revoke the hash and the stolen token becomes useless. The word "bearer" means whoever holds it gets the rights it represents.',
+    example: 'Every API request the frontend sends includes the header: Authorization: Bearer f3a91c…. The server hashes that value and looks it up in the sessions table. If it finds a match that has not expired and was not revoked, the request proceeds.',
+    iso: ['A.8.5'],
+    flows: ['Login flow', 'Permission check'],
+  },
+  {
+    term: 'Session token',
+    cat: 'Authentication',
+    badge: 'Concept',
+    badgeColor: '#888780',
+    short: 'The server-side record that proves a login happened and tracks its age.',
+    def: 'A session is a record in the database that says "user X logged in at time T from IP Y, and their session is valid until Z." When a user logs in, the server creates this record. Every subsequent request looks up the session to check it has not expired or been revoked. Sessions have two timeouts: an inactivity timeout (15 minutes with no activity) and an absolute timeout (8 hours maximum, even if the user is active). Privileged users have stricter limits: only 1 concurrent session allowed.',
+    example: 'A developer logs in at 9:00am. At 9:14am they make a request — the session is refreshed. At 9:30am they walk away without logging out. At 9:45am they return and try to make a request — the session has expired due to 15 minutes of inactivity and they must log in again.',
+    iso: ['A.8.5'],
+    flows: ['Login flow', 'Permission check', 'Password change'],
+  },
+  {
+    term: 'POST /auth/login',
+    cat: 'Authentication',
+    badge: 'API endpoint',
+    badgeColor: '#0F6E56',
+    short: 'The URL the login form submits credentials to.',
+    def: 'This is the API endpoint — the specific address on the server — that receives login credentials. POST means data is sent in the request body (not visible in the URL). /auth/login is the path. The server receives the email and password, runs all validation checks, and returns either an error, an MFA challenge ID, or a session token. This endpoint has a strict rate limit: maximum 10 attempts per 15 minutes to prevent brute-force attacks.',
+    example: 'The browser sends: POST https://api.company.com/api/auth/login with body { "email": "sara@company.com", "password": "MySecret14!" }. The server responds with either { "error": "Invalid credentials" } or { "requiresMfa": true, "mfaChallengeId": "abc-123" }.',
+    iso: ['A.8.5'],
+    flows: ['Login flow'],
+  },
+  {
+    term: 'Account lockout',
+    cat: 'Authentication',
+    badge: 'Security control',
+    badgeColor: '#A32D2D',
+    short: 'After 5 failed logins, the account is blocked for 30–60 minutes.',
+    def: 'Account lockout is a defence against brute-force attacks — automated scripts that try thousands of password combinations. After 5 consecutive failed login attempts, the system sets a locked_until timestamp on the user record. Any further login attempts during the lockout period are rejected immediately, even with the correct password. Standard users are locked for 30 minutes; privileged users (admins, infrastructure) are locked for 60 minutes because their accounts are higher-value targets. Every lockout event is logged to the audit trail with the IP address.',
+    example: 'An attacker tries to guess a developer\'s password. After 5 wrong attempts, the account locks. The audit log records AUTH.ACCOUNT_LOCKED with the attacker\'s IP. The security team can review this and block the IP at the firewall level.',
+    iso: ['A.8.5'],
+    flows: ['Login flow'],
+  },
+  {
+    term: 'Increment fails',
+    cat: 'Authentication',
+    badge: 'Mechanism',
+    badgeColor: '#888780',
+    short: 'Each wrong password attempt adds 1 to the failed_login_count counter.',
+    def: 'The database keeps a running count of consecutive failed login attempts for each user (the failed_login_count column). Every time someone enters a wrong password, this number goes up by 1. When it reaches 5, the lockout triggers. When a correct password is entered, the counter resets to 0. This is different from a total lifetime counter — it only counts consecutive failures, so one successful login clears the slate.',
+    example: 'User types wrong password: failed_login_count = 1. Wrong again: count = 2. Correct password entered: count resets to 0. Wrong: count = 1 again.',
+    iso: ['A.8.5'],
+    flows: ['Login flow'],
+  },
+  {
+    term: 'Password expired',
+    cat: 'Authentication',
+    badge: 'State',
+    badgeColor: '#854F0B',
+    short: 'Password has not been changed within the allowed time window.',
+    def: 'Every password has an expiry date set when it was last changed. For standard users this is 90 days; for privileged accounts it is 30 days. When a user logs in, the system checks whether today\'s date is past the password_expires_at timestamp. If it is, the login does not fail — instead, the server returns a special flag telling the frontend to redirect the user to the "change your password" screen before they can proceed. They cannot access any other part of the system until they set a new password.',
+    example: 'A developer last changed their password on 1 January. On 2 April (91 days later) they log in. The system accepts their credentials but returns { "requiresPasswordChange": true }. The frontend redirects them to the password change form. Only after they set a new password do they get a session token.',
+    iso: ['A.5.17'],
+    flows: ['Login flow', 'Password change'],
+  },
+  {
+    term: 'Force password change screen',
+    cat: 'Authentication',
+    badge: 'UI state',
+    badgeColor: '#993C1D',
+    short: 'A mandatory interstitial screen shown when a password must be updated before proceeding.',
+    def: 'This is a UI state — a screen the user is locked into — that appears whenever the system requires a password change. It occurs in two situations: when the password has expired (past its 90-day or 30-day limit) and when a new user logs in for the first time with a temporary password. The user cannot navigate away from this screen or access any other part of the application until they successfully set a new password that passes all policy checks.',
+    example: 'A new hire receives a temporary password by email. On their first login, the system sees force_password_change = true and shows the change screen. The user must create a new password of at least 14 characters that passes the strength checker before they can see the dashboard.',
+    iso: ['A.5.17'],
+    flows: ['Login flow'],
+  },
+
+  // ── MFA ────────────────────────────────────────────────────────────────
+  {
+    term: 'MFA (Multi-Factor Authentication)',
+    cat: 'MFA',
+    badge: 'Security control',
+    badgeColor: '#3C3489',
+    short: 'Proving identity with a second factor beyond just a password.',
+    def: 'MFA requires a user to present at least two independent proofs of identity: something they know (the password) and something they have (a time-based code from an app, or a physical security key). Even if an attacker steals someone\'s password, they still cannot log in without the second factor. In this system MFA is mandatory for all users — there are no exceptions without formal approval. Admin and privileged accounts must use a hardware security key (FIDO2), not just an app-based code.',
+    example: 'Sara logs in with her password. The system then asks for her authenticator code. She opens Google Authenticator on her phone, reads the 6-digit code (e.g. 482 193), types it in within 30 seconds, and gets access. Without her phone, she cannot log in even with the correct password.',
+    iso: ['A.8.5'],
+    flows: ['Login flow', 'MFA verification', 'Onboarding checklist'],
+  },
+  {
+    term: 'TOTP (Time-based One-Time Password)',
+    cat: 'MFA',
+    badge: 'Protocol',
+    badgeColor: '#534AB7',
+    short: 'A 6-digit code that changes every 30 seconds, generated by an authenticator app.',
+    def: 'TOTP is the algorithm behind apps like Google Authenticator, Authy, and 1Password. During MFA enrollment, the server generates a secret key and shares it with the user\'s app (usually via a QR code scan). From then on, both the server and the app independently calculate the same 6-digit code every 30 seconds using that shared secret and the current time. The user types whatever their app currently shows. The server accepts codes from a ±30-second window to account for clock drift. The code is one-time-use — it cannot be reused even within the same 30-second window.',
+    example: 'At 10:23:15 both the server and the user\'s app calculate: HMAC(secret, floor(1713870195 / 30)) = 482193. The user types 482193. At 10:23:30 both calculate a new code: 719284. The old code is now invalid.',
+    iso: ['A.8.5'],
+    flows: ['MFA verification'],
+  },
+  {
+    term: 'MFA challenge',
+    cat: 'MFA',
+    badge: 'Mechanism',
+    badgeColor: '#534AB7',
+    short: 'A short-lived token stored in Redis that links a pending MFA verification to a specific user.',
+    def: 'When a user\'s credentials pass the first step but MFA is required, the server does not yet trust them. Instead it creates a challenge: a random ID stored in Redis (a fast in-memory database) with a 5-minute expiry and the user\'s ID attached. The server returns only this challenge ID to the browser, not a session token. The browser then sends the MFA code along with the challenge ID to a second endpoint. If the code is correct, the challenge is consumed (deleted), and only then is a real session created. This two-step design prevents any access until both factors are verified.',
+    example: 'Server: "Credentials correct, but I need MFA. Here is challenge ID abc-123 — it expires in 5 minutes." Browser stores abc-123. User looks at their app, sees 482193, types it. Browser sends { challengeId: "abc-123", token: "482193" }. Server verifies the code, deletes abc-123 from Redis, creates session.',
+    iso: ['A.8.5'],
+    flows: ['MFA verification'],
+  },
+  {
+    term: 'TTL (Time To Live)',
+    cat: 'MFA',
+    badge: 'Concept',
+    badgeColor: '#888780',
+    short: 'How long something is allowed to exist before it automatically expires.',
+    def: 'TTL is a timer that automatically deletes data after a set duration. In Redis, every stored value can have a TTL — when the timer runs out, Redis removes the value without any code needing to run. The MFA challenge has a 5-minute TTL: if the user does not enter their code within 5 minutes, the challenge disappears and the entire login must start again. This prevents an attacker who intercepts a challenge ID from using it hours or days later.',
+    example: 'The server runs: redis.setex("mfa_pending:abc-123", 300, userId). The 300 means 300 seconds = 5 minutes. After 5 minutes, Redis automatically deletes the key. Any attempt to use abc-123 after that fails with "challenge expired."',
+    iso: ['A.8.5'],
+    flows: ['MFA verification'],
+  },
+  {
+    term: 'Redis',
+    cat: 'MFA',
+    badge: 'Technology',
+    badgeColor: '#888780',
+    short: 'An in-memory database used for temporary, fast-expiring data like MFA challenges and session caches.',
+    def: 'Redis is a database that stores everything in memory (RAM) rather than on disk, making it extremely fast. It is used in this system for data that needs to be created and deleted quickly: MFA challenge IDs, rate-limit counters, and session caches. Redis supports TTL natively — you can create a value and tell Redis to delete it automatically after N seconds. The tradeoff is that Redis data does not survive a server restart, which is exactly what you want for temporary challenge tokens but not for permanent user records (those live in PostgreSQL).',
+    example: 'MFA challenge: redis.setex("mfa_pending:abc-123", 300, "user-uuid-here") — stored in memory, auto-deleted in 5 minutes. Rate limit counter: redis.incr("rate:login:192.168.1.1") — incremented with every login attempt, expires after 15 minutes.',
+    iso: ['A.8.5'],
+    flows: ['MFA verification'],
+  },
+  {
+    term: 'mfa_verified = true',
+    cat: 'MFA',
+    badge: 'Session field',
+    badgeColor: '#0F6E56',
+    short: 'A flag on the session record confirming the user completed MFA, not just passwords.',
+    def: 'Every session record in the database has an mfa_verified boolean column. It is set to false when a session is first created and only changed to true after the MFA verification step completes successfully. The permission-check middleware inspects this flag on every single request. If a session exists but mfa_verified is false — for example if MFA was disabled or bypassed — the request is rejected with a 401 error. This ensures that a valid session token alone is never enough: the MFA step must also have been completed.',
+    example: 'Without mfa_verified: The authenticate middleware sees the session but checks mfa_verified = false, returns { "error": "MFA verification required", "requiresMfa": true } — the browser redirects to the MFA screen. With mfa_verified: middleware passes, request proceeds to the permission check.',
+    iso: ['A.8.5'],
+    flows: ['MFA verification', 'Permission check'],
+  },
+  {
+    term: 'FIDO2 / hardware security key',
+    cat: 'MFA',
+    badge: 'Security control',
+    badgeColor: '#3C3489',
+    short: 'A physical USB or NFC key that proves identity without a code — required for admin accounts.',
+    def: 'FIDO2 is a standard for hardware-based authentication. A security key (like a YubiKey) is a physical device — usually a USB stick — that uses public-key cryptography. During login, the browser asks the key to sign a challenge with its private key (which never leaves the device). The server verifies the signature using the public key registered during enrollment. Unlike TOTP codes, FIDO2 is phishing-proof: the key only works on the exact domain it was registered for, so fake login pages get nothing. In this system, admin and privileged accounts must use a FIDO2 key — a phone app is not sufficient.',
+    example: 'The IT lead Sara logs in, enters her password, then the browser displays "Insert your security key and tap it." She inserts her YubiKey and touches the gold disc. The key signs the challenge. The server verifies the signature. Session created.',
+    iso: ['A.8.5', 'A.8.2'],
+    flows: ['MFA verification'],
+  },
+  {
+    term: 'Backup codes',
+    cat: 'MFA',
+    badge: 'Recovery mechanism',
+    badgeColor: '#534AB7',
+    short: 'Ten one-time emergency codes generated during MFA enrollment for use if the device is lost.',
+    def: 'When a user enrolls MFA, the server generates 10 random backup codes (each 8 characters). They are shown to the user once and never stored in plaintext — only bcrypt hashes are kept. Each code can be used only once as a substitute for the TOTP code if the user has lost their authenticator device. Using a backup code triggers an audit event and should prompt the user to re-enroll MFA on a new device. If a backup code is used, that hash is deleted from the database immediately.',
+    example: 'A developer loses their phone. They use one of their backup codes: a8f3c1b9. This is accepted in place of the TOTP code. The server bcrypt-hashes a8f3c1b9 and compares it to the stored list. It matches one entry. That entry is deleted. The developer is told to re-enroll MFA immediately.',
+    iso: ['A.8.5'],
+    flows: ['MFA verification'],
+  },
+
+  // ── PASSWORD POLICY ────────────────────────────────────────────────────
+  {
+    term: 'zxcvbn',
+    cat: 'Password policy',
+    badge: 'Library',
+    badgeColor: '#854F0B',
+    short: 'A password strength library that scores passwords from 0 (terrible) to 4 (excellent).',
+    def: 'zxcvbn (pronounced "zxcvbn" — the bottom row of a keyboard, itself a terrible password) is an open-source library developed by Dropbox. Unlike simple rules that just count characters, zxcvbn understands human password patterns: dictionary words, keyboard walks (qwerty, 12345), dates, names, and common substitutions (pa$$word). It assigns a score from 0 to 4. This system requires a score of at least 3. A password that passes all character rules but scores 0 (e.g. "Password123!") is still rejected. This prevents the situation where users game the rules by making technically-compliant but easily guessable passwords.',
+    example: '"Password123!" — 13 chars, upper + lower + number + symbol → passes character rules, BUT zxcvbn gives it a score of 1 (too common). Rejected. "Tr0ub4dor&3!" — similar rules, zxcvbn score 4. Accepted.',
+    iso: ['A.5.17'],
+    flows: ['Password change'],
+  },
+  {
+    term: 'bcrypt',
+    cat: 'Password policy',
+    badge: 'Algorithm',
+    badgeColor: '#0C447C',
+    short: 'A slow, deliberately expensive hashing algorithm used to store passwords safely.',
+    def: 'bcrypt is the algorithm used to transform a password into a stored hash. Unlike fast hashing (SHA-256, MD5), bcrypt is intentionally slow — controlled by a "cost" parameter. At cost 12, hashing one password takes about 300ms. This is imperceptible to a human logging in, but it means an attacker who steals the database can only test about 3 guesses per second instead of millions. bcrypt also salts each hash automatically (adds random data before hashing), so two users with the same password get different hashes. The system never stores the password itself — only the bcrypt output.',
+    example: 'User sets password "Tr0ub4dor&3!". bcrypt(cost=12) produces "$2b$12$LKdV6t3T…" — a 60-character string that looks like noise. This is stored. At login, bcrypt re-hashes the entered password and compares the results. The original password can never be recovered from the hash.',
+    iso: ['A.5.17'],
+    flows: ['Password change'],
+  },
+  {
+    term: 'Password history (last 12)',
+    cat: 'Password policy',
+    badge: 'Mechanism',
+    badgeColor: '#854F0B',
+    short: 'The system keeps the last 12 password hashes and blocks reuse of any of them.',
+    def: 'The users table has a password_history column that stores an array of the last 12 bcrypt hashes. When a user sets a new password, the system bcrypt-compares the new password against every hash in this list. If it matches any of them, the change is rejected with "cannot reuse any of your last 12 passwords." This prevents the common pattern of users cycling between a small set of favourite passwords. The newest hash is always at position 1; when the list exceeds 12 entries, the oldest is dropped.',
+    example: 'History: [hash_of_SecurePass1!, hash_of_BlueTiger99$, …10 more]. User tries to set "SecurePass1!" again. System bcrypt-compares against all 12 hashes. It matches position 1. Rejected. User tries "GreenDragon77*" — no match in any of the 12. Accepted, pushed to front of list, oldest entry removed.',
+    iso: ['A.5.17'],
+    flows: ['Password change'],
+  },
+  {
+    term: 'Password expiry (90d / 30d privileged)',
+    cat: 'Password policy',
+    badge: 'Policy',
+    badgeColor: '#854F0B',
+    short: 'Passwords auto-expire after 90 days for standard users, 30 days for admins.',
+    def: 'When a password is set, the system records a password_expires_at timestamp. For regular users this is 90 days from now; for privileged users (admins, infrastructure role) it is 30 days. Every login checks this timestamp. When it lapses, the user is redirected to the password change screen. The shorter expiry for privileged accounts reflects the higher risk of those credentials being targeted. Password expiry is written to the audit log, and a daily cron job flags any accounts approaching expiry so the security team can monitor compliance.',
+    example: 'Admin Sara sets a new password on 1 January. Her expiry is set to 31 January (30 days). On 1 February she logs in — the system sees password_expires_at < now, sets force_password_change = true, and redirects her to the change screen before she can see the dashboard.',
+    iso: ['A.5.17', 'A.8.2'],
+    flows: ['Login flow', 'Password change'],
+  },
+  {
+    term: 'Revoke ALL current sessions',
+    cat: 'Password policy',
+    badge: 'Security action',
+    badgeColor: '#993C1D',
+    short: 'Every active session for a user is immediately invalidated when their password changes.',
+    def: 'When a password is changed, the assumption is that it was changed because the old password may have been compromised. Any sessions created with the old password could therefore be attacker-controlled. The system immediately marks every active session for that user as revoked in the database. Any existing browser tabs holding old session tokens will get a 401 Unauthorized on their next request and be forced to log in again with the new password. This happens automatically — the user does not need to manually log out of all devices.',
+    example: 'A developer has 3 active sessions: laptop, phone, and a shared test machine. They change their password. All 3 session tokens are immediately invalidated in the database. The laptop prompts for login. The phone prompts for login. The test machine prompts for login. The attacker who had a copy of the old session token also finds it now returns 401.',
+    iso: ['A.5.17', 'A.8.5'],
+    flows: ['Password change'],
+  },
+
+  // ── RBAC ────────────────────────────────────────────────────────────────
+  {
+    term: 'RBAC (Role-Based Access Control)',
+    cat: 'Roles & permissions',
+    badge: 'Architecture',
+    badgeColor: '#185FA5',
+    short: 'Users are assigned a role, and roles determine what they can do — not individual settings per user.',
+    def: 'RBAC is the access control model this system uses. Instead of assigning permissions directly to each user (which becomes unmanageable at scale), users are assigned to a role (admin, developer, hr_manager, etc.) and roles are assigned permissions (users:create, backup:restore, etc.). To give a user access to something, you put them in the right role. To revoke access, you change their role. Every access check compares the user\'s role against the required permission. Roles can be marked as "privileged" which triggers additional controls like shorter session timeouts and mandatory hardware MFA.',
+    example: 'The developer role has permissions: code:deploy, backup:read. The hr_manager role has: users:create, users:deprovision. When James (developer) tries to create a new user account, the system checks: does the developer role have the users:create permission? No. 403 Forbidden. When Anna (hr_manager) tries to deploy code, same check: no code:deploy permission for hr_manager. 403.',
+    iso: ['A.5.15', 'A.5.18'],
+    flows: ['Permission check', 'Role change'],
+  },
+  {
+    term: 'Least privilege',
+    cat: 'Roles & permissions',
+    badge: 'Principle',
+    badgeColor: '#185FA5',
+    short: 'Every user gets the minimum permissions needed to do their job — nothing more.',
+    def: 'Least privilege is the foundational security principle behind the entire RBAC design. A developer should not have admin access to the HR system. An HR manager should not be able to deploy code. The default role assigned to new accounts before their role is confirmed is read_only — absolute minimum access. When a user is onboarded, they are given only the role appropriate for their actual job, with explicit written justification required. This limits the blast radius if any account is compromised: an attacker who steals a developer\'s credentials still cannot access the backup system or HR records.',
+    example: 'A new marketing hire is onboarded. The provisioning request specifies role: read_only, because marketing does not need code, backup, or user management access. If they later need to access the analytics dashboard, a separate access request with justification must be submitted and approved.',
+    iso: ['A.5.15', 'A.5.18'],
+    flows: ['Permission check', 'Provision user'],
+  },
+  {
+    term: 'requirePermission(resource, action)',
+    cat: 'Roles & permissions',
+    badge: 'Middleware',
+    badgeColor: '#0F6E56',
+    short: 'A code guard placed on every API route that checks if the user\'s role can do the requested thing.',
+    def: 'In the backend code, every API route that does something sensitive is protected by this middleware function. It takes two arguments: the resource (what is being accessed, e.g. "users", "backup", "audit_logs") and the action (what is being done, e.g. "read", "create", "delete"). It queries the database to check if the current user\'s role has a row in the role_permissions table that grants that combination. If not, the request is rejected with a 403 error and the denial is logged to the audit trail with the user\'s role and the permission they tried to use.',
+    example: 'The route DELETE /users/:id has the guard requirePermission("users", "deprovision"). James the developer calls this endpoint. The middleware checks: does the developer role have (users, deprovision) in role_permissions? No. Returns 403 { "error": "Insufficient permissions", "required": "users:deprovision", "yourRole": "developer" }. The denial is logged.',
+    iso: ['A.5.15', 'A.5.18'],
+    flows: ['Permission check'],
+  },
+  {
+    term: 'Permission check (4-gate chain)',
+    cat: 'Roles & permissions',
+    badge: 'Flow',
+    badgeColor: '#0F6E56',
+    short: 'Every API request passes through four sequential checks before being processed.',
+    def: 'Every single request to a protected endpoint passes through four gates in order. Gate 1: Is the session token valid and not expired? Gate 2: Has the user been inactive for more than 15 minutes? Gate 3: Was MFA completed for this session? Gate 4: Does the user\'s role have the required permission? All four must pass. Failure at any gate produces a specific error code and is logged. This layered approach means that even if one control is somehow bypassed, the others still apply.',
+    example: 'A request arrives: valid token (gate 1 ✓), last active 3 minutes ago (gate 2 ✓), mfa_verified = true (gate 3 ✓), role has permission (gate 4 ✓). Proceed. Another request: valid token (gate 1 ✓), inactive 20 minutes (gate 2 ✗). 401 "Session expired due to inactivity." Stop — gates 3 and 4 never even run.',
+    iso: ['A.5.15', 'A.8.5'],
+    flows: ['Permission check'],
+  },
+  {
+    term: 'Inactivity timeout (15 min)',
+    cat: 'Roles & permissions',
+    badge: 'Policy',
+    badgeColor: '#0C447C',
+    short: 'If no request is made for 15 minutes, the session expires and re-login is required.',
+    def: 'Each session has a last_active timestamp that updates every time a valid request comes in. If the gap between now and last_active exceeds 15 minutes, the session is treated as expired. The user must log in again. This is separate from the absolute 8-hour session limit — both apply. The inactivity timeout protects against the scenario where a user walks away from their computer without logging out: any attacker who sits down at the unattended computer finds the session dead after 15 minutes.',
+    example: 'A user logs in at 9:00am and works until 9:30am. At 9:30am they go for a coffee. They return at 9:46am and try to load a page. The middleware calculates now - last_active = 16 minutes. Session expired. They are redirected to the login page. The attacker who walked past at 9:45am and opened a new tab also gets the login page.',
+    iso: ['A.8.5'],
+    flows: ['Permission check'],
+  },
+  {
+    term: 'Step-up MFA',
+    cat: 'Roles & permissions',
+    badge: 'Security control',
+    badgeColor: '#534AB7',
+    short: 'A second MFA challenge triggered mid-session for especially sensitive operations.',
+    def: 'Step-up MFA is a re-challenge mechanism. Even within an active, MFA-verified session, certain operations are so sensitive that they require the user to prove their identity again at that moment. Examples: viewing audit logs, executing an offboarding, deleting an API key. The backend checks for an X-MFA-Step-Up header containing a fresh, single-use challenge token. If the header is missing or the token is expired/already used, the request is rejected. This protects against session hijacking: even if an attacker steals a valid session token, they cannot perform the highest-risk actions without the physical MFA device.',
+    example: 'An admin tries to execute an offboarding via the dashboard. The frontend requests a step-up challenge, shows a "confirm your identity" dialog, the admin scans their YubiKey, the frontend gets a one-time step-up token, sends it in the X-MFA-Step-Up header with the offboarding request. Server verifies the token (deletes it immediately), processes the offboarding.',
+    iso: ['A.8.5', 'A.8.2'],
+    flows: ['Permission check'],
+  },
+
+  // ── PROVISIONING ────────────────────────────────────────────────────────
+  {
+    term: 'Provisioning request',
+    cat: 'User lifecycle',
+    badge: 'Process',
+    badgeColor: '#27500A',
+    short: 'A formal, documented request to create, change, or revoke a user\'s access — requires written justification.',
+    def: 'In this system, access is never granted informally. Every change to a user\'s account — onboarding, offboarding, role change, access grant — goes through a provisioning request. This is a database record (provisioning_requests table) that captures: who is requesting, what they want, for whom, and crucially the business justification. Without a justification, the system blocks the request entirely. The request then waits for manager/admin approval before any change is executed. This creates an auditable trail: every piece of access that was ever granted has a documented reason and an approver.',
+    example: 'Anna (HR) submits a request: type=onboard, email=new.hire@company.com, role=developer, justification="New backend developer starting 1 May per employment contract #456." This is stored with status=pending. Sara (CTO) reviews and approves it. The system then creates the account. The entire chain is in the database forever.',
+    iso: ['A.5.18'],
+    flows: ['Provision user', 'Role change'],
+  },
+  {
+    term: 'Justification required',
+    cat: 'User lifecycle',
+    badge: 'Policy enforcement',
+    badgeColor: '#A32D2D',
+    short: 'Every access grant or change must include a written business reason — no justification = blocked.',
+    def: 'ISO 27001 A.5.18 requires that access rights are granted based on documented business need. This system enforces it in code: the justification field of a provisioning request is mandatory. If the field is empty or missing, the server rejects the entire request before it is even saved. This cannot be bypassed by the UI — the check is server-side. The justification becomes a permanent part of the audit record, so auditors can see not just that access was granted but why it was granted.',
+    example: 'Anna tries to submit a role change request without filling in the justification field. The API returns 400 { "error": "Business justification required for all access requests (A.5.18)" }. The request is never stored. She must write something like "Promoted to team lead per letter dated 15 April — needs deploy permissions for production release management."',
+    iso: ['A.5.18'],
+    flows: ['Provision user', 'Role change'],
+  },
+  {
+    term: 'status = pending',
+    cat: 'User lifecycle',
+    badge: 'State',
+    badgeColor: '#888780',
+    short: 'A provisioning request has been submitted but not yet reviewed by an approver.',
+    def: 'Provisioning requests go through a lifecycle of states: pending → approved (or rejected) → executed. While a request is pending, no account changes are made. The request sits in a queue visible to managers and admins who have the access_review:manage permission. This separation between requesting and executing is intentional — it prevents any single person from both requesting and granting their own access (separation of duties). The pending state also allows requests to be rejected: if a manager disagrees with the access level requested, they reject it with a written reason.',
+    example: 'A developer submits a role change request to get infrastructure permissions (unusual). The request sits as status=pending. The CTO reviews it and sees it is not justified for the developer\'s actual work. She rejects it with note: "Infra access not required for product development. Use staging environment instead." The request is permanently marked status=rejected with that reason.',
+    iso: ['A.5.18'],
+    flows: ['Provision user'],
+  },
+  {
+    term: 'Temp password',
+    cat: 'User lifecycle',
+    badge: 'Mechanism',
+    badgeColor: '#27500A',
+    short: 'A random password generated at account creation, valid for first login only.',
+    def: 'When an account is created, the system generates a random temporary password using a cryptographically secure random number generator. This password is sent to the new user via a secure email channel (never displayed in the admin dashboard, never logged). The account is created with force_password_change = true. On first login with this temp password, the user is immediately redirected to the password change screen and must set a new permanent password before they can do anything else. The temp password has no expiry date but is functionally single-use because the forced change happens immediately.',
+    example: 'Account created for new.hire@company.com. System generates temp password "Xk7!Qm3vR2#N" (16 chars, random). This is emailed to the new hire. They log in, and the system immediately redirects them to "you must change your password." They set "Tr0ub4dor&3!" and from that point their temp password no longer works.',
+    iso: ['A.5.17'],
+    flows: ['Provision user'],
+  },
+
+  // ── ONBOARDING ────────────────────────────────────────────────────────
+  {
+    term: 'pending_activation',
+    cat: 'User lifecycle',
+    badge: 'Account state',
+    badgeColor: '#888780',
+    short: 'The initial state of a new account — cannot log in until all onboarding steps are complete.',
+    def: 'Every new user account is created in the pending_activation state. In this state, the account exists in the database but cannot be used to log in — the authentication check rejects any login attempt for an account not in the active state. The account moves to active only when every mandatory step on the onboarding checklist has been completed and the activation button is pressed by an authorised HR/IT person. This ensures no one can access the system before their background check, NDA signing, and security briefing are complete.',
+    example: 'A new hire\'s account is created on 28 April with status=pending_activation. They receive their temp password and try to log in on 29 April. The system rejects the login with "Account not yet activated — please contact HR." On 1 May, after all 6 checklist steps are completed, HR activates the account. The hire logs in successfully.',
+    iso: ['A.5.16', 'A.6.1'],
+    flows: ['Onboarding checklist'],
+  },
+  {
+    term: 'Background check (A.6.1)',
+    cat: 'User lifecycle',
+    badge: 'ISO requirement',
+    badgeColor: '#0F6E56',
+    short: 'Verification of a new hire\'s identity and history before they are given any system access.',
+    def: 'ISO 27001 A.6.1 requires screening of personnel before employment. In the system, this is tracked as a checklist item: background_check_done (boolean) and background_check_date (timestamp). HR must mark this complete — with a date — before the account can be activated. The check typically involves reference verification from previous employers and, for sensitive roles, a criminal record check (subject to GDPR and local law). The evidence of the check (who was contacted, what was confirmed) is documented in HR records, not in the IAM system itself for privacy reasons.',
+    example: 'HR calls the new developer\'s previous employer, confirms employment dates and role. They log this in the IAM system: background_check_done = true, background_check_date = 2026-04-28. This step is now ticked on the onboarding checklist. The developer\'s account is one step closer to activation.',
+    iso: ['A.6.1'],
+    flows: ['Onboarding checklist'],
+  },
+  {
+    term: 'NDA + AUP (A.6.2)',
+    cat: 'User lifecycle',
+    badge: 'ISO requirement',
+    badgeColor: '#0F6E56',
+    short: 'Non-Disclosure Agreement and Acceptable Use Policy — both must be signed before account activation.',
+    def: 'ISO 27001 A.6.2 requires that terms and conditions of employment include information security responsibilities. The NDA (Non-Disclosure Agreement) commits the employee to confidentiality of company data. The Acceptable Use Policy (AUP) defines what they can and cannot do with company systems: no installing personal software, no sharing credentials, no forwarding company data to personal email, etc. Both must be signed before account activation. The system records nda_signed (boolean), nda_signed_date, aup_signed, and aup_signed_date. Signed copies are stored in HR records.',
+    example: 'On the new hire\'s first day, HR presents them with both documents. The hire signs them physically or via digital signature. HR records: nda_signed = true, nda_signed_date = 2026-05-01. Same for AUP. The checklist updates. Without this step, the account cannot be activated even if all other steps are complete.',
+    iso: ['A.6.2'],
+    flows: ['Onboarding checklist'],
+  },
+  {
+    term: 'Day-1 security briefing (A.6.3)',
+    cat: 'User lifecycle',
+    badge: 'ISO requirement',
+    badgeColor: '#0F6E56',
+    short: 'A mandatory security awareness session covering the key rules before a new hire gets system access.',
+    def: 'ISO 27001 A.6.3 requires that personnel receive awareness education appropriate to their role. The Day-1 security briefing is a 30-minute session (in-person, recorded video, or via a read-and-acknowledge document) covering: the company\'s password rules, how to recognise phishing, what to do if a device is lost or stolen, how to report security incidents, and the consequences of policy violations. The new hire signs a confirmation form. This signature is stored in the system. The briefing must happen before the account is activated — not during the first week, not "when there\'s time": before access.',
+    example: 'On day 1, IT sits with the new hire for 30 minutes. They cover the 5 key topics. The hire signs: "I attended the Day-1 Security Briefing on 2026-05-01 and understand the above." The briefing record is added to the training_records table. The onboarding checklist item security_briefing_done is ticked.',
+    iso: ['A.6.3'],
+    flows: ['Onboarding checklist'],
+  },
+
+  // ── OFFBOARDING ────────────────────────────────────────────────────────
+  {
+    term: 'Deprovisioning / offboarding',
+    cat: 'User lifecycle',
+    badge: 'Process',
+    badgeColor: '#791F1F',
+    short: 'The structured process of revoking all access when someone leaves the company.',
+    def: 'Deprovisioning is the reverse of provisioning. ISO 27001 A.6.5 requires that upon termination, access rights are removed immediately. The system enforces a minimum 5-day notice window so IT has time to prepare, but on the actual last day (or when executed by an admin), the offboarding runs atomically: all sessions revoked, MFA disabled, API keys revoked, account status set to deprovisioned — all in a single database operation. Three people must sign off: HR, IT, and the employee\'s manager. The offboarding checklist and all evidence is permanently retained in the audit trail.',
+    example: 'A developer gives notice on 20 April with last day 1 May (11 days notice — more than the minimum 5). HR initiates offboarding, enters target_date=2026-05-01. Status changes to offboarding. The account still works until midnight 1 May when the cron job triggers executeOffboarding(). Sessions revoked, MFA gone, API keys dead. The developer cannot log in on 2 May.',
+    iso: ['A.6.5'],
+    flows: ['Offboarding'],
+  },
+  {
+    term: 'Midnight auto-exec',
+    cat: 'User lifecycle',
+    badge: 'Automation',
+    badgeColor: '#854F0B',
+    short: 'A scheduled job that automatically runs the full offboarding at 00:00 on the target date.',
+    def: 'Rather than relying on an IT person to remember to click "execute offboarding" at the right moment, the system has a cron job (a scheduled task) that runs every day at midnight. It queries the database for any offboarding records where target_date = today and all_access_revoked = false. For each one it finds, it automatically calls executeOffboarding() — the same function an IT admin would call manually. This prevents the common failure mode where an employee\'s last day passes and they still have active credentials because someone forgot to click the button.',
+    example: 'IT forgets to execute an offboarding manually. At 00:00 on 1 May, the cron job runs, finds 1 pending offboarding for target_date=2026-05-01, calls executeOffboarding("user-uuid", "system_auto"), all access is revoked, and the audit log records actor=system_auto.',
+    iso: ['A.6.5'],
+    flows: ['Offboarding'],
+  },
+  {
+    term: '3-way sign-off (HR + IT + Manager)',
+    cat: 'User lifecycle',
+    badge: 'Control',
+    badgeColor: '#0F6E56',
+    short: 'All three parties must formally confirm the offboarding is complete — no single person can sign alone.',
+    def: 'The offboarding checklist is only marked "completed" when three separate people have signed off: an HR representative (confirms employment ended, equipment returned), an IT representative (confirms all digital access revoked and devices wiped), and the employee\'s direct manager (confirms knowledge transfer is done). This separation of duties means no single person can fraudulently close an offboarding without the others knowing. Each sign-off records the user ID of who signed and the timestamp. If all three are not collected, the checklist remains open — visible to auditors as incomplete.',
+    example: 'IT marks their steps complete on 1 May. HR signs off on 2 May. The manager is slow — they sign off on 5 May. Only at that point does completed=true get written to the offboarding_checklists table. The audit trail shows the 4-day gap between IT sign-off and manager sign-off, which might prompt a question in the next security review.',
+    iso: ['A.6.5'],
+    flows: ['Offboarding'],
+  },
+
+  // ── AUDIT ────────────────────────────────────────────────────────────────
+  {
+    term: 'Audit log',
+    cat: 'Audit & logging',
+    badge: 'Core requirement',
+    badgeColor: '#D4537E',
+    short: 'An immutable, chronological record of every security-relevant event in the system.',
+    def: 'The audit log is the single most important evidence store for ISO 27001 compliance. Every significant action — login, logout, permission denied, user created, role changed, account locked, backup accessed, offboarding executed — is recorded as a row in the audit_logs table. The table is configured with PostgreSQL rules that prevent any UPDATE or DELETE operations, making it physically immutable: once written, a log entry cannot be altered or erased. Logs are retained for 12 months active and 3 years archived. A hash chain links each entry to the previous one, allowing tampering to be detected.',
+    example: 'An auditor asks: "Can you prove that Tom\'s access was revoked the same day he left?" The security officer queries the audit log for subject_user_id = Tom\'s ID and event_type IN [\'OFFBOARD.EXECUTED\', \'AUTH.ALL_SESSIONS_REVOKED\']. The log shows both events at 00:00:03 on 2026-05-01 — three seconds after midnight, matching the cron job run.',
+    iso: ['A.8.15', 'A.8.16'],
+    flows: ['Audit log write'],
+  },
+  {
+    term: 'SHA-256 hash chain',
+    cat: 'Audit & logging',
+    badge: 'Tamper-evidence',
+    badgeColor: '#993556',
+    short: 'Each log entry contains a hash of the previous entry — making any tampering detectable.',
+    def: 'The hash chain works like a blockchain for the audit log. When a new event is logged, the system fetches the hash column from the most recent existing log entry. It then creates a new hash by running SHA-256 on: the new event\'s timestamp + event type + outcome + actor ID + subject ID + the previous hash. This new hash is stored in the new log entry. If someone modifies any log entry (changes a timestamp, swaps an actor, alters an outcome), the hash of that entry changes — which breaks the chain of every subsequent entry. Running the verify-chain endpoint reveals exactly which entry was tampered with.',
+    example: 'Events 1, 2, 3 have hashes H1, H2, H3 where H2 = SHA-256(event2_data + H1) and H3 = SHA-256(event3_data + H2). An attacker changes the outcome in event 2 from "failure" to "success". H2 is now wrong (it no longer matches the data). H3 = SHA-256(event3_data + H2_correct) but the stored H3 was calculated with H2_wrong — they no longer match. Verification fails at entry 2.',
+    iso: ['A.8.15'],
+    flows: ['Audit log write'],
+  },
+  {
+    term: 'Winston JSONL',
+    cat: 'Audit & logging',
+    badge: 'Technology',
+    badgeColor: '#888780',
+    short: 'A structured log file format (one JSON object per line) used for SIEM ingestion.',
+    def: 'Winston is the Node.js logging library used to write audit events to log files in addition to the database. JSONL (JSON Lines) means every log entry is a valid JSON object on its own line — the file is not a JSON array, just one object per line. This format is the industry standard for SIEM (Security Information and Event Management) ingestion. Tools like Splunk, Elastic/Kibana, Datadog, and AWS CloudWatch can all ingest JSONL directly. The log files are rotated daily, each kept for 365 days. Having both database storage (for queries) and file storage (for SIEM and backup) provides redundancy.',
+    example: 'A SIEM rule detects: "More than 3 AUTH.LOGIN_FAILED events from the same IP within 60 seconds." It reads the JSONL file stream, finds 5 such events from 192.168.1.50 in 30 seconds, and triggers an alert to the security team\'s Slack channel. Without JSONL output, the SIEM would need to query the database directly — slower and more complex.',
+    iso: ['A.8.15', 'A.8.16'],
+    flows: ['Audit log write'],
+  },
+  {
+    term: 'SIEM (Security Information and Event Management)',
+    cat: 'Audit & logging',
+    badge: 'System',
+    badgeColor: '#888780',
+    short: 'An external system that aggregates logs from all sources and detects patterns indicating threats.',
+    def: 'A SIEM collects logs from every system in the company (IAM, email, cloud infrastructure, endpoints) and runs real-time analysis to detect suspicious patterns that would be invisible when looking at any single system in isolation. Examples: a user who logs in from London at 9am and from Tokyo at 9:30am (impossible travel), a spike in failed logins across multiple accounts (credential stuffing attack), or an admin who suddenly starts accessing backup data at 2am. The IAM system outputs its audit events in JSONL format to a configurable SIEM endpoint.',
+    example: 'The IAM JSONL stream goes to Splunk. A Splunk alert fires: "User anna.l has had 3 successful logins from 3 different countries in the last 6 hours." The security officer is notified. They review the audit log, see the IPs, and determine anna\'s credentials were compromised. They revoke all sessions via the admin dashboard. The attacker is locked out.',
+    iso: ['A.8.16'],
+    flows: ['Audit log write'],
+  },
+
+  // ── ISO CONTROLS ──────────────────────────────────────────────────────
+  {
+    term: 'ISO A.5.15 — Access control policy',
+    cat: 'ISO 27001 controls',
+    badge: 'ISO control',
+    badgeColor: '#534AB7',
+    short: 'The requirement to have a documented, enforced policy defining who can access what.',
+    def: 'This control requires organisations to define and enforce rules about who has access to what. In this system it is implemented through the roles, permissions, and role_permissions tables, combined with the requirePermission() middleware that enforces those rules on every API call. The policy is documented in the roles table (describing what each role can do) and in the codebase (the actual enforcement logic). An auditor satisfying this control would look at: the role definitions, the permission matrix, examples of access denials being logged, and the approval workflow for role assignments.',
+    example: 'Audit question: "Do you have an access control policy, and is it enforced?" Answer: "Yes — we have 6 defined roles with explicit permission assignments in our database. Every API endpoint is protected by requirePermission(). All denials are logged. All role changes require manager approval and written justification." Evidence: the role_permissions table export + audit log sample.',
+    iso: ['A.5.15'],
+    flows: ['Permission check', 'Role change'],
+  },
+  {
+    term: 'ISO A.5.16 — Identity management',
+    cat: 'ISO 27001 controls',
+    badge: 'ISO control',
+    badgeColor: '#534AB7',
+    short: 'Every person must have their own unique identity — no shared accounts.',
+    def: 'This control requires that every person who accesses the system is uniquely identifiable. Shared accounts (one login used by multiple people) are explicitly prohibited because they make audit trails useless — you cannot tell which person did what. The system has an is_shared_account flag that is always false; the middleware blocks any shared account from authenticating. Every user account is tied to a specific email address, provisioned through a formal request, and deprovisioned immediately when the person leaves.',
+    example: 'A team asks: "Can we have a shared login for our team\'s admin tasks?" Answer: No — this is prohibited by ISO A.5.16 and enforced in code. Each team member must have their own account. If you need shared access to a resource, use a service account with its own credentials that is assigned to a named owner.',
+    iso: ['A.5.16'],
+    flows: ['Provision user', 'Onboarding checklist'],
+  },
+  {
+    term: 'ISO A.5.17 — Authentication information management',
+    cat: 'ISO 27001 controls',
+    badge: 'ISO control',
+    badgeColor: '#534AB7',
+    short: 'Passwords must be strong, never stored in plaintext, never reused, and must expire.',
+    def: 'This control covers everything about how authentication secrets are managed. The requirements include: passwords must be sufficiently complex, they must be stored as one-way hashes (not reversible), old passwords must not be reused, and credentials must expire and be changed regularly. The system satisfies this through bcrypt hashing, zxcvbn strength checking, 12-password history, 90/30-day expiry, and complexity rules enforced server-side. Password resets must go through a verified channel (email with a time-limited token) — not by an admin who can just see or set passwords directly.',
+    example: 'Audit question: "How do you store passwords?" Answer: "bcrypt with cost factor 12 — one-way hash, never reversible, never logged. We check the last 12 hashes on every change to prevent reuse. Passwords expire after 90 days (30 for admins). The policy is enforced server-side — the UI cannot bypass it."',
+    iso: ['A.5.17'],
+    flows: ['Password change', 'Login flow'],
+  },
+  {
+    term: 'ISO A.5.18 — Access rights',
+    cat: 'ISO 27001 controls',
+    badge: 'ISO control',
+    badgeColor: '#534AB7',
+    short: 'Access must be granted based on documented business need, approved by a manager, and revoked when no longer needed.',
+    def: 'This is arguably the most operationally demanding ISO 27001 control. It requires: (1) access is only granted when there is a documented business reason, (2) someone with appropriate authority approves it, (3) access is reviewed periodically, and (4) access is removed promptly when no longer needed. The provisioning_requests table, the justification requirement, the approval workflow, the quarterly access reviews, and the immediate revocation on offboarding and role change all exist to satisfy this single control.',
+    example: 'Audit question: "How do you ensure access rights are appropriate and regularly reviewed?" Answer: "Every access grant requires a written justification and manager approval — stored permanently in provisioning_requests. We run quarterly access reviews via the access_reviews table. On any role change or offboarding, the old access is revoked immediately and all sessions are invalidated. We can produce the full audit trail for any user showing every grant, change, and revocation with timestamps and approvers."',
+    iso: ['A.5.18'],
+    flows: ['Provision user', 'Role change', 'Access review', 'Offboarding'],
+  },
+  {
+    term: 'ISO A.6.5 — Responsibilities after termination',
+    cat: 'ISO 27001 controls',
+    badge: 'ISO control',
+    badgeColor: '#534AB7',
+    short: 'When someone leaves, all their access must be revoked immediately — not eventually.',
+    def: 'The word "immediately" in ISO A.6.5 is not figurative. This control requires that information security responsibilities do not continue after employment ends, and access rights are removed promptly. In this system "promptly" means at midnight on the last day of employment at the latest, enforced automatically by the cron job. The offboarding covers not just the IAM system but all systems: email, backup, API keys, physical access. The 3-way sign-off ensures that removal across all systems is documented and verified.',
+    example: 'An employee is terminated for disciplinary reasons. HR immediately initiates emergency offboarding (the 5-day minimum can be overridden by an admin in this case). IT executes the offboarding immediately: all sessions revoked within 60 seconds, API keys deleted, email suspended. Physical security changes the door code. The audit log records the exact second of each action.',
+    iso: ['A.6.5'],
+    flows: ['Offboarding'],
+  },
+  {
+    term: 'ISO A.8.5 — Secure authentication',
+    cat: 'ISO 27001 controls',
+    badge: 'ISO control',
+    badgeColor: '#534AB7',
+    short: 'Authentication must use multiple factors, enforce lockouts, and time out idle sessions.',
+    def: 'This control requires that authentication is secure by design. The requirements include: use of multi-factor authentication (especially for privileged accounts), protection against brute force (account lockout), secure session management (timeouts, token hygiene), and controls over password quality. Every aspect of the login flow, MFA verification, session management, and password policy in this system exists to satisfy A.8.5. The control is one of the most concrete in the standard — auditors will test it directly.',
+    example: 'An auditor does a live test: "I will attempt to brute-force a test account." After 5 attempts the account locks. "I will try to use an old session token." Rejected — expired. "I will try to access an admin endpoint with a developer account." Forbidden — permission check. The auditor marks A.8.5 as satisfied.',
+    iso: ['A.8.5'],
+    flows: ['Login flow', 'MFA verification', 'Permission check'],
+  },
+  {
+    term: 'ISO A.8.15 — Logging',
+    cat: 'ISO 27001 controls',
+    badge: 'ISO control',
+    badgeColor: '#534AB7',
+    short: 'Security-relevant events must be logged, protected from tampering, and retained for sufficient time.',
+    def: 'This control requires that logs exist, that they capture the right events (who, what, when, outcome), that they are protected from modification (immutable), and that they are kept long enough to be useful for investigations. The audit_logs table satisfies all four: it captures every security event with full context, it is made immutable via PostgreSQL rules, the hash chain detects any tampering, and entries are retained for 12 months active and 3 years archived. The log also mirrors to JSONL files for SIEM ingestion.',
+    example: 'An incident occurs. The security team runs: SELECT * FROM audit_logs WHERE subject_user_id = \'suspect-uuid\' ORDER BY event_time DESC. They get a complete timeline of everything that happened to and from that account: every login, every access, every permission denial — all timestamped and chained. The hash chain verification confirms no entries have been modified since they were written.',
+    iso: ['A.8.15'],
+    flows: ['Audit log write'],
+  },
+
+  // ── ACCESS REVIEW ──────────────────────────────────────────────────────
+  {
+    term: 'Access review',
+    cat: 'Access review',
+    badge: 'Process',
+    badgeColor: '#3B6D11',
+    short: 'A scheduled, formal check that every user\'s access is still appropriate for their current role.',
+    def: 'An access review is a periodic exercise where a designated reviewer (usually a team lead or manager) looks at every user in their team and decides: does this person still need this level of access? Decisions are Retain (access is appropriate), Downgrade (reduce to a lower permission level), or Revoke (remove access entirely). Quarterly reviews are required for privileged accounts; annual reviews for standard users. The review is tracked in the access_reviews and access_review_items tables. Overdue reviews trigger automated alerts.',
+    example: 'The engineering team\'s quarterly review is due. Sara (CTO) opens the review dashboard. She sees 8 developers listed. For 7 she selects Retain. For one who moved to a non-technical role last month, she selects Revoke. The system immediately revokes that person\'s developer role and invalidates their sessions. Sara signs off. The review is marked complete.',
+    iso: ['A.5.18'],
+    flows: ['Access review'],
+  },
+  {
+    term: 'Cron / scheduled job',
+    cat: 'Access review',
+    badge: 'Automation',
+    badgeColor: '#888780',
+    short: 'An automated task that runs on a defined schedule without human intervention.',
+    def: 'A cron job is a piece of code that runs automatically at a specified time. The system has three cron jobs: (1) Daily at 00:00 — execute pending offboardings. (2) Daily at 07:00 — flag expired passwords and set force_password_change. (3) Daily at 08:00 — check for overdue access reviews, update their status to "overdue," and send alerts to the reviewer. These automated checks ensure that compliance obligations are met even when no human is actively watching. The cron job is implemented using the node-schedule library.',
+    example: 'It is 08:00 on Monday. The cron job runs. It queries: SELECT * FROM access_reviews WHERE due_date < CURRENT_DATE AND status IN (\'pending\', \'in_progress\'). It finds the Finance team review was due Friday and is still pending. It updates status=overdue and logs REVIEW.OVERDUE to the audit trail. An email alert goes to the Finance reviewer.',
+    iso: ['A.5.18'],
+    flows: ['Access review', 'Offboarding'],
+  },
+  {
+    term: 'Retain / Downgrade / Revoke',
+    cat: 'Access review',
+    badge: 'Decision options',
+    badgeColor: '#3B6D11',
+    short: 'The three possible outcomes of an access review decision for each user.',
+    def: 'For each user in an access review, the reviewer must make one of three explicit decisions. Retain means current access is appropriate and justified — no change. Downgrade means access should be reduced (e.g. from developer to read_only) — the role change is applied immediately after the review is signed off. Revoke means access should be removed entirely — this is executed immediately, not after sign-off, because it represents a security decision that should not wait. The justification for each decision is recorded. Decisions cannot be "Pending" indefinitely — the review cannot be marked complete until all users have a decision.',
+    example: 'Reviewer sees: User A — still in same developer role, review decision Retain. User B — moved to a sales role 2 months ago but still has developer permissions, decision Revoke (executed immediately: sessions revoked, role removed). User C — became a team lead, decision Downgrade from admin to developer (requires separate role change request). Review signed off.',
+    iso: ['A.5.18'],
+    flows: ['Access review'],
+  },
+];
+
+const CATS = ['All', ...new Set(TERMS.map(t=>t.cat))];
+
+let activeCat = 'All';
+let activeCard = null;
+
+function render() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const filtered = TERMS.filter(t => {
+    const matchCat = activeCat === 'All' || t.cat === activeCat;
+    const matchQ = !q || t.term.toLowerCase().includes(q) || t.def.toLowerCase().includes(q) || t.short.toLowerCase().includes(q) || t.iso.some(i=>i.toLowerCase().includes(q));
+    return matchCat && matchQ;
+  });
+
+  document.getElementById('count').textContent = `${filtered.length} term${filtered.length!==1?'s':''} shown`;
+
+  const byCat = {};
+  filtered.forEach(t => { if(!byCat[t.cat]) byCat[t.cat]=[]; byCat[t.cat].push(t); });
+
+  const out = document.getElementById('out');
+  if(!filtered.length) { out.innerHTML='<div class="g-none">No terms match your search.</div>'; return; }
+
+  const showCats = activeCat === 'All' ? Object.keys(byCat) : [activeCat];
+  out.innerHTML = showCats.map(cat => `
+    <div class="g-section">
+      <div class="g-section-title">${cat}</div>
+      <div class="g-grid">${byCat[cat].map(t => card(t)).join('')}</div>
+    </div>
+  `).join('');
+
+  out.querySelectorAll('.g-card').forEach(el => {
+    el.addEventListener('click', () => {
+      const isExpanded = el.classList.contains('expanded');
+      out.querySelectorAll('.g-card.expanded').forEach(c=>c.classList.remove('expanded'));
+      if(!isExpanded) el.classList.add('expanded');
+    });
+  });
+}
+
+function card(t) {
+  const isoTags = t.iso.map(i=>`<span class="g-iso">${i}</span>`).join('');
+  const flowTags = t.flows.map(f=>`<span class="g-flow">${f}</span>`).join('');
+  return `<div class="g-card">
+    <div class="g-card-head">
+      <div class="g-term">${t.term}</div>
+      <span class="g-badge" style="background:${t.badgeColor}18;color:${t.badgeColor};border:0.5px solid ${t.badgeColor}40">${t.badge}</span>
+      <span class="chevron">▾</span>
+    </div>
+    <div class="g-short">${t.short}</div>
+    <div class="g-detail">
+      <div class="g-def">${t.def}</div>
+      <div class="g-example"><strong>Example:</strong> ${t.example}</div>
+      <div class="g-meta">${isoTags}${flowTags}</div>
+    </div>
+  </div>`;
+}
+
+const catsEl = document.getElementById('cats');
+CATS.forEach(c => {
+  const btn = document.createElement('button');
+  btn.className = 'g-cat' + (c==='All'?' on':'');
+  btn.textContent = c;
+  btn.onclick = () => {
+    document.querySelectorAll('.g-cat').forEach(b=>b.classList.remove('on'));
+    btn.classList.add('on');
+    activeCat = c;
+    render();
+  };
+  catsEl.appendChild(btn);
+});
+
+render();
+</script>

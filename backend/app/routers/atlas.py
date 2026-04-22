@@ -392,7 +392,7 @@ async def get_meeting_context(
 
 # --- Meeting participants (per calendar event) ---
 PARTICIPANTS_COLLECTION = "calendar_event_participants"
-# --- Calendar events cache (meetings loaded from calendar API; trùng id thì update) ---
+# --- Calendar events cache (meetings loaded from calendar API; update on duplicate id) ---
 CALENDAR_EVENTS_CACHE = "calendar_events_cache"
 
 
@@ -516,7 +516,7 @@ async def sync_calendar_events(
     payload: CalendarEventsSyncPayload,
     current_user: UserResponse = Depends(get_current_active_user),
 ):
-    """Save calendar events when loading; trùng event_id thì update, không tạo bản ghi mới."""
+    """Save calendar events on load; update on duplicate event_id, do not create a new record."""
     db = get_database()
     user_id = str(current_user.id)
     now = datetime.utcnow()
@@ -592,7 +592,7 @@ async def get_meeting_history_by_email(
                     event_start=doc.get("event_start"),
                 ))
                 break
-    # Map event_id -> saved calendar event data (từ calendar_events_cache)
+    # Map event_id -> saved calendar event data (from calendar_events_cache)
     event_ids = [m.event_id for m in meetings if m.event_id]
     cache_map = {}
     if event_ids:

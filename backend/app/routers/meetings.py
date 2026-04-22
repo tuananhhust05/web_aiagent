@@ -280,7 +280,7 @@ class MeetingComment(BaseModel):
 class InterestPulseResponse(BaseModel):
     meeting_id: str
     source: Literal["computed", "cache", "none"] = "none"
-    interest_percent: Optional[int] = None          # 0-100, từ interest_score trong DB
+    interest_percent: Optional[int] = None          # 0-100, from interest_score in DB
     interest_percent_range: Optional[str] = None    # "10-20%" | "20-30%" | ... | "90%+"
     cognitive_state: Optional[str] = None           # "Attention" | "Curiosity" | ... | "Decision" | "Lost"
     crm_stage_suggestion: Optional[str] = None
@@ -311,7 +311,7 @@ INTEREST_PULSE_BANDS = [
 
 def _compute_interest_pulse(meeting_doc: dict) -> dict:
     """Map interest_score (0-100) to InterestPulse fields."""
-    # Lấy interest_score từ doc hoặc từ atlas_evaluation
+    # Get interest_score from doc or from atlas_evaluation
     score = meeting_doc.get("interest_score")
     if score is None:
         eval_data = meeting_doc.get("atlas_evaluation") or {}
@@ -885,6 +885,71 @@ async def _fetch_and_cache_transcript(
         return cached_lines
     except Exception:
         return cached_lines
+
+
+class ParticipantEmailItem(BaseModel):
+    email: str
+    name: Optional[str] = None
+    company: Optional[str] = None
+    meeting_count: int = 0
+    last_meeting_date: Optional[str] = None
+
+
+class ParticipantEmailsResponse(BaseModel):
+    emails: List[ParticipantEmailItem]
+
+
+@router.get("/participant-emails", response_model=ParticipantEmailsResponse)
+async def get_participant_emails(
+    current_user: UserResponse = Depends(get_current_active_user),
+    db: AsyncIOMotorDatabase = Depends(get_database),
+):
+    """Get unique participant emails from calendar_event_participants collection as a deal-like list."""
+    from app.routers.atlas import PARTICIPANTS_COLLECTION
+
+    user_id = str(current_user.id)
+    email_map: Dict[str, Dict[str, Any]] = {}
+
+    cursor = db[PARTICIPANTS_COLLECTION].find({"user_id": user_id})
+    async for doc in cursor:
+        mc = doc.get("main_contact") or {}
+        main_email = (mc.get("email") or "").strip().lower()
+        if main_email and "@" in main_email:
+            if main_email not in email_map:
+                email_map[main_email] = {
+                    "email": main_email,
+                    "name": mc.get("name") or "",
+                    "company": mc.get("company") or "",
+                    "meeting_count": 0,
+                    "last_meeting_date": None,
+                }
+            email_map[main_email]["meeting_count"] += 1
+            event_start = doc.get("event_start")
+            if event_start:
+                if not email_map[main_email]["last_meeting_date"] or event_start > email_map[main_email]["last_meeting_date"]:
+                    email_map[main_email]["last_meeting_date"] = event_start
+
+        for p in doc.get("participants") or []:
+            pe = (p.get("email") or "").strip().lower()
+            if not pe or "@" not in pe:
+                continue
+            if pe not in email_map:
+                email_map[pe] = {
+                    "email": pe,
+                    "name": p.get("name") or "",
+                    "company": p.get("company") or "",
+                    "meeting_count": 0,
+                    "last_meeting_date": None,
+                }
+            email_map[pe]["meeting_count"] += 1
+            event_start = doc.get("event_start")
+            if event_start:
+                if not email_map[pe]["last_meeting_date"] or event_start > email_map[pe]["last_meeting_date"]:
+                    email_map[pe]["last_meeting_date"] = event_start
+
+    result = [ParticipantEmailItem(**v) for v in email_map.values()]
+    result.sort(key=lambda x: x.last_meeting_date or "", reverse=True)
+    return ParticipantEmailsResponse(emails=result)
 
 
 @router.get("", response_model=MeetingListResponse)

@@ -668,6 +668,19 @@ const translations = {
   langEsES: { en: "Spanish (Spain)", it: "Spagnolo (Spagna)", es: "Español (España)" },
   langEsMX: { en: "Spanish (Mexico)", it: "Spagnolo (Messico)", es: "Español (México)" },
   langItIT: { en: "Italian", it: "Italiano", es: "Italiano" },
+  // Sidebar / Atlas navigation
+  'sidebar.home': { en: 'Home', it: 'Home', es: 'Inicio' },
+  'sidebar.meetingIntelligence': { en: 'Meeting Intelligence', it: 'Intelligenza Meeting', es: 'Inteligencia de Reuniones' },
+  'sidebar.meetingInsight': { en: 'Meeting Insight', it: 'Insight Meeting', es: 'Insights de Reunión' },
+  'sidebar.strategy': { en: 'Strategy', it: 'Strategia', es: 'Estrategia' },
+  'sidebar.actionReady': { en: 'Action Ready', it: 'Action Ready', es: 'Listo para la Acción' },
+  'sidebar.qnaEngine': { en: 'Q&A Engine', it: 'Motore Q&A', es: 'Motor de Q&A' },
+  'sidebar.performance': { en: 'Performance', it: 'Performance', es: 'Rendimiento' },
+  'sidebar.settings': { en: 'Settings', it: 'Impostazioni', es: 'Configuración' },
+  'sidebar.knowledge': { en: 'Knowledge', it: 'Knowledge', es: 'Conocimiento' },
+  'sidebar.record': { en: 'Record', it: 'Record', es: 'Grabar' },
+  'sidebar.meetingTemplates': { en: 'Meeting Templates', it: 'Template Meeting', es: 'Plantillas de Reunión' },
+
   // Register step 2 + forgot/reset password
   setUpAccount: { en: "Set up your account", it: "Configura il tuo account", es: "Configura tu cuenta" },
   firstName: { en: "First name", it: "Nome", es: "Nombre" },

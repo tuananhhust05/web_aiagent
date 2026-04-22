@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import { AdminAuthProvider } from './hooks/useAdminAuth'
 import Layout from './components/Layout'
 import Login from './pages/auth/Login'
 import Register from './pages/auth/Register'
@@ -78,7 +79,11 @@ import AtlasMain from './pages/AtlasMain'
 import AtlasPlaybookTemplates from './pages/AtlasPlaybookTemplates'
 import AtlasQnAPage from './pages/AtlasQnAPage'
 import AtlasInsightsPage from './pages/AtlasInsightsPage'
+import AtlasStrategyPage from './pages/AtlasStrategyPage'
 import ToDoReadyPage from './pages/ToDoReadyPage'
+import AdminLogin from './pages/admin/AdminLogin'
+import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminProtectedRoute from './components/AdminProtectedRoute'
 
 const ALLOWED_WHEN_PROFILE_INCOMPLETE = ['/supplement-profile', '/auth/welcome', '/auth/oauth-done', '/login', '/onboarding']
 
@@ -92,6 +97,19 @@ function App() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <LoadingSpinner size="lg" />
       </div>
+    )
+  }
+
+  if (pathname.startsWith('/admin')) {
+    return (
+      <AdminAuthProvider>
+        <Routes>
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/dashboard" element={<AdminProtectedRoute><AdminDashboard /></AdminProtectedRoute>} />
+          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/admin/login" replace />} />
+        </Routes>
+      </AdminAuthProvider>
     )
   }
 
@@ -158,6 +176,7 @@ function App() {
         <Route path="playbooks" element={<AtlasPlaybookTemplates />} />
         <Route path="knowledge" element={<AtlasMain />} />
         <Route path="record" element={<AtlasMain />} />
+        <Route path="strategy" element={<AtlasStrategyPage />} />
       </Route>
       {/* Profile page uses AtlasLayout sidebar */}
       <Route path="/profile" element={<AtlasLayout />}>

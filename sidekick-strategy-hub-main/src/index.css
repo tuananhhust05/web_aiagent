@@ -1,0 +1,280 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 200 33% 98%;
+    --foreground: 213 33% 16%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 213 33% 16%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 213 33% 16%;
+
+    --primary: 213 33% 16%;
+    --primary-foreground: 0 0% 98%;
+
+    --secondary: 200 33% 96%;
+    --secondary-foreground: 213 33% 16%;
+
+    --muted: 200 33% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 200 33% 96%;
+    --accent-foreground: 213 33% 16%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 210 18% 90%;
+    --input: 210 18% 90%;
+    --ring: 174 56% 55%;
+
+    --radius: 0.5rem;
+
+    /* ForSkale brand */
+    --forskale-green: 97 72% 48%;
+    --forskale-teal: 174 56% 55%;
+    --forskale-blue: 213 88% 31%;
+    --forskale-cyan: 197 86% 64%;
+    --forskale-lime: 97 68% 63%;
+
+    /* Status colors */
+    --status-great: var(--forskale-green);
+    --status-okay: var(--forskale-cyan);
+    --status-needs-work: var(--forskale-blue);
+
+    --forskale-purple: 265 60% 55%;
+
+    /* Badge backgrounds */
+    --badge-green-bg: 97 72% 94%;
+    --badge-cyan-bg: 197 86% 94%;
+    --badge-blue-bg: 213 88% 94%;
+    --badge-purple-bg: 265 60% 94%;
+
+    /* Shadows */
+    --shadow-card: 0 1px 3px rgba(30, 42, 58, 0.06);
+    --shadow-md: 0 4px 12px rgba(30, 42, 58, 0.08);
+
+    /* Atlas legacy tokens */
+    --atlas-sidebar-bg: 210 29% 15%;
+    --atlas-sidebar-fg: 210 20% 85%;
+    --atlas-sidebar-active: 168 60% 48%;
+    --atlas-sidebar-hover: 210 25% 20%;
+    --atlas-accent-green: var(--forskale-green);
+    --atlas-accent-red: 0 72% 51%;
+    --atlas-accent-orange: 38 92% 50%;
+    --atlas-accent-purple: 265 60% 55%;
+    --atlas-call-list-bg: 0 0% 100%;
+    --atlas-transcript-bg: 0 0% 100%;
+    --atlas-badge-green-bg: 97 72% 94%;
+    --atlas-badge-green-fg: 97 72% 30%;
+    --atlas-badge-red-bg: 0 72% 94%;
+    --atlas-badge-red-fg: 0 72% 40%;
+    --atlas-badge-orange-bg: 38 92% 94%;
+    --atlas-badge-orange-fg: 38 80% 35%;
+
+    /* Sidebar */
+    --sidebar-background: 224 100% 10%;
+    --sidebar-foreground: 200 33% 93%;
+    --sidebar-primary: 174 56% 55%;
+    --sidebar-primary-foreground: 224 100% 10%;
+    --sidebar-accent: 224 60% 15%;
+    --sidebar-accent-foreground: 174 56% 55%;
+    --sidebar-border: 174 56% 55% / 0.1;
+    --sidebar-ring: 174 56% 55%;
+  }
+
+  .dark {
+    --background: 220 20% 8%;
+    --foreground: 210 20% 96%;
+    --card: 220 20% 10%;
+    --card-foreground: 210 20% 96%;
+    --popover: 220 20% 10%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 210 20% 96%;
+    --primary-foreground: 220 20% 14%;
+    --secondary: 217 25% 18%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 217 25% 18%;
+    --muted-foreground: 215 14% 65%;
+    --accent: 217 25% 18%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 210 20% 96%;
+    --border: 217 25% 18%;
+    --input: 217 25% 18%;
+    --ring: 212 20% 80%;
+    --sidebar-background: 224 100% 8%;
+    --sidebar-foreground: 200 33% 90%;
+    --sidebar-primary: 174 56% 55%;
+    --sidebar-primary-foreground: 224 100% 8%;
+    --sidebar-accent: 224 60% 13%;
+    --sidebar-accent-foreground: 174 56% 55%;
+    --sidebar-border: 174 56% 55% / 0.1;
+    --sidebar-ring: 174 56% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+/* Scrollbar */
+.atlas-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.atlas-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.atlas-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+.atlas-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--forskale-teal));
+}
+
+/* Gradient utilities */
+.forskale-gradient-text {
+  background: linear-gradient(135deg, hsl(var(--forskale-green)), hsl(var(--forskale-teal)), hsl(var(--forskale-blue)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.forskale-gradient-bg {
+  background: linear-gradient(135deg, hsl(var(--forskale-green)), hsl(var(--forskale-teal)), hsl(var(--forskale-blue)));
+}
+.forskale-gradient-subtle {
+  background: linear-gradient(135deg, hsl(var(--forskale-green) / 0.06), hsl(var(--forskale-teal) / 0.06));
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in {
+  animation: scale-in 0.15s ease-out;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ForSkale Orbital Loader */
+.forskale-orb-container {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto;
+}
+
+.forskale-orb {
+  position: absolute;
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  animation: orb-path 2s infinite ease-in-out;
+}
+
+.orb-1 {
+  background: hsl(var(--forskale-teal));
+  box-shadow: 0 0 12px hsl(var(--forskale-teal));
+  animation-delay: 1.5s;
+}
+.orb-2 {
+  background: hsl(var(--forskale-cyan));
+  box-shadow: 0 0 12px hsl(var(--forskale-cyan));
+  animation-delay: 1s;
+}
+.orb-3 {
+  background: hsl(var(--forskale-green));
+  box-shadow: 0 0 12px hsl(var(--forskale-green));
+  animation-delay: 0.5s;
+}
+.orb-4 {
+  background: hsl(var(--forskale-blue));
+  box-shadow: 0 0 12px hsl(var(--forskale-blue));
+  animation-delay: 0s;
+}
+
+@keyframes orb-path {
+  0% { transform: translate(0, 0); border-radius: 50%; }
+  25% { transform: translate(104px, 0) scale(0.7); border-radius: 20%; }
+  50% { transform: translate(104px, 104px); border-radius: 50%; }
+  75% { transform: translate(0, 104px) scale(0.7); border-radius: 20%; }
+  100% { transform: translate(0, 0); border-radius: 50%; }
+}
+
+@keyframes logo-pulse {
+  0%, 100% { transform: scale(0.95); opacity: 0.6; }
+  50% { transform: scale(1.15); opacity: 1; }
+}
+
+@keyframes logo-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes particle-float-1 {
+  0%, 100% { transform: translateY(20px); opacity: 0.3; }
+  50% { transform: translateY(-20px); opacity: 0.8; }
+}
+@keyframes particle-float-2 {
+  0%, 100% { transform: translateY(15px) translateX(-5px); opacity: 0.4; }
+  50% { transform: translateY(-15px) translateX(5px); opacity: 0.7; }
+}
+@keyframes particle-float-3 {
+  0%, 100% { transform: translateY(25px) translateX(3px); opacity: 0.3; }
+  50% { transform: translateY(-25px) translateX(-3px); opacity: 0.9; }
+}
+
+/* ─── Wow Factor Loader ─── */
+@keyframes wow-spin-cw { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes wow-spin-ccw { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+@keyframes wow-orb-pulse { 0%, 100% { opacity: .5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.18); } }
+@keyframes wow-core-glow {
+  0%, 100% { box-shadow: 0 0 24px 6px hsl(var(--forskale-teal) / 0.35), 0 0 60px 10px hsl(var(--forskale-teal) / 0.12); }
+  50% { box-shadow: 0 0 40px 12px hsl(var(--forskale-teal) / 0.55), 0 0 80px 20px hsl(var(--forskale-cyan) / 0.2); }
+}
+@keyframes wow-brain-float { 0%, 100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-5px) scale(1.04); } }
+@keyframes wow-aurora {
+  0%, 100% { transform: translate(0, 0) scale(1) rotate(0deg); opacity: .7; }
+  33% { transform: translate(4%, -8%) scale(1.1) rotate(30deg); opacity: 1; }
+  66% { transform: translate(-5%, 5%) scale(.95) rotate(-20deg); opacity: .6; }
+}
+@keyframes wow-particle {
+  0% { transform: translate(0, 0) scale(1); opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: .5; }
+  100% { transform: translate(var(--wx), var(--wy)) scale(.3); opacity: 0; }
+}
+@keyframes wow-scan {
+  0% { top: 0%; opacity: 0; }
+  6% { opacity: 1; }
+  94% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+@keyframes wow-step-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes wow-dot { 0%, 80%, 100% { opacity: .2; transform: scale(.6); } 40% { opacity: 1; transform: scale(1); } }
+@keyframes wow-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes wow-outer-pulse { 0%, 100% { opacity: .12; } 50% { opacity: .3; } }
+@keyframes wow-done-pop { from { opacity: 0; transform: scale(.92) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes sparkle-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes sparkle-glow {
+  0%, 100% { box-shadow: 0 0 16px hsl(var(--forskale-teal) / 0.35), inset 0 0 10px hsl(var(--forskale-teal) / 0.12); }
+  50% { box-shadow: 0 0 32px hsl(var(--forskale-teal) / 0.7), inset 0 0 16px hsl(var(--forskale-teal) / 0.25); }
+}

@@ -1,0 +1,51 @@
+src/components/mockflow-atlas/AppLayout.tsx(1,30): error TS2307: Cannot find module '@/components/atlas/Sidebar' or its corresponding type declarations.
+src/components/mockflow-atlas/CalendarView.tsx(2,1): error TS6133: 'createPortal' is declared but its value is never read.
+src/components/mockflow-atlas/CalendarView.tsx(3,65): error TS6133: 'Brain' is declared but its value is never read.
+src/components/mockflow-atlas/CalendarView.tsx(3,72): error TS6133: 'RefreshCcw' is declared but its value is never read.
+src/components/mockflow-atlas/CalendarView.tsx(3,106): error TS6133: 'FileText' is declared but its value is never read.
+src/components/mockflow-atlas/CalendarView.tsx(4,10): error TS6133: 'getMeetingDetails' is declared but its value is never read.
+src/components/mockflow-atlas/CalendarView.tsx(6,1): error TS6133: 'Checkbox' is declared but its value is never read.
+src/components/mockflow-atlas/CalendarView.tsx(10,1): error TS6192: All imports in import declaration are unused.
+src/components/mockflow-atlas/CalendarView.tsx(11,1): error TS6192: All imports in import declaration are unused.
+src/components/mockflow-atlas/CalendarView.tsx(12,1): error TS6133: 'MEETING_PARTICIPANTS' is declared but its value is never read.
+src/components/mockflow-atlas/CalendarView.tsx(132,46): error TS6133: 'allMeetings' is declared but its value is never read.
+src/components/mockflow-atlas/CalendarView.tsx(456,9): error TS6133: 't' is declared but its value is never read.
+src/components/mockflow-atlas/CalendarView.tsx(608,9): error TS6133: 'goToToday' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(11,3): error TS6133: 'Star' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(32,102): error TS6133: 'getSectionBadge' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(538,9): error TS6133: 't' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(558,9): error TS6133: 'interestPercent' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(604,29): error TS6133: 'linkedinUrl' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(1359,3): error TS6133: 'navigate' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(2079,10): error TS6133: 'CoachPanelContent' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(2124,3): error TS6133: 'miniCardExpanded' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(2125,3): error TS6133: 'onToggleMiniCard' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(2129,3): error TS6133: 'onSwitchParticipant' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(2144,10): error TS6133: 'openSections' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(2152,9): error TS6133: 'toggleSection' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(2309,10): error TS6133: 'PrepItem' is declared but its value is never read.
+src/components/mockflow-atlas/ContactCard.tsx(2335,10): error TS6133: 'CollapsibleSection' is declared but its value is never read.
+src/components/mockflow-atlas/DealStageIndicator.tsx(2,1): error TS6133: 'cn' is declared but its value is never read.
+src/components/mockflow-atlas/DealStageIndicator.tsx(34,3): error TS6133: 'isAnimated' is declared but its value is never read.
+src/components/mockflow-atlas/EnrichedProfileCard.tsx(317,10): error TS6133: 'CopyableScript' is declared but its value is never read.
+src/components/mockflow-atlas/EnrichedProfileCard.tsx(336,10): error TS6133: 'RiskIcon' is declared but its value is never read.
+src/components/mockflow-atlas/EnrichedProfileCard.tsx(557,3): error TS6133: 'participants' is declared but its value is never read.
+src/components/mockflow-atlas/EnrichmentModal.tsx(85,9): error TS6133: 'participantInitials' is declared but its value is never read.
+src/hooks/useCalendarEvents.ts(2,53): error TS6133: 'ActionItem' is declared but its value is never read.
+src/hooks/useCalendarEvents.ts(23,9): error TS6133: 'persist' is declared but its value is never read.
+src/pages/AtlasCalendarPage.tsx(130,27): error TS2339: Property 'meetLink' does not exist on type 'Meeting'.
+src/pages/AtlasCalendarPage.tsx(139,27): error TS2339: Property 'meetLink' does not exist on type 'Meeting'.
+src/pages/AtlasCalendarPage.tsx(140,36): error TS2339: Property 'meetLink' does not exist on type 'Meeting'.
+src/pages/AtlasCalendarPage.tsx(147,43): error TS2339: Property 'meetLink' does not exist on type 'Meeting'.
+src/pages/AtlasCalendarPage.tsx(187,13): error TS2322: Type '{ meetings: Meeting[]; onMeetingClick: (meeting: Meeting) => void; selectedMeetingId: string | undefined; onSyncClick: () => Promise<void>; onRangeChange: (start: Date, end: Date) => void; }' is not assignable to type 'IntrinsicAttributes & CalendarViewProps'.
+  Property 'meetings' does not exist on type 'IntrinsicAttributes & CalendarViewProps'.
+src/pages/AtlasCalendarPage.tsx(206,13): error TS2322: Type '{ meeting: Meeting; onClose: () => void; onBotJoin: () => void; onViewProfile: (data: any) => void; }' is not assignable to type 'IntrinsicAttributes & ContactCardProps'.
+  Property 'onViewProfile' does not exist on type 'IntrinsicAttributes & ContactCardProps'.
+src/pages/AtlasCalendarPage.tsx(206,29): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/pages/AtlasCalendarPage.tsx(214,13): error TS2739: Type 'EnrichedProfileData' is missing the following properties from type 'EnrichedProfileData': summary, cognitiveProfile, approach, openingScript, cognitiveRisks
+src/pages/AtlasCalendarPage.tsx(226,13): error TS2322: Type '{ meeting: Meeting; onClose: () => void; onBotJoin: () => void; onViewProfile: (data: any) => void; }' is not assignable to type 'IntrinsicAttributes & ContactCardProps'.
+  Property 'onViewProfile' does not exist on type 'IntrinsicAttributes & ContactCardProps'.
+src/pages/AtlasCalendarPage.tsx(226,29): error TS7006: Parameter 'data' implicitly has an 'any' type.
+src/pages/AtlasCalendarPage.tsx(234,13): error TS2739: Type 'EnrichedProfileData' is missing the following properties from type 'EnrichedProfileData': summary, cognitiveProfile, approach, openingScript, cognitiveRisks
+src/pages/AtlasCalendarPage.tsx(245,9): error TS2322: Type '{ open: boolean; onClose: () => void; onConnect: () => Promise<void>; }' is not assignable to type 'IntrinsicAttributes & RegistrationWizardProps'.
+  Property 'onConnect' does not exist on type 'IntrinsicAttributes & RegistrationWizardProps'.

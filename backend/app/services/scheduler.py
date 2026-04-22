@@ -414,7 +414,7 @@ class CampaignScheduler:
                     # Send Telegram message if contact has Telegram username
                     if telegram_username:
                         try:
-                            # Kiểm tra và thêm @ nếu chưa có
+                            # Check and add @ if missing
                             if not telegram_username.startswith('@'):
                                 telegram_username = f"@{telegram_username}"
                                 logger.info(f"📝 [TELEGRAM] Added @ prefix to telegram_username: {telegram_username}")
@@ -422,7 +422,7 @@ class CampaignScheduler:
                             logger.info(f"📱 [TELEGRAM] Sending Telegram message to {name} ({telegram_username})")
                             logger.info(f"📝 [TELEGRAM] Message content: {call_script[:100]}...")
                             
-                            # Sử dụng hàm send_message_to_user thay vì API call
+                            # Use send_message_to_user function instead of API call
                             success = await send_message_to_user(
                                 recipient=telegram_username,
                                 message=call_script,

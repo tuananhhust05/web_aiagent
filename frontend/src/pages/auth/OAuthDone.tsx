@@ -53,7 +53,7 @@ export default function OAuthDone() {
         localStorage.setItem('user', JSON.stringify(userData))
         refreshUser()
 
-        // Bất kể lần đăng nhập thứ mấy: nếu chưa đủ thông tin (terms/gdpr) thì luôn qua welcome → supplement-profile
+        // Regardless of login count: if profile info is incomplete (terms/gdpr), always go through welcome → supplement-profile
         const needsProfileFromUser = !userData.terms_accepted || !userData.gdpr_consent
         const mustCompleteProfile = needsProfile === true || needsProfileFromUser
 

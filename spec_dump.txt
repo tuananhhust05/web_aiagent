@@ -1,0 +1,999 @@
+
+===== strategry_feature/Logic Summarization.docx =====
+Strategy PRD: Backend Logic + Labels
+1. Core System Flow
+The backend should follow this sequence for every deal:
+Read current deal context
+Map current interest % to cognitive stage
+Load stage-specific rules
+Load active psychological guardrails
+Detect current friction/blockers
+Rank blockers by severity
+Surface only the highest-priority blocker in UI
+Generate recommended action, timing, and reasoning
+Generate use-case scenario content
+Update banner, deal list, and detail panel dynamically
+This is the core intelligence architecture of the system.
+2. Deal Object Structure
+Each deal should have the following backend fields:
+{
+  "dealId": "",
+  "dealName": "",
+  "companyName": "",
+  "industry": "",
+  "interestScore": 72,
+  "cognitiveStage": "Validation",
+  "crmStage": "Negotiation",
+  "expectedMeetingRange": "6-8",
+  "meetingCount": 6,
+  "daysInCurrentStage": 5,
+  "currentMeetingTitle": "VP Operations Review",
+  "currentSituation": "",
+  "mainFriction": "",
+  "frictionReason": "",
+  "suggestedApproach": "",
+  "recommendedAction": "",
+  "recommendedActionDue": "",
+  "timingUrgency": "Within 2 days",
+  "priorityLevel": "Critical",
+  "priorityColor": "Red",
+  "stageGoal": "",
+  "nextStage": "",
+  "targetInterestRange": "",
+  "activeGuardrails": [],
+  "allowedActions": [],
+  "blockedActions": [],
+  "successSignal": "",
+  "riskWarnings": [],
+  "topPriorities": [],
+  "alerts": [],
+  "sharedPatterns": [],
+  "interestTimeline": [],
+  "useCaseScenarioId": "S7"
+}
+The UI should never expose raw logic fields directly. It should convert them into narrative text. For example, instead of showing "72% Validation", show "Internal alignment is happening, but VP Operations still has not committed."
+3. Interest Stage Mapping Labels
+[
+  { "range": "0-10", "stage": "Cold Contact", "goal": "Move to Attention" },
+  { "range": "10-20", "stage": "Attention", "goal": "Move to Curiosity" },
+  { "range": "20-30", "stage": "Curiosity", "goal": "Move to Engagement" },
+  { "range": "30-40", "stage": "Engagement", "goal": "Move to Problem Recognition" },
+  { "range": "40-50", "stage": "Problem Recognition", "goal": "Move to Trust" },
+  { "range": "50-60", "stage": "Trust", "goal": "Move to Evaluation" },
+  { "range": "60-70", "stage": "Evaluation", "goal": "Move to Validation" },
+  { "range": "70-80", "stage": "Validation", "goal": "Move to Hard Commitment" },
+  { "range": "80-90", "stage": "Hard Commitment", "goal": "Move to Decision" },
+  { "range": "90+", "stage": "Decision", "goal": "Smooth Delivery" }
+]
+Each stage must also define:
+CRM stage
+Expected meeting count
+Psychological focus
+Allowed actions
+Blocked actions
+Active guardrails
+Success signal
+Typical timing expectations
+4. Main Friction Logic
+Backend should detect multiple blockers internally, but UI should display only the single most important blocker.
+{
+  "frictionItems": [
+    {
+      "label": "VP Operations not engaged",
+      "weight": 40,
+      "priority": "Critical"
+    },
+    {
+      "label": "Competitor still active",
+      "weight": 35,
+      "priority": "High"
+    },
+    {
+      "label": "Procurement unclear",
+      "weight": 25,
+      "priority": "High"
+    }
+  ],
+  "displayedFriction": "VP Operations not engaged"
+}
+Displayed friction should always equal the blocker with the highest weight.
+Displayed Friction = argmax(blocking_weight)
+This follows the "Rule of One" simplification logic.
+5. Strategy Card Labels
+Each deal detail card should contain these backend labels:
+{
+  "contextLabel": "",
+  "mainFrictionLabel": "",
+  "whyItMattersLabel": "",
+  "suggestedApproachLabel": "",
+  "recommendedActionLabel": "",
+  "timingLabel": "",
+  "avoidLabel": "",
+  "impactEstimate": ""
+}
+Example:
+{
+  "contextLabel": "Validation stage · Deal stalled for 5 days",
+  "mainFrictionLabel": "VP Operations has not engaged yet",
+  "whyItMattersLabel": "She holds final sign-off authority",
+  "suggestedApproachLabel": "Keep discussion low-pressure and centered on implementation concerns",
+  "recommendedActionLabel": "Ask Marco for a warm VP Ops introduction",
+  "timingLabel": "Within 2 days",
+  "avoidLabel": "Do not reopen pricing or push for contract signature",
+  "impactEstimate": "+6-8%"
+}
+6. Use-Case Scenario Object
+Each scenario button S1-S9 should load a structured object:
+{
+  "scenarioId": "S7",
+  "scenarioTitle": "Evaluation → Validation",
+  "interestRange": "70-80%",
+  "startingSituation": "",
+  "strategicGoal": "",
+  "coreChallenge": "",
+  "allowedActions": [],
+  "blockedActions": [],
+  "activeGuardrails": [],
+  "successSignal": "",
+  "timingExpectation": ""
+}
+Example for S7:
+{
+  "scenarioId": "S7",
+  "scenarioTitle": "Evaluation → Validation",
+  "interestRange": "70-80%",
+  "startingSituation": "Prospect has seen proposal and is validating fit internally",
+  "strategicGoal": "Turn at least one internal stakeholder into active champion",
+  "coreChallenge": "No visibility into internal conversations",
+  "allowedActions": [
+    "Champion development",
+    "Procurement mapping",
+    "Pilot offer",
+    "Executive call"
+  ],
+  "blockedActions": [
+    "Reopening pricing",
+    "Sending contracts without champion",
+    "Closing pressure"
+  ],
+  "activeGuardrails": [
+    "Rejection-Then-Retreat",
+    "Trigger Consistency",
+    "Mirror Prospect"
+  ],
+  "successSignal": "Unknown stakeholder introduced",
+  "timingExpectation": "6-8 meetings over 4-6 weeks"
+}
+7. Priority Logic Labels
+Every task should have a priority level:
+{
+  "priorityLevel": "Critical",
+  "priorityColor": "Red",
+  "priorityMeaning": "Blocks all other progress",
+  "priorityImpact": "Deal cannot advance until resolved"
+}
+Priority definitions:
+Critical = blocker preventing deal movement
+High = directly affects close probability
+Medium = supports momentum
+Low = passive or long-term monitoring only
+8. Alert System Labels
+The backend should support these alert types:
+[
+  {
+    "alertType": "Stall Alert",
+    "trigger": "2+ meetings at same interest %",
+    "response": "Suggest unblocker action"
+  },
+  {
+    "alertType": "Fast Alert",
+    "trigger": "20%+ jump in one meeting",
+    "response": "Recommend fast-track next steps"
+  },
+  {
+    "alertType": "Velocity Alert",
+    "trigger": "Deal progressing faster than expected",
+    "response": "Accelerate close preparation"
+  }
+]
+Example:
+{
+  "alertType": "Stall Alert",
+  "deal": "Lavazza A Modo Mio",
+  "reason": "Stuck at 72% for 5 days",
+  "recommendedResponse": "Escalate to executive sponsor"
+}
+9. Interest Signals Timeline Labels
+The backend should store interest events in this format:
+{
+  "date": "2026-04-28",
+  "status": "Interest risk",
+  "statusColor": "orange",
+  "description": "Competitor evaluation mentioned, introducing decision friction."
+}
+Allowed statuses:
+Interest increased
+Interest risk
+Initial engagement
+Each event should contain only:
+date
+status
+color
+single sentence explanation
+No percentages, no signal score, no psychology explanation. Maximum 5 entries.
+10. Banner / Personalization Labels
+The top AI banner should use grouped intelligence fields:
+{
+  "bannerHeadline": "",
+  "bannerItems": [],
+  "activeCount": 2,
+  "criticalCount": 2
+}
+Example:
+{
+  "bannerHeadline": "Two deals need champions today",
+  "bannerItems": [
+    "Lavazza and Nestlé both lack VP-level advocates",
+    "Barilla is early but momentum is rising"
+  ]
+}
+The short deal summary line should also be dynamic:
+{
+  "dealName": "Lavazza A Modo Mio",
+  "dealSummary": "VP Ops blocking",
+  "urgencyText": "Act within 48 hours"
+}
+11. Shared Pattern Detection Labels
+The backend should detect similar blockers across deals.
+{
+  "patternId": "",
+  "patternTitle": "Shared Pattern Detected",
+  "patternDescription": "Lavazza and Nestlé both need internal champions",
+  "relatedDeals": ["Lavazza", "Nestlé"],
+  "suggestedSharedStrategy": ""
+}
+This enables grouped recommendations in the dashboard.
+12. Final Product Rule
+Every generated strategy output must follow this sequence:
+Current Situation → Friction → Suggested Approach → Specific Action → Timing
+The system should never behave like a reporting dashboard. It should always behave like a senior sales strategist explaining:
+what is happening
+why it matters
+what should happen next
+why this move is safer than other options
+That is the main product philosophy behind the Strategy module.
+
+===== strategry_feature/Guardrail Logic.docx =====
+Complete Guardrail Logic System for Every Interest Transition Use-Case
+System Architecture Overview
+The guardrail logic system operates through a three-layer decision framework that ensures psychologically appropriate actions at every stage of the sales journey. The Rule Engine maps interest percentages to cognitive states, the Guardrail Activation Matrix determines which behavioral psychology principles are valid, and the Task Generator creates specific actions within those constraints. This architecture prevents the LLM from generating inappropriate recommendations while ensuring every task is grounded in proven neuroscience principles.
+Complete Use-Case Logic Framework
+USE-CASE 1: Cold Contact → Attention (0% → 10-20%)
+Cognitive State Analysis:
+ The prospect exists in a state of complete unawareness or mild recognition without engagement. Their brain’s default mode is defensive filtering, automatically categorizing unknown sales outreach as threats to be ignored. The amygdala is primed to reject anything that feels like a sales pitch. The psychological goal is to bypass threat detection and establish legitimate presence.
+Primary Psychological Friction: Stranger-danger response and attention scarcity
+Active Guardrails:
+Credentialize Early: The first touchpoint must immediately establish why you deserve attention. Reference a mutual connection, specific company research, or relevant credential within the first two sentences
+Schmooze First, Bargain Later: No business requests in initial contact. Focus on human connection points like shared interests, mutual connections, or genuine compliments
+Lead with Honesty regarding Drawbacks: Mention a small limitation or qualification to signal authenticity and reduce skepticism
+Rule Engine Logic:
+{
+  "interest_range": [0, 20],
+  "cognitive_state": "Cold_Contact_to_Attention",
+  "psychological_friction": "stranger_danger_and_attention_scarcity",
+  "allowed_actions": [
+    "send_credentialized_introduction",
+    "share_relevant_industry_insight",
+    "connect_via_mutual_contact",
+    "send_company_specific_research",
+    "share_educational_content"
+  ],
+  "blocked_actions": [
+    "request_demo",
+    "send_pricing",
+    "mention_competitors",
+    "request_meeting",
+    "send_proposal"
+  ],
+  "guardrails_active": [
+    "credentialize_early",
+    "schmooze_first_bargain_later",
+    "lead_with_honesty_drawbacks"
+  ],
+  "timing_constraints": "max_1_touchpoint_per_week",
+  "tone_requirement": "conversational_non_sales"
+}
+Generated Task Cards:
+CRITICAL: Send personalized introduction referencing recent company announcement
+HIGH: Share industry benchmark report relevant to their role
+HIGH: Connect on LinkedIn with personal note (no sales mention)
+MEDIUM: Research their technology stack for future relevance
+USE-CASE 2: Attention → Curiosity (10-20% → 20-30%)
+Cognitive State Analysis:
+ The prospect has noticed you and possibly consumed one piece of your content. They are in a neutral-to-slightly-positive state, evaluating whether you are worth further attention. The brain is asking “why should I care?” and “what’s in it for me?” The goal is to create an emotional or intellectual hook that makes them want to learn more.
+Primary Psychological Friction: Relevance doubt and priority competition
+Active Guardrails:
+Diagnose the Customer’s Top Pains: Begin identifying whether their pain is financial (revenue loss), strategic (business risk), or personal (job security/stress)
+Social Proof: Reference similar companies or roles to establish legitimacy
+Lead with Honesty regarding Drawbacks: A small admission of limitation makes subsequent claims more believable
+Rule Engine Logic:
+{
+  "interest_range": [10, 30],
+  "cognitive_state": "Attention_to_Curiosity",
+  "psychological_friction": "relevance_doubt_and_priority_competition",
+  "allowed_actions": [
+    "send_relevant_case_study",
+    "schedule_discovery_call",
+    "send_problem_focused_content",
+    "share_peer_success_story",
+    "send_diagnostic_questions"
+  ],
+  "blocked_actions": [
+    "send_pricing_information",
+    "send_formal_proposal",
+    "apply_urgency_pressure",
+    "request_executive_meeting",
+    "send_contract"
+  ],
+  "guardrails_active": [
+    "diagnose_top_pains",
+    "social_proof",
+    "lead_with_honesty_drawbacks"
+  ],
+  "timing_constraints": "max_1_touchpoint_per_5_days",
+  "tone_requirement": "educational_consultative"
+}
+Generated Task Cards:
+CRITICAL: Send case study from comparable company in same industry
+HIGH: Schedule 20-minute discovery call focused on their challenges
+HIGH: Share problem-focused article (no product mention)
+MEDIUM: Send brief diagnostic questionnaire
+USE-CASE 3: Curiosity → Engagement (20-30% → 30-50%)
+Cognitive State Analysis:
+ The prospect is actively consuming your content and asking questions. They are beginning to connect your insights to their world but have not yet internalized the problem as urgent or solvable. The brain is in an exploratory state, weighing new information against existing beliefs. The goal is to deepen problem recognition without triggering sales resistance.
+Primary Psychological Friction: Status quo bias and problem minimization
+Active Guardrails:
+Diagnose the Customer’s Top Pains (intensive): Deep dive into financial, strategic, or personal pain categories through structured discovery
+Mirror the Prospect Discreetly: Match their communication style, vocabulary, and energy level to build unconscious rapport
+Schmooze First, Bargain Later: Continue building personal relationship before any commercial discussions
+Rule Engine Logic:
+{
+  "interest_range": [20, 50],
+  "cognitive_state": "Curiosity_to_Engagement",
+  "psychological_friction": "status_quo_bias_and_problem_minimization",
+  "allowed_actions": [
+    "conduct_structured_discovery",
+    "send_problem_quantification_framework",
+    "schedule_stakeholder_mapping_call",
+    "send_roi_methodology_without_pricing",
+    "share_implementation_success_story"
+  ],
+  "blocked_actions": [
+    "send_formal_pricing",
+    "send_contract",
+    "apply_closing_pressure",
+    "request_executive_escalation",
+    "send_competitor_comparison"
+  ],
+  "guardrails_active": [
+    "diagnose_top_pains_intensive",
+    "mirror_prospect_discreetly",
+    "schmooze_first_bargain_later"
+  ],
+  "timing_constraints": "1_touchpoint_every_3_days",
+  "tone_requirement": "diagnostic_collaborative"
+}
+Generated Task Cards:
+CRITICAL: Conduct structured discovery call with pain diagnosis framework
+HIGH: Send meeting recap reflecting their pain points in their own words
+HIGH: Share ROI methodology framework (no specific pricing)
+MEDIUM: Request introduction to additional stakeholders
+MEDIUM: Send relevant implementation case study
+USE-CASE 4: Engagement → Evaluation (30-50% → 50-70%)
+Cognitive State Analysis:
+ The prospect has acknowledged they have a problem and believes your category of solution could address it. They are now evaluating whether your specific solution is the right fit and whether the investment is justified. The brain is in analytical mode, comparing options and building internal business cases. The goal is to establish value anchoring before competitors do.
+Primary Psychological Friction: Solution skepticism and budget concerns
+Active Guardrails:
+Make the First Offer to Set the Anchor: Introduce value anchoring before any competitor. Frame the cost of the problem in specific terms (“companies like yours typically lose €180,000 annually to this inefficiency”)
+Use Precise Rather Than Round Numbers: All data points should be specific (€47,350 not €50,000) to signal research depth
+Explain Premium Pricing: Begin laying groundwork for why your solution costs what it costs
+Avoid “Sushi Chef” Pricing: Present bundled, all-inclusive packages rather than itemized breakdowns
+Rule Engine Logic:
+{
+  "interest_range": [30, 70],
+  "cognitive_state": "Engagement_to_Evaluation",
+  "psychological_friction": "solution_skepticism_and_budget_concerns",
+  "allowed_actions": [
+    "send_value_anchor_document",
+    "schedule_formal_demo",
+    "send_roi_with_precise_numbers",
+    "introduce_customer_reference",
+    "send_technical_documentation",
+    "present_bundled_pricing_framework"
+  ],
+  "blocked_actions": [
+    "send_final_contract",
+    "apply_closing_pressure",
+    "bypass_evaluation_process",
+    "offer_discount_without_value_justification"
+  ],
+  "guardrails_active": [
+    "make_first_offer_set_anchor",
+    "use_precise_numbers",
+    "explain_premium_pricing",
+    "avoid_sushi_chef_pricing"
+  ],
+  "timing_constraints": "1_touchpoint_every_2_days",
+  "tone_requirement": "authoritative_consultative"
+}
+Generated Task Cards:
+CRITICAL: Send ROI document with precise financial impact calculations
+CRITICAL: Schedule formal product demo with all stakeholders
+HIGH: Introduce customer reference from comparable company
+HIGH: Send technical documentation for IT/procurement review
+MEDIUM: Present bundled pricing framework (no itemization)
+USE-CASE 5: Evaluation → Validation (50-70% → 70-80%)
+Cognitive State Analysis:
+ The prospect likes your solution and is now validating it against internal requirements, budget constraints, and competing options. Multiple stakeholders are involved, and a competitor is likely in the picture. The brain is in risk-assessment mode, looking for reasons to say no rather than yes. The goal is to reduce perceived risk while making competitor weaknesses visible without direct attacks.
+Primary Psychological Friction: Risk aversion and competitive comparison pressure
+Active Guardrails:
+Rejection-Then-Retreat (prepare): Be ready to offer a pilot program if full commitment faces resistance
+Ensure Initial Demands are Reasonable: Your proposal must be ambitious but not extreme to maintain credibility
+Soft Seats Reduce Rigidity: Physical comfort during key meetings reduces negotiation rigidity
+Negotiate on Home Territory: Host critical meetings at your office when possible
+Mirror the Prospect Discreetly: Match stakeholder communication styles in group settings
+Rule Engine Logic:
+{
+  "interest_range": [50, 80],
+  "cognitive_state": "Evaluation_to_Validation",
+  "psychological_friction": "risk_aversion_and_competitive_pressure",
+  "allowed_actions": [
+    "send_competitor_comparison_factual",
+    "offer_pilot_program_option",
+    "schedule_reference_customer_call",
+    "send_security_compliance_docs",
+    "invite_to_office_visit",
+    "send_implementation_guarantee"
+  ],
+  "blocked_actions": [
+    "attack_competitors_directly",
+    "reopen_pricing_without_justification",
+    "introduce_new_stakeholders_without_warning",
+    "apply_artificial_deadline_pressure"
+  ],
+  "guardrails_active": [
+    "rejection_then_retreat_prepare",
+    "ensure_initial_demands_reasonable",
+    "soft_seats_reduce_rigidity",
+    "negotiate_home_territory",
+    "mirror_prospect_discreetly"
+  ],
+  "timing_constraints": "1_touchpoint_every_1_to_2_days",
+  "tone_requirement": "confident_collaborative"
+}
+Generated Task Cards:
+CRITICAL: Send factual competitor comparison (features, not attacks)
+CRITICAL: Schedule reference call with comparable customer success
+HIGH: Offer structured pilot program if full commitment stalls
+HIGH: Send proactive security and compliance documentation
+MEDIUM: Invite to office visit for final validation meeting
+USE-CASE 6: Validation → Hard Commitment (70-80% → 80-90%)
+Cognitive State Analysis:
+ This is the critical transition point where the prospect has validated the solution but specific stakeholders still hold approval power. The brain is in consensus-building mode, with different stakeholders having different concerns. The primary blocker is often a specific individual (like VP Ops in the Lavazza example) who must be converted from skeptic to champion. The goal is to eliminate the final friction points that prevent organizational commitment.
+Primary Psychological Friction: Internal consensus challenges and authority concerns
+Active Guardrails:
+Trigger Consistency with Questions: Get stakeholders to verbalize their own commitment reasons (“What do you think?” followed by silence)
+Ask for the Next Step: Force the prospect to define the path forward (“Where do we go from here?”)
+Rejection-Then-Retreat (active): If resistance appears, immediately offer a smaller commitment (pilot program) to trigger reciprocity
+Don’t Be Afraid to Apologize: Address any previous friction points directly and sincerely
+Rule Engine Logic:
+{
+  "interest_range": [70, 90],
+  "cognitive_state": "Validation_to_Hard_Commitment",
+  "psychological_friction": "internal_consensus_and_authority_concerns",
+  "allowed_actions": [
+    "get_internal_champion_specific_stakeholder",
+    "map_procurement_process_detailed",
+    "send_implementation_plan_addressing_concerns",
+    "offer_pilot_program_structured",
+    "schedule_executive_sponsor_call",
+    "send_change_management_resources"
+  ],
+  "blocked_actions": [
+    "send_new_proposal",
+    "introduce_pricing_changes",
+    "bypass_blocking_stakeholder",
+    "apply_artificial_urgency"
+  ],
+  "guardrails_active": [
+    "trigger_consistency_questions",
+    "ask_for_next_step",
+    "rejection_then_retreat_active",
+    "apologize_sincerely_if_needed"
+  ],
+  "timing_constraints": "daily_touchpoints_acceptable",
+  "tone_requirement": "warm_direct_confident"
+}
+Generated Task Cards:
+CRITICAL: Get VP Ops internal champion through Marco introduction
+HIGH: Send competitor elimination document to key stakeholders
+HIGH: Map complete procurement process with CFO/Legal
+MEDIUM: Send implementation plan addressing specific VP concerns
+MEDIUM: Schedule executive sponsor call if progress stalls
+USE-CASE 7: Hard Commitment → Decision (80-90% → 90%+)
+Cognitive State Analysis:
+ The prospect has committed internally but has not yet signed the contract. They are in a state of “decision made but not executed.” The brain is vulnerable to choice overload and second-guessing. Any new information or complexity can restart the evaluation cycle. The goal is to make the path to signature as frictionless as possible while reinforcing the decision already made.
+Primary Psychological Friction: Decision fatigue and choice overload
+Active Guardrails:
+Limit Your Claims: Maximum three final value points. More than three creates choice overload and introduces doubt
+Trigger Consistency with Questions: “What do you think?” forces them to verbalize commitment, creating psychological lock-in
+Negotiate on Home Territory: Contract review meetings should happen at your office for home-status confidence
+Favor the Right Ear: In face-to-face meetings, position yourself to their right when making final statements
+Rule Engine Logic:
+{
+  "interest_range": [80, 95],
+  "cognitive_state": "Hard_Commitment_to_Decision",
+  "psychological_friction": "decision_fatigue_and_choice_overload",
+  "allowed_actions": [
+    "send_contract_for_review",
+    "schedule_contract_signing_meeting",
+    "send_final_value_summary_max_3_points",
+    "introduce_implementation_team",
+    "map_signature_logistics",
+    "schedule_kickoff_preparation"
+  ],
+  "blocked_actions": [
+    "introduce_new_features",
+    "reopen_agreed_terms",
+    "send_additional_marketing_content",
+    "apply_aggressive_deadline_pressure"
+  ],
+  "guardrails_active": [
+    "limit_claims_max_3",
+    "trigger_consistency_questions",
+    "negotiate_home_territory",
+    "favor_right_ear"
+  ],
+  "timing_constraints": "respond_within_4_hours",
+  "tone_requirement": "calm_confident_celebratory"
+}
+Generated Task Cards:
+CRITICAL: Send contract for legal review with clear next steps
+CRITICAL: Schedule contract signing meeting at your office
+HIGH: Send final value summary (exactly 3 points maximum)
+MEDIUM: Introduce dedicated implementation team member
+MEDIUM: Map signature logistics and timeline
+USE-CASE 8: Decision → Closed Won (90%+ → 100%)
+Cognitive State Analysis:
+ The contract is signed or about to be signed. The prospect is transitioning from buyer to customer. The brain is vulnerable to “buyer’s remorse” - the psychological phenomenon where large commitments trigger immediate second-guessing. The goal is to reinforce the decision, create immediate value, and prevent post-purchase regret.
+Primary Psychological Friction: Buyer’s remorse and transition anxiety
+Active Guardrails:
+Trigger Consistency (post-sale): Reference the specific reasons they gave for choosing you during sales process
+Schmooze First (relationship continuity): Personal warmth from sales rep during handoff prevents feeling “sold and abandoned”
+Don’t Be Afraid to Apologize: Address any implementation hiccups immediately and directly
+Rule Engine Logic:
+{
+  "interest_range": [90, 100],
+  "cognitive_state": "Decision_to_Closed_Won",
+  "psychological_friction": "buyers_remorse_and_transition_anxiety",
+  "allowed_actions": [
+    "schedule_implementation_kickoff",
+    "introduce_dedicated_support_manager",
+    "send_personalized_welcome_message",
+    "schedule_week_1_checkin",
+    "share_success_metrics_framework"
+  ],
+  "blocked_actions": [
+    "upsell_immediately",
+    "introduce_contacts_without_warmth",
+    "send_generic_onboarding",
+    "request_case_study_too_early"
+  ],
+  "guardrails_active": [
+    "trigger_consistency_post_sale",
+    "schmooze_relationship_continuity",
+    "apologize_for_hiccups"
+  ],
+  "timing_constraints": "same_day_response",
+  "tone_requirement": "warm_celebratory_reassuring"
+}
+Generated Task Cards:
+CRITICAL: Schedule implementation kick-off within 48 hours
+HIGH: Introduce dedicated support manager with personal handoff
+HIGH: Send welcome message referencing their specific success goals
+MEDIUM: Schedule week-one check-in call
+MEDIUM: Share success metrics framework
+USE-CASE 9: Lost → Re-Engage (0% Recovery → 20%+)
+Cognitive State Analysis:
+ The deal was lost to a competitor, timing issues, or budget constraints. The prospect’s brain has made a decision and committed to it (consistency principle working against you). Attempting immediate re-engagement triggers defensiveness and confirms the rejection was correct. The goal is to remain a positive, non-threatening presence until natural re-engagement triggers occur.
+Primary Psychological Friction: Defensive commitment to previous decision
+Active Guardrails:
+Don’t Be Afraid to Apologize: Acknowledge any friction or missteps in the sales process sincerely
+Schmooze First (recovery): All re-engagement must be value-based with zero sales intent
+Lead with Honesty: Accept the loss gracefully without defensiveness
+Limit Your Claims: No arguments about why they made the wrong choice
+Rule Engine Logic:
+{
+  "interest_range": [0, 0],
+  "cognitive_state": "Lost_to_ReEngage",
+  "psychological_friction": "defensive_commitment_to_previous_decision",
+  "allowed_actions": [
+    "send_gracious_loss_acknowledgment",
+    "document_loss_reasons_internally",
+    "add_to_quarterly_newsletter",
+    "schedule_6_month_checkin_reminder",
+    "monitor_competitor_satisfaction_signals"
+  ],
+  "blocked_actions": [
+    "attempt_immediate_re_pitch",
+    "criticize_chosen_competitor",
+    "ask_why_they_chose_competitor",
+    "offer_desperate_discount",
+    "apply_any_sales_pressure"
+  ],
+  "guardrails_active": [
+    "apologize_sincerely",
+    "schmooze_recovery_mode",
+    "lead_with_honesty",
+    "limit_claims_zero"
+  ],
+  "timing_constraints": "max_1_touchpoint_per_quarter",
+  "tone_requirement": "humble_gracious_value_only"
+}
+Generated Task Cards:
+LOW: Send gracious thank-you message acknowledging their decision
+LOW: Document loss reasons for process improvement
+LOW: Add to quarterly value newsletter (no sales content)
+LOW: Set 6-month calendar reminder for soft re-engagement check
+Master Guardrail Activation Matrix
+The system uses this matrix to determine which psychological principles are valid at each stage:
+{
+  "guardrail_activation_by_interest_range": {
+    "0_to_20": {
+      "primary": ["credentialize_early", "schmooze_first", "lead_with_honesty"],
+      "secondary": [],
+      "blocked": ["make_first_offer", "trigger_consistency", "rejection_retreat"]
+    },
+    "20_to_50": {
+      "primary": ["diagnose_top_pains", "mirror_prospect", "social_proof"],
+      "secondary": ["schmooze_first"],
+      "blocked": ["limit_claims", "negotiate_home_territory", "favor_right_ear"]
+    },
+    "50_to_80": {
+      "primary": ["make_first_offer", "use_precise_numbers", "rejection_retreat"],
+      "secondary": ["explain_premium_pricing", "soft_seats"],
+      "blocked": ["credentialize_early"]
+    },
+    "80_to_95": {
+      "primary": ["trigger_consistency", "ask_next_step", "limit_claims"],
+      "secondary": ["negotiate_home_territory", "favor_right_ear"],
+      "blocked": ["diagnose_top_pains", "social_proof"]
+    },
+    "95_to_100": {
+      "primary": ["trigger_consistency_post_sale", "schmooze_continuity"],
+      "secondary": ["apologize_for_hiccups"],
+      "blocked": ["make_first_offer", "rejection_retreat"]
+    },
+    "lost": {
+      "primary": ["apologize_sincerely", "schmooze_recovery", "lead_with_honesty"],
+      "secondary": [],
+      "blocked": ["all_sales_guardrails"]
+    }
+  }
+}
+Task Card Generation Algorithm
+For each use-case button clicked in the Strategy interface, the system follows this process:
+Read Interest Transition: Identify current and target interest percentages
+Map Cognitive State: Determine psychological state and primary friction
+Activate Guardrails: Load appropriate behavioral psychology principles
+Generate Allowed Actions: Create 3-5 specific tasks within guardrail constraints
+Block Inappropriate Actions: Ensure no premature or harmful recommendations
+Personalize with LLM: Add company-specific context and reasoning
+Render as Action Ready Cards: Format as executable tasks with priorities
+Integration with Action Ready Interface
+Each generated task card should include:
+Priority Level: Critical (red), High (orange), Medium (teal), Low (gray)
+Guardrail Reference: Which psychological principle is being applied
+Impact Estimate: Expected interest percentage increase
+Timing Constraint: When the task should be completed
+Success Criteria: How to know if the task achieved its goal
+Next Stage Goal: What cognitive state this task moves toward
+This comprehensive framework ensures that every recommendation is psychologically appropriate, strategically sound, and practically executable while maintaining the safety and consistency required for a production system.
+
+===== strategry_feature/Signal Generation Dynamic way.docx =====
+The signal generation should come from a hybrid model:
+deterministic rules
+LLM extraction
+historical pattern learning
+deal-context weighting
+Do not hardcode:
+pricing question = +7 forever
+Instead do:
+pricing question in first discovery call = +3
+pricing question after demo = +8
+pricing question with procurement involved = +12
+pricing question after 30 days of silence = +1
+The signal value changes depending on context.
+1. Create Raw Signals Instead of Fixed Scores
+Your agents should first produce raw evidence objects.
+Example:
+{
+  "signal_type": "pricing_interest",
+  "source": "meeting_transcript",
+  "confidence": 0.84,
+  "context": {
+    "meeting_number": 3,
+    "crm_stage": "demo",
+    "speaker": "buyer",
+    "persona": "procurement",
+    "urgency": "high",
+    "mentioned_with_budget": true
+  },
+  "quote": "Can you share detailed pricing tiers and annual discount structure?"
+}
+The LLM only extracts the signal and context.
+The scoring engine later decides how important that signal is.
+2. Use Multi-Factor Weighting
+Every signal score should depend on multiple factors:
+signal_score =
+base_signal_weight
+× stage_multiplier
+× persona_multiplier
+× urgency_multiplier
+× recency_multiplier
+× confidence_multiplier
+Example:
+Base pricing_interest signal = +5
+If stage = Discovery → ×0.8
+If stage = Demo/Proposal → ×1.4
+If persona = Procurement → ×1.3
+If urgency high → ×1.2
+If confidence = 0.9 → ×0.9
+Final:
+5 × 1.4 × 1.3 × 1.2 × 0.9 = +9.8
+So the exact same signal becomes stronger or weaker depending on the situation.
+3. Add Signal Windows and Decay
+Signals should lose value over time.
+Example:
+Asked for pricing yesterday = +8
+Asked for pricing 14 days ago = +3
+Asked for pricing 45 days ago = +0
+You can use decay:
+signal_{effective}=signal_{base}\times e^{-\lambda t}
+Where:
+( t ) = days since signal
+( \lambda ) = decay rate
+This prevents old positive meetings from making dead deals still look healthy.
+4. Detect Compound Signals
+Single signals are weak.
+The system should detect combinations.
+Example:
+pricing question + implementation question + stakeholder invite
+This is stronger than any one individually.
+You can create compound-signal rules:
+If pricing_interest + security_review + procurement_present
+→ create "commercial_readiness" signal
+→ +15
+Another:
+If competitor_mentioned + budget_pushback + delayed_next_meeting
+→ create "deal_risk" signal
+→ -18
+This makes the system feel much smarter than simple keyword scoring.
+5. Use Meeting History Patterns
+Signals should compare current meeting behavior to prior meetings.
+Example:
+Meeting 1: only one stakeholder
+Meeting 2: pricing mentioned
+Meeting 3: procurement joins
+Meeting 4: legal joins
+This pattern implies increasing deal maturity.
+Whereas:
+Meeting 1: pricing interest
+Meeting 2: silence for 21 days
+Meeting 3: no new stakeholder
+Meeting 4: repeated objections
+This implies stalled momentum.
+So instead of just scoring single events, score trajectories:
+stakeholder_growth_rate
+objection_reduction_rate
+engagement_velocity
+response_time_trend
+meeting_frequency_trend
+6. Use Historical Won/Lost Deal Learning
+Eventually you should let the system learn from past deals.
+For example:
+In closed-won deals:
+- pricing question usually appears in meeting 2-3
+- procurement appears before meeting 4
+- security review usually happens within 10 days of proposal
+Then if a current deal follows similar patterns, the system increases interest confidence.
+You can store embeddings of previous successful deal journeys in Weaviate and compare the current deal trajectory against them.
+Example:
+{
+  "similar_deal_match": 0.81,
+  "matched_pattern": "enterprise_security_review_before_procurement",
+  "historical_win_rate": 74
+}
+Then the scoring engine can boost confidence.
+7. Use Dynamic Rule Tables
+Instead of a hardcoded table in code, store signal rules in MongoDB or Weaviate.
+Example:
+{
+  "signal_type": "pricing_interest",
+  "base_weight": 5,
+  "multipliers": {
+    "stage": {
+      "discovery": 0.8,
+      "demo": 1.2,
+      "proposal": 1.5
+    },
+    "persona": {
+      "champion": 1.0,
+      "economic_buyer": 1.4,
+      "procurement": 1.6
+    }
+  },
+  "decay_days": 21
+}
+This allows sales ops or RevOps teams to tune signal importance without engineering work.
+8. Suggested Signal Categories
+You should not only detect "questions".
+You should detect broader behavior types:
+curiosity signals
+urgency signals
+budget signals
+authority signals
+stakeholder expansion signals
+objection signals
+trust signals
+procurement signals
+legal signals
+risk signals
+disengagement signals
+champion signals
+competitor signals
+buying committee signals
+implementation readiness signals
+Example:
+"Can you send SOC2 docs?"
+This is not just a security question.
+It may create:
+security_review_signal
+procurement_readiness_signal
+serious_buying_intent_signal
+So one sentence can generate multiple signals.
+9. Practical Pipeline
+The actual runtime flow should be:
+Transcript
+→ LLM extracts evidence
+→ Evidence converted into raw signals
+→ Signals enriched with CRM context
+→ Dynamic weighting engine computes score
+→ Signal decay applied
+→ Compound signals generated
+→ Interest score updated
+→ Next-best-actions generated
+That way the system is dynamic, explainable, and tunable rather than just "LLM says deal is 72% interested".
+
+===== strategry_feature/Dynamic Startegy Logic.docx =====
+assign weighted signal:
+Then the engine computes a weighted score from 0-100.
+Example:
+Started at 42%
+Pricing question: +7
+Added procurement stakeholder: +10
+Requested ROI deck: +6
+Mentioned competitor concern: -5
+Delayed next meeting by 2 weeks: -8
+Final score = 52%
+Add a new service: Agent 5 – Interest & Momentum Engine
+Inputs:
+Meeting transcript
+Summary Agent output
+Objection Agent output
+Speaking Skill Agent output
+CRM metadata
+Email engagement
+Meeting frequency
+Stakeholder count
+Proposal status
+Previous meeting history
+Outputs:
+interest_score
+momentum_score
+stage_confidence
+next_best_actions
+risk_flags
+predicted_next_stage
+predicted_days_to_close
+Suggested Scoring Dimensions
+Instead of a single raw score, use multiple sub-scores:
+Interest Score = weighted average of all dimensions
+Example:
+Engagement: 80
+Buying Intent: 65
+Stakeholder Involvement: 50
+Urgency: 40
+Objection Severity: 55
+Trust: 75
+Final Interest = 61%
+That is much more stable and explainable than a single LLM-generated number.
+Dynamic Task Generation: Tasks should not be mapped directly from stage.
+Instead: Stage + missing evidence + risk flags = tasks
+The timeline should also be dynamic.
+Example logic:
+If interest is increasing rapidly and multiple stakeholders are engaged → shorten timeline
+If objections remain unresolved and no meetings scheduled → extend timeline
+If legal/procurement involved → add delay buffer
+If champion identified and next meeting booked → increase close probability
+Then UI can show:
+Predicted next stage in 5 days
+Predicted negotiation completion in 14 days
+Predicted close date in 28 days
+Confidence: 72%
+live signal → score → plan → task → feedback
+The AI reads the current context, reasons about why interest is where it is, and generates tasks that are specific to this deal, this meeting, this friction point.
+How the engine works, step by step:
+1. Signal aggregation (your existing agents do this) After every meeting, the Orchestrator collects signals from all your agents: what objections appeared (Objection Agent), what decisions were made (Summary Agent), tone and engagement quality (Speaking Skill Agent), historical interest velocity from MongoDB, and CRM stage/timing data.
+2. Interest scoring & cognitive state detection The Orchestrator already computes the interest %. The key addition is why the interest is at that level — is it plateauing? Dropping? Did it spike after a specific topic? This becomes the context_reason that gets passed to the Strategy AI.
+3. Strategy AI — the new planner This is the agent you're adding. It receives:
+Current interest % and cognitive state (e.g. "Trust, 58%")
+The context_reason from the scoring engine ("3 budget objections in last meeting, no champion identified")
+Queries Weaviate (a new Strategy Rules collection) with semantic search: "what tasks apply to Trust stage with budget friction and no champion?"
+Weaviate returns ranked playbook actions for that pattern. The AI re-ranks them by predicted interest delta — which task is most likely to move the needle — and generates 2–4 specific, personalized tasks with deadlines.
+4. Stage-specific task cards Instead of a static timeline, the Strategy page renders task cards per stage, each card containing AI-generated tasks with their predicted impact. These are not template sentences — they reference actual meeting content ("you mentioned price concerns → schedule a ROI workshop before the proposal").
+5. Feedback loop via Kafka When a seller marks a task complete, this fires a Kafka event back into the Orchestrator. The interest model re-scores, the Strategy AI re-plans, and new tasks appear. The timeline literally evolves as the deal progresses.
+--- TABLE 0 ---
+Signal | Effect on Interest
+Prospect asked implementation question | +8
+Prospect invited another stakeholder | +10
+Prospect asked pricing question | +7
+Prospect said "need internal approval" | +5
+Prospect challenged ROI | -4
+Prospect no-showed follow-up meeting | -12
+No email reply for 14 days | -10
+Asked for security docs | +12
+Competitor mentioned | -5
+Asked for contract | +20
+--- TABLE 1 ---
+Dimension | Weight
+Engagement | 20%
+Buying Intent | 25%
+Stakeholder Involvement | 15%
+Urgency / Timeline | 15%
+Objection Severity | 15%
+Relationship Trust | 10%
+--- TABLE 2 ---
+Example:
+Current state:
+Interest = 58%
+Trust exists
+Buying committee missing
+ROI unclear
+Procurement not involved
+Then AI generates:
+Schedule technical validation meeting with IT stakeholder
+Send ROI calculator deck
+Introduce implementation timeline
+Share customer case study from same industry
+Ask about procurement process and legal review timing | example:
+Interest = 74%
+ Negotiation stage
+ But objections detected:
+Security concern
+Budget concern
+CFO approval missing
+Generated tasks:
+Share security compliance document
+Create phased pricing proposal
+Schedule executive sponsor call
+Send CFO-facing ROI summary
+Confirm approval process and target decision date
+So tasks become contextual and evidence-driven, not static.
+--- TABLE 3 ---
+Condition | Timeline Adjustment
+Next meeting booked within 3 days | -5 days
+Procurement involved | +10 days
+No reply for 2 weeks | +14 days
+Champion identified | -7 days
+Security review pending | +5 days

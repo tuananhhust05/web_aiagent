@@ -200,20 +200,20 @@ export default function WorkflowBuilder() {
   const functionName = searchParams.get('function') || null
   const workflowId = searchParams.get('workflowId') || null
   const campaignId = searchParams.get('campaign_id') || null
-  const isCampaignMode = !!campaignId // Chỉ cho phép edit script, không edit structure
+  const isCampaignMode = !!campaignId // Only allow script editing, not structure editing
   const { user } = useAuth()
   
   const [nodes, setNodes] = useState<Node[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
   const [selectedNode, setSelectedNode] = useState<string | null>(null)
-  const [zoom, setZoom] = useState(1 / 1.75) // Zoom nhỏ lại 1.75 lần (khoảng 0.57)
+  const [zoom, setZoom] = useState(1 / 1.75) // Zoomed out by 1.75x (approximately 0.57)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectionStart, setConnectionStart] = useState<string | null>(null)
   const [tempConnection, setTempConnection] = useState<{ x: number; y: number } | null>(null)
   const [isDrawMode, setIsDrawMode] = useState(false)
   const [drawStartNode, setDrawStartNode] = useState<string | null>(null)
-  const [connectionLabel, setConnectionLabel] = useState<'yes' | 'no'>('yes') // Connection label mặc định
+  const [connectionLabel, setConnectionLabel] = useState<'yes' | 'no'>('yes') // Default connection label
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isSavingScript, setIsSavingScript] = useState(false)
@@ -241,7 +241,7 @@ export default function WorkflowBuilder() {
   // Determine if user can edit (only edit own workflows, not company/colleague)
   const isViewOnly = workflowSource !== 'my' || isCampaignMode
   
-  // Drag states - đơn giản và rõ ràng
+  // Drag states - simple and clear
   const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null)
   const [dragStartPos, setDragStartPos] = useState<{ x: number; y: number } | null>(null)
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null)
@@ -270,7 +270,7 @@ export default function WorkflowBuilder() {
     setHistory(prev => {
       const newHistory = prev.slice(0, historyIndex + 1)
       newHistory.push({ nodes: [...newNodes], connections: [...newConnections] })
-      // Giới hạn history tối đa 50 bước
+      // Limit history to a maximum of 50 steps
       if (newHistory.length > 50) {
         newHistory.shift()
         return newHistory
@@ -311,7 +311,7 @@ export default function WorkflowBuilder() {
       const newNodes = prev.map(node => 
       node.id === nodeId ? { ...node, position } : node
       )
-      // Chỉ save history khi kết thúc drag (trong mouseUp)
+      // Only save history when drag ends (in mouseUp)
       return newNodes
     })
   }, [])
@@ -390,7 +390,7 @@ export default function WorkflowBuilder() {
     
     // Arrange nodes vertically
     const CENTER_X = 400
-    const VERTICAL_SPACING = 400 // Tăng khoảng cách giữa các nodes để có nhiều không gian hơn và đường kết nối dài hơn
+    const VERTICAL_SPACING = 400 // Increase spacing between nodes for more space and longer connector paths
     const START_Y = 50
     
     const arrangedNodes = sortedNodeIds.map((nodeId, index) => {
@@ -459,7 +459,7 @@ export default function WorkflowBuilder() {
         setNodes(arrangedNodes)
         setConnections(migratedConnections)
         
-        // Center nodes trên màn hình khi load (sau khi DOM đã render)
+        // Center nodes on screen when loading (after DOM render)
         if (arrangedNodes.length > 0) {
           setTimeout(() => {
             if (canvasRef.current) {
@@ -467,19 +467,19 @@ export default function WorkflowBuilder() {
               const viewportWidth = rect.width
               const viewportHeight = rect.height
               
-              // Tính toán bounding box của nodes
+              // Calculate node bounding box
               const nodePositions = arrangedNodes.map(n => n.position)
               const minX = Math.min(...nodePositions.map(p => p.x))
-              const maxX = Math.max(...nodePositions.map(p => p.x + 312)) // 312 là node width
+              const maxX = Math.max(...nodePositions.map(p => p.x + 312)) // 312 is node width
               const minY = Math.min(...nodePositions.map(p => p.y))
-              const maxY = Math.max(...nodePositions.map(p => p.y + 120)) // 120 là node height
+              const maxY = Math.max(...nodePositions.map(p => p.y + 120)) // 120 is node height
               
               const nodesWidth = maxX - minX
               const nodesHeight = maxY - minY
               const nodesCenterX = minX + nodesWidth / 2
               const nodesCenterY = minY + nodesHeight / 2
               
-              // Tính pan để center nodes
+              // Calculate pan to center nodes
               const currentZoom = zoom
               const targetCenterX = viewportWidth / 2
               const targetCenterY = viewportHeight / 2
@@ -725,14 +725,14 @@ export default function WorkflowBuilder() {
       // Auto-arrange nodes vertically
       const arrangedNodes = arrangeNodesVertically(newNodes, newConnections)
       
-      // Center nodes trên màn hình khi load
+      // Center nodes on screen when loading
       setTimeout(() => {
         if (arrangedNodes.length > 0 && canvasRef.current) {
           const rect = canvasRef.current.getBoundingClientRect()
           const viewportWidth = rect.width
           const viewportHeight = rect.height
           
-          // Tính toán bounding box của nodes
+          // Calculate node bounding box
           const nodePositions = arrangedNodes.map(n => n.position)
           const minX = Math.min(...nodePositions.map(p => p.x))
           const maxX = Math.max(...nodePositions.map(p => p.x + 312))
@@ -744,7 +744,7 @@ export default function WorkflowBuilder() {
           const nodesCenterX = minX + nodesWidth / 2
           const nodesCenterY = minY + nodesHeight / 2
           
-          // Tính pan để center nodes
+          // Calculate pan to center nodes
           const currentZoom = zoom
           const targetCenterX = viewportWidth / 2
           const targetCenterY = viewportHeight / 2
@@ -763,9 +763,9 @@ export default function WorkflowBuilder() {
     }
   }
 
-  // Handle node mouse down - bắt đầu drag node trên canvas
+  // Handle node mouse down - start dragging node on canvas
   const handleNodeMouseDown = (e: React.MouseEvent, nodeId: string) => {
-    // Không drag nếu click vào button hoặc connection point
+    // Do not drag when clicking a button or connection point
     const target = e.target as HTMLElement
     if (target.closest('button') || target.closest('[class*="rounded-full"]')) {
       return
@@ -784,7 +784,7 @@ export default function WorkflowBuilder() {
     const mouseX = e.clientX
     const mouseY = e.clientY
     
-    // Tính toán offset từ vị trí chuột đến góc trên trái của node
+    // Calculate offset from mouse position to the node's top-left corner
     const nodeX = (node.position.x * zoom) + pan.x
     const nodeY = (node.position.y * zoom) + pan.y
     const offsetX = (mouseX - rect.left - nodeX) / zoom
@@ -802,7 +802,7 @@ export default function WorkflowBuilder() {
     const mouseX = e.clientX
     const mouseY = e.clientY
     
-    // Ưu tiên panning trước
+    // Prioritize panning first
     if (isPanning && panStartPos) {
       const deltaX = mouseX - panStartPos.x
       const deltaY = mouseY - panStartPos.y
@@ -814,7 +814,7 @@ export default function WorkflowBuilder() {
       return
     }
     
-    // Nếu đang drag node
+    // If currently dragging a node
     if (draggingNodeId && dragOffset && dragStartPos) {
       // Check if mouse moved significantly
       const deltaX = Math.abs(mouseX - dragStartPos.x)
@@ -823,7 +823,7 @@ export default function WorkflowBuilder() {
         mouseMovedRef.current = true
       }
       
-      // Tính toán vị trí mới của node (không giới hạn)
+      // Calculate node's new position (unbounded)
       const newX = (mouseX - rect.left - pan.x) / zoom - dragOffset.x
       const newY = (mouseY - rect.top - pan.y) / zoom - dragOffset.y
       
@@ -832,7 +832,7 @@ export default function WorkflowBuilder() {
         y: newY 
       })
     }
-    // Nếu đang kết nối
+    // If currently connecting
     else if (isConnecting && tempConnection) {
       const x = (mouseX - rect.left - pan.x) / zoom
       const y = (mouseY - rect.top - pan.y) / zoom
@@ -842,10 +842,10 @@ export default function WorkflowBuilder() {
 
   // Handle canvas mouse down
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    // Không pan nếu đang drag node
+    // Do not pan while dragging a node
     if (draggingNodeId) return
     
-    // Middle mouse button hoặc Space + Left click hoặc Right click để pan
+    // Use middle mouse, Space + left click, or right click to pan
     if (e.button === 1 || e.button === 2 || (e.button === 0 && spacePressed)) {
       e.preventDefault()
       e.stopPropagation()
@@ -857,13 +857,13 @@ export default function WorkflowBuilder() {
 
   // Handle canvas mouse up
   const handleCanvasMouseUp = () => {
-    // Kết thúc panning
+    // End panning
     if (isPanning) {
       setIsPanning(false)
       setPanStartPos(null)
     }
     
-    // Nếu đang drag node, save vào history khi kết thúc
+    // If currently dragging a node, save to history when finished
     if (draggingNodeId && mouseMovedRef.current) {
       saveToHistory(nodes, connections)
     }
@@ -875,11 +875,11 @@ export default function WorkflowBuilder() {
     mouseMovedRef.current = false
   }
   
-  // Refs để lưu giá trị mới nhất của zoom và pan cho wheel handler
+  // Refs to store latest zoom and pan values for wheel handler
   const zoomRef = useRef(zoom)
   const panRef = useRef(pan)
   
-  // Cập nhật refs khi zoom hoặc pan thay đổi
+  // Update refs when zoom or pan changes
   useEffect(() => {
     zoomRef.current = zoom
   }, [zoom])
@@ -888,7 +888,7 @@ export default function WorkflowBuilder() {
     panRef.current = pan
   }, [pan])
 
-  // Handle wheel zoom và pan - using native event listener to allow preventDefault
+  // Handle wheel zoom and pan - using native event listener to allow preventDefault
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -896,25 +896,25 @@ export default function WorkflowBuilder() {
     const handleWheel = (e: WheelEvent) => {
       e.preventDefault()
       
-      // Sử dụng refs để lấy giá trị mới nhất mà không cần re-register listener
+      // Use refs to get latest values without re-registering listener
       const currentZoom = zoomRef.current
       const currentPan = panRef.current
       
-      // Ctrl + Wheel hoặc Cmd + Wheel để zoom
+      // Ctrl + Wheel or Cmd + Wheel to zoom
       if (e.ctrlKey || e.metaKey) {
         const rect = canvas.getBoundingClientRect()
         const mouseX = e.clientX - rect.left
         const mouseY = e.clientY - rect.top
         
-        // Zoom point (vị trí chuột trên canvas trong không gian đã zoom)
+        // Zoom point (mouse position on canvas in zoomed space)
         const zoomPointX = (mouseX - currentPan.x) / currentZoom
         const zoomPointY = (mouseY - currentPan.y) / currentZoom
         
-        // Tính zoom mới
+        // Calculate new zoom
         const zoomDelta = e.deltaY > 0 ? 0.9 : 1.1
         const newZoom = Math.max(0.1, Math.min(3, currentZoom * zoomDelta))
         
-        // Điều chỉnh pan để zoom point giữ nguyên vị trí trên màn hình
+        // Adjust pan so the zoom point stays in the same screen position
         const newPanX = mouseX - zoomPointX * newZoom
         const newPanY = mouseY - zoomPointY * newZoom
         
@@ -928,7 +928,7 @@ export default function WorkflowBuilder() {
           y: prev.y
         }))
       }
-      // Wheel thông thường = pan
+      // Regular wheel = pan
       else {
         setPan(prev => ({
           x: prev.x - e.deltaX * 0.5,
@@ -943,7 +943,7 @@ export default function WorkflowBuilder() {
     return () => {
       canvas.removeEventListener('wheel', handleWheel)
     }
-  }, []) // Empty dependency array - chỉ register một lần
+  }, []) // Empty dependency array - register only once
 
   // Handle canvas click
   const handleCanvasClick = (e: React.MouseEvent) => {
@@ -975,7 +975,7 @@ export default function WorkflowBuilder() {
     }
   }, [showNodeTypePopup])
 
-  // Handle canvas drop - nhận node từ sidebar
+  // Handle canvas drop - receive node from sidebar
   const handleCanvasDrop = (e: React.DragEvent) => {
     e.preventDefault()
     if (draggedNodeType && canvasRef.current) {
@@ -1021,7 +1021,7 @@ export default function WorkflowBuilder() {
           target: nodeId,
           sourceHandle: 'output',
           targetHandle: handle,
-          label: connectionLabel // Lưu label đã chọn
+          label: connectionLabel // Save selected label
         }
         setConnections(prev => {
           const newConnections = [...prev, newConnection]
@@ -1056,7 +1056,7 @@ export default function WorkflowBuilder() {
         target: nodeId,
         sourceHandle: 'output',
         targetHandle: 'input',
-        label: connectionLabel // Lưu label đã chọn
+        label: connectionLabel // Save selected label
       }
       setConnections(prev => {
         const newConnections = [...prev, newConnection]
@@ -1114,7 +1114,7 @@ export default function WorkflowBuilder() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Space để pan - but not when typing in input/textarea
+      // Space to pan - but not when typing in input/textarea
       if (e.key === ' ') {
         const target = e.target as HTMLElement
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
@@ -1169,7 +1169,7 @@ export default function WorkflowBuilder() {
     }
   }, [selectedNode, deleteNode, undo, redo])
 
-  // Global mouse up để đảm bảo drag kết thúc
+  // Global mouse up to ensure drag ends
   useEffect(() => {
     const handleGlobalMouseUp = () => {
       setDraggingNodeId(null)
@@ -1182,7 +1182,7 @@ export default function WorkflowBuilder() {
   }, [])
 
 
-  // Calculate orthogonal path for connections - đường vuông góc như ô bàn cờ
+  // Calculate orthogonal path for connections - right-angle grid-like path
   const getBezierPath = (
     sourceX: number,
     sourceY: number,
@@ -1192,19 +1192,19 @@ export default function WorkflowBuilder() {
     const dx = targetX - sourceX
     const dy = targetY - sourceY
     
-    // Luôn tạo đường vuông góc (orthogonal)
-    // Nếu nodes thẳng hàng theo chiều dọc (dx rất nhỏ), tạo đường thẳng đứng
+    // Always create orthogonal paths
+    // If nodes are vertically aligned (dx is very small), create vertical line
     if (Math.abs(dx) < 5) {
       return `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`
     }
     
-    // Nếu nodes thẳng hàng theo chiều ngang (dy rất nhỏ), tạo đường thẳng ngang
+    // If nodes are horizontally aligned (dy is very small), create horizontal line
     if (Math.abs(dy) < 5) {
       return `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`
     }
     
-    // Tạo đường vuông góc: đi thẳng đứng trước, rồi đi ngang, rồi đi thẳng đứng
-    // Điểm giữa theo chiều dọc
+    // Create orthogonal path: vertical first, then horizontal, then vertical
+    // Midpoint on vertical axis
     const midY = sourceY + (dy / 2)
     
     // Path: Start -> Mid (vertical down) -> Target X (horizontal) -> Target (vertical)
@@ -1293,7 +1293,7 @@ export default function WorkflowBuilder() {
               backgroundColor: '#FAFAFA'
             }}
           >
-            {/* Transform container - không giới hạn không gian */}
+            {/* Transform container - unlimited canvas space */}
             <div
               className="absolute"
               style={{
@@ -1321,13 +1321,13 @@ export default function WorkflowBuilder() {
                   style={{
                     left: node.position.x,
                     top: node.position.y,
-                    width: '312px', // Chiều ngang node nhân 1.5 lần (208 * 1.5 = 312)
+                    width: '312px', // Node width multiplied by 1.5 (208 * 1.5 = 312)
                     userSelect: 'none'
                   }}
                   onMouseDown={(e) => handleNodeMouseDown(e, node.id)}
                   onClick={(e) => {
                     e.stopPropagation()
-                    // Chỉ handle click nếu không phải drag (mouse không di chuyển)
+                    // Only handle click when not dragging (mouse did not move)
                     if (!mouseMovedRef.current) {
                     if (isDrawMode) {
                       handleNodeClickForDraw(node.id)
@@ -1398,7 +1398,7 @@ export default function WorkflowBuilder() {
                     )}
                   </div>
                   
-                  {/* Input Connection Point - Top center for vertical layout, sát node */}
+                  {/* Input Connection Point - Top center for vertical layout, close to node */}
                   <div 
                     className={`absolute left-1/2 top-0 transform -translate-x-1/2 -translate-y-1/2 w-5 h-5 rounded-full cursor-pointer transition-all z-10 ${
                       isConnecting && connectionStart !== node.id 
@@ -1408,7 +1408,7 @@ export default function WorkflowBuilder() {
                     onClick={(e) => handleConnectionPointClick(e, node.id, 'input')}
                   />
                   
-                  {/* Output Connection Point - Bottom center for vertical layout, sát node */}
+                  {/* Output Connection Point - Bottom center for vertical layout, close to node */}
                   <div 
                     className={`absolute left-1/2 bottom-0 transform -translate-x-1/2 translate-y-1/2 w-5 h-5 rounded-full cursor-pointer transition-all z-10 ${
                       isConnecting && connectionStart === node.id 
@@ -1427,54 +1427,54 @@ export default function WorkflowBuilder() {
                 
                 if (!sourceNode || !targetNode) return null
 
-                // Tính toán cho vertical layout
-                // Node: width = 312px (208 * 1.5), height = ~120px (với padding)
-                // Connection points: w-5 h-5 = 20px, positioned ở top/bottom center, sát node
-                // Top (input): centerX = node.x + NODE_WIDTH/2, centerY = node.y (sát node)
-                // Bottom (output): centerX = node.x + NODE_WIDTH/2, centerY = node.y + NODE_HEIGHT (sát node)
+                // Calculations for vertical layout
+                // Node: width = 312px (208 * 1.5), height = ~120px (with padding)
+                // Connection points: w-5 h-5 = 20px, positioned at top/bottom center, close to node
+                // Top (input): centerX = node.x + NODE_WIDTH/2, centerY = node.y (close to node)
+                // Bottom (output): centerX = node.x + NODE_WIDTH/2, centerY = node.y + NODE_HEIGHT (close to node)
                 const NODE_WIDTH = 312
                 const NODE_HEIGHT = 120 // Approximate height with padding
                 
-                // Center X của nodes (vertical layout - nodes centered)
+                // Center X of nodes (vertical layout - nodes centered)
                 const sourceCenterX = sourceNode.position.x + NODE_WIDTH / 2
                 const targetCenterX = targetNode.position.x + NODE_WIDTH / 2
                 
-                // Connection points - top/bottom center, sát node hơn nữa (dính liền hoàn toàn)
+                // Connection points - top/bottom center, even closer to node (fully attached)
                 const outputCenterX = sourceCenterX
-                const outputCenterY = sourceNode.position.y + NODE_HEIGHT // Sát node hoàn toàn
+                const outputCenterY = sourceNode.position.y + NODE_HEIGHT // Fully attached to node
                 const inputCenterX = targetCenterX
-                const inputCenterY = targetNode.position.y // Sát node hoàn toàn
+                const inputCenterY = targetNode.position.y // Fully attached to node
                 
-                // Path: từ output (bottom) của source node đến input (top) của target node
+                // Path: from source node output (bottom) to target node input (top)
                 const startX = outputCenterX
                 const startY = outputCenterY
                 const endX = inputCenterX
                 const endY = inputCenterY
 
-                // Sử dụng bezier curve
+                // Use bezier curve
                 const path = getBezierPath(startX, startY, endX, endY)
                 
-                // Xác định màu và label dựa trên connection.label
+                // Determine color and label based on connection.label
                 const label = connection.label || 'yes'
                 const isYes = label === 'yes'
                 const strokeColor = isYes ? '#22C55E' : '#EF4444' // Green for yes, red for no
                 const arrowColor = isYes ? '#16A34A' : '#DC2626' // Darker green/red for arrow
                 const labelText = isYes ? 'Yes' : 'No'
                 
-                // Tính toán vị trí giữa đường kẻ để đặt label Yes/No
-                // Label cần ở giữa đường kẻ (điểm giữa của toàn bộ path)
+                // Calculate midpoint position to place Yes/No label
+                // Label should be centered on the line (midpoint of full path)
                 const dx = endX - startX
                 const dy = endY - startY
                 
                 let midX, midY
                 if (Math.abs(dx) < 5) {
-                  // Đường thẳng đứng - label ở giữa
+                  // Vertical line - label in the middle
                   midX = (startX + endX) / 2
                   midY = (startY + endY) / 2
                 } else {
-                  // Đường gấp khúc - label ở giữa đoạn ngang (điểm giữa của path)
-                  midY = startY + (dy / 2) // Điểm giữa theo chiều dọc (nơi đoạn ngang)
-                  midX = (startX + endX) / 2 // Điểm giữa đoạn ngang
+                  // Bent line - label at middle of horizontal segment (path midpoint)
+                  midY = startY + (dy / 2) // Midpoint on vertical axis (where the horizontal segment sits)
+                  midX = (startX + endX) / 2 // Midpoint of horizontal segment
                 }
 
                 return (
@@ -1507,7 +1507,7 @@ export default function WorkflowBuilder() {
                       stroke={strokeColor}
                       strokeWidth="2.5"
                       fill="none"
-                      strokeDasharray="8,4" // Tất cả đường nối là nét đứt
+                      strokeDasharray="8,4" // All connectors are dashed
                       markerEnd={`url(#arrowhead-${connection.id})`}
                       className="transition-all duration-200"
                       style={{
@@ -1540,7 +1540,7 @@ export default function WorkflowBuilder() {
                       </text>
                     </g>
                     
-                    {/* Plus button on connection - positioned at midpoint, tách xa label */}
+                    {/* Plus button on connection - positioned at midpoint, separated from label */}
                     {!isViewOnly && (
                       <g>
                         <circle
@@ -1592,13 +1592,13 @@ export default function WorkflowBuilder() {
                     const sourceNode = nodes.find(n => n.id === connectionStart)
                     if (!sourceNode) return null
                     
-                    // Tính toán tương tự như connection thật - vertical layout
+                    // Similar calculations as actual connection - vertical layout
                     const nodeWidth = 312
                     const nodeHeight = 120
                     
-                    // Center của output connection point (bottom center), sát node
+                    // Center of output connection point (bottom center), close to node
                     const outputCenterX = sourceNode.position.x + nodeWidth / 2
-                    const outputCenterY = sourceNode.position.y + nodeHeight // Sát node
+                    const outputCenterY = sourceNode.position.y + nodeHeight // Close to node
                     const startX = outputCenterX
                     const startY = outputCenterY
                     const endX = tempConnection.x

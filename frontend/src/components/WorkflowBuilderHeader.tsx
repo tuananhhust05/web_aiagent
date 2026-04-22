@@ -463,7 +463,7 @@ export default function WorkflowBuilderHeader({
 
         {isCampaignMode && (
           <span className="text-xs text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">
-            Campaign Mode - Chỉnh sửa Script
+            Campaign Mode - Edit Script
           </span>
         )}
         {isViewOnly && !isCampaignMode && (

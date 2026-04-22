@@ -103,6 +103,10 @@ class UserResponse(BaseModel):
         from_attributes = True
         populate_by_name = True
 
+class UserListResponse(BaseModel):
+    users: List[UserResponse]
+    total: int
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str

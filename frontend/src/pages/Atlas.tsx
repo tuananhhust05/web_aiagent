@@ -639,7 +639,7 @@ export default function Atlas() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1.5">
                                       <div>
                                         <div className="text-[11px] font-medium text-gray-700">
-                                          Bạn đã nói gì?
+                                          What did you say?
                                         </div>
                                         <div className="text-[11px] text-gray-600 border border-gray-100 rounded-md px-2 py-1 min-h-[34px]">
                                           {rule.what_you_said && rule.what_you_said.trim()
@@ -649,7 +649,7 @@ export default function Atlas() {
                                       </div>
                                       <div>
                                         <div className="text-[11px] font-medium text-gray-700">
-                                          Bạn nên nói gì?
+                                          What should you say?
                                         </div>
                                         <div className="text-[11px] text-gray-700 border border-blue-100 bg-blue-50 rounded-md px-2 py-1 min-h-[34px]">
                                           {rule.what_you_should_say && rule.what_you_should_say.trim()

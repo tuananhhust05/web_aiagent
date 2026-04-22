@@ -153,32 +153,32 @@ async def send_message_to_user(recipient: str, message: str, user_id: Optional[s
     """
     Send a message to a user or chat using Telegram client from session.
     
-    :param recipient: username (str) hoặc user_id (int) hoặc chat_id
-    :param message: nội dung tin nhắn
-    :param user_id: User ID để lấy Telegram client từ session
-    :return: True nếu gửi thành công, False nếu thất bại
+    :param recipient: username (str), user_id (int), or chat_id
+    :param message: message content
+    :param user_id: User ID used to get Telegram client from session
+    :return: True if sent successfully, False otherwise
     """
     try:
         if not user_id:
             logger.error("❌ [TELEGRAM] user_id is required to get Telegram client from session")
             return False
         
-        # Đảm bảo user_id là string (telegram_listener sử dụng string keys)
+        # Ensure user_id is a string (telegram_listener uses string keys)
         user_id_str = str(user_id)
         
-        # Lấy client từ telegram_listener
+        # Get client from telegram_listener
         client = telegram_listener.clients.get(user_id_str)
         if not client:
             logger.error(f"❌ [TELEGRAM] Telegram client not found for user_id: {user_id_str}")
             logger.info(f"📋 [TELEGRAM] Available clients: {list(telegram_listener.clients.keys())}")
             return False
         
-        # Kiểm tra xem client có đang kết nối không
+        # Check whether client is connected
         if not client.is_connected():
             logger.warning(f"⚠️ [TELEGRAM] Client not connected for user_id: {user_id_str}, attempting to connect...")
             await client.connect()
         
-        # Kiểm tra recipient có @ chưa, nếu chưa thì thêm vào
+        # Check whether recipient already has @; add it if missing
         if recipient and not recipient.startswith('@'):
             recipient = f"@{recipient}"
             logger.info(f"📝 [TELEGRAM] Added @ prefix to recipient: {recipient}")
@@ -186,7 +186,7 @@ async def send_message_to_user(recipient: str, message: str, user_id: Optional[s
         logger.info(f"📤 [TELEGRAM] Sending message to {recipient} (user_id: {user_id_str})")
         logger.info(f"📝 [TELEGRAM] Message content: {message[:100]}{'...' if len(message) > 100 else ''}")
         
-        # Gửi tin nhắn
+        # Send message
         await client.send_message(recipient, message)
         
         logger.info(f"✅ [TELEGRAM] Message sent successfully to {recipient}")

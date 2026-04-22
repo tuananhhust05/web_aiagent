@@ -1,12 +1,11 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { CalendarView, type Meeting } from "../components/mockflow-atlas/CalendarView";
 import { ContactCard } from "../components/mockflow-atlas/ContactCard";
-import { EnrichedProfileCard } from "../components/mockflow-atlas/EnrichedProfileCard";
 import { RegistrationWizard } from "../components/mockflow-atlas/RegistrationWizard";
 import { RecordingConsent } from "../components/mockflow-atlas/RecordingConsent";
 import { CalendarRefreshPopup } from "../components/mockflow-atlas/CalendarRefreshPopup";
 import { toast } from "sonner";
-import { calendarAPI, atlasAPI, vexaAPI, meetingsAPI, getVexaBotJoinErrorMessage, type GoogleCalendarEvent, type EnrichedProfileData, type MeetingPlatform } from "../lib/api";
+import { calendarAPI, atlasAPI, vexaAPI, meetingsAPI, getVexaBotJoinErrorMessage, type GoogleCalendarEvent, type MeetingPlatform } from "../lib/api";
 
 function getMonday(date: Date): Date {
   const d = new Date(date);
@@ -20,22 +19,62 @@ function getMonday(date: Date): Date {
 function mapEventsToMeetings(events: GoogleCalendarEvent[], rangeStart: Date): Meeting[] {
   const msPerDay = 24 * 60 * 60 * 1000;
   const monday = getMonday(rangeStart);
-  return events
+
+  const parsed = events
     .map((event) => {
       if (!event.id) return null;
       const start = event.start?.dateTime ? new Date(event.start.dateTime) : event.start?.date ? new Date(event.start.date) : null;
       const end = event.end?.dateTime ? new Date(event.end.dateTime) : event.end?.date ? new Date(event.end.date) : null;
       if (!start || !end) return null;
-      const dayIndex = Math.min(6, Math.max(0, Math.floor((new Date(start.toDateString()).getTime() - monday.getTime()) / msPerDay)));
-      const startHour = start.getHours() + start.getMinutes() / 60;
-      const duration = (end.getTime() - start.getTime()) / (60 * 60 * 1000) || 1;
-      const fmt = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-      const timeLabel = `${fmt(start)} - ${fmt(end)}`;
-      const meetLink = event.hangoutLink || event.conferenceData?.entryPoints?.find(ep => ep.entryPointType === "video")?.uri;
-      const dateISO = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
-      return { id: event.id, title: event.summary || "Untitled meeting", time: timeLabel, startHour, duration, dayIndex, dateISO, ...(meetLink ? { meetLink } : {}) } as Meeting;
+
+      const companyKey = (event.summary || "Untitled meeting").split("—")[0].trim().toLowerCase();
+      const participantInitials = (event.attendees || [])
+        .filter((a) => !a.self)
+        .map((a) => {
+          const source = (a.displayName || a.email || "").trim();
+          if (!source) return "";
+          const tokens = source
+            .replace(/@.*/, "")
+            .split(/[\s._-]+/)
+            .filter(Boolean);
+          const initials = tokens.slice(0, 2).map((t) => t[0]?.toUpperCase() || "").join("");
+          return initials || source.slice(0, 2).toUpperCase();
+        })
+        .filter(Boolean);
+
+      return { event, start, end, companyKey, participantInitials };
     })
-    .filter((m): m is Meeting => m !== null);
+    .filter((v): v is { event: GoogleCalendarEvent; start: Date; end: Date; companyKey: string; participantInitials: string[] } => v !== null)
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+
+  const sequenceByCompany: Record<string, number> = {};
+
+  return parsed.map(({ event, start, end, companyKey, participantInitials }) => {
+    const dayIndex = Math.floor((new Date(start.toDateString()).getTime() - monday.getTime()) / msPerDay);
+    const startHour = start.getHours() + start.getMinutes() / 60;
+    const duration = (end.getTime() - start.getTime()) / (60 * 60 * 1000) || 1;
+    const fmt = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const timeLabel = `${fmt(start)} - ${fmt(end)}`;
+    const meetLink = event.hangoutLink || event.conferenceData?.entryPoints?.find(ep => ep.entryPointType === "video")?.uri;
+    const dateISO = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+
+    const nextSequence = (sequenceByCompany[companyKey] || 0) + 1;
+    sequenceByCompany[companyKey] = nextSequence;
+
+    return {
+      id: event.id!,
+      title: event.summary || "Untitled meeting",
+      time: timeLabel,
+      startHour,
+      duration,
+      dayIndex,
+      dateISO,
+      meetingNumber: nextSequence,
+      velocity: nextSequence >= 4 ? "stalled" : "normal",
+      participantInitials,
+      ...(meetLink ? { meetLink } : {}),
+    } as Meeting;
+  });
 }
 
 const AtlasCalendarPage = () => {
@@ -45,8 +84,10 @@ const AtlasCalendarPage = () => {
   const [showRefreshTip, setShowRefreshTip] = useState(true);
   const [calendarConnected, setCalendarConnected] = useState(false);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
-  const [viewingProfile, setViewingProfile] = useState<EnrichedProfileData | null>(null);
   const rangeRef = useRef<{ start: Date; end: Date } | null>(null);
+  const syncingRef = useRef(false);
+  const syncedResetTimerRef = useRef<number | null>(null);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "synced">("idle");
 
   const revalidateConnection = useCallback(async () => {
     try {
@@ -106,25 +147,45 @@ const AtlasCalendarPage = () => {
   const handleMeetingClick = (meeting: Meeting) => {
     setShowRefreshTip(false);
     setSelectedMeeting(meeting);
-    setViewingProfile(null);
   };
 
-  const handleSync = async () => {
+  const handleSync = useCallback(async () => {
+    if (syncingRef.current) return;
     if (!calendarConnected) {
       toast.error("Please connect your Google Calendar first");
       setShowRegistration(true);
       return;
     }
+
     setShowRefreshTip(false);
-    toast.loading("Syncing calendar...", { id: "sync" });
+    syncingRef.current = true;
+    setSyncStatus("syncing");
+
     try {
       const range = rangeRef.current;
-      if (range) await loadCalendarEvents(range.start, range.end, true);
-      toast.success("Calendar synced successfully", { id: "sync" });
+      const params = range
+        ? { time_min: range.start.toISOString(), time_max: range.end.toISOString() }
+        : undefined;
+
+      await calendarAPI.sync(params);
+      if (range) {
+        await loadCalendarEvents(range.start, range.end, true);
+      }
+
+      setSyncStatus("synced");
+      if (syncedResetTimerRef.current) {
+        window.clearTimeout(syncedResetTimerRef.current);
+      }
+      syncedResetTimerRef.current = window.setTimeout(() => {
+        setSyncStatus("idle");
+      }, 3000);
     } catch {
-      toast.error("Failed to sync calendar", { id: "sync" });
+      setSyncStatus("idle");
+      toast.error("Failed to sync calendar");
+    } finally {
+      syncingRef.current = false;
     }
-  };
+  }, [calendarConnected, loadCalendarEvents]);
 
   const handleBotJoin = () => {
     if (!selectedMeeting?.meetLink) {
@@ -170,6 +231,26 @@ const AtlasCalendarPage = () => {
     }
   };
 
+  useEffect(() => {
+    if (!calendarConnected) return;
+
+    const intervalId = window.setInterval(() => {
+      void handleSync();
+    }, 10_000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [calendarConnected, handleSync]);
+
+  useEffect(() => {
+    return () => {
+      if (syncedResetTimerRef.current) {
+        window.clearTimeout(syncedResetTimerRef.current);
+      }
+    };
+  }, []);
+
   const handleConnectCalendar = async () => {
     try {
       const response = await calendarAPI.getAuthUrl(window.location.origin);
@@ -189,6 +270,7 @@ const AtlasCalendarPage = () => {
             selectedMeetingId={selectedMeeting?.id}
             onSyncClick={handleSync}
             onRangeChange={handleRangeChange}
+            syncStatus={syncStatus}
           />
         </div>
 
@@ -203,16 +285,6 @@ const AtlasCalendarPage = () => {
             meeting={selectedMeeting}
             onClose={() => setSelectedMeeting(null)}
             onBotJoin={handleBotJoin}
-            onViewProfile={(data) => setViewingProfile(data)}
-          />
-        </div>
-      )}
-
-      {selectedMeeting && viewingProfile && (
-        <div className="hidden md:flex md:flex-col md:h-full">
-          <EnrichedProfileCard
-            data={viewingProfile}
-            onClose={() => setViewingProfile(null)}
           />
         </div>
       )}
@@ -223,16 +295,6 @@ const AtlasCalendarPage = () => {
             meeting={selectedMeeting}
             onClose={() => setSelectedMeeting(null)}
             onBotJoin={handleBotJoin}
-            onViewProfile={(data) => setViewingProfile(data)}
-          />
-        </div>
-      )}
-
-      {selectedMeeting && viewingProfile && (
-        <div className="fixed inset-0 z-[60] flex flex-col bg-card md:hidden overflow-y-auto">
-          <EnrichedProfileCard
-            data={viewingProfile}
-            onClose={() => setViewingProfile(null)}
           />
         </div>
       )}

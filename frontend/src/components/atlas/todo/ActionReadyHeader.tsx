@@ -29,9 +29,9 @@ const ActionReadyHeader = () => {
       } else {
         const existingCount = counts.total;
         if (existingCount > 0) {
-          toast.success(`Không có action mới — đang có ${existingCount} action cũ cần xử lý`);
+          toast.success(`No new actions — there are ${existingCount} existing actions to handle`);
         } else {
-          toast.success("Phân tích xong — không có action mới");
+          toast.success("Analysis complete — no new actions");
         }
       }
     },
