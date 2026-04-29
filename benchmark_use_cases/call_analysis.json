@@ -1,0 +1,472 @@
+{
+  "test_cases": [
+    {
+      "id": "test_001",
+      "name": "Early Discovery Call - Identifying Hidden Pain Points",
+      "category": "discovery",
+      "customer_profile": {
+        "first_name": "John",
+        "last_name": "Doe",
+        "company": "TechCorp",
+        "job_title": "VP of Marketing",
+        "email": "john.doe@techcorp.com"
+      },
+      "campaign_context": {
+        "name": "Outbound SaaS Outreach",
+        "type": "outbound",
+        "call_script": "Hi John, I noticed TechCorp has been scaling rapidly. I'd love to show you how our marketing analytics platform can help you get real-time insights without the spreadsheet chaos."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Hi John, thanks for joining. I noticed TechCorp has been scaling rapidly. How is your current marketing analytics stack holding up?", "created_at": "10:00"},
+        {"type": "incoming", "content": "It's okay. We use a mix of Google Analytics and some custom spreadsheets. It gets the job done.", "created_at": "10:01"},
+        {"type": "outgoing", "content": "Spreadsheets can get tricky at scale. How much time does your team spend building weekly reports?", "created_at": "10:02"},
+        {"type": "incoming", "content": "Hmm, probably around 15 hours a week across the team. It's annoying, and sometimes the data is out of sync, which frustrated our CEO last quarter. But changing systems right now feels like a huge headache.", "created_at": "10:04"}
+      ],
+      "expected_evaluation": {
+        "pain_points": ["data out of sync", "15 hours/week manual reporting", "CEO frustration", "migration friction"],
+        "objections": ["changing systems feels like a headache"],
+        "buying_intent": "medium",
+        "funnel_stage": "qualified"
+      }
+    },
+    {
+      "id": "test_002",
+      "name": "Pricing Negotiation - Handling Budget Objections",
+      "category": "negotiation",
+      "customer_profile": {
+        "first_name": "Sarah",
+        "last_name": "Smith",
+        "company": "LogistiX",
+        "job_title": "Director of Operations",
+        "email": "sarah.smith@logistix.com"
+      },
+      "campaign_context": {
+        "name": "Enterprise Upgrade",
+        "type": "upgrade",
+        "call_script": "Sarah, your team saved 30% on route planning time during the trial. I'd like to discuss upgrading you to our Enterprise tier."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Sarah, based on our trial, your team saved 30% on route planning time. The Enterprise tier is $2,000/month.", "created_at": "14:00"},
+        {"type": "incoming", "content": "I agree the trial went well, and my team loves it. But $2,000 is double what we currently pay for our legacy system. My CFO will never approve that without a guaranteed ROI within 3 months.", "created_at": "14:02"},
+        {"type": "outgoing", "content": "I understand. What if we could do a phased rollout?", "created_at": "14:03"},
+        {"type": "incoming", "content": "That might work, but I need to see a hard ROI calculation first. Can you send me a template? I'm meeting the CFO on Friday.", "created_at": "14:05"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "high",
+        "objections": ["price is double legacy system", "needs CFO approval", "requires 3-month ROI proof"],
+        "funnel_stage": "negotiation"
+      }
+    },
+    {
+      "id": "test_003",
+      "name": "Disengaged Prospect - Detecting Low Intent",
+      "category": "nurture",
+      "customer_profile": {
+        "first_name": "Mike",
+        "last_name": "Johnson",
+        "company": "DataFlow Inc",
+        "job_title": "IT Manager",
+        "email": "mike.johnson@dataflow.com"
+      },
+      "campaign_context": {
+        "name": "Cold Email Follow-up",
+        "type": "follow_up",
+        "call_script": "Hi Mike, following up on our cybersecurity audit tool that can reduce your audit times by 50%."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Hi Mike, following up on my email regarding our cybersecurity audit tool. Did you have a chance to review the brief?", "created_at": "09:00"},
+        {"type": "incoming", "content": "Yeah, I skimmed it.", "created_at": "09:15"},
+        {"type": "outgoing", "content": "Great. We're helping companies like yours reduce audit times by 50%. Are you currently evaluating any tools in this space?", "created_at": "09:16"},
+        {"type": "incoming", "content": "Not really a priority right now. Maybe next year. We're busy with a data center migration.", "created_at": "10:30"},
+        {"type": "outgoing", "content": "Understood. The migration must be taking a lot of resources. Does your current tool support cloud migrations?", "created_at": "10:35"},
+        {"type": "incoming", "content": "Yes. Thanks.", "created_at": "14:00"}
+      ],
+      "expected_evaluation": {
+        "interest_level": "low",
+        "sentiment": "neutral",
+        "pain_points": ["busy with data center migration"],
+        "buying_intent": "low"
+      }
+    },
+    {
+      "id": "test_004",
+      "name": "Technical Decision Maker - Deep Technical Discussion",
+      "category": "technical",
+      "customer_profile": {
+        "first_name": "David",
+        "last_name": "Chen",
+        "company": "InnovateTech",
+        "job_title": "Chief Technology Officer",
+        "email": "david.chen@innovatetech.com"
+      },
+      "campaign_context": {
+        "name": "Enterprise API Integration",
+        "type": "enterprise",
+        "call_script": "David, our API platform handles millions of requests per day with 99.99% uptime. Let's discuss how we can support InnovateTech's scaling needs."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "David, I know CTOs are busy. I'll keep this short - our API can handle your scale requirements. What are your current bottleneck areas?", "created_at": "09:00"},
+        {"type": "incoming", "content": "We're processing about 5 million API calls daily. Latency is becoming an issue. What's your p99 latency?", "created_at": "09:02"},
+        {"type": "outgoing", "content": "Our p99 is under 100ms globally. We have edge nodes in 50+ locations. Have you considered a distributed caching layer?", "created_at": "09:05"},
+        {"type": "incoming", "content": "We're using Redis cluster now but hitting memory limits. Cost is also becoming prohibitive at our growth rate. What's your pricing model?", "created_at": "09:10"},
+        {"type": "outgoing", "content": "We offer consumption-based pricing with volume discounts. At 5M calls/day, you'd be in our growth tier. Can I send you our pricing calculator?", "created_at": "09:12"},
+        {"type": "incoming", "content": "Yes, send it over. Also, I need to understand your data residency policies. We have compliance requirements for EU data.", "created_at": "09:15"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "high",
+        "interest_level": "high",
+        "pain_points": ["Redis memory limits", "latency issues", "costprohibitive pricing", "EU compliance requirements"],
+        "key_topics": ["API latency", "distributed caching", "pricing model", "data residency", "compliance"]
+      }
+    },
+    {
+      "id": "test_005",
+      "name": "Champion vs Economic Buyer - Navigating Politics",
+      "category": "complex_sale",
+      "customer_profile": {
+        "first_name": "Lisa",
+        "last_name": "Park",
+        "company": "GrowthStartup",
+        "job_title": "VP of Product",
+        "email": "lisa.park@growthstartup.com"
+      },
+      "campaign_context": {
+        "name": "Product Analytics Platform",
+        "type": "outbound",
+        "call_script": "Lisa, I see GrowthStartup is on a rapid growth trajectory. Our product analytics can help you understand user behavior at scale."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Lisa, your team has grown 3x in the past year. How are you tracking user engagement across your platform?", "created_at": "10:00"},
+        {"type": "incoming", "content": "Honestly, we've outgrown our current tools. I love what I've seen in the demo. But I need to bring my CFO on board.", "created_at": "10:05"},
+        {"type": "outgoing", "content": "That's great feedback. What aspects are you most excited about?", "created_at": "10:07"},
+        {"type": "incoming", "content": "The funnel analysis and cohort retention features. But CFO is always about ROI. She'll ask hard questions about adoption metrics.", "created_at": "10:10"},
+        {"type": "outgoing", "content": "Understood. We have case studies with similar companies. Would it help if I prepared a business case with ROI projections?", "created_at": "10:12"},
+        {"type": "incoming", "content": "That would be perfect. Can you also include how we can measure time-to-value? She's skeptical about enterprise software implementations.", "created_at": "10:15"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "high",
+        "interest_level": "high",
+        "pain_points": ["outgrown current tools", "CFO ROI concerns", "implementation skepticism"],
+        "funnel_stage": "qualified"
+      }
+    },
+    {
+      "id": "test_006",
+      "name": "Competitive Replacement - Switching from Competitor",
+      "category": "replacement",
+      "customer_profile": {
+        "first_name": "Robert",
+        "last_name": "Williams",
+        "company": "MegaCorp",
+        "job_title": "Head of IT",
+        "email": "r.williams@megacorp.com"
+      },
+      "campaign_context": {
+        "name": "Competitor Displacement",
+        "type": "competitive",
+        "call_script": "Robert, I noticed MegaCorp is using legacy vendor X. Many companies are switching to our platform for better value."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Robert, what prompted you to look at alternatives to your current vendor?", "created_at": "11:00"},
+        {"type": "incoming", "content": "Their support has gone downhill. We had three outages last month. Plus, their pricing increased 30% without warning.", "created_at": "11:03"},
+        {"type": "outgoing", "content": "That's frustrating. We've heard similar feedback. What's your must-have requirements?", "created_at": "11:05"},
+        {"type": "incoming", "content": "99.9% uptime SLA, 24/7 support with under 1 hour response, and migration assistance. We're not technical enough to do this ourselves.", "created_at": "11:08"},
+        {"type": "outgoing", "content": "We guarantee 99.9% uptime, 24/7 support with 30-minute response, and dedicated migration engineer. Would a pilot program reduce your risk concerns?", "created_at": "11:12"},
+        {"type": "incoming", "content": "Possibly. What's the pilot scope and timeline? I need to show progress to my board by end of quarter.", "created_at": "11:15"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "high",
+        "pain_points": ["vendor support issues", "3 outages last month", "30% price increase", "need migration assistance"],
+        "objections": ["board deadline pressure", "risk concerns"],
+        "funnel_stage": "negotiation"
+      }
+    },
+    {
+      "id": "test_007",
+      "name": "New Logo - First Meeting with Skeptical Prospect",
+      "category": "cold",
+      "customer_profile": {
+        "first_name": "Jennifer",
+        "last_name": "Brown",
+        "company": "SmallBiz Solutions",
+        "job_title": "Owner",
+        "email": "jennifer@smallbizsolutions.com"
+      },
+      "campaign_context": {
+        "name": "Cold Outreach SMB",
+        "type": "cold",
+        "call_script": "Jennifer, we help small businesses save 10+ hours per week on administrative tasks."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Jennifer, do you have a few minutes to discuss how other small businesses are saving time with automation?", "created_at": "14:00"},
+        {"type": "incoming", "content": "I'm busy running my business. What is this about?", "created_at": "14:01"},
+        {"type": "outgoing", "content": "I work with businesses to streamline their operations. You've been referred to us. What currently takes most of your time?", "created_at": "14:03"},
+        {"type": "incoming", "content": "Everything takes time. I've tried automation tools before and they just created more problems.", "created_at": "14:05"},
+        {"type": "outgoing", "content": "That's a fair concern. What didn't work before? I want to make sure we're a good fit.", "created_at": "14:07"},
+        {"type": "incoming", "content": "The tools were too complicated. I need something simple. My team can't handle learning new software.", "created_at": "14:10"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "low",
+        "interest_level": "low",
+        "pain_points": ["too busy", "bad experiences with automation", "simplicity requirement"],
+        "objections": ["too complicated previously", "team learning curve"],
+        "sentiment": "neutral"
+      }
+    },
+    {
+      "id": "test_008",
+      "name": "Expansion Revenue - Upselling Existing Customer",
+      "category": "expansion",
+      "customer_profile": {
+        "first_name": "Mark",
+        "last_name": "Thompson",
+        "company": "RetailCo",
+        "job_title": "E-commerce Director",
+        "email": "mark.thompson@retailco.com"
+      },
+      "campaign_context": {
+        "name": "Customer Expansion",
+        "type": "expansion",
+        "call_script": "Mark, we've seen great results from your team using our platform. I'd like to discuss additional features that could help."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Mark, your team has been with us for 2 years now. I've noticed you're only using 40% of our features. Would you be open to a quick walkthrough of what's possible?", "created_at": "15:00"},
+        {"type": "incoming", "content": "Honestly, I didn't know we had access to all that. What are you thinking?", "created_at": "15:03"},
+        {"type": "outgoing", "content": "Based on your e-commerce volume, the advanced inventory prediction could save you significant stock costs. Would a personalized demo help?", "created_at": "15:05"},
+        {"type": "incoming", "content": "Sure, but I'm not looking to spend more. Budget is tight this quarter.", "created_at": "15:08"},
+        {"type": "outgoing", "content": "I understand. Actually, these features are included in your current plan. You've been paying for them but not using them.", "created_at": "15:10"},
+        {"type": "incoming", "content": "Wait, really? That doesn't make sense. Let me check with my finance team. But yes, let's schedule that demo.", "created_at": "15:12"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "medium",
+        "interest_level": "medium",
+        "pain_points": ["budget constraints", "underutilizing current features"],
+        "sentiment": "positive",
+        "key_topics": ["feature adoption", "cost savings", "inventory prediction"]
+      }
+    },
+    {
+      "id": "test_009",
+      "name": "Multi-threading - Reaching Multiple Stakeholders",
+      "category": "complex_sale",
+      "customer_profile": {
+        "first_name": "Amanda",
+        "last_name": "Foster",
+        "company": "GlobalCorp",
+        "job_title": "Procurement Manager",
+        "email": "a.foster@globalcorp.com"
+      },
+      "campaign_context": {
+        "name": "Enterprise Multi-thread",
+        "type": "enterprise",
+        "call_script": "Amanda, GlobalCorp has been on our radar. We'd like to propose a partnership for your global operations."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Amanda, I understand this is a large organization. Who else would be involved in an enterprise decision like this?", "created_at": "09:00"},
+        {"type": "incoming", "content": "This would need to involve IT, legal, and our CFO. It's not just a procurement decision.", "created_at": "09:05"},
+        {"type": "outgoing", "content": "Understood. Would it be helpful if we prepared materials for each stakeholder?", "created_at": "09:08"},
+        {"type": "incoming", "content": "Yes, that would be useful. IT will care about security and integration. Legal will want data processing terms. CFO will want volume discounts.", "created_at": "09:12"},
+        {"type": "outgoing", "content": "Perfect. Can we set up separate calls with each stakeholder? Or would a joint meeting be more efficient?", "created_at": "09:15"},
+        {"type": "incoming", "content": "A joint meeting might be complicated with schedules. Perhaps separate calls next week would work better.", "created_at": "09:18"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "medium",
+        "interest_level": "medium",
+        "pain_points": ["complex multi-stakeholder process", "IT security concerns", "legal requirements", "volume discount expectations"],
+        "funnel_stage": "qualified",
+        "recommended_actions": ["prepare stakeholder-specific materials", "schedule separate calls"]
+      }
+    },
+    {
+      "id": "test_010",
+      "name": "Churn Risk - Saving an At-Risk Customer",
+      "category": "retention",
+      "customer_profile": {
+        "first_name": "Tom",
+        "last_name": "Miller",
+        "company": "FadingTech",
+        "job_title": "VP Engineering",
+        "email": "tom.miller@fadingtech.com"
+      },
+      "campaign_context": {
+        "name": "Customer Retention",
+        "type": "retention",
+        "call_script": "Tom, I noticed your usage has dropped recently. I'd like to understand if there are any issues we can address."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Tom, I see your team has been using the platform less this quarter. Is everything okay?", "created_at": "10:00"},
+        {"type": "incoming", "content": "We've had some issues. Your support response times have gotten much slower. We waited 3 days for an issue to be resolved.", "created_at": "10:05"},
+        {"type": "outgoing", "content": "I apologize for that. Let me look into what happened. We take this seriously. What can I do to make this right?", "created_at": "10:08"},
+        {"type": "incoming", "content": "Honestly, we were evaluating other vendors. Our contract is up for renewal next month. I'm under pressure to show results.", "created_at": "10:12"},
+        {"type": "outgoing", "content": "I understand. What if I personally oversee your account and we schedule monthly check-ins? I'll also arrange for a dedicated support engineer.", "created_at": "10:15"},
+        {"type": "incoming", "content": "That would help. But I need to see a concrete improvement plan in writing before I can recommend staying to my leadership.", "created_at": "10:18"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "low",
+        "interest_level": "low",
+        "sentiment": "negative",
+        "pain_points": ["slow support response", "3-day wait for issue", "contract renewal pressure", "evaluating competitors"],
+        "funnel_stage": "lead",
+        "recommended_actions": ["immediate escalation", "dedicated support engineer", "written improvement plan"]
+      }
+    },
+    {
+      "id": "test_011",
+      "name": "Event-Driven Outreach - Post-Conference Lead",
+      "category": "event",
+      "customer_profile": {
+        "first_name": "Sarah",
+        "last_name": "Connor",
+        "company": "CyberDefense",
+        "job_title": "Security Director",
+        "email": "sconnor@cyberdefense.com"
+      },
+      "campaign_context": {
+        "name": "Post-RSAC Outreach",
+        "type": "event",
+        "call_script": "Sarah, great meeting you at RSAC. You mentioned facing challenges with zero-trust implementation."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Sarah, great seeing you at RSAC. Our conversation about zero-trust implementation stuck with me. Have you made progress?", "created_at": "09:00"},
+        {"type": "incoming", "content": "Thanks for following up. We're still evaluating approaches. The board approved budget but we need to show measurable progress by Q3.", "created_at": "09:05"},
+        {"type": "outgoing", "content": "I recall you mentioned specific challenges with legacy system integration. Is that still the primary blocker?", "created_at": "09:08"},
+        {"type": "incoming", "content": "Yes, that's the core issue. We can't replace everything overnight. We need an approach that works with what we have.", "created_at": "09:12"},
+        {"type": "outgoing", "content": "That's exactly our hybrid approach. We can integrate with legacy systems while modernizing incrementally. Should I send you a case study from a similar company?", "created_at": "09:15"},
+        {"type": "incoming", "content": "Yes, please. Also, can you prepare a high-level architecture overview? I'll share it with our technical team before we decide.", "created_at": "09:18"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "medium",
+        "interest_level": "medium",
+        "pain_points": ["legacy system integration", "Q3 deadline pressure", "incremental modernization need"],
+        "funnel_stage": "qualified"
+      }
+    },
+    {
+      "id": "test_012",
+      "name": "Product Qualified Lead - Trial Conversion",
+      "category": "trial_conversion",
+      "customer_profile": {
+        "first_name": "Chris",
+        "last_name": "Lee",
+        "company": "DataDriven",
+        "job_title": "Head of Analytics",
+        "email": "chris.lee@datadriven.com"
+      },
+      "campaign_context": {
+        "name": "Trial Conversion",
+        "type": "trial",
+        "call_script": "Chris, your 14-day trial ends tomorrow. Your team has been actively using the product. Let's discuss next steps."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Chris, your team has been very active in the trial - you've run over 200 queries. What have been the highlights?", "created_at": "14:00"},
+        {"type": "incoming", "content": "The real-time dashboard is impressive. My team loves how fast insights appear. We've been showing it to stakeholders.", "created_at": "14:05"},
+        {"type": "outgoing", "content": "That's wonderful! Have you had a chance to look at our enterprise features for team collaboration?", "created_at": "14:08"},
+        {"type": "incoming", "content": "We need that. Currently we're exporting to spreadsheets and sharing manually. A sharing feature would save hours weekly.", "created_at": "14:12"},
+        {"type": "outgoing", "content": "Great. For your team size and usage, I recommend our Team plan at $499/month. Shall I send the contract?", "created_at": "14:15"},
+        {"type": "incoming", "content": "Yes, but can you give us 10% off for the first year? We're a startup with limited budget.", "created_at": "14:18"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "high",
+        "interest_level": "very_high",
+        "sentiment": "positive",
+        "pain_points": ["manual spreadsheet sharing", "collaboration limitations"],
+        "funnel_stage": "negotiation"
+      }
+    },
+    {
+      "id": "test_013",
+      "name": "International Expansion - Multi-Region Requirements",
+      "category": "international",
+      "customer_profile": {
+        "first_name": "Pierre",
+        "last_name": "Dubois",
+        "company": "EuroFinance",
+        "job_title": "CTO",
+        "email": "p.dubois@eurofinance.eu"
+      },
+      "campaign_context": {
+        "name": "EU Market Entry",
+        "type": "international",
+        "call_script": "Pierre, as EuroFinance expands to new markets, we can support your data infrastructure across EU regions."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Pierre, I understand EuroFinance is expanding into 5 new EU countries. What infrastructure challenges are you anticipating?", "created_at": "10:00"},
+        {"type": "incoming", "content": "GDPR compliance is critical. Each country has slightly different requirements. We need a partner who understands this.", "created_at": "10:05"},
+        {"type": "outgoing", "content": "We have dedicated EU data centers and a legal team specialized in GDPR. We've helped other financial services companies navigate this.", "created_at": "10:08"},
+        {"type": "incoming", "content": "What's your data residency approach? We need to ensure data stays within EU borders.", "created_at": "10:12"},
+        {"type": "outgoing", "content": "All data processed in EU-owned infrastructure. We never move data outside EU. I can send you our compliance whitepaper.", "created_at": "10:15"},
+        {"type": "incoming", "content": "Please do. Also, what about localization? Our users in Germany and France prefer native language support.", "created_at": "10:18"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "high",
+        "interest_level": "high",
+        "pain_points": ["GDPR compliance complexity", "multi-country requirements", "data residency mandates", "localization needs"],
+        "key_topics": ["EU compliance", "data residency", "multi-language support"]
+      }
+    },
+    {
+      "id": "test_014",
+      "name": "Self-Service to Enterprise - Growing Customer",
+      "category": "upgrade",
+      "customer_profile": {
+        "first_name": "Nancy",
+        "last_name": "Green",
+        "company": "ScaleUpNow",
+        "job_title": "CEO",
+        "email": "nancy@scaleupnow.com"
+      },
+      "campaign_context": {
+        "name": "Self-Service Upgrade",
+        "type": "upgrade",
+        "call_script": "Nancy, congratulations on your Series B! As you scale, your needs have outgrown our startup plan."
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Nancy, I saw the news about your $50M Series B. Congratulations! As you grow, I imagine your software needs are evolving.", "created_at": "11:00"},
+        {"type": "incoming", "content": "Thanks! Yes, we're hiring 50 people this quarter alone. We need enterprise-grade reliability now.", "created_at": "11:05"},
+        {"type": "outgoing", "content": "Our enterprise tier includes 99.99% uptime SLA, dedicated support, and custom integrations. Shall I prepare a migration plan?", "created_at": "11:08"},
+        {"type": "incoming", "content": "What's involved in migration? We can't afford downtime during the transition.", "created_at": "11:12"},
+        {"type": "outgoing", "content": "We offer zero-downtime migration with a dedicated engineer. Most customers are fully migrated over a weekend.", "created_at": "11:15"},
+        {"type": "incoming", "content": "Impressive. Can you connect me with a reference customer in our space? I want to hear about their experience.", "created_at": "11:18"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "high",
+        "interest_level": "very_high",
+        "pain_points": ["startup plan limitations", "enterprise reliability needs", "zero-downtime requirement"],
+        "funnel_stage": "negotiation"
+      }
+    },
+    {
+      "id": "test_015",
+      "name": "Emergency Purchase - Urgent Business Need",
+      "category": "emergency",
+      "customer_profile": {
+        "first_name": "Frank",
+        "last_name": "Martinez",
+        "company": "CriticalSystems",
+        "job_title": "VP Operations",
+        "email": "fmartinez@critical.com"
+      },
+      "campaign_context": {
+        "name": "Emergency Procurement",
+        "type": "urgent",
+        "call_script": "Frank, I understand you have an urgent need. How can we help?"
+      },
+      "conversation_history": [
+        {"type": "outgoing", "content": "Frank, you mentioned this is urgent. What happened?", "created_at": "08:00"},
+        {"type": "incoming", "content": "Our current vendor had a catastrophic failure. We're down to 30% capacity. This is costing us millions daily.", "created_at": "08:05"},
+        {"type": "outgoing", "content": "I understand the urgency. We can have emergency provisioning ready within 24 hours. What capacity do you need?", "created_at": "08:08"},
+        {"type": "incoming", "content": "We need minimum 10,000 transactions per hour with redundancy. Can you deliver that?", "created_at": "08:12"},
+        {"type": "outgoing", "content": "Absolutely. We can provision high-capacity instances with automatic failover. I'll have engineering standing by.", "created_at": "08:15"},
+        {"type": "incoming", "content": "Perfect. Price isn't a concern right now. How quickly can you get us running? We need this solved today.", "created_at": "08:18"}
+      ],
+      "expected_evaluation": {
+        "buying_intent": "very_high",
+        "interest_level": "very_high",
+        "sentiment": "urgent",
+        "pain_points": ["vendor failure", "30% capacity", "millions in losses daily"],
+        "funnel_stage": "close",
+        "recommended_actions": ["immediate provisioning", "emergency pricing discussion", "24/7 support setup"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,2256 @@
+{
+  "benchmark_info": {
+    "timestamp": "2026-04-24T20:53:37.150948",
+    "test_cases_file": "C:\\data\\agentvoice\\web2\\benchmark_use_cases\\call_analysis.json",
+    "total_test_cases": 15,
+    "models": {
+      "gpt4_mini": "gpt-4.1-nano",
+      "gpt5_mini": "gpt-4o-mini"
+    }
+  },
+  "results": {
+    "gpt4_mini": [
+      {
+        "test_id": "test_001",
+        "test_name": "Early Discovery Call - Identifying Hidden Pain Points",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "Real-time marketing analytics",
+            "Automated reporting",
+            "Data consistency"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "Time-consuming manual reporting",
+            "Data out of sync issues",
+            "Frustration from leadership"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "lead",
+          "key_topics": [
+            "Marketing analytics tools",
+            "Reporting efficiency",
+            "Data accuracy"
+          ],
+          "objections": [
+            "Changing systems is a huge headache"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Offer a demo of the analytics platform focusing on ease of transition and automation features",
+              "priority": "high",
+              "reason": "Customer is aware of current issues and open to solutions but hesitant about switching, so demonstrating ease of adoption can alleviate concerns"
+            },
+            {
+              "action": "Share case studies of similar companies that successfully transitioned",
+              "priority": "medium",
+              "reason": "Builds confidence and reduces perceived risk of system change"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When customer mentions the headache of system change",
+              "response": "I understand that switching systems can seem daunting, but our platform is designed for seamless integration with minimal disruption. Many clients have transitioned smoothly and seen immediate benefits.",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What are the main priorities for your marketing analytics this quarter?",
+            "Have you considered any specific features that would make reporting easier for your team?",
+            "What would an ideal analytics solution look like for TechCorp?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Real-time Marketing Analytics Platform",
+              "reason": "Provides automated, real-time insights that address the customer's pain points",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "John Doe from TechCorp is experiencing manual reporting challenges and data inconsistencies, leading to frustration at the leadership level. While hesitant about switching systems due to perceived complexity, he shows interest in solutions that can streamline reporting and improve data accuracy. Focus on demonstrating ease of transition and automation features to move towards a qualified lead."
+        },
+        "elapsed_seconds": 7.63
+      },
+      {
+        "test_id": "test_002",
+        "test_name": "Pricing Negotiation - Handling Budget Objections",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "cost justification",
+            "ROI assurance",
+            "seamless implementation"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "budget constraints",
+            "ROI uncertainty"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "enterprise upgrade",
+            "ROI calculation",
+            "cost savings"
+          ],
+          "objections": [
+            "price is double current spend",
+            "need guaranteed ROI within 3 months"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Send a detailed ROI calculation template and case studies demonstrating quick ROI",
+              "priority": "high",
+              "reason": "Customer explicitly requests ROI proof to secure CFO approval; providing this will address their main concern"
+            },
+            {
+              "action": "Offer a phased rollout plan with performance milestones",
+              "priority": "medium",
+              "reason": "Aligns with customer's suggestion and reduces perceived risk, increasing likelihood of approval"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When customer requests ROI proof or expresses budget concerns",
+              "response": "Absolutely, Sarah. I'll send over a detailed ROI template along with case studies highlighting quick payback periods. This should help your CFO see the value clearly. Would you like me to include any specific metrics?",
+              "tone": "professional"
+            }
+          ],
+          "next_best_questions": [
+            "What specific ROI metrics are most important to your CFO?",
+            "Would you like to see a customized phased rollout plan?",
+            "Are there other decision-makers involved in the approval process?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Enterprise Tier with ROI Guarantee Package",
+              "reason": "Includes dedicated ROI analysis support and phased implementation options tailored for large enterprises",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Sarah is interested in upgrading but is concerned about cost and ROI. She requests a detailed ROI template before presenting to her CFO. Offering tailored ROI data and phased rollout options will improve her confidence and facilitate the decision-making process."
+        },
+        "elapsed_seconds": 5.25
+      },
+      {
+        "test_id": "test_003",
+        "test_name": "Disengaged Prospect - Detecting Low Intent",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "reduce audit times",
+            "support cloud migrations"
+          ],
+          "buying_intent": "low",
+          "interest_level": "medium",
+          "pain_points": [
+            "time-consuming audits",
+            "resource allocation during migration"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "lead",
+          "key_topics": [
+            "cybersecurity audit tools",
+            "audit efficiency",
+            "cloud migration support"
+          ],
+          "objections": [
+            "not a priority right now",
+            "may consider next year"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Schedule a follow-up call in 3-6 months to revisit needs",
+              "priority": "high",
+              "reason": "Customer indicated the project is not a priority currently but may be interested later; maintaining contact could lead to future sales"
+            },
+            {
+              "action": "Send targeted content about audit time reduction and cloud migration support",
+              "priority": "medium",
+              "reason": "Providing relevant information can keep the solution top-of-mind and demonstrate ongoing value"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when customer indicates a low priority or busy schedule",
+              "response": "I understand you're busy with the migration. Would it be okay if I check back in in a few months to see if your priorities have shifted?",
+              "tone": "friendly"
+            }
+          ],
+          "next_best_questions": [
+            "What are your main challenges with your current cybersecurity tools?",
+            "Are there specific features you're looking for in an audit tool?",
+            "Would you be open to a brief demo when your schedule allows?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Cybersecurity Audit Optimization Suite",
+              "reason": "Designed to significantly reduce audit times and support cloud environments, aligning with customer needs",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Mike is currently focused on a data center migration and does not see cybersecurity audit tools as a priority. The conversation indicates low immediate buying intent, but there is potential for future engagement. Maintaining contact with relevant information and follow-up is recommended."
+        },
+        "elapsed_seconds": 5.32
+      },
+      {
+        "test_id": "test_004",
+        "test_name": "Technical Decision Maker - Deep Technical Discussion",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "scalable API platform",
+            "low latency performance",
+            "cost-effective solutions",
+            "data residency and compliance"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "latency issues with current API",
+            "memory limits hitting with Redis",
+            "rising costs due to growth",
+            "data residency and compliance requirements"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "API scalability",
+            "performance metrics (p99 latency)",
+            "cost and pricing models",
+            "data residency and compliance"
+          ],
+          "objections": [
+            "current memory limits with Redis",
+            "cost concerns at scale",
+            "data residency policies"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Send detailed pricing calculator and compliance documentation",
+              "priority": "high",
+              "reason": "Customer requested pricing info and data residency details, which are critical for moving forward"
+            },
+            {
+              "action": "Schedule a technical deep-dive demo focusing on latency and scalability features",
+              "priority": "medium",
+              "reason": "To address latency concerns and demonstrate platform capabilities directly"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when customer asks about pricing or data residency",
+              "response": "I'll send over our detailed pricing calculator along with our data residency and compliance documentation tailored for EU requirements. Would you like me to include any additional technical details?",
+              "tone": "professional"
+            },
+            {
+              "situation": "when customer expresses concerns about latency and memory limits",
+              "response": "Our platform is designed for high scalability and low latency, with advanced caching options. I’d be happy to arrange a technical session to show how we can help improve your current setup.",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "Can you tell me more about your current API performance targets?",
+            "What are your projected growth rates over the next 6-12 months?",
+            "Are there specific compliance standards or data residency requirements we should be aware of?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Enterprise API Platform with Global Edge Nodes",
+              "reason": "Supports high scalability, low latency, and compliance needs, ideal for large-scale API operations",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Customer is a CTO at InnovateTech with current API scaling challenges, particularly latency and cost. He is interested in pricing, compliance, and platform performance. Next steps include providing detailed documentation and scheduling a technical demo to address specific pain points."
+        },
+        "elapsed_seconds": 7.2
+      },
+      {
+        "test_id": "test_005",
+        "test_name": "Champion vs Economic Buyer - Navigating Politics",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "scalable user engagement tracking",
+            "ROI justification",
+            "measuring time-to-value"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "current tools are insufficient for growth",
+            "CFO's ROI concerns",
+            "skepticism about implementation time"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "user behavior analytics",
+            "ROI and adoption metrics",
+            "enterprise software implementation"
+          ],
+          "objections": [
+            "ROI questions from CFO",
+            "skepticism about implementation time"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Prepare a detailed business case with ROI projections and implementation timeline",
+              "priority": "high",
+              "reason": "Addresses CFO's concerns directly and demonstrates value, increasing likelihood of progressing to close"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When the customer requests ROI and implementation details",
+              "response": "Absolutely, Lisa. I'll prepare a comprehensive business case that highlights ROI projections, adoption metrics, and a clear timeline for realizing value. This should help your CFO assess the strategic fit.",
+              "tone": "professional"
+            }
+          ],
+          "next_best_questions": [
+            "What specific metrics does your CFO prioritize for ROI?",
+            "Are there any particular integration concerns we should address?",
+            "What is your ideal timeline for implementation and ROI realization?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Product Analytics Platform",
+              "reason": "Provides comprehensive user behavior insights, ROI metrics, and implementation support tailored for scaling companies",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Lisa is interested in scaling analytics capabilities and is considering adopting a new platform. She needs ROI justification and reassurance about implementation. The next step is to prepare a detailed business case to address her CFO's concerns and move towards closing."
+        },
+        "elapsed_seconds": 5.24
+      },
+      {
+        "test_id": "test_006",
+        "test_name": "Competitive Replacement - Switching from Competitor",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "reliable support and high uptime",
+            "cost stability and transparency",
+            "migration assistance"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "support quality decline",
+            "unexpected price increase",
+            "service outages"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "support quality",
+            "service uptime",
+            "migration process",
+            "cost and pricing"
+          ],
+          "objections": [
+            "risk of migration",
+            "showing progress to board"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Offer a tailored pilot program with clear scope and timeline",
+              "priority": "high",
+              "reason": "Addresses Robert's need for risk mitigation and aligns with his timeline for board approval"
+            },
+            {
+              "action": "Provide case studies demonstrating successful migrations and support improvements",
+              "priority": "medium",
+              "reason": "Builds confidence and addresses concerns about migration and support quality"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When discussing pilot program details and risk mitigation",
+              "response": "We can customize a pilot with a defined scope and timeline that aligns with your goal to show progress to your board. This way, you can evaluate our support and reliability firsthand without significant upfront commitment.",
+              "tone": "professional"
+            },
+            {
+              "situation": "When addressing concerns about migration and support",
+              "response": "Our dedicated migration engineers and 24/7 support team are here to ensure a smooth transition. We understand your urgency and will work closely with you to meet your timeline.",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What specific features or support levels are most critical for your team?",
+            "Have you considered a phased migration approach?",
+            "What metrics will you use to evaluate the success of the pilot?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "MegaSecure Support Suite",
+              "reason": "Offers 24/7 support with rapid response times and dedicated migration assistance, directly addressing Robert’s needs",
+              "fit_score": "high"
+            },
+            {
+              "product": "MegaCloud Uptime Guarantee",
+              "reason": "Provides a 99.9% uptime SLA, ensuring reliability and peace of mind",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Robert Williams is considering switching vendors due to support issues, outages, and pricing concerns. He is open to a pilot program to evaluate potential solutions, with a focus on reliability, support, and migration ease. Addressing his risk concerns and providing tailored, transparent options will be key to advancing the sale."
+        },
+        "elapsed_seconds": 7.08
+      },
+      {
+        "test_id": "test_007",
+        "test_name": "New Logo - First Meeting with Skeptical Prospect",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "simple automation solutions",
+            "time-saving tools",
+            "easy-to-use software"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "medium",
+          "pain_points": [
+            "complexity of previous automation tools",
+            "lack of team capacity to learn new software",
+            "ineffective automation solutions"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "lead",
+          "key_topics": [
+            "automation",
+            "simplicity",
+            "time management"
+          ],
+          "objections": [
+            "automation tools were too complicated",
+            "team cannot handle learning new software"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Schedule a demo of simple, user-friendly automation tools tailored for small businesses",
+              "priority": "high",
+              "reason": "Addresses the concern about complexity and demonstrates ease of use, increasing likelihood of engagement"
+            },
+            {
+              "action": "Send case studies of similar small businesses successfully using simple automation",
+              "priority": "medium",
+              "reason": "Builds trust and shows proven results, alleviating concerns about previous failures"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when the customer expresses frustration with past automation tools",
+              "response": "I understand how frustrating complicated tools can be. We offer solutions designed specifically for small businesses that are simple and easy to implement. Would you like to see a quick demo?",
+              "tone": "empathetic"
+            },
+            {
+              "situation": "when the customer mentions lack of team capacity",
+              "response": "Our automation tools are built to be intuitive and require minimal training, so your team can start saving time right away. Would you be open to exploring how this could work for your business?",
+              "tone": "friendly"
+            }
+          ],
+          "next_best_questions": [
+            "What specific tasks do you find most time-consuming?",
+            "Have you tried any automation solutions recently? What was your experience?",
+            "Would you be interested in a solution that requires minimal setup and training?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "SimpleAutomation SMB Suite",
+              "reason": "Designed for small businesses with minimal learning curve and effective automation features",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Jennifer is a busy small business owner skeptical about automation due to past experiences with complex tools. She values simplicity and ease of use. The next step is to demonstrate a user-friendly automation solution and provide relevant success stories to build trust."
+        },
+        "elapsed_seconds": 7.29
+      },
+      {
+        "test_id": "test_008",
+        "test_name": "Expansion Revenue - Upselling Existing Customer",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "maximize platform features",
+            "cost savings on inventory",
+            "efficient use of existing tools"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "underutilization of platform features",
+            "budget constraints"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "platform features",
+            "cost savings",
+            "feature utilization"
+          ],
+          "objections": [
+            "not aware of all features",
+            "budget concerns"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Schedule a personalized demo focusing on cost-saving features included in current plan",
+              "priority": "high",
+              "reason": "Customer is interested but needs clarity on features and cost benefits, which can be addressed through a demo"
+            },
+            {
+              "action": "Follow up with finance team to clarify current plan benefits and potential savings",
+              "priority": "medium",
+              "reason": "Understanding the financial aspect will help customer make an informed decision and reduce hesitation"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when customer shows interest but mentions budget concerns",
+              "response": "I understand budget constraints are important. Since these features are already included in your current plan, a demo can show you how to leverage them fully for maximum ROI without additional costs.",
+              "tone": "empathetic"
+            },
+            {
+              "situation": "when customer is checking with finance",
+              "response": "That's a great idea. Let me know if you'd like me to provide any additional details or documentation for your finance team to review.",
+              "tone": "professional"
+            }
+          ],
+          "next_best_questions": [
+            "Would you be interested in a quick walkthrough of all the features currently available to you?",
+            "How does your team currently manage inventory predictions, and what challenges are you facing?",
+            "Would it help if I prepared a summary of potential cost savings with these features?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Advanced Inventory Prediction Module",
+              "reason": "This feature directly addresses inventory cost savings and is underutilized in their current plan",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Mark Thompson is aware of some platform features but underutilizes them due to lack of awareness and budget concerns. He is interested in a demo to explore cost-saving features included in his current plan. Next steps involve scheduling a personalized demo and engaging with the finance team for clarity on plan benefits."
+        },
+        "elapsed_seconds": 7.3
+      },
+      {
+        "test_id": "test_009",
+        "test_name": "Multi-threading - Reaching Multiple Stakeholders",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "stakeholder-specific information",
+            "security and integration details",
+            "data processing terms",
+            "volume discounts"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "coordinating multiple stakeholders",
+            "aligning on security, legal, and financial terms"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "lead",
+          "key_topics": [
+            "stakeholder engagement",
+            "security and integration",
+            "legal data processing",
+            "volume discounts"
+          ],
+          "objections": [
+            "complexity of scheduling joint meetings",
+            "need for tailored stakeholder materials"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Prepare tailored presentation materials for each stakeholder group",
+              "priority": "high",
+              "reason": "Addresses specific concerns of IT, legal, and CFO, facilitating smoother discussions"
+            },
+            {
+              "action": "Schedule individual calls with IT, legal, and CFO next week",
+              "priority": "high",
+              "reason": "Respects their schedules and ensures focused discussions on each area"
+            },
+            {
+              "action": "Follow up with Amanda to confirm stakeholder availability and gather additional requirements",
+              "priority": "medium",
+              "reason": "Ensures alignment and readiness for upcoming meetings"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when discussing stakeholder-specific needs and scheduling",
+              "response": "Thank you for outlining the stakeholder concerns. I'll prepare tailored materials for each group and coordinate individual calls next week. Does that work for your team?",
+              "tone": "professional"
+            }
+          ],
+          "next_best_questions": [
+            "Can you share specific timelines for each stakeholder's decision process?",
+            "Are there any additional concerns or requirements we should be aware of?",
+            "Would you prefer to have a joint session after individual discussions, or proceed with separate meetings?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Enterprise Security Suite",
+              "reason": "Addresses IT's concern about security and integration",
+              "fit_score": "high"
+            },
+            {
+              "product": "Legal Data Processing Package",
+              "reason": "Meets legal requirements for data handling and compliance",
+              "fit_score": "high"
+            },
+            {
+              "product": "Volume Discount Program",
+              "reason": "Aligns with CFO's interest in cost savings",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Amanda Foster is progressing towards an enterprise decision involving multiple stakeholders. She prefers separate meetings with IT, legal, and finance, and values tailored information addressing their specific concerns. The next steps involve preparing stakeholder-specific materials and scheduling individual calls to facilitate the decision-making process."
+        },
+        "elapsed_seconds": 6.98
+      },
+      {
+        "test_id": "test_010",
+        "test_name": "Churn Risk - Saving an At-Risk Customer",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "improved support response times",
+            "clear improvement plan",
+            "demonstrated value to justify renewal"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "slow support response times",
+            "lack of visible support improvements",
+            "pressure to show results for renewal"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "negotiation",
+          "key_topics": [
+            "support response times",
+            "customer retention",
+            "renewal process",
+            "account management"
+          ],
+          "objections": [
+            "slow support response times",
+            "need for a concrete improvement plan"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Provide a detailed support improvement plan with measurable KPIs",
+              "priority": "high",
+              "reason": "Customer requires a tangible plan to justify renewal and regain trust"
+            },
+            {
+              "action": "Assign a dedicated support engineer and schedule regular updates",
+              "priority": "high",
+              "reason": "Addresses support concerns directly and demonstrates commitment"
+            },
+            {
+              "action": "Offer a case study or testimonial from a similar client who saw support improvements",
+              "priority": "medium",
+              "reason": "Builds confidence in the support team's ability to deliver results"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When customer requests a concrete improvement plan before renewal",
+              "response": "I understand your need for a clear plan. I will prepare a detailed support improvement strategy with specific KPIs and timelines, and share it with you by the end of the week. Additionally, I will assign a dedicated support engineer to your account to ensure faster response times.",
+              "tone": "empathetic"
+            },
+            {
+              "situation": "When addressing concerns about support response times",
+              "response": "We sincerely apologize for the delays you've experienced. We're committed to improving our support. I will personally oversee your account and ensure you receive timely updates and dedicated assistance moving forward.",
+              "tone": "professional"
+            }
+          ],
+          "next_best_questions": [
+            "What specific support issues have caused the most disruption?",
+            "What metrics or results would you need to see to feel confident in renewing?",
+            "Would a trial period with enhanced support services help in your decision-making?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Premium Support Package",
+              "reason": "Includes dedicated support engineers and faster response times, directly addressing current pain points",
+              "fit_score": "high"
+            },
+            {
+              "product": "Customer Success Program",
+              "reason": "Provides proactive account management and regular performance reviews to ensure value delivery",
+              "fit_score": "medium"
+            }
+          ],
+          "summary": "Tom is concerned about support response times and needs a concrete plan to see tangible improvements before renewing. The conversation is at a negotiation stage, with a focus on support quality and accountability. Immediate actions should include providing a detailed support improvement plan and assigning dedicated resources to rebuild trust."
+        },
+        "elapsed_seconds": 7.19
+      },
+      {
+        "test_id": "test_011",
+        "test_name": "Event-Driven Outreach - Post-Conference Lead",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "Zero-trust implementation",
+            "Legacy system integration",
+            "Incremental modernization"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "Challenges with legacy system integration",
+            "Need for measurable progress by Q3",
+            "Limited ability to replace systems overnight"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "Zero-trust security",
+            "Legacy system compatibility",
+            "Incremental security modernization"
+          ],
+          "objections": [
+            "Integration with legacy systems",
+            "Need for technical validation before decision"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Send a case study demonstrating successful hybrid zero-trust implementation with legacy systems",
+              "priority": "high",
+              "reason": "Aligns with customer’s current challenges and demonstrates proven results"
+            },
+            {
+              "action": "Prepare and send a high-level architecture overview for technical review",
+              "priority": "high",
+              "reason": "Supports customer’s need to share information with their technical team and facilitates decision-making"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when customer requests technical details or validation",
+              "response": "Absolutely, I'll prepare a detailed high-level architecture overview tailored for your technical team. Would you like it in a specific format or with particular focus areas?",
+              "tone": "professional"
+            },
+            {
+              "situation": "when customer expresses concern about legacy system integration",
+              "response": "Our hybrid approach is designed precisely for scenarios like yours, enabling incremental modernization without disrupting existing systems. Would you like to discuss specific integration strategies?",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What specific legacy systems are you working with, and what are their limitations?",
+            "What are your key success metrics for Q3 regarding zero-trust implementation?",
+            "Would you be interested in a technical demo or pilot to evaluate our approach?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Hybrid Zero-Trust Security Platform",
+              "reason": "Supports incremental implementation and legacy system integration, aligning with customer’s needs",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Sarah Connor from CyberDefense is exploring hybrid zero-trust solutions to address legacy system challenges. She is interested in case studies and technical validation, with a focus on incremental modernization to meet Q3 goals. The conversation is positive and progressing toward technical evaluation."
+        },
+        "elapsed_seconds": 6.48
+      },
+      {
+        "test_id": "test_012",
+        "test_name": "Product Qualified Lead - Trial Conversion",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "team collaboration features",
+            "cost savings",
+            "efficient sharing capabilities"
+          ],
+          "buying_intent": "high",
+          "interest_level": "high",
+          "pain_points": [
+            "manual sharing process",
+            "limited collaboration tools"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "negotiation",
+          "key_topics": [
+            "enterprise features",
+            "team collaboration",
+            "pricing discount"
+          ],
+          "objections": [
+            "request for 10% discount"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Offer a discounted rate or promotional pricing for the first year",
+              "priority": "high",
+              "reason": "Customer explicitly requested a discount, and closing the deal depends on addressing this objection"
+            },
+            {
+              "action": "Send the contract with the agreed discount and include onboarding support details",
+              "priority": "high",
+              "reason": "To facilitate quick closing and ensure customer onboarding is smooth"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when customer requests a discount during negotiation",
+              "response": "We understand the budget constraints of startups. I can offer you a 10% discount for the first year to help you get started. Would that work?",
+              "tone": "friendly"
+            }
+          ],
+          "next_best_questions": [
+            "Are there any other features or support you need to fully adopt the platform?",
+            "What are your key success metrics for this implementation?",
+            "Would you like a walkthrough of the enterprise collaboration features?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Team Plan with Collaboration Features",
+              "reason": "Aligns with customer’s need for team collaboration and sharing capabilities",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Chris is interested in upgrading to the Team plan, values collaboration features, and has requested a 10% discount. The conversation is in the negotiation stage, with a positive outlook towards closing the deal after addressing the discount request."
+        },
+        "elapsed_seconds": 5.44
+      },
+      {
+        "test_id": "test_013",
+        "test_name": "International Expansion - Multi-Region Requirements",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "GDPR compliance expertise",
+            "Data residency within EU borders",
+            "Localization and native language support"
+          ],
+          "buying_intent": "high",
+          "interest_level": "very_high",
+          "pain_points": [
+            "Navigating GDPR requirements across multiple countries",
+            "Ensuring data stays within EU borders",
+            "Providing localized user experience"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "GDPR compliance",
+            "Data residency",
+            "Localization"
+          ],
+          "objections": [
+            "Need for detailed GDPR compliance assurance",
+            "Ensuring data localization"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Send detailed GDPR compliance whitepaper and case studies",
+              "priority": "high",
+              "reason": "Customer explicitly requested compliance documentation and shows strong focus on GDPR and data residency"
+            },
+            {
+              "action": "Schedule a technical consultation on localization features",
+              "priority": "high",
+              "reason": "Customer expressed interest in native language support, which is critical for user experience"
+            },
+            {
+              "action": "Follow up with a tailored proposal addressing GDPR, data residency, and localization",
+              "priority": "high",
+              "reason": "To move towards closing by providing a comprehensive solution aligned with customer needs"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when customer requests detailed compliance information",
+              "response": "Absolutely, Pierre. I'll send over our comprehensive GDPR compliance whitepaper and relevant case studies to illustrate how we've successfully supported clients in similar situations.",
+              "tone": "professional"
+            },
+            {
+              "situation": "when discussing localization needs",
+              "response": "We understand the importance of native language support for your users. We can customize our platform to include German and French localization, ensuring a seamless experience.",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "Can you tell me more about your specific localization requirements?",
+            "Are there any other compliance standards or regulations we should consider?",
+            "What is your timeline for implementing these data infrastructure solutions?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "EU Data Residency Solution",
+              "reason": "Ensures all data remains within EU borders, addressing GDPR and residency concerns",
+              "fit_score": "high"
+            },
+            {
+              "product": "Localization Support Module",
+              "reason": "Provides native language interfaces for German and French users, enhancing user experience",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Pierre Dubois from EuroFinance is highly interested in GDPR compliance, data residency, and localization support for their EU expansion. The conversation indicates strong buying intent, with a focus on compliance and user experience. Recommended follow-up actions include providing detailed documentation, scheduling technical discussions, and preparing a tailored proposal to facilitate closing."
+        },
+        "elapsed_seconds": 7.8
+      },
+      {
+        "test_id": "test_014",
+        "test_name": "Self-Service to Enterprise - Growing Customer",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "enterprise-grade reliability",
+            "zero-downtime migration",
+            "dedicated support",
+            "custom integrations"
+          ],
+          "buying_intent": "high",
+          "interest_level": "very_high",
+          "pain_points": [
+            "avoiding downtime during migration",
+            "scaling infrastructure to support rapid growth"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "enterprise upgrade",
+            "migration process",
+            "reliability and support"
+          ],
+          "objections": [
+            "concern about migration downtime"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Provide a detailed migration plan with case studies and references",
+              "priority": "high",
+              "reason": "Customer is interested in references and wants assurance about migration process and reliability"
+            },
+            {
+              "action": "Schedule a technical consultation to discuss migration specifics",
+              "priority": "high",
+              "reason": "To address migration concerns and demonstrate zero-downtime capabilities"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When customer asks about migration process and references",
+              "response": "Absolutely, Nancy. I will send over detailed case studies of similar successful migrations and connect you with a reference customer in your industry. Our dedicated engineering team will also be available to plan a seamless, zero-downtime transition.",
+              "tone": "professional and empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What are your key priorities during this migration?",
+            "Are there specific integrations or features critical to your operations?",
+            "What is your preferred timeline for completing the upgrade?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Enterprise Upgrade Package",
+              "reason": "Includes SLA, dedicated support, custom integrations, and migration services tailored for scaling companies",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Nancy Green is a highly engaged customer seeking an enterprise upgrade to support rapid growth. She is concerned about migration downtime and values references. Immediate focus should be on providing detailed migration plans, references, and scheduling technical discussions to secure the upgrade."
+        },
+        "elapsed_seconds": 5.35
+      },
+      {
+        "test_id": "test_015",
+        "test_name": "Emergency Purchase - Urgent Business Need",
+        "llm_type": 1,
+        "llm_name": "GPT-4 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "urgent provisioning of high-capacity infrastructure",
+            "redundancy and failover capabilities",
+            "rapid deployment within the same day"
+          ],
+          "buying_intent": "high",
+          "interest_level": "very_high",
+          "pain_points": [
+            "vendor failure causing operational downtime",
+            "significant financial losses due to capacity shortfall"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "negotiation",
+          "key_topics": [
+            "emergency provisioning",
+            "capacity requirements",
+            "speed of deployment"
+          ],
+          "objections": [
+            "price is not a concern right now"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Confirm immediate deployment schedule and finalize technical details",
+              "priority": "high",
+              "reason": "Customer has expressed urgency and readiness to proceed today, so immediate action is critical to secure the deal"
+            },
+            {
+              "action": "Provide detailed deployment plan and SLA commitments",
+              "priority": "high",
+              "reason": "To reassure the customer of quick delivery and reliability, which are their top priorities"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when customer emphasizes urgency and readiness to proceed today",
+              "response": "We understand the critical nature of your situation, Frank. Our team is prepared to prioritize your deployment and will coordinate with engineering to ensure you are operational within hours. I'll send over the final plan immediately.",
+              "tone": "empathetic and professional"
+            }
+          ],
+          "next_best_questions": [
+            "Can you specify the exact capacity and redundancy configurations you require?",
+            "Are there any specific compliance or security requirements we should be aware of?",
+            "Would you like us to include ongoing support and monitoring services in this deployment?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "High-Availability Cloud Instances",
+              "reason": "Designed for rapid deployment, high capacity, and automatic failover, matching the customer's urgent needs",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Frank is urgently seeking high-capacity, redundant infrastructure deployment due to a vendor failure. He is ready to proceed immediately, with price no longer a concern. The focus should be on rapid deployment, technical confirmation, and reassurance of SLA commitments."
+        },
+        "elapsed_seconds": 5.35
+      }
+    ],
+    "gpt5_mini": [
+      {
+        "test_id": "test_001",
+        "test_name": "Early Discovery Call - Identifying Hidden Pain Points",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "real-time insights",
+            "streamlined reporting",
+            "data accuracy"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "time-consuming reporting",
+            "data synchronization issues"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "marketing analytics",
+            "reporting efficiency",
+            "data management"
+          ],
+          "objections": [
+            "changing systems is a headache"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Provide a demo of the marketing analytics platform",
+              "priority": "high",
+              "reason": "To showcase how the platform can save time and improve data accuracy, addressing John's pain points."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when addressing the headache of changing systems",
+              "response": "I understand that changing systems can feel overwhelming, but our platform is designed to integrate smoothly with your existing tools, minimizing disruption.",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What specific features are you looking for in a new analytics tool?",
+            "How does your team currently handle data discrepancies?",
+            "What would be the ideal outcome for your reporting process?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Marketing Analytics Platform",
+              "reason": "It offers real-time insights and automates reporting, which can significantly reduce the time spent on manual tasks.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "John is currently using a mix of Google Analytics and spreadsheets for marketing analytics, which is time-consuming and prone to data issues. He expresses a need for better insights and streamlined reporting but is hesitant about changing systems due to potential headaches."
+        },
+        "elapsed_seconds": 6.57
+      },
+      {
+        "test_id": "test_002",
+        "test_name": "Pricing Negotiation - Handling Budget Objections",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "guaranteed ROI",
+            "phased rollout option"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "cost of the Enterprise tier",
+            "approval from CFO"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "ROI calculation",
+            "phased rollout",
+            "cost comparison"
+          ],
+          "objections": [
+            "cost is double current payment",
+            "need for guaranteed ROI"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Provide a detailed ROI calculation template",
+              "priority": "high",
+              "reason": "To address the customer's need for a guaranteed ROI and facilitate CFO approval."
+            },
+            {
+              "action": "Discuss phased rollout options in detail",
+              "priority": "medium",
+              "reason": "To align with the customer's interest in a phased approach."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when the customer expresses concern about cost",
+              "response": "I understand that the cost is a significant factor. Let’s work together on the ROI calculation to demonstrate the value you'll receive.",
+              "tone": "empathetic"
+            },
+            {
+              "situation": "when proposing a phased rollout",
+              "response": "A phased rollout can help manage costs and allow you to see value incrementally. Would you like to explore this option further?",
+              "tone": "friendly"
+            }
+          ],
+          "next_best_questions": [
+            "What specific metrics do you need in the ROI calculation?",
+            "How does your CFO typically evaluate new investments?",
+            "What features of the Enterprise tier are most important to your team?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Enterprise tier",
+              "reason": "It offers enhanced features that can lead to further efficiency gains beyond the trial results.",
+              "fit_score": "medium"
+            }
+          ],
+          "summary": "Sarah is interested in upgrading to the Enterprise tier but is concerned about the cost being double her current system. She requires a guaranteed ROI calculation to present to her CFO before moving forward."
+        },
+        "elapsed_seconds": 6.78
+      },
+      {
+        "test_id": "test_003",
+        "test_name": "Disengaged Prospect - Detecting Low Intent",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "cybersecurity audit efficiency",
+            "support for cloud migrations"
+          ],
+          "buying_intent": "low",
+          "interest_level": "medium",
+          "pain_points": [
+            "busy with data center migration",
+            "not a priority right now"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "lead",
+          "key_topics": [
+            "cybersecurity audit tool",
+            "data center migration",
+            "cloud support"
+          ],
+          "objections": [
+            "not a priority right now",
+            "busy with migration"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Schedule a follow-up in six months",
+              "priority": "medium",
+              "reason": "Customer is currently focused on a data center migration and may be more receptive later."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When the customer expresses a lack of urgency",
+              "response": "I completely understand that your current focus is on the data center migration. Would it be helpful if I check back in a few months?",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What challenges are you facing with the current migration?",
+            "How are you measuring the success of your current audit tool?",
+            "What features would you like to see in a cybersecurity audit tool?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Cybersecurity Audit Tool",
+              "reason": "It can significantly reduce audit times, which could be beneficial once the migration is complete.",
+              "fit_score": "medium"
+            }
+          ],
+          "summary": "Mike Johnson, the IT Manager at DataFlow Inc, is currently focused on a data center migration and does not see the cybersecurity audit tool as a priority at this moment. He has skimmed the information provided but is not evaluating new tools right now."
+        },
+        "elapsed_seconds": 7.19
+      },
+      {
+        "test_id": "test_004",
+        "test_name": "Technical Decision Maker - Deep Technical Discussion",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "scalability",
+            "cost-effective solutions",
+            "compliance with data residency"
+          ],
+          "buying_intent": "high",
+          "interest_level": "high",
+          "pain_points": [
+            "latency issues",
+            "memory limits with current solution",
+            "high costs of scaling"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "API performance",
+            "pricing model",
+            "data residency compliance"
+          ],
+          "objections": [
+            "concerns about pricing",
+            "data residency compliance"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Send the pricing calculator and data residency policy documentation",
+              "priority": "high",
+              "reason": "To address the customer's immediate questions and facilitate informed decision-making."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When the customer asks about pricing or compliance",
+              "response": "I will send you our pricing calculator and detailed information on our data residency policies to ensure we meet your compliance requirements.",
+              "tone": "professional"
+            }
+          ],
+          "next_best_questions": [
+            "What specific compliance requirements do you have for EU data?",
+            "How do you currently manage latency issues?",
+            "What are your growth projections for API calls in the next year?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "API Integration Platform",
+              "reason": "It offers high scalability and performance with a flexible pricing model that aligns with InnovateTech's growth needs.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "David Chen, the CTO of InnovateTech, is experiencing latency issues and high costs with their current API solution. He is interested in understanding the pricing model and data residency policies of the proposed API platform, indicating a high level of interest in a potential partnership."
+        },
+        "elapsed_seconds": 6.87
+      },
+      {
+        "test_id": "test_005",
+        "test_name": "Champion vs Economic Buyer - Navigating Politics",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "better user engagement tracking",
+            "ROI justification for CFO",
+            "measuring time-to-value"
+          ],
+          "buying_intent": "high",
+          "interest_level": "very_high",
+          "pain_points": [
+            "outgrown current tools",
+            "CFO skepticism about ROI and adoption metrics"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "user engagement tracking",
+            "ROI",
+            "time-to-value"
+          ],
+          "objections": [
+            "CFO needs convincing",
+            "skepticism about enterprise software"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Prepare a business case with ROI projections and time-to-value metrics",
+              "priority": "high",
+              "reason": "This will address the CFO's concerns and help move the sale forward."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when the customer expresses need for CFO approval",
+              "response": "I can prepare a detailed business case that outlines the ROI and time-to-value metrics to help you present to your CFO.",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What specific metrics does your CFO focus on?",
+            "Are there any other stakeholders involved in the decision?",
+            "What is your timeline for making a decision?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Product Analytics Platform",
+              "reason": "It directly addresses the need for better user engagement tracking and provides features that can be highlighted in the business case.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Lisa Park from GrowthStartup is interested in the Product Analytics Platform due to her team's rapid growth and the limitations of their current tools. She is excited about specific features but needs to convince her CFO regarding ROI and implementation concerns."
+        },
+        "elapsed_seconds": 6.88
+      },
+      {
+        "test_id": "test_006",
+        "test_name": "Competitive Replacement - Switching from Competitor",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "99.9% uptime SLA",
+            "24/7 support with under 1 hour response",
+            "migration assistance"
+          ],
+          "buying_intent": "high",
+          "interest_level": "high",
+          "pain_points": [
+            "poor support from current vendor",
+            "unexpected price increase",
+            "recent outages"
+          ],
+          "sentiment": "negative",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "vendor support",
+            "uptime requirements",
+            "pilot program"
+          ],
+          "objections": [
+            "need to show progress to board",
+            "concerns about migration"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Provide detailed information about the pilot program scope and timeline.",
+              "priority": "high",
+              "reason": "Robert needs to present progress to his board, so clarity on the pilot will help build trust and urgency."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when discussing the pilot program details",
+              "response": "The pilot program can be tailored to your specific needs, and we can start within the next two weeks to ensure you have results to present to your board by the end of the quarter.",
+              "tone": "professional"
+            }
+          ],
+          "next_best_questions": [
+            "What specific metrics would you like to measure during the pilot?",
+            "Who else on your team should be involved in the pilot discussions?",
+            "What is your preferred timeline for making a decision?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Pilot Program Package",
+              "reason": "This package includes all the necessary support and guarantees to address Robert's concerns about migration and uptime.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Robert Williams from MegaCorp is exploring alternatives to their current vendor due to poor support and unexpected price increases. He has specific uptime and support requirements and is interested in a pilot program to mitigate risks. His buying intent is high, and he needs to show progress to his board by the end of the quarter."
+        },
+        "elapsed_seconds": 6.15
+      },
+      {
+        "test_id": "test_007",
+        "test_name": "New Logo - First Meeting with Skeptical Prospect",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "simplified automation tools",
+            "time-saving solutions"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "medium",
+          "pain_points": [
+            "previous automation tools were too complicated",
+            "team struggles with learning new software"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "lead",
+          "key_topics": [
+            "automation",
+            "time management",
+            "user-friendly software"
+          ],
+          "objections": [
+            "previous tools created more problems",
+            "concerns about complexity"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Provide a demo of a user-friendly automation tool",
+              "priority": "high",
+              "reason": "To address her concerns about complexity and demonstrate ease of use."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when addressing her concerns about complexity",
+              "response": "I understand that previous tools have been complicated. Our solution is designed to be intuitive and requires minimal training.",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What specific tasks do you find most time-consuming?",
+            "Can you share more about the problems you faced with previous tools?",
+            "What features would be most important for you in an automation tool?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Simple Automation Software",
+              "reason": "It is designed for ease of use and requires minimal training, addressing her concerns.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Jennifer is busy managing her business and has concerns about the complexity of automation tools. She has previously tried automation but found them problematic. The conversation indicates a need for simplified solutions that save time without overwhelming her team."
+        },
+        "elapsed_seconds": 6.56
+      },
+      {
+        "test_id": "test_008",
+        "test_name": "Expansion Revenue - Upselling Existing Customer",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "understanding of available features",
+            "cost-saving solutions",
+            "budget management"
+          ],
+          "buying_intent": "medium",
+          "interest_level": "high",
+          "pain_points": [
+            "tight budget",
+            "lack of awareness about features"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "feature utilization",
+            "cost savings",
+            "budget constraints"
+          ],
+          "objections": [
+            "not looking to spend more",
+            "needs to check with finance team"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Schedule a personalized demo",
+              "priority": "high",
+              "reason": "The customer has shown interest in understanding the features better and is open to a demo."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when the customer expresses concern about budget",
+              "response": "I understand your budget constraints, but these features are included in your current plan, which can help you save costs.",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What specific features are you most interested in?",
+            "How does your team currently manage inventory?",
+            "What challenges are you facing with your current e-commerce setup?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Advanced Inventory Prediction",
+              "reason": "This feature can help save stock costs, which aligns with the customer's need to manage budget effectively.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Mark is the E-commerce Director at RetailCo and has been using the platform for 2 years. He is unaware of the full range of features available to him and is currently facing budget constraints. He is interested in a demo to explore these features further."
+        },
+        "elapsed_seconds": 5.24
+      },
+      {
+        "test_id": "test_009",
+        "test_name": "Multi-threading - Reaching Multiple Stakeholders",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "security",
+            "data processing terms",
+            "volume discounts"
+          ],
+          "buying_intent": "high",
+          "interest_level": "high",
+          "pain_points": [
+            "scheduling conflicts",
+            "stakeholder involvement"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "stakeholder engagement",
+            "security and integration",
+            "contract terms"
+          ],
+          "objections": [
+            "scheduling complications"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Prepare tailored materials for IT, legal, and CFO",
+              "priority": "high",
+              "reason": "To address specific concerns of each stakeholder and facilitate the decision-making process."
+            },
+            {
+              "action": "Schedule separate calls with each stakeholder",
+              "priority": "high",
+              "reason": "To accommodate their schedules and ensure focused discussions."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When discussing stakeholder involvement",
+              "response": "I can prepare tailored materials for each of your stakeholders to address their specific concerns. Would that be helpful?",
+              "tone": "professional"
+            },
+            {
+              "situation": "When proposing meeting formats",
+              "response": "I understand that scheduling can be tricky. Would separate calls next week work better for you?",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What specific security concerns does your IT team have?",
+            "What are the key data processing terms your legal team focuses on?",
+            "What volume discounts are you currently looking for?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Enterprise Security Solution",
+              "reason": "To address IT's concerns about security and integration.",
+              "fit_score": "high"
+            },
+            {
+              "product": "Contract Management Software",
+              "reason": "To streamline legal's review of data processing terms.",
+              "fit_score": "medium"
+            }
+          ],
+          "summary": "Amanda Foster from GlobalCorp is engaged in discussions about a potential partnership, emphasizing the need for tailored materials for multiple stakeholders. She indicates a high level of interest and intent to proceed, while also highlighting scheduling complexities."
+        },
+        "elapsed_seconds": 6.78
+      },
+      {
+        "test_id": "test_010",
+        "test_name": "Churn Risk - Saving an At-Risk Customer",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "faster support response",
+            "improvement plan",
+            "dedicated account management"
+          ],
+          "buying_intent": "high",
+          "interest_level": "high",
+          "pain_points": [
+            "slow support response times",
+            "pressure to show results"
+          ],
+          "sentiment": "neutral",
+          "funnel_stage": "negotiation",
+          "key_topics": [
+            "support response times",
+            "contract renewal",
+            "improvement plan"
+          ],
+          "objections": [
+            "need for a concrete improvement plan",
+            "evaluating other vendors"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Draft a detailed improvement plan and schedule a follow-up meeting",
+              "priority": "high",
+              "reason": "To address Tom's concerns and demonstrate commitment to improving support"
+            },
+            {
+              "action": "Arrange for a dedicated support engineer",
+              "priority": "medium",
+              "reason": "To provide Tom with the assurance of better support moving forward"
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when discussing the improvement plan",
+              "response": "I will ensure we provide you with a detailed improvement plan by the end of the week.",
+              "tone": "professional"
+            },
+            {
+              "situation": "when addressing the need for better support",
+              "response": "I understand the urgency and will personally oversee your account to ensure you receive the support you need.",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What specific improvements would you like to see in our support?",
+            "Can you share more about the other vendors you are considering?",
+            "What metrics are most important for you to show results to your leadership?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Dedicated Account Management Service",
+              "reason": "To provide personalized support and oversight for Tom's account.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Tom Miller from FadingTech expressed concerns about slow support response times and is evaluating other vendors as their contract is up for renewal next month. He is interested in a concrete improvement plan and dedicated support to consider staying with the service."
+        },
+        "elapsed_seconds": 8.31
+      },
+      {
+        "test_id": "test_011",
+        "test_name": "Event-Driven Outreach - Post-Conference Lead",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "zero-trust implementation",
+            "legacy system integration",
+            "measurable progress by Q3"
+          ],
+          "buying_intent": "high",
+          "interest_level": "high",
+          "pain_points": [
+            "legacy system integration",
+            "need for incremental modernization"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "zero-trust implementation",
+            "legacy systems",
+            "incremental modernization"
+          ],
+          "objections": [
+            "cannot replace everything overnight",
+            "need to show measurable progress"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Send a case study and high-level architecture overview",
+              "priority": "high",
+              "reason": "These materials will address Sarah's concerns and help her present to the technical team."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "After sending the case study and architecture overview",
+              "response": "I hope the materials help clarify how our solution can fit into your current systems. Let me know if you have any questions or need further information.",
+              "tone": "professional"
+            }
+          ],
+          "next_best_questions": [
+            "What specific features are you looking for in the architecture overview?",
+            "Who else will be involved in the decision-making process?",
+            "What timeline are you considering for the implementation?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Hybrid Integration Solution",
+              "reason": "It directly addresses the need for legacy system integration while allowing for gradual modernization.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Sarah is actively evaluating zero-trust implementation with a focus on integrating legacy systems. She has a high intent to move forward, provided she can demonstrate measurable progress by Q3. The conversation indicates a strong interest in a hybrid approach that aligns with her current infrastructure."
+        },
+        "elapsed_seconds": 7.28
+      },
+      {
+        "test_id": "test_012",
+        "test_name": "Product Qualified Lead - Trial Conversion",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "real-time dashboard",
+            "team collaboration features",
+            "cost-effective pricing"
+          ],
+          "buying_intent": "high",
+          "interest_level": "very_high",
+          "pain_points": [
+            "manual data sharing",
+            "limited budget"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "negotiation",
+          "key_topics": [
+            "trial usage",
+            "enterprise features",
+            "pricing"
+          ],
+          "objections": [
+            "request for discount"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Consider offering a discount to close the deal",
+              "priority": "high",
+              "reason": "The customer has expressed a need for a lower price due to budget constraints, which could help in finalizing the sale."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "when discussing pricing with the customer",
+              "response": "I understand your budget concerns, and I can offer you a 10% discount for the first year to help you get started.",
+              "tone": "empathetic"
+            }
+          ],
+          "next_best_questions": [
+            "What specific features do you need for team collaboration?",
+            "How many users do you anticipate will be using the platform?",
+            "What other budget considerations do you have?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Team plan",
+              "reason": "It aligns with their need for collaboration features and is suitable for their team size.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Chris Lee from DataDriven is highly interested in the product, particularly in the real-time dashboard and collaboration features. He is negotiating for a discount due to budget constraints as a startup. The conversation indicates a strong likelihood of conversion if the pricing concern is addressed."
+        },
+        "elapsed_seconds": 5.18
+      },
+      {
+        "test_id": "test_013",
+        "test_name": "International Expansion - Multi-Region Requirements",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "GDPR compliance",
+            "data residency",
+            "localization support"
+          ],
+          "buying_intent": "high",
+          "interest_level": "high",
+          "pain_points": [
+            "varying GDPR requirements across countries",
+            "need for native language support"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "data infrastructure",
+            "GDPR compliance",
+            "localization"
+          ],
+          "objections": [],
+          "recommended_actions": [
+            {
+              "action": "Send compliance whitepaper and localization details",
+              "priority": "high",
+              "reason": "To address Pierre's concerns about GDPR and localization needs."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When Pierre asks about data residency and localization",
+              "response": "I can provide detailed information on our data residency policies and how we support localization for different EU regions.",
+              "tone": "professional"
+            }
+          ],
+          "next_best_questions": [
+            "What specific localization features are you looking for?",
+            "How do you currently handle GDPR compliance?",
+            "What is your timeline for expanding into these new markets?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "EU Data Compliance Package",
+              "reason": "This package includes GDPR compliance support and data residency solutions tailored for financial services.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Pierre Dubois from EuroFinance is focused on expanding into new EU markets with a strong emphasis on GDPR compliance and localization. He shows high interest in solutions that can address these needs and is currently in the qualified stage of the sales funnel."
+        },
+        "elapsed_seconds": 5.25
+      },
+      {
+        "test_id": "test_014",
+        "test_name": "Self-Service to Enterprise - Growing Customer",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "enterprise-grade reliability",
+            "zero-downtime migration",
+            "custom integrations"
+          ],
+          "buying_intent": "high",
+          "interest_level": "very_high",
+          "pain_points": [
+            "concern about downtime during migration"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "qualified",
+          "key_topics": [
+            "Series B funding",
+            "scaling needs",
+            "migration process"
+          ],
+          "objections": [
+            "concern about downtime during migration"
+          ],
+          "recommended_actions": [
+            {
+              "action": "Connect Nancy with a reference customer in her industry.",
+              "priority": "high",
+              "reason": "To build trust and provide reassurance about the migration process."
+            },
+            {
+              "action": "Prepare a detailed migration plan.",
+              "priority": "medium",
+              "reason": "To address Nancy's concerns and outline the steps involved."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When Nancy asks for a reference customer.",
+              "response": "Absolutely, I can connect you with a reference customer in your industry. They can share their experience with our enterprise tier and the migration process.",
+              "tone": "professional"
+            }
+          ],
+          "next_best_questions": [
+            "What specific features are you looking for in the enterprise tier?",
+            "How do you envision the transition impacting your team?",
+            "What is your timeline for the migration?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "Enterprise Tier",
+              "reason": "It offers the reliability and support Nancy's growing company needs.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Nancy Green, CEO of ScaleUpNow, is looking for enterprise-grade solutions due to significant growth following their Series B funding. She is highly interested in zero-downtime migration and has requested a reference customer to validate the service."
+        },
+        "elapsed_seconds": 6.28
+      },
+      {
+        "test_id": "test_015",
+        "test_name": "Emergency Purchase - Urgent Business Need",
+        "llm_type": 2,
+        "llm_name": "GPT-5 mini",
+        "success": true,
+        "result": {
+          "customer_needs": [
+            "emergency provisioning",
+            "high-capacity instances",
+            "redundancy"
+          ],
+          "buying_intent": "high",
+          "interest_level": "very_high",
+          "pain_points": [
+            "catastrophic failure of current vendor",
+            "loss of capacity leading to financial losses"
+          ],
+          "sentiment": "positive",
+          "funnel_stage": "negotiation",
+          "key_topics": [
+            "urgent need",
+            "capacity requirements",
+            "provisioning speed"
+          ],
+          "objections": [],
+          "recommended_actions": [
+            {
+              "action": "Confirm the provisioning timeline and capacity details with engineering",
+              "priority": "high",
+              "reason": "To ensure Frank's urgent needs are met and to maintain trust in your ability to deliver quickly."
+            }
+          ],
+          "suggested_responses": [
+            {
+              "situation": "When confirming delivery details",
+              "response": "Frank, I will coordinate with our engineering team right away to confirm the provisioning timeline and ensure we meet your capacity needs.",
+              "tone": "professional"
+            }
+          ],
+          "next_best_questions": [
+            "What specific features do you require for redundancy?",
+            "Are there any compliance requirements we should be aware of?",
+            "How will you measure success for this solution?"
+          ],
+          "product_recommendations": [
+            {
+              "product": "High-Capacity Cloud Instances",
+              "reason": "These instances can handle the required transaction volume with built-in redundancy.",
+              "fit_score": "high"
+            }
+          ],
+          "summary": "Frank Martinez from CriticalSystems is facing a critical situation due to a vendor failure, resulting in a significant capacity loss. He has an urgent need for high-capacity provisioning with redundancy, and he is ready to move forward quickly without concern for price."
+        },
+        "elapsed_seconds": 5.57
+      }
+    ]
+  },
+  "comparison": {
+    "gpt4_mini": {
+      "total_tests": 15,
+      "successful": 15,
+      "failed": 0,
+      "avg_time_seconds": 6.46
+    },
+    "gpt5_mini": {
+      "total_tests": 15,
+      "successful": 15,
+      "failed": 0,
+      "avg_time_seconds": 6.46
+    },
+    "test_1": {
+      "test_id": "test_001",
+      "test_name": "Early Discovery Call - Identifying Hidden Pain Points",
+      "gpt4_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 3,
+        "objections_count": 1
+      },
+      "gpt5_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 2,
+        "objections_count": 1
+      }
+    },
+    "test_2": {
+      "test_id": "test_002",
+      "test_name": "Pricing Negotiation - Handling Budget Objections",
+      "gpt4_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 2,
+        "objections_count": 2
+      },
+      "gpt5_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 2,
+        "objections_count": 2
+      }
+    },
+    "test_3": {
+      "test_id": "test_003",
+      "test_name": "Disengaged Prospect - Detecting Low Intent",
+      "gpt4_analysis": {
+        "buying_intent": "low",
+        "interest_level": "medium",
+        "sentiment": "neutral",
+        "pain_points_count": 2,
+        "objections_count": 2
+      },
+      "gpt5_analysis": {
+        "buying_intent": "low",
+        "interest_level": "medium",
+        "sentiment": "neutral",
+        "pain_points_count": 2,
+        "objections_count": 2
+      }
+    },
+    "test_4": {
+      "test_id": "test_004",
+      "test_name": "Technical Decision Maker - Deep Technical Discussion",
+      "gpt4_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 4,
+        "objections_count": 3
+      },
+      "gpt5_analysis": {
+        "buying_intent": "high",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 3,
+        "objections_count": 2
+      }
+    },
+    "test_5": {
+      "test_id": "test_005",
+      "test_name": "Champion vs Economic Buyer - Navigating Politics",
+      "gpt4_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "positive",
+        "pain_points_count": 3,
+        "objections_count": 2
+      },
+      "gpt5_analysis": {
+        "buying_intent": "high",
+        "interest_level": "very_high",
+        "sentiment": "positive",
+        "pain_points_count": 2,
+        "objections_count": 2
+      }
+    },
+    "test_6": {
+      "test_id": "test_006",
+      "test_name": "Competitive Replacement - Switching from Competitor",
+      "gpt4_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 3,
+        "objections_count": 2
+      },
+      "gpt5_analysis": {
+        "buying_intent": "high",
+        "interest_level": "high",
+        "sentiment": "negative",
+        "pain_points_count": 3,
+        "objections_count": 2
+      }
+    },
+    "test_7": {
+      "test_id": "test_007",
+      "test_name": "New Logo - First Meeting with Skeptical Prospect",
+      "gpt4_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "medium",
+        "sentiment": "neutral",
+        "pain_points_count": 3,
+        "objections_count": 2
+      },
+      "gpt5_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "medium",
+        "sentiment": "neutral",
+        "pain_points_count": 2,
+        "objections_count": 2
+      }
+    },
+    "test_8": {
+      "test_id": "test_008",
+      "test_name": "Expansion Revenue - Upselling Existing Customer",
+      "gpt4_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 2,
+        "objections_count": 2
+      },
+      "gpt5_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 2,
+        "objections_count": 2
+      }
+    },
+    "test_9": {
+      "test_id": "test_009",
+      "test_name": "Multi-threading - Reaching Multiple Stakeholders",
+      "gpt4_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 2,
+        "objections_count": 2
+      },
+      "gpt5_analysis": {
+        "buying_intent": "high",
+        "interest_level": "high",
+        "sentiment": "positive",
+        "pain_points_count": 2,
+        "objections_count": 1
+      }
+    },
+    "test_10": {
+      "test_id": "test_010",
+      "test_name": "Churn Risk - Saving an At-Risk Customer",
+      "gpt4_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 3,
+        "objections_count": 2
+      },
+      "gpt5_analysis": {
+        "buying_intent": "high",
+        "interest_level": "high",
+        "sentiment": "neutral",
+        "pain_points_count": 2,
+        "objections_count": 2
+      }
+    },
+    "test_11": {
+      "test_id": "test_011",
+      "test_name": "Event-Driven Outreach - Post-Conference Lead",
+      "gpt4_analysis": {
+        "buying_intent": "medium",
+        "interest_level": "high",
+        "sentiment": "positive",
+        "pain_points_count": 3,
+        "objections_count": 2
+      },
+      "gpt5_analysis": {
+        "buying_intent": "high",
+        "interest_level": "high",
+        "sentiment": "positive",
+        "pain_points_count": 2,
+        "objections_count": 2
+      }
+    },
+    "test_12": {
+      "test_id": "test_012",
+      "test_name": "Product Qualified Lead - Trial Conversion",
+      "gpt4_analysis": {
+        "buying_intent": "high",
+        "interest_level": "high",
+        "sentiment": "positive",
+        "pain_points_count": 2,
+        "objections_count": 1
+      },
+      "gpt5_analysis": {
+        "buying_intent": "high",
+        "interest_level": "very_high",
+        "sentiment": "positive",
+        "pain_points_count": 2,
+        "objections_count": 1
+      }
+    },
+    "test_13": {
+      "test_id": "test_013",
+      "test_name": "International Expansion - Multi-Region Requirements",
+      "gpt4_analysis": {
+        "buying_intent": "high",
+        "interest_level": "very_high",
+        "sentiment": "positive",
+        "pain_points_count": 3,
+        "objections_count": 2
+      },
+      "gpt5_analysis": {
+        "buying_intent": "high",
+        "interest_level": "high",
+        "sentiment": "positive",
+        "pain_points_count": 2,
+        "objections_count": 0
+      }
+    },
+    "test_14": {
+      "test_id": "test_014",
+      "test_name": "Self-Service to Enterprise - Growing Customer",
+      "gpt4_analysis": {
+        "buying_intent": "high",
+        "interest_level": "very_high",
+        "sentiment": "positive",
+        "pain_points_count": 2,
+        "objections_count": 1
+      },
+      "gpt5_analysis": {
+        "buying_intent": "high",
+        "interest_level": "very_high",
+        "sentiment": "positive",
+        "pain_points_count": 1,
+        "objections_count": 1
+      }
+    },
+    "test_15": {
+      "test_id": "test_015",
+      "test_name": "Emergency Purchase - Urgent Business Need",
+      "gpt4_analysis": {
+        "buying_intent": "high",
+        "interest_level": "very_high",
+        "sentiment": "positive",
+        "pain_points_count": 2,
+        "objections_count": 1
+      },
+      "gpt5_analysis": {
+        "buying_intent": "high",
+        "interest_level": "very_high",
+        "sentiment": "positive",
+        "pain_points_count": 2,
+        "objections_count": 0
+      }
+    }
+  }
+}
