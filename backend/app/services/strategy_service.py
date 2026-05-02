@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from app.core.config import settings
+from app.services.llm_engine import chat_json
 
 logger = logging.getLogger(__name__)
 
@@ -590,42 +591,20 @@ Rules:
         ai_error = False
 
         try:
-            def _sync_call() -> str:
-                from openai import OpenAI
-                client = OpenAI(
-                    api_key=settings.ANTHROPIC_AUTH_TOKEN,
-                    base_url=settings.ANTHROPIC_BASE_URL,
-                )
-                response = client.chat.completions.create(
-                    model="claude-haiku-4-5-20251001",
-                    messages=[
-                        {"role": "system", "content": "You are a sales strategy AI. Return ONLY valid JSON. No markdown. No extra text."},
-                        {"role": "user", "content": prompt},
-                    ],
-                    temperature=0.3,
-                    max_tokens=2000,
-                )
-                return (response.choices[0].message.content or "").strip()
-
-            content = await asyncio.to_thread(_sync_call)
-
-            if content.startswith("```"):
-                lines = content.split("\n")
-                content = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-            content = content.strip()
-
-            try:
-                ai_result = json.loads(content)
-            except json.JSONDecodeError:
-                start = content.find("{")
-                end = content.rfind("}") + 1
-                if start >= 0 and end > start:
-                    ai_result = json.loads(content[start:end])
-                else:
-                    raise ValueError("No valid JSON object found in Claude response")
+            if not settings.OPEN_AI_KEY:
+                raise RuntimeError("Missing OPEN_AI_KEY")
+            out = await chat_json(
+                prompt=prompt,
+                system="You are a sales strategy AI. Return ONLY valid JSON. No markdown. No extra text.",
+                temperature=0.3,
+                max_tokens=2000,
+            )
+            if not isinstance(out, dict):
+                raise ValueError("AI did not return a JSON object")
+            ai_result = out
 
         except Exception as exc:
-            logger.warning("[StrategyService] Claude call failed: %s", exc)
+            logger.warning("[StrategyService] AI call failed: %s", exc)
             ai_error = True
 
             # Build fallback referencing real context

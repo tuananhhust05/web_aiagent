@@ -11,6 +11,7 @@ from app.core.auth import get_current_active_user
 from app.core.config import settings
 from app.models.user import UserResponse
 from app.services.vectorization import vectorize_text
+from app.services.llm_engine import chat_json, chat_text
 
 logger = logging.getLogger(__name__)
 
@@ -498,8 +499,8 @@ async def generate_prioritized_prospects_with_ai(
     Use AI to generate prioritized prospects from contacts data.
     """
     try:
-        if not settings.GROQ_API_KEY:
-            logger.warning("⚠️ [PRIORITIZED PROSPECTS] GROQ_API_KEY not configured")
+        if not settings.OPEN_AI_KEY:
+            logger.warning("⚠️ [PRIORITIZED PROSPECTS] OPEN_AI_KEY not configured")
             return None
         
         # Prepare context for AI
@@ -560,37 +561,18 @@ Provide a brief description (maximum 3 sentences) of what rules or guidelines wo
 Return ONLY the description text, no additional formatting."""
         
         try:
-            rules_query_payload = {
-                "model": "llama-3.1-8b-instant",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a sales strategy expert. Provide concise, relevant rules or guidelines for sales analysis."
-                    },
-                    {
-                        "role": "user",
-                        "content": rules_query_prompt
-                    }
-                ],
-                "temperature": 0.5,
-                "max_tokens": 200
-            }
-            
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                rules_response = await client.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-                        "Content-Type": "application/json"
-                    },
-                    json=rules_query_payload
+            rules_query_text = (
+                await chat_text(
+                    prompt=rules_query_prompt,
+                    system="You are a sales strategy expert. Provide concise, relevant rules or guidelines for sales analysis.",
+                    temperature=0.5,
+                    max_tokens=200,
                 )
-                rules_response.raise_for_status()
-                rules_result = rules_response.json()
-                rules_query_text = rules_result.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
-                logger.info(f"✅ [PRIORITIZED PROSPECTS] Step 1: Got rules query from Groq: {rules_query_text[:100]}...")
+                or ""
+            ).strip()
+            logger.info(f"✅ [PRIORITIZED PROSPECTS] Step 1: Got rules query from LLM: {rules_query_text[:100]}...")
         except Exception as e:
-            logger.warning(f"⚠️ [PRIORITIZED PROSPECTS] Failed to get rules query from Groq: {e}")
+            logger.warning(f"⚠️ [PRIORITIZED PROSPECTS] Failed to get rules query from LLM: {e}")
             rules_query_text = "sales strategies and best practices for contact analysis and prioritization"
         
         # Step 2: Search in Weaviate for relevant rules (max 5)
@@ -742,98 +724,49 @@ IMPORTANT:
 - Tips should cover different aspects: personalization, timing, engagement strategies, communication techniques, relationship building, psychological triggers
 """
 
-        # Step 4: Call Groq API with rules + contact data
-        logger.info(f"🤖 [PRIORITIZED PROSPECTS] Step 4: Calling Groq API to generate prioritized prospects...")
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an AI Sales Assistant that generates prioritized prospects based on contact data, campaigns, goals, deals, and relevant sales rules. Always return a valid JSON array. Generate detailed, professional sales coaching tips based on neuroscience and sales psychology. Incorporate the provided rules and guidelines into your analysis."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.7,
-            "max_tokens": 8000  # Increased for detailed tips
-        }
-        
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(groq_url, headers=headers, json=payload)
-            response.raise_for_status()
-            result = response.json()
-            logger.info(f"✅ [PRIORITIZED PROSPECTS] Step 4: Got response from Groq")
-            
-            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-            
-            # Parse JSON response
-            try:
-                # Clean content - remove markdown code blocks if present
-                import re
-                content_clean = content.strip()
-                
-                # Remove markdown code blocks
-                json_match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', content_clean, re.DOTALL)
-                if json_match:
-                    content_clean = json_match.group(1)
-                else:
-                    # Try to find JSON array directly
-                    json_match = re.search(r'(\[.*\])', content_clean, re.DOTALL)
-                    if json_match:
-                        content_clean = json_match.group(1)
-                
-                # Parse JSON
-                parsed = json.loads(content_clean)
-                
-                # Ensure it's a list
-                prospects = []
-                if isinstance(parsed, list):
-                    prospects = parsed
-                elif isinstance(parsed, dict):
-                    # Look for common keys
-                    prospects = parsed.get("prospects") or parsed.get("results") or parsed.get("data") or parsed.get("items")
-                    if prospects and isinstance(prospects, list):
-                        pass  # prospects already set
-                    else:
-                        # If dict values are lists, return first list value
-                        for value in parsed.values():
-                            if isinstance(value, list):
-                                prospects = value
-                                break
-                
-                if not prospects:
-                    logger.warning(f"⚠️ [PRIORITIZED PROSPECTS] Unexpected response format: {type(parsed)}")
-                    prospects = []
-                
-                # Return both prospects and rules_used if we have rules from Weaviate
-                if rules_used and len(rules_used) > 0:
-                    logger.info(f"✅ [PRIORITIZED PROSPECTS] Returning {len(prospects)} prospects with {len(rules_used)} rules")
-                    return (prospects, rules_used)
-                else:
-                    logger.info(f"✅ [PRIORITIZED PROSPECTS] Returning {len(prospects)} prospects without rules")
-                    return prospects
-                    
-            except json.JSONDecodeError as e:
-                logger.error(f"⚠️ [PRIORITIZED PROSPECTS] JSON decode error: {str(e)}")
-                logger.error(f"⚠️ [PRIORITIZED PROSPECTS] Content preview: {content[:500]}")
-                # Return empty list with rules if available
-                if rules_used and len(rules_used) > 0:
-                    return ([], rules_used)
-                return []
-            
-            logger.error(f"⚠️ [PRIORITIZED PROSPECTS] Failed to parse AI response: {content[:200]}")
-            # Return None with rules if available
-            if rules_used and len(rules_used) > 0:
-                return (None, rules_used)
-            return None
+        logger.info("🤖 [PRIORITIZED PROSPECTS] Step 4: Calling LLM to generate prioritized prospects...")
+        system = "You are an AI Sales Assistant that generates prioritized prospects based on contact data, campaigns, goals, deals, and relevant sales rules. Always return a valid JSON array. Generate detailed, professional sales coaching tips based on neuroscience and sales psychology. Incorporate the provided rules and guidelines into your analysis."
+
+        try:
+            parsed = await chat_json(
+                prompt=prompt,
+                system=system,
+                temperature=0.7,
+                max_tokens=8000,
+                retries=2,
+            )
+        except Exception:
+            parsed = await chat_json(
+                prompt=prompt,
+                system=system,
+                temperature=0.7,
+                max_tokens=4000,
+                retries=1,
+            )
+
+        prospects: List[Dict[str, Any]] = []
+        if isinstance(parsed, list):
+            prospects = parsed
+        elif isinstance(parsed, dict):
+            extracted = parsed.get("prospects") or parsed.get("results") or parsed.get("data") or parsed.get("items")
+            if isinstance(extracted, list):
+                prospects = extracted
+            else:
+                for value in parsed.values():
+                    if isinstance(value, list):
+                        prospects = value
+                        break
+
+        if not prospects:
+            logger.warning(f"⚠️ [PRIORITIZED PROSPECTS] Unexpected response format: {type(parsed)}")
+            prospects = []
+
+        if rules_used and len(rules_used) > 0:
+            logger.info(f"✅ [PRIORITIZED PROSPECTS] Returning {len(prospects)} prospects with {len(rules_used)} rules")
+            return (prospects, rules_used)
+        else:
+            logger.info(f"✅ [PRIORITIZED PROSPECTS] Returning {len(prospects)} prospects without rules")
+            return prospects
             
     except Exception as e:
         logger.error(f"❌ [PRIORITIZED PROSPECTS] Error generating prospects: {str(e)}")
@@ -1058,12 +991,12 @@ async def shorten_content(
             detail="No content to shorten"
         )
     
-    # Call Groq to shorten the content
+    # Call AI to shorten the content
     try:
-        if not settings.GROQ_API_KEY:
+        if not settings.OPEN_AI_KEY:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="GROQ_API_KEY not configured"
+                detail="OPEN_AI_KEY not configured"
             )
         
         prompt = f"""You are an AI assistant. Take the following email/message content and create a shorter version that maintains the key message and call-to-action, but is more concise.
@@ -1079,44 +1012,17 @@ Requirements:
 - Keep it professional and clear
 
 Return ONLY the shortened content, no additional text or explanation."""
-
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an AI assistant that shortens email/message content while maintaining key messages and professionalism."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.5,
-            "max_tokens": 2000
-        }
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(groq_url, headers=headers, json=payload)
-            response.raise_for_status()
-            result = response.json()
-            
-            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-            
-            # Clean content
-            content = content.strip()
-            if content.startswith("```"):
-                # Remove markdown code blocks
-                lines = content.split("\n")
-                content = "\n".join(lines[1:-1]) if len(lines) > 2 else content
-            
-            return {"shortened_content": content}
+        content = await chat_text(
+            prompt=prompt,
+            system="You shorten email/message content while maintaining key messages and professionalism. Return ONLY the shortened content.",
+            temperature=0.5,
+            max_tokens=2000,
+        )
+        content = (content or "").strip()
+        if content.startswith("```"):
+            lines = content.split("\n")
+            content = "\n".join(lines[1:-1]) if len(lines) > 2 else content
+        return {"shortened_content": content}
     
     except Exception as e:
         print(f"Error shortening content: {str(e)}")
@@ -1177,12 +1083,12 @@ async def generate_different_approach(
                 if deal_name:
                     deals_info.append(f"- {deal_name} - ${deal_amount:,.0f}")
     
-    # Call Groq to generate different approach
+    # Call AI to generate different approach
     try:
-        if not settings.GROQ_API_KEY:
+        if not settings.OPEN_AI_KEY:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="GROQ_API_KEY not configured"
+                detail="OPEN_AI_KEY not configured"
             )
         
         channel_instruction = ""
@@ -1218,44 +1124,17 @@ Requirements:
 - Include a clear call-to-action
 
 Return ONLY the new content, no additional text or explanation."""
-
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an AI Sales Assistant that creates alternative outreach strategies. Always return only the content, no explanations."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.8,  # Higher temperature for more creative/different approaches
-            "max_tokens": 3000
-        }
-        
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(groq_url, headers=headers, json=payload)
-            response.raise_for_status()
-            result = response.json()
-            
-            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-            
-            # Clean content
-            content = content.strip()
-            if content.startswith("```"):
-                # Remove markdown code blocks
-                lines = content.split("\n")
-                content = "\n".join(lines[1:-1]) if len(lines) > 2 else content
-            
-            return {"new_content": content}
+        content = await chat_text(
+            prompt=prompt,
+            system="You are an AI Sales Assistant that creates alternative outreach strategies. Always return only the content, no explanations.",
+            temperature=0.8,
+            max_tokens=3000,
+        )
+        content = (content or "").strip()
+        if content.startswith("```"):
+            lines = content.split("\n")
+            content = "\n".join(lines[1:-1]) if len(lines) > 2 else content
+        return {"new_content": content}
     
     except Exception as e:
         print(f"Error generating different approach: {str(e)}")

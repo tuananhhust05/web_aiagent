@@ -10,6 +10,7 @@ import re
 from typing import Optional, Dict, Any, List
 
 from app.core.config import settings
+from app.services.llm_engine import chat_json
 
 logger = logging.getLogger(__name__)
 
@@ -125,8 +126,8 @@ class LinkedInEnrichmentService:
         Use AI (Groq/Llama) to generate enriched prospect intelligence from LinkedIn data.
         Returns a dict matching the EnrichedProfileData interface on the frontend.
         """
-        if not settings.GROQ_API_KEY:
-            logger.warning("[LINKEDIN-ENRICH] Missing GROQ_API_KEY, returning raw data only")
+        if not settings.OPEN_AI_KEY:
+            logger.warning("[LINKEDIN-ENRICH] Missing OPEN_AI_KEY, returning raw data only")
             return self._fallback_intelligence(linkedin_data)
 
         # Build context for AI
@@ -178,53 +179,16 @@ Return ONLY valid JSON:
 {{"disc_type": "...", "disc_label": "...", "disc_traits": [...], "compatibility_level": "...", "compatibility_percentage": ..., "communication_dos": [...], "communication_donts": [...], "personality_archetype": "...", "personality_traits": [...], "interests": [...], "languages": [...]}}"""
 
         try:
-            url = "https://api.groq.com/openai/v1/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-                "Content-Type": "application/json",
-            }
-            payload = {
-                "model": "llama-3.1-8b-instant",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a sales intelligence analyst. Analyze LinkedIn profiles to generate DISC personality assessments and communication strategies for sales teams. Return ONLY valid JSON.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.4,
-            }
-
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
-                data = response.json()
-
-            content = (
-                (((data or {}).get("choices") or [{}])[0].get("message") or {}).get(
-                    "content"
-                )
-                or ""
+            ai_result = await chat_json(
+                prompt=prompt,
+                system="You are a sales intelligence analyst. Analyze LinkedIn profiles to generate DISC personality assessments and communication strategies for sales teams. Return ONLY valid JSON.",
+                temperature=0.4,
+                max_tokens=1500,
+                retries=2,
             )
-            content = content.strip()
 
-            # Clean up potential markdown
-            if content.startswith("```"):
-                lines = content.split("\n")
-                content = "\n".join(
-                    lines[1:-1] if lines[-1].strip() == "```" else lines[1:]
-                )
-            content = content.strip()
-
-            try:
-                ai_result = json.loads(content)
-            except json.JSONDecodeError:
-                start = content.find("{")
-                end = content.rfind("}")
-                if start != -1 and end != -1 and end > start:
-                    ai_result = json.loads(content[start : end + 1])
-                else:
-                    raise
+            if not isinstance(ai_result, dict):
+                return self._fallback_intelligence(linkedin_data)
 
             return self._build_enriched_profile(linkedin_data, ai_result)
 

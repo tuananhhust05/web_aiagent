@@ -12,6 +12,7 @@ from app.core.config import settings
 from app.models.user import UserResponse
 from app.models.inbox import InboxResponseCreate, InboxResponse
 from app.services.ai_sales_copilot import analyze_conversation_with_ai, suggest_sales_script, analyze_with_followup, analyze_campaign_with_ai, analyze_campaign_with_followup
+from app.services.llm_engine import chat_text
 
 
 router = APIRouter()
@@ -19,26 +20,20 @@ router = APIRouter()
 
 async def process_customer_response_with_groq(call_script: str, customer_response: str) -> Optional[str]:
     """
-    Process customer response using Groq LLM.
+    Process customer response using LLM.
     Takes the call_script (initial message sent to customer) and customer_response,
-    then calls Groq API to generate an appropriate response.
+    then calls LLM to generate an appropriate response.
     """
     print("=" * 80)
-    print("🔵 [GROQ LLM] Starting customer response processing")
+    print("🔵 [LLM] Starting customer response processing")
     print("=" * 80)
     
     try:
-        # Check if Groq API key is configured
-        print(f"🔑 [GROQ LLM] Checking GROQ_API_KEY configuration...")
-        if not settings.GROQ_API_KEY:
-            print("⚠️ [GROQ LLM] GROQ_API_KEY not configured, skipping LLM processing")
+        if not settings.OPEN_AI_KEY:
+            print("⚠️ [LLM] OPEN_AI_KEY not configured, skipping LLM processing")
             return None
-        
-        api_key_preview = f"{settings.GROQ_API_KEY[:10]}..." if len(settings.GROQ_API_KEY) > 10 else "***"
-        print(f"✅ [GROQ LLM] GROQ_API_KEY found: {api_key_preview}")
-        
-        # Prepare prompt for Groq
-        print(f"📝 [GROQ LLM] Preparing prompt...")
+
+        print("📝 [LLM] Preparing prompt...")
         print(f"   - Call Script Length: {len(call_script)} characters")
         print(f"   - Call Script Preview: {call_script[:150]}...")
         print(f"   - Customer Response Length: {len(customer_response)} characters")
@@ -66,176 +61,70 @@ Generate ONLY the opening line for the call:
 
 """
         
-        print(f"📋 [GROQ LLM] Prompt prepared, total length: {len(prompt)} characters")
-        
-        # Call Groq API
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": "llama-3.1-8b-instant",  # Using a fast Groq model
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an AI assistant specialized in generating short, emotional opening lines for AI voice calls. Your task is to create ONLY a brief opening sentence (1-2 sentences max) that is warm, engaging, and relevant to the customer's response. Never include explanations or additional text - only return the opening line itself."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.8,
-            "max_tokens": 100
-        }
-        
-        print(f"🌐 [GROQ LLM] Calling Groq API...")
-        print(f"   - URL: {groq_url}")
-        print(f"   - Model: {payload['model']}")
-        print(f"   - Temperature: {payload['temperature']}")
-        print(f"   - Max Tokens: {payload['max_tokens']}")
-        print(f"   - Messages Count: {len(payload['messages'])}")
-        
-        async with aiohttp.ClientSession() as session:
-            print(f"⏱️  [GROQ LLM] Sending request to Groq API (timeout: 30s)...")
-            async with session.post(
-                groq_url,
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as response:
-                print(f"📡 [GROQ LLM] Response received - Status: {response.status}")
-                
-                if response.status == 200:
-                    result = await response.json()
-                    print(f"✅ [GROQ LLM] Successfully received response from Groq API")
-                    print(f"   - Response keys: {list(result.keys())}")
+        print(f"📋 [LLM] Prompt prepared, total length: {len(prompt)} characters")
+
+        ai_response_raw = await chat_text(
+            prompt=prompt,
+            system="You generate short, emotional opening lines for AI voice calls. Return ONLY the opening line (1-2 sentences max). Never include explanations or additional text.",
+            temperature=0.8,
+            max_tokens=100,
+        )
+        if not ai_response_raw:
+            return None
+
+        ai_response_raw = ai_response_raw.strip()
+
+        ai_response = ai_response_raw
+
+        quote_match = re.search(r'["\'](.*?)["\']', ai_response, re.DOTALL)
+        if quote_match:
+            quoted_text = quote_match.group(1).strip()
+            quoted_text = re.sub(r'\s+', ' ', quoted_text)
+            quoted_text = re.sub(r'\n+', ' ', quoted_text).strip()
+            if len(quoted_text) > 10 and quoted_text[0].isupper():
+                ai_response = quoted_text
+
+        if len(ai_response) > 500 or 'This script' in ai_response or 'This opening' in ai_response:
+            ai_response = re.sub(r'^.*?Call Script.*?:', '', ai_response, flags=re.IGNORECASE | re.DOTALL).strip()
+            ai_response = re.sub(r'^.*?Opening.*?:', '', ai_response, flags=re.IGNORECASE | re.DOTALL).strip()
+            ai_response = re.sub(r'^\*{0,2}Call Script\*{0,2}.*?:', '', ai_response, flags=re.IGNORECASE | re.DOTALL).strip()
+            ai_response = re.sub(r'^["\']+', '', ai_response).strip()
+            explanation_markers = [
+                r'\n\s*This script',
+                r'\n\s*This opening',
+                r'\n\s*\d+\.\s+[A-Z]',
+                r'\s+This script',
+                r'\s+This opening',
+            ]
+            for marker in explanation_markers:
+                match = re.search(marker, ai_response, re.IGNORECASE)
+                if match:
+                    ai_response = ai_response[:match.start()].strip()
+                    break
+
+        sentence_endings = re.finditer(r'[.!?]+', ai_response)
+        sentence_positions = [m.end() for m in sentence_endings]
+        if len(sentence_positions) >= 2:
+            ai_response = ai_response[:sentence_positions[1]].strip()
+        elif len(sentence_positions) == 1:
+            ai_response = ai_response[:sentence_positions[0]].strip()
+
+        ai_response = re.sub(r'\s+This script.*$', '', ai_response, flags=re.IGNORECASE).strip()
+        ai_response = re.sub(r'\s+This opening.*$', '', ai_response, flags=re.IGNORECASE).strip()
+        ai_response = re.sub(r'\s+This line.*$', '', ai_response, flags=re.IGNORECASE).strip()
+        ai_response = re.sub(r'\s+', ' ', ai_response).strip()
+        if ai_response and not ai_response[-1] in '.!?':
+            ai_response += '.'
+
+        print("✅ [LLM] AI Response generated successfully")
+        print(f"   - Raw Response Length: {len(ai_response_raw)} characters")
+        print(f"   - Cleaned Response Length: {len(ai_response)} characters")
+        print(f"   - Raw Response Preview: {ai_response_raw[:200]}...")
+
+        return ai_response
                     
-                    choices = result.get("choices", [])
-                    print(f"   - Choices count: {len(choices)}")
-                    
-                    if choices:
-                        ai_response_raw = choices[0].get("message", {}).get("content", "").strip()
-                        
-                        # Clean up response: extract only the opening line
-                        # Strategy: Find text within quotes, extract first 1-2 sentences, remove everything else
-                        ai_response = ai_response_raw
-                        
-                        # Step 1: Find text within quotes (most reliable method)
-                        # Look for pattern: "text here" - match everything between first and last quote
-                        quote_match = re.search(r'["\'](.*?)["\']', ai_response, re.DOTALL)
-                        if quote_match:
-                            quoted_text = quote_match.group(1).strip()
-                            # Normalize whitespace (newlines, multiple spaces)
-                            quoted_text = re.sub(r'\s+', ' ', quoted_text)
-                            quoted_text = re.sub(r'\n+', ' ', quoted_text).strip()
-                            
-                            # Only use quoted text if it looks valid (starts with capital, has reasonable length)
-                            if len(quoted_text) > 10 and quoted_text[0].isupper():
-                                ai_response = quoted_text
-                        
-                        # Step 2: If no valid quoted text found, try to extract from beginning
-                        if len(ai_response) > 500 or 'This script' in ai_response or 'This opening' in ai_response:
-                            # Response is too long or contains explanations, need to extract
-                            # Remove all prefixes first
-                            ai_response = re.sub(r'^.*?Call Script.*?:', '', ai_response, flags=re.IGNORECASE | re.DOTALL).strip()
-                            ai_response = re.sub(r'^.*?Opening.*?:', '', ai_response, flags=re.IGNORECASE | re.DOTALL).strip()
-                            ai_response = re.sub(r'^\*{0,2}Call Script\*{0,2}.*?:', '', ai_response, flags=re.IGNORECASE | re.DOTALL).strip()
-                            
-                            # Remove leading quotes
-                            ai_response = re.sub(r'^["\']+', '', ai_response).strip()
-                            
-                            # Cut off at first explanation marker
-                            explanation_markers = [
-                                r'\n\s*This script',
-                                r'\n\s*This opening',
-                                r'\n\s*\d+\.\s+[A-Z]',
-                                r'\s+This script',
-                                r'\s+This opening',
-                            ]
-                            for marker in explanation_markers:
-                                match = re.search(marker, ai_response, re.IGNORECASE)
-                                if match:
-                                    ai_response = ai_response[:match.start()].strip()
-                                    break
-                        
-                        # Step 3: Extract only first 1-2 sentences
-                        # Split by sentence endings (. ! ?) but keep the punctuation
-                        sentence_endings = re.finditer(r'[.!?]+', ai_response)
-                        sentence_positions = []
-                        for match in sentence_endings:
-                            sentence_positions.append(match.end())
-                        
-                        if len(sentence_positions) >= 2:
-                            # Take first 2 sentences
-                            ai_response = ai_response[:sentence_positions[1]].strip()
-                        elif len(sentence_positions) == 1:
-                            # Take first sentence
-                            ai_response = ai_response[:sentence_positions[0]].strip()
-                        # If no sentence endings found, keep as is (might be a single sentence)
-                        
-                        # Step 4: Final cleanup
-                        # Remove any remaining explanatory text patterns
-                        ai_response = re.sub(r'\s+This script.*$', '', ai_response, flags=re.IGNORECASE).strip()
-                        ai_response = re.sub(r'\s+This opening.*$', '', ai_response, flags=re.IGNORECASE).strip()
-                        ai_response = re.sub(r'\s+This line.*$', '', ai_response, flags=re.IGNORECASE).strip()
-                        
-                        # Normalize whitespace
-                        ai_response = re.sub(r'\s+', ' ', ai_response).strip()
-                        
-                        # Ensure proper ending punctuation
-                        if ai_response and not ai_response[-1] in '.!?':
-                            ai_response += '.'
-                        
-                        print(f"✅ [GROQ LLM] AI Response generated successfully")
-                        print(f"   - Raw Response Length: {len(ai_response_raw)} characters")
-                        print(f"   - Cleaned Response Length: {len(ai_response)} characters")
-                        print(f"   - Raw Response Preview: {ai_response_raw[:200]}...")
-                        
-                        # Log full AI-generated content in a highlighted section
-                        print("\n" + "=" * 80)
-                        print("🎯 [GROQ LLM] AI-GENERATED CALL SCRIPT")
-                        print("=" * 80)
-                        print("📋 Input Information:")
-                        print(f"   - Original Call Script: {call_script}")
-                        print(f"   - Customer Response: {customer_response}")
-                        print("\n🤖 Raw AI Response (before cleaning):")
-                        print("-" * 80)
-                        print(ai_response_raw)
-                        print("-" * 80)
-                        print("\n✨ Cleaned Opening Line (to be used for voice calls):")
-                        print("-" * 80)
-                        print(ai_response)
-                        print("-" * 80)
-                        print(f"📊 Summary:")
-                        print(f"   - Cleaned Script Length: {len(ai_response)} characters")
-                        print(f"   - This opening line will be used as prompt for AI voice calls")
-                        print("=" * 80 + "\n")
-                        
-                        return ai_response
-                    else:
-                        print(f"⚠️ [GROQ LLM] No choices in response")
-                        print(f"   - Full Response: {result}")
-                        return None
-                else:
-                    error_text = await response.text()
-                    print(f"❌ [GROQ LLM] API error occurred")
-                    print(f"   - Status Code: {response.status}")
-                    print(f"   - Error Text: {error_text}")
-                    print("=" * 80)
-                    return None
-                    
-    except aiohttp.ClientError as e:
-        print(f"❌ [GROQ LLM] HTTP Client Error: {str(e)}")
-        print(f"   - Error Type: {type(e).__name__}")
-        import traceback
-        traceback.print_exc()
-        print("=" * 80)
-        return None
     except Exception as e:
-        print(f"❌ [GROQ LLM] Unexpected error: {str(e)}")
+        print(f"❌ [LLM] Unexpected error: {str(e)}")
         print(f"   - Error Type: {type(e).__name__}")
         import traceback
         traceback.print_exc()
@@ -1308,4 +1197,3 @@ async def analyze_campaign_followup(
         )
     
     return insights
-

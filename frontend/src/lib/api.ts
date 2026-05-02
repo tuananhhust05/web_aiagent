@@ -7,8 +7,8 @@ import { deleteCookie } from './cookies'
 
 // Ensure API URL uses HTTPS when in production
 const getApiUrl = () => {
-  const url = (import.meta as any).env?.VITE_API_URL || 'https://app.forskale.com'
-  // const url = 'http://localhost:8000'
+  // const url = (import.meta as any).env?.VITE_API_URL || 'https://app.forskale.com'
+  const url = 'http://localhost:8000'
   // If we're on HTTPS and the API URL is HTTP, convert to HTTPS
   // if (window.location.protocol === 'https:' && url.startsWith('http://')) {
   //   return url.replace('http://', 'https://')
@@ -1288,12 +1288,24 @@ export interface MeetingParticipant {
 }
 
 export interface CompanyInfoUser {
+  name?: string
   industry?: string
   size_revenue?: string
+  revenue?: string
   location?: string
   founded?: string
   website?: string
   description?: string
+}
+
+export interface CompanyInfoByEmailResponse {
+  email: string
+  company_name?: string | null
+  company_info?: CompanyInfoUser | null
+  linkedin_url?: string | null
+  generated?: boolean
+  source?: string | null
+  error?: string | null
 }
 
 export interface MainContactUser {
@@ -1320,6 +1332,7 @@ export interface MeetingHistoryItem {
 
 export interface MeetingHistoryByEmailResponse {
   email: string
+  total_count?: number
   meetings: MeetingHistoryItem[]
 }
 
@@ -1377,6 +1390,7 @@ export interface EnrichedProfileData {
 export interface NeuroProfile {
   decisionStyle: { score: number; label: string; description: string }
   riskTolerance: { score: number; label: string; description: string }
+  disc: { type: string; code: string }
   triggers: Array<{ label: string; color: string }>
   summary: string
   approach: {
@@ -1486,6 +1500,8 @@ export const atlasAPI = {
     }),
   getMeetingHistoryByEmail: (email: string) =>
     api.get<MeetingHistoryByEmailResponse>('/api/atlas/meeting-history-by-email', { params: { email } }),
+  getMeetingHistoryCounts: (emails: string[]) =>
+    api.post<{ counts: Record<string, number> }>('/api/atlas/meeting-history-counts', { emails }),
   /** Save meeting list when loading calendar; update if id already exists */
   syncCalendarEvents: (events: Array<{ 
     id?: string
@@ -1535,6 +1551,12 @@ export const atlasAPI = {
   /** Update a participant's LinkedIn URL without full enrichment */
   updateParticipantLinkedIn: (params: { email: string; linkedin_url: string }) =>
     api.patch<{ email: string; linkedin_url: string; updated: boolean }>('/api/atlas/participant-linkedin', params),
+
+  getCompanyInfoByEmail: (params: { email: string; event_id?: string; auto_generate?: boolean; force_regenerate?: boolean }) =>
+    api.get<CompanyInfoByEmailResponse>('/api/atlas/company-info-by-email', { params }),
+
+  updateCompanyInfoByEmail: (data: { email: string; company_name?: string; company_info?: CompanyInfoUser }) =>
+    api.patch<CompanyInfoByEmailResponse>('/api/atlas/company-info-by-email', data),
 
   /** Get AI-generated neuro/cognitive profile for contact */
   getNeuroProfile: (params: { event_id?: string; email?: string; name?: string; force?: boolean }) =>

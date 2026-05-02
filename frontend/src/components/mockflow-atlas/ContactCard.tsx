@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   X,
+  RefreshCw,
   Building2,
   Sparkles,
   Zap,
@@ -24,12 +25,15 @@ import {
   Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import PlaybookAnalysisLoader from "./PlaybookAnalysisLoader";
 import { AddProfileDialog } from "./AddProfileDialog";
+import { EditCompanyDialog } from "./EditCompanyDialog";
 import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { getDealStageForMeeting } from "./DealStageIndicator";
 import { getMeetingSequence, getStrategyStatusText, getStrategyStatusDotClass, getEnterCallSubtitle, getSectionBadge } from "@/lib/meetingSequence";
+import { atlasAPI, type AtlasMeetingContext, type MeetingParticipant, type MeetingParticipantsResponse } from "@/lib/api";
 
 // ── Participant type ──
 export interface Participant {
@@ -41,6 +45,8 @@ export interface Participant {
   avatar?: string;
   isGmail?: boolean;
   cognitiveProfile: CognitiveProfile | null;
+  enrichedProfile?: unknown;
+  linkedinUrl?: string;
 }
 
 export interface CognitiveProfile {
@@ -448,19 +454,19 @@ const PROFILES: Record<string, CognitiveProfile> = {
 // ── Meeting participant configurations ──
 export const MEETING_PARTICIPANTS: Record<string, Participant[]> = {
   "1": [
-    { id: "giulia-venturi", name: "Giulia Venturi", email: "giulia.venturi@lavazza.com", role: "Head of Retail Partnerships", company: "Lavazza Group", cognitiveProfile: PROFILES["giulia-venturi"] },
+    { id: "giulia-venturi", name: "Giulia Venturi", email: "giulia.venturi@lavazza.com", role: "Head of Retail Partnerships", company: "Lavazza Group", cognitiveProfile: null },
   ],
   "2": [
-    { id: "luca-bianchi", name: "Luca Bianchi", email: "luca.bianchi@novaconsulting.it", role: "Head of Operations", company: "Nova Consulting", cognitiveProfile: PROFILES["luca-bianchi"] },
-    { id: "maria-rossi", name: "Maria Rossi", email: "maria.rossi@novaconsulting.it", role: "Operations Manager", company: "Nova Consulting", cognitiveProfile: PROFILES["maria-rossi"] },
+    { id: "luca-bianchi", name: "Luca Bianchi", email: "luca.bianchi@novaconsulting.it", role: "Head of Operations", company: "Nova Consulting", cognitiveProfile: null },
+    { id: "maria-rossi", name: "Maria Rossi", email: "maria.rossi@novaconsulting.it", role: "Operations Manager", company: "Nova Consulting", cognitiveProfile: null },
   ],
   "3": [
-    { id: "giuseppe-verdi", name: "Giuseppe Verdi", email: "giuseppe.verdi@barilla.com", role: "Director", company: "Barilla Group", cognitiveProfile: PROFILES["giuseppe-verdi"] },
-    { id: "anna-esposito", name: "Anna Esposito", email: "anna.esposito@barilla.com", role: "Product Lead", company: "Barilla Group", cognitiveProfile: PROFILES["anna-esposito"] },
-    { id: "marco-neri", name: "Marco Neri", email: "marco.neri@barilla.com", role: "Technical Lead", company: "Barilla Group", cognitiveProfile: PROFILES["marco-neri"] },
+    { id: "giuseppe-verdi", name: "Giuseppe Verdi", email: "giuseppe.verdi@barilla.com", role: "Director", company: "Barilla Group", cognitiveProfile: null },
+    { id: "anna-esposito", name: "Anna Esposito", email: "anna.esposito@barilla.com", role: "Product Lead", company: "Barilla Group", cognitiveProfile: null },
+    { id: "marco-neri", name: "Marco Neri", email: "marco.neri@barilla.com", role: "Technical Lead", company: "Barilla Group", cognitiveProfile: null },
   ],
   "4": [
-    { id: "roberto-nutella", name: "Roberto Nutella", email: "roberto.nutella@ferrero.com", role: "Head of Operations", company: "Ferrero SpA", cognitiveProfile: PROFILES["roberto-nutella"] },
+    { id: "roberto-nutella", name: "Roberto Nutella", email: "roberto.nutella@ferrero.com", role: "Head of Operations", company: "Ferrero SpA", cognitiveProfile: null },
   ],
   "6": [
     { id: "marco-verdi", name: "Marco Verdi", email: "marco.verdi92@gmail.com", role: "Unknown", company: "Unknown", isGmail: true, cognitiveProfile: null },
@@ -504,10 +510,110 @@ function getMeetingInitials(title: string) {
   return words.slice(0, 2).map((w) => w[0]).join("");
 }
 
+type CompanyCardData = {
+  name: string;
+  industry: string;
+  size: string;
+  revenue: string;
+  location: string;
+  founded: string;
+  website: string;
+  description: string;
+};
+
+function normalizeCompanyData(input: Partial<CompanyCardData> | undefined): CompanyCardData {
+  return {
+    name: input?.name || "Unknown",
+    industry: input?.industry || "Unknown",
+    size: input?.size || "Unknown",
+    revenue: input?.revenue || "Unknown",
+    location: input?.location || "Unknown",
+    founded: input?.founded || "Unknown",
+    website: input?.website || "N/A",
+    description: input?.description || "Company information unavailable.",
+  };
+}
+
+function mapMeetingParticipantToParticipant(p: MeetingParticipant, idx: number): Participant {
+  const email = (p.email || "").trim();
+  const rawName = (p.name || "").trim();
+  const fallbackFromEmail = email ? email.split("@")[0] : "";
+  const normalizedName = (() => {
+    const source = rawName || fallbackFromEmail;
+    if (!source) return "";
+    if (source.includes(" ")) return source;
+    const tokens = source.split(/[._\-]+/).filter(Boolean);
+    if (!tokens.length) return source;
+    return tokens.map((t) => (t ? t[0].toUpperCase() + t.slice(1) : "")).join(" ");
+  })();
+  const name = normalizedName || rawName || fallbackFromEmail || `Participant ${idx + 1}`;
+  const id = email || `${name}-${idx}`;
+  const isGmail = email ? email.toLowerCase().endsWith("@gmail.com") : false;
+  const company = (p.company || "").trim() || (!isGmail && email.includes("@") ? email.split("@")[1] : "Unknown");
+  const role = (p.job_title || "").trim() || (company !== "Unknown" ? company : isGmail ? "Gmail" : email ? "Attendee" : "Participant");
+
+  return {
+    id,
+    name,
+    email: email || "unknown@unknown",
+    role,
+    company,
+    isGmail: isGmail || undefined,
+    cognitiveProfile: null,
+    enrichedProfile: undefined,
+    linkedinUrl: undefined,
+  };
+}
+
+function buildCompanyData(opts: {
+  meetingTitle: string;
+  context?: AtlasMeetingContext;
+  participantsResp?: MeetingParticipantsResponse;
+}): CompanyCardData {
+  const fromCache = (() => {
+    const ci = opts.participantsResp?.company_info;
+    if (!ci) return undefined;
+    return {
+      name: (ci as any).name || undefined,
+      industry: ci.industry || undefined,
+      size: ci.size_revenue || undefined,
+      revenue: (ci as any).revenue || undefined,
+      location: ci.location || undefined,
+      founded: ci.founded || undefined,
+      website: ci.website || undefined,
+      description: ci.description || undefined,
+    } satisfies Partial<CompanyCardData>;
+  })();
+
+  const fromContext = (() => {
+    const c = opts.context?.company;
+    if (!c) return undefined;
+    const locParts = [c.city || c.locality || c.region, c.country].filter(Boolean);
+    return {
+      name: c.name || undefined,
+      size: c.employee_count_range || undefined,
+      revenue: c.revenue_range || undefined,
+      location: locParts.length ? locParts.join(", ") : undefined,
+      description: c.business_description || undefined,
+    } satisfies Partial<CompanyCardData>;
+  })();
+
+  const fromTitle = (() => {
+    const name = (opts.meetingTitle || "").split("—")[0]?.trim();
+    return name ? ({ name } satisfies Partial<CompanyCardData>) : undefined;
+  })();
+
+  return normalizeCompanyData({
+    ...fromTitle,
+    ...fromContext,
+    ...fromCache,
+  });
+}
+
 
 // ── ContactCard Props ──
 interface ContactCardProps {
-  meeting: { id: string; title: string; time: string };
+  meeting: { id: string; title: string; time: string; meetLink?: string };
   onClose: () => void;
   onBotJoin: () => void;
 }
@@ -536,8 +642,17 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
   };
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const participants = getParticipantsForMeeting(meeting.id);
-  const company = COMPANY_DATA[meeting.id] || COMPANY_DATA["6"];
+  const [participants, setParticipants] = useState<Participant[]>(() => getParticipantsForMeeting(meeting.id));
+  const [company, setCompany] = useState<CompanyCardData>(() => COMPANY_DATA[meeting.id] || COMPANY_DATA["6"]);
+  const [companyHostEmail, setCompanyHostEmail] = useState<string | null>(null);
+  const [editCompanyOpen, setEditCompanyOpen] = useState(false);
+  const [cardLoading, setCardLoading] = useState(true);
+  const [reloadNonce, setReloadNonce] = useState(0);
+  const [regenerating, setRegenerating] = useState(false);
+  const participantsRef = useRef<Participant[]>(participants);
+  const [pendingLinkedin, setPendingLinkedin] = useState<{ name: string; url: string } | null>(null);
+  const enrichInFlightRef = useRef(false);
+  const neuroInFlightRef = useRef<Set<string>>(new Set());
 
   const [enrichedParticipants, setEnrichedParticipants] = useState<Set<string>>(new Set());
   const [enrichingParticipant, setEnrichingParticipant] = useState<string | null>(null);
@@ -557,39 +672,276 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
   const dealStage = getDealStageForMeeting(meeting.id);
   const interestPercent = dealStage?.percentage ?? 35;
 
-  const handleEnrichComplete = useCallback(() => {
-    if (enrichingParticipant) {
-      if (bulkEnriching.length > 0) {
-        setEnrichedParticipants((prev) => {
-          const next = new Set(prev);
-          bulkEnriching.forEach(name => next.add(name));
-          return next;
-        });
-        setBulkEnriching([]);
-        setEnrichingParticipant(null);
-        // Auto-open first participant's prospect intelligence
-        const firstParticipant = participants.find(p => !p.isGmail);
-        if (firstParticipant) {
-          setMiniCardExpanded(true);
-          setProspectDrawerOpen(firstParticipant.id);
+  useEffect(() => {
+    participantsRef.current = participants;
+  }, [participants]);
+
+  const loadNeuroProfile = useCallback(async (p: Participant) => {
+    const email = (p.email || "").trim().toLowerCase();
+    if (!email || email === "unknown@unknown") return;
+    if (p.isGmail) return;
+    if (neuroInFlightRef.current.has(email)) return;
+
+    neuroInFlightRef.current.add(email);
+    try {
+      const resp = await atlasAPI.getNeuroProfile({ event_id: meeting.id, email, name: p.name });
+      const profile = resp.data as any;
+      setParticipants((prev) =>
+        prev.map((pp) =>
+          (pp.email || "").trim().toLowerCase() === email
+            ? { ...pp, cognitiveProfile: profile }
+            : pp
+        )
+      );
+    } catch {
+    } finally {
+      neuroInFlightRef.current.delete(email);
+    }
+  }, [meeting.id]);
+
+  useEffect(() => {
+    if (!prospectDrawerOpen) return;
+    const p = participantsRef.current.find((x) => x.id === prospectDrawerOpen);
+    if (!p) return;
+    if (p.cognitiveProfile) return;
+    if (!enrichedParticipants.has(p.name)) return;
+    void loadNeuroProfile(p);
+  }, [prospectDrawerOpen, enrichedParticipants, loadNeuroProfile]);
+
+  useEffect(() => {
+    const targets = participants
+      .filter((p) => enrichedParticipants.has(p.name) && !p.cognitiveProfile && !p.isGmail && p.email && p.email !== "unknown@unknown")
+      .slice(0, 3);
+    if (!targets.length) return;
+    void Promise.all(targets.map(loadNeuroProfile));
+  }, [participants, enrichedParticipants, loadNeuroProfile]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setCardLoading(true);
+    setHoveredSection(null);
+    setProspectDrawerOpen(null);
+    setMeetingOverviewMode(false);
+
+    const run = async () => {
+      let participantsResp: MeetingParticipantsResponse | undefined;
+      let context: AtlasMeetingContext | undefined;
+
+      try {
+        try {
+          participantsResp = (await atlasAPI.getMeetingParticipants(meeting.id)).data;
+          if ((participantsResp.participants || []).length === 0) {
+            await atlasAPI.enrichMeeting(meeting.id).catch(() => null);
+            participantsResp = (await atlasAPI.getMeetingParticipants(meeting.id)).data;
+          }
+        } catch {
+          participantsResp = undefined;
         }
-        return;
+
+        const q = (meeting.title || "").split("—")[0]?.trim();
+        if (q) {
+          try {
+            context = (await atlasAPI.getMeetingContext(q)).data;
+          } catch {
+            context = undefined;
+          }
+        }
+
+        if (cancelled) return;
+
+        if (participantsResp?.participants?.length) {
+          const baseParticipants = participantsResp.participants.map(mapMeetingParticipantToParticipant);
+          try {
+            const results = await Promise.all(
+              baseParticipants
+                .filter((p) => !p.isGmail && p.email && p.email !== "unknown@unknown")
+                .map(async (p) => {
+                  const resp = await atlasAPI.getParticipantProfile(p.email);
+                  return { email: p.email, data: resp.data };
+                }),
+            );
+
+            const enrichedByEmail = new Map<string, { linkedin_url?: string; profile_data?: unknown }>();
+            for (const r of results) {
+              if (r?.data?.profile_data) {
+                enrichedByEmail.set(r.email, { linkedin_url: r.data.linkedin_url, profile_data: r.data.profile_data });
+              }
+            }
+
+            const enrichedNames: string[] = [];
+            const next = baseParticipants.map((p) => {
+              const enriched = enrichedByEmail.get(p.email);
+              if (!enriched) return p;
+              enrichedNames.push(p.name);
+              return {
+                ...p,
+                enrichedProfile: enriched.profile_data,
+                linkedinUrl: enriched.linkedin_url,
+                role: (enriched.profile_data as any)?.title || p.role,
+                company: (enriched.profile_data as any)?.company || p.company,
+              };
+            });
+
+            setParticipants(next);
+            if (enrichedNames.length) {
+              setEnrichedParticipants((prev) => {
+                const s = new Set(prev);
+                enrichedNames.forEach((n) => s.add(n));
+                return s;
+              });
+            }
+          } catch {
+            setParticipants(baseParticipants);
+          }
+        } else {
+          setParticipants(getParticipantsForMeeting(meeting.id));
+        }
+
+        const hostEmail = (() => {
+          const fromMain = (participantsResp?.main_contact as any)?.email;
+          if (fromMain) return String(fromMain).trim().toLowerCase();
+          const ps = participantsResp?.participants || [];
+          for (const p of ps) {
+            const em = (p.email || "").trim().toLowerCase();
+            if (!em) continue;
+            if (em.endsWith("@gmail.com")) continue;
+            if (em.endsWith("@outlook.com")) continue;
+            if (em.endsWith("@hotmail.com")) continue;
+            if (em.endsWith("@yahoo.com")) continue;
+            return em;
+          }
+          return null;
+        })();
+
+        setCompanyHostEmail(hostEmail);
+
+        let companyByEmail: any = null;
+        if (hostEmail) {
+          try {
+            companyByEmail = (await atlasAPI.getCompanyInfoByEmail({ email: hostEmail, event_id: meeting.id, auto_generate: true })).data;
+          } catch {
+            companyByEmail = null;
+          }
+        }
+
+        const baseCompany = buildCompanyData({ meetingTitle: meeting.title, context, participantsResp });
+
+        if (companyByEmail?.company_info || companyByEmail?.company_name) {
+          const ci = companyByEmail.company_info || {};
+          setCompany(
+            normalizeCompanyData({
+              name: companyByEmail.company_name || ci.name || baseCompany.name,
+              industry: ci.industry || baseCompany.industry,
+              size: ci.size_revenue || baseCompany.size,
+              revenue: ci.revenue || baseCompany.revenue,
+              location: ci.location || baseCompany.location,
+              founded: ci.founded || baseCompany.founded,
+              website: ci.website || baseCompany.website,
+              description: ci.description || baseCompany.description,
+            }),
+          );
+        } else {
+          setCompany(baseCompany);
+        }
+      } finally {
+        if (!cancelled) setCardLoading(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [meeting.id, meeting.title, reloadNonce]);
+
+  useEffect(() => {
+    if (!enrichingParticipant) return;
+    if (enrichInFlightRef.current) return;
+    enrichInFlightRef.current = true;
+
+    const run = async () => {
+      const names = bulkEnriching.length > 0 ? bulkEnriching : [enrichingParticipant];
+      const enrichedNames: string[] = [];
+
+      for (const name of names) {
+        const p = participantsRef.current.find((x) => x.name === name);
+        if (!p?.email || p.email === "unknown@unknown") {
+          toast.error(`Missing email for ${name}`);
+          continue;
+        }
+
+        const linkedinUrl = pendingLinkedin?.name === name ? pendingLinkedin.url : undefined;
+
+        try {
+          const resp = await atlasAPI.enrichParticipant({
+            event_id: meeting.id,
+            email: p.email,
+            name: p.name,
+            linkedin_url: linkedinUrl,
+          });
+
+          const data = resp.data;
+
+          if (data?.error) {
+            toast.error(data.error);
+            continue;
+          }
+
+          if (data?.profile_data) {
+            setParticipants((prev) =>
+              prev.map((pp) =>
+                pp.name === name
+                  ? {
+                      ...pp,
+                      enrichedProfile: data.profile_data,
+                      linkedinUrl: data.linkedin_url || pp.linkedinUrl,
+                      role: (data.profile_data as any)?.title || pp.role,
+                      company: (data.profile_data as any)?.company || pp.company,
+                    }
+                  : pp,
+              ),
+            );
+          }
+
+          enrichedNames.push(name);
+        } catch {
+          toast.error(`Failed to enrich ${name}`);
+        }
       }
 
-      // Single enrichment — auto-open prospect intelligence
-      setEnrichedParticipants((prev) => new Set(prev).add(enrichingParticipant));
-      setEnrichingParticipant(null);
-      const participant = participants.find((p) => p.name === enrichingParticipant);
-      if (participant) {
-        // Save scroll position before switching to split view
-        if (mainCardScrollRef.current) {
-          setSavedScrollPos(mainCardScrollRef.current.scrollTop);
-        }
-        setMiniCardExpanded(true);
-        setProspectDrawerOpen(participant.id);
+      if (enrichedNames.length) {
+        setEnrichedParticipants((prev) => {
+          const next = new Set(prev);
+          enrichedNames.forEach((n) => next.add(n));
+          return next;
+        });
       }
-    }
-  }, [enrichingParticipant, participants, bulkEnriching]);
+
+      if (bulkEnriching.length > 0) {
+        const first = participantsRef.current.find((p) => enrichedNames.includes(p.name) && !p.isGmail);
+        if (first) {
+          setMiniCardExpanded(true);
+          setProspectDrawerOpen(first.id);
+        }
+      } else {
+        const participant = participantsRef.current.find((p) => p.name === enrichingParticipant);
+        if (participant) {
+          if (mainCardScrollRef.current) {
+            setSavedScrollPos(mainCardScrollRef.current.scrollTop);
+          }
+          setMiniCardExpanded(true);
+          setProspectDrawerOpen(participant.id);
+        }
+      }
+    };
+
+    void run().finally(() => {
+      enrichInFlightRef.current = false;
+      setPendingLinkedin(null);
+      setBulkEnriching([]);
+      setEnrichingParticipant(null);
+    });
+  }, [enrichingParticipant, bulkEnriching, meeting.id, pendingLinkedin]);
 
   const handleReturnToFullCard = useCallback(() => {
     setProspectDrawerOpen(null);
@@ -603,7 +955,7 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
 
   const handleAddProfile = (linkedinUrl: string) => {
     if (addProfileTarget) {
-      toast.success(`LinkedIn profile linked for ${addProfileTarget}`);
+      setPendingLinkedin({ name: addProfileTarget, url: linkedinUrl });
       setAddProfileTarget(null);
       setEnrichingParticipant(addProfileTarget);
     }
@@ -631,6 +983,131 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
   const meetingInitials = getMeetingInitials(meeting.title);
 
   const isProspectMode = !!prospectDrawerOpen;
+
+  const handleJoinMeeting = () => {
+    const link = (meeting.meetLink || "").trim();
+    if (!link) {
+      toast.error("Meeting link not found");
+      return;
+    }
+    try {
+      new URL(link);
+      window.open(link, "_blank", "noopener,noreferrer");
+    } catch {
+      window.open(link, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  const handleRegenerate = useCallback(async () => {
+    if (regenerating) return;
+    setRegenerating(true);
+    setCardLoading(true);
+    setEnrichedParticipants(new Set());
+    setEnrichingParticipant(null);
+    setBulkEnriching([]);
+    setPendingLinkedin(null);
+    try {
+      await atlasAPI.enrichMeeting(meeting.id, true).catch(() => null);
+
+      const targets = participantsRef.current
+        .filter((p) => p.email && p.email !== "unknown@unknown")
+        .map((p) => ({ email: p.email, name: p.name }));
+
+      let cursor = 0;
+      const limit = 3;
+      const runners = Array.from({ length: Math.min(limit, targets.length) }, async () => {
+        while (cursor < targets.length) {
+          const idx = cursor;
+          cursor += 1;
+          const t = targets[idx];
+          try {
+            await atlasAPI.enrichParticipant({
+              event_id: meeting.id,
+              email: t.email,
+              name: t.name,
+              force: true,
+            });
+          } catch {
+          }
+        }
+      });
+      await Promise.all(runners);
+
+      const hostEmail = (() => {
+        const existing = (companyHostEmail || "").trim().toLowerCase();
+        if (existing) return existing;
+        const personal = new Set(["gmail.com", "outlook.com", "hotmail.com", "yahoo.com", "icloud.com", "me.com", "aol.com", "proton.me", "protonmail.com"]);
+        for (const p of participantsRef.current) {
+          const em = (p.email || "").trim().toLowerCase();
+          if (!em || em === "unknown@unknown") continue;
+          const parts = em.split("@");
+          if (parts.length !== 2) continue;
+          if (!personal.has(parts[1])) return em;
+        }
+        const first = participantsRef.current.find((p) => (p.email || "").trim().toLowerCase() !== "unknown@unknown");
+        return first ? (first.email || "").trim().toLowerCase() : null;
+      })();
+
+      if (hostEmail) {
+        await atlasAPI.getCompanyInfoByEmail({ email: hostEmail, event_id: meeting.id, auto_generate: true, force_regenerate: true }).catch(() => null);
+      }
+    } finally {
+      setRegenerating(false);
+      setReloadNonce((n) => n + 1);
+    }
+  }, [companyHostEmail, meeting.id, regenerating]);
+
+  if (!isProspectMode && cardLoading) {
+    return (
+      <div className="absolute inset-y-0 right-0 z-30 flex w-[380px] flex-col border border-border bg-card shadow-xl rounded-2xl mt-2 mb-2 mx-2 animate-slide-in-right overflow-hidden">
+        <div className="border-b border-border px-4 py-3.5 bg-gradient-to-br from-forskale-teal/[0.04] to-purple-500/[0.03]">
+          <div className="flex justify-end mb-1.5">
+            <button
+              onClick={onClose}
+              className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="animate-pulse">
+            <div className="flex items-start gap-2.5 mb-3">
+              <div className="w-10 h-10 rounded-[10px] bg-muted border border-border flex-shrink-0" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="h-4 w-40 rounded bg-muted" />
+                <div className="h-3 w-28 rounded bg-muted" />
+                <div className="flex gap-2">
+                  <div className="h-5 w-24 rounded bg-muted" />
+                  <div className="h-5 w-20 rounded bg-muted" />
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-8 flex-1 rounded bg-muted" />
+              <div className="h-8 w-20 rounded bg-muted" />
+              <div className="h-6 w-24 rounded bg-muted ml-auto" />
+            </div>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto px-4 py-4">
+          <div className="animate-pulse space-y-4">
+            <div className="space-y-2">
+              <div className="h-3 w-24 rounded bg-muted" />
+              <div className="h-10 rounded bg-muted" />
+              <div className="h-10 rounded bg-muted" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-3 w-28 rounded bg-muted" />
+              <div className="h-16 rounded bg-muted" />
+            </div>
+            <div className="space-y-2">
+              <div className="h-3 w-20 rounded bg-muted" />
+              <div className="h-24 rounded bg-muted" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -917,8 +1394,23 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
           <div className="absolute inset-y-0 right-0 z-30 flex w-[380px] flex-col border border-border bg-card shadow-xl rounded-2xl mt-2 mb-2 mx-2 animate-slide-in-right">
             {/* ── Meeting Header ── */}
             <div className="border-b border-border px-4 py-3.5 bg-gradient-to-br from-forskale-teal/[0.04] to-purple-500/[0.03]">
-              {/* Close button row */}
-              <div className="flex justify-end mb-1.5">
+              <div className="flex justify-end gap-2 mb-1.5">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => void handleRegenerate()}
+                        disabled={regenerating || cardLoading}
+                        className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                      >
+                        <RefreshCw className={cn("h-3.5 w-3.5", regenerating && "animate-spin")} />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" align="end">
+                      Regenerate meeting card
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <button
                   onClick={onClose}
                   className="w-7 h-7 rounded-full bg-muted border border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
@@ -954,7 +1446,10 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2">
-                <button className="h-8 rounded-md bg-gradient-to-r from-[hsl(145,60%,45%)] to-[hsl(190,70%,45%)] px-3.5 text-xs font-semibold text-white shadow-sm transition-all hover:brightness-110 hover:-translate-y-px">
+                <button
+                  className="h-8 rounded-md bg-gradient-to-r from-[hsl(145,60%,45%)] to-[hsl(190,70%,45%)] px-3.5 text-xs font-semibold text-white shadow-sm transition-all hover:brightness-110 hover:-translate-y-px"
+                  onClick={handleJoinMeeting}
+                >
                   Join Meeting
                 </button>
                 <button
@@ -1155,7 +1650,23 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
                 desc={`${company.name} - ${company.size} - ${company.location.split(",")[0]}`}
                 locked={false}
                 rightContent={
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-blue-500/10 text-blue-500 border border-blue-500/20">{company.location.split(",")[0]}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                      {company.location.split(",")[0]}
+                    </span>
+                    {companyHostEmail ? (
+                      <button
+                        className="h-5 px-2 rounded-md text-[10px] font-semibold border border-border bg-muted text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setEditCompanyOpen(true);
+                        }}
+                      >
+                        Edit
+                      </button>
+                    ) : null}
+                  </div>
                 }
                 onHover={handleSectionHover}
                 onLeave={handleSectionLeave}
@@ -1169,7 +1680,7 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
       {/* Playbook Analysis Loader (enrichment animation) */}
       <PlaybookAnalysisLoader
         isOpen={!!enrichingParticipant}
-        onComplete={handleEnrichComplete}
+        onComplete={() => {}}
       />
 
       {/* Add Profile Dialog */}
@@ -1178,6 +1689,56 @@ export function ContactCard({ meeting, onClose, onBotJoin }: ContactCardProps) {
         onClose={() => setAddProfileTarget(null)}
         onSubmit={handleAddProfile}
         participantName={addProfileTarget || ""}
+      />
+      <EditCompanyDialog
+        open={editCompanyOpen}
+        onClose={() => setEditCompanyOpen(false)}
+        hostEmail={companyHostEmail || ""}
+        initial={{
+          name: company.name !== "Unknown" ? company.name : "",
+          industry: company.industry !== "Unknown" ? company.industry : "",
+          size: company.size !== "Unknown" ? company.size : "",
+          revenue: company.revenue !== "Unknown" ? company.revenue : "",
+          location: company.location !== "Unknown" ? company.location : "",
+          founded: company.founded !== "Unknown" ? company.founded : "",
+          website: company.website !== "N/A" ? company.website : "",
+          description: company.description !== "Company information unavailable." ? company.description : "",
+        }}
+        onSave={async (draft) => {
+          const email = (companyHostEmail || "").trim().toLowerCase();
+          if (!email) return;
+          try {
+            await atlasAPI.updateCompanyInfoByEmail({
+              email,
+              company_name: (draft.name || "").trim(),
+              company_info: {
+                name: (draft.name || "").trim() || undefined,
+                industry: (draft.industry || "").trim() || undefined,
+                size_revenue: (draft.size || "").trim() || undefined,
+                revenue: (draft.revenue || "").trim() || undefined,
+                location: (draft.location || "").trim() || undefined,
+                founded: (draft.founded || "").trim() || undefined,
+                website: (draft.website || "").trim() || undefined,
+                description: (draft.description || "").trim() || undefined,
+              },
+            });
+            setCompany(
+              normalizeCompanyData({
+                name: (draft.name || "").trim() || undefined,
+                industry: (draft.industry || "").trim() || undefined,
+                size: (draft.size || "").trim() || undefined,
+                revenue: (draft.revenue || "").trim() || undefined,
+                location: (draft.location || "").trim() || undefined,
+                founded: (draft.founded || "").trim() || undefined,
+                website: (draft.website || "").trim() || undefined,
+                description: (draft.description || "").trim() || undefined,
+              }),
+            );
+            setEditCompanyOpen(false);
+          } catch {
+            toast.error("Failed to save company info");
+          }
+        }}
       />
     </>
   );
@@ -2144,6 +2705,7 @@ function ProspectDrawerInline({
   const [openSections, setOpenSections] = useState<Set<string>>(new Set());
   const enriched = enrichedParticipants.has(participant.name);
   const profile = participant.cognitiveProfile;
+  const enrichedProfile = participant.enrichedProfile as any;
   const archetype = profile ? getArchetype(profile.disc.type) : null;
   const initials = getInitials(participant.name);
   const avatarIdx = participants.findIndex((p) => p.id === participantId);
@@ -2197,11 +2759,11 @@ function ProspectDrawerInline({
             {participant.role} - {participant.company}
           </div>
           <div className="flex items-center gap-3 text-[10px] text-muted-foreground/70 mt-0.5">
-            <span>{COMPANY_DATA[participants[0]?.company === participant.company ? Object.keys(COMPANY_DATA).find(k => COMPANY_DATA[k].name === participant.company) || "6" : "6"]?.location || "Italy"}</span>
-            <span>8+ yrs exp</span>
-            {enriched && archetype && (
-              <span className={cn("font-medium", archetype.colorClass)}>
-                {archetype.label === "DYNAMIC" ? "Momentum-driven" : archetype.label === "METHODICAL" ? "Precision-focused" : archetype.label === "ANALYTICAL" ? "Numbers-driven" : archetype.label === "DIPLOMATIC" ? "Consensus builder" : archetype.label === "INNOVATOR" ? "Future-oriented" : archetype.label === "PRUDENT" ? "Authority-driven" : archetype.label === "SCRUPULOUS" ? "Trust-first" : archetype.label === "PRAGMATIC" ? "Results-focused" : "Structured"}
+            <span>{enrichedProfile?.location || "—"}</span>
+            {enrichedProfile?.tenure && <span>{enrichedProfile.tenure}</span>}
+            {enrichedProfile?.disc?.type && (
+              <span className="font-medium text-purple-500">
+                {enrichedProfile.disc.type}
               </span>
             )}
           </div>
@@ -2280,6 +2842,56 @@ function ProspectDrawerInline({
               See Meeting Overview
             </button>
           </>
+        ) : enrichedProfile ? (
+          <div className="px-6 py-5 space-y-5">
+            {participant.linkedinUrl && (
+              <a
+                href={participant.linkedinUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold bg-muted border border-border text-foreground hover:bg-muted/70 transition-colors"
+              >
+                <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                Open LinkedIn
+              </a>
+            )}
+
+            {enrichedProfile?.about && (
+              <div>
+                <div className="text-xs font-bold text-foreground uppercase tracking-wider mb-2">About</div>
+                <div className="rounded-lg bg-muted/50 border border-border px-4 py-3 text-[12px] text-foreground leading-relaxed whitespace-pre-wrap">
+                  {enrichedProfile.about}
+                </div>
+              </div>
+            )}
+
+            {(enrichedProfile?.personalityTraits?.length || 0) > 0 && (
+              <div>
+                <div className="text-xs font-bold text-foreground uppercase tracking-wider mb-2">Traits</div>
+                <div className="space-y-2">
+                  {enrichedProfile.personalityTraits.slice(0, 6).map((tr: any, idx: number) => (
+                    <div key={idx} className="rounded-lg bg-muted/50 border border-border px-4 py-3">
+                      <div className="text-[12px] font-semibold text-foreground">{tr?.name || "Trait"}</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">{tr?.description || ""}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(enrichedProfile?.interests?.length || 0) > 0 && (
+              <div>
+                <div className="text-xs font-bold text-foreground uppercase tracking-wider mb-2">Interests</div>
+                <div className="flex flex-wrap gap-2">
+                  {enrichedProfile.interests.slice(0, 8).map((it: string, idx: number) => (
+                    <span key={idx} className="text-[11px] font-semibold px-2.5 py-1 rounded-md bg-purple-500/10 text-purple-500 border border-purple-500/20">
+                      {it}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         ) : null}
       </div>
     </>

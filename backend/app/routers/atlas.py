@@ -7,6 +7,7 @@ import uuid
 import traceback
 import logging
 import json
+import re
 import aiohttp
 import httpx
 from fastapi import APIRouter, Depends, Query, HTTPException, UploadFile, File, BackgroundTasks, Path
@@ -26,6 +27,7 @@ from app.services.vectorization import vectorize_texts
 from app.services.tavily_service import get_tavily_service
 from app.services.company_data_pool import get_company_data_pool
 from app.services.linkedin_enrichment_service import get_linkedin_enrichment_service
+from app.services.llm_engine import chat_json
 from bson import ObjectId
 import asyncio
 
@@ -41,14 +43,6 @@ except ImportError:
     WEAVIATE_FILTER_AVAILABLE = False
 
 router = APIRouter(prefix="/atlas", tags=["Atlas"])
-
-
-def _get_claude_client():
-    from openai import OpenAI
-    return OpenAI(
-        api_key=settings.ANTHROPIC_AUTH_TOKEN,
-        base_url=settings.ANTHROPIC_BASE_URL,
-    )
 
 
 class ContactSummary(BaseModel):
@@ -130,8 +124,10 @@ class MeetingParticipantItem(BaseModel):
 
 class CompanyInfoUser(BaseModel):
     """User-filled company info for this meeting."""
+    name: Optional[str] = None
     industry: Optional[str] = None
     size_revenue: Optional[str] = None
+    revenue: Optional[str] = None
     location: Optional[str] = None
     founded: Optional[str] = None
     website: Optional[str] = None
@@ -173,6 +169,7 @@ class MeetingHistoryItem(BaseModel):
 
 class MeetingHistoryByEmailResponse(BaseModel):
     email: str
+    total_count: int = 0
     meetings: List[MeetingHistoryItem]
 
 
@@ -563,64 +560,89 @@ async def get_meeting_history_by_email(
     user_id = str(current_user.id)
     email_clean = (email or "").strip().lower()
     if not email_clean:
-        return MeetingHistoryByEmailResponse(email=email or "", meetings=[])
-    # Find docs where main_contact.email matches or any participant email matches
-    cursor = db[PARTICIPANTS_COLLECTION].find({"user_id": user_id})
+        return MeetingHistoryByEmailResponse(email=email or "", total_count=0, meetings=[])
+
     meetings: List[MeetingHistoryItem] = []
     seen_ids = set()
-    async for doc in cursor:
+
+    cursor_cache = db[CALENDAR_EVENTS_CACHE].find({"user_id": user_id, "attendees.email": email_clean})
+    async for c in cursor_cache:
+        eid = c.get("event_id", "")
+        if not eid or eid in seen_ids:
+            continue
+        seen_ids.add(eid)
+        meetings.append(MeetingHistoryItem(event_id=eid, event_title=c.get("event_title"), event_start=c.get("event_start")))
+
+    cursor_participants = db[PARTICIPANTS_COLLECTION].find(
+        {"user_id": user_id, "$or": [{"main_contact.email": email_clean}, {"participants.email": email_clean}]}
+    )
+    async for doc in cursor_participants:
         eid = doc.get("event_id", "")
-        if eid in seen_ids:
+        if not eid or eid in seen_ids:
             continue
-        mc = doc.get("main_contact") or {}
-        main_email = (mc.get("email") or "").strip().lower()
-        if main_email == email_clean:
-            seen_ids.add(eid)
-            meetings.append(MeetingHistoryItem(
-                event_id=eid,
-                event_title=doc.get("event_title"),
-                event_start=doc.get("event_start"),
-            ))
-            continue
-        for p in doc.get("participants") or []:
-            pe = (p.get("email") or "").strip().lower()
-            if pe == email_clean:
-                seen_ids.add(eid)
-                meetings.append(MeetingHistoryItem(
-                    event_id=eid,
-                    event_title=doc.get("event_title"),
-                    event_start=doc.get("event_start"),
-                ))
-                break
-    # Map event_id -> saved calendar event data (from calendar_events_cache)
-    event_ids = [m.event_id for m in meetings if m.event_id]
-    cache_map = {}
-    if event_ids:
-        cursor_cache = db[CALENDAR_EVENTS_CACHE].find({"user_id": user_id, "event_id": {"$in": event_ids}})
-        async for c in cursor_cache:
-            cache_map[c["event_id"]] = {
-                "event_title": c.get("event_title"),
-                "event_start": c.get("event_start"),
-            }
-    # Override meeting title/start from cache when available
-    def _title(m):
-        if m.event_id in cache_map and cache_map[m.event_id].get("event_title"):
-            return cache_map[m.event_id]["event_title"]
-        return m.event_title
+        seen_ids.add(eid)
+        meetings.append(MeetingHistoryItem(event_id=eid, event_title=doc.get("event_title"), event_start=doc.get("event_start")))
 
-    def _start(m):
-        if m.event_id in cache_map and cache_map[m.event_id].get("event_start"):
-            return cache_map[m.event_id]["event_start"]
-        return m.event_start
-
-    meetings = [MeetingHistoryItem(event_id=m.event_id, event_title=_title(m), event_start=_start(m)) for m in meetings]
     # Sort by event_start desc (most recent first); put None at end
     def _sort_key(m: MeetingHistoryItem):
         s = m.event_start or ""
         return (0, s) if s else (1, "")
 
     meetings.sort(key=_sort_key, reverse=True)
-    return MeetingHistoryByEmailResponse(email=email, meetings=meetings[:50])
+    total_count = len(meetings)
+    return MeetingHistoryByEmailResponse(email=email, total_count=total_count, meetings=meetings[:50])
+
+
+class MeetingHistoryCountsRequest(BaseModel):
+    emails: List[str] = Field(default_factory=list)
+
+
+class MeetingHistoryCountsResponse(BaseModel):
+    counts: Dict[str, int] = Field(default_factory=dict)
+
+
+@router.post("/meeting-history-counts", response_model=MeetingHistoryCountsResponse)
+async def get_meeting_history_counts(
+    request: MeetingHistoryCountsRequest,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    db = get_database()
+    user_id = str(current_user.id)
+    emails = sorted({(e or "").strip().lower() for e in (request.emails or []) if (e or "").strip()})
+    if not emails:
+        return MeetingHistoryCountsResponse(counts={})
+
+    email_set = set(emails)
+    email_to_event_ids: Dict[str, set] = {e: set() for e in emails}
+
+    cursor_cache = db[CALENDAR_EVENTS_CACHE].find({"user_id": user_id, "attendees.email": {"$in": emails}})
+    async for doc in cursor_cache:
+        eid = doc.get("event_id", "")
+        if not eid:
+            continue
+        for att in doc.get("attendees") or []:
+            em = (att.get("email") or "").strip().lower()
+            if em in email_set:
+                email_to_event_ids[em].add(eid)
+
+    cursor_participants = db[PARTICIPANTS_COLLECTION].find(
+        {"user_id": user_id, "$or": [{"main_contact.email": {"$in": emails}}, {"participants.email": {"$in": emails}}]}
+    )
+    async for doc in cursor_participants:
+        eid = doc.get("event_id", "")
+        if not eid:
+            continue
+        mc = doc.get("main_contact") or {}
+        mc_email = (mc.get("email") or "").strip().lower()
+        if mc_email in email_set:
+            email_to_event_ids[mc_email].add(eid)
+        for p in doc.get("participants") or []:
+            pe = (p.get("email") or "").strip().lower()
+            if pe in email_set:
+                email_to_event_ids[pe].add(eid)
+
+    counts = {e: len(email_to_event_ids[e]) for e in emails}
+    return MeetingHistoryCountsResponse(counts=counts)
 
 
 # --- Rolling Q&A Repository (Atlas Q&A CRUD) ---
@@ -1787,8 +1809,8 @@ async def generate_meeting_preparation_with_ai(
     """Use AI to generate meeting preparation: key_points, risks_or_questions, suggested_angle."""
     from app.core.config import settings
 
-    if not settings.ANTHROPIC_AUTH_TOKEN:
-        logger.warning("[AI-MEETING-PREP] Missing ANTHROPIC_AUTH_TOKEN")
+    if not settings.OPEN_AI_KEY:
+        logger.warning("[AI-MEETING-PREP] Missing OPEN_AI_KEY")
         return {}
 
     past_events_text = ""
@@ -1838,45 +1860,17 @@ Return ONLY valid JSON:
 {{"key_points": [...], "risks_or_questions": [...], "suggested_angle": "..."}}"""
 
     try:
-        def _sync_call() -> str:
-            client = _get_claude_client()
-            response = client.chat.completions.create(
-                model="claude-haiku-4.6",
-                messages=[
-                    {"role": "system", "content": "You are a helpful sales preparation assistant. Return ONLY valid JSON. No markdown. No extra text."},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-                max_tokens=8000,
-            )
-            return (response.choices[0].message.content or "").strip()
-
-        content = await asyncio.to_thread(_sync_call)
-
-        if content.startswith("```"):
-            lines = content.split("\n")
-            content = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
-        content = content.strip()
-
-        try:
-            result = json.loads(content)
-            return {
-                "key_points": result.get("key_points", []),
-                "risks_or_questions": result.get("risks_or_questions", []),
-                "suggested_angle": result.get("suggested_angle", ""),
-            }
-        except Exception:
-            start = content.find("{")
-            end = content.rfind("}")
-            if start != -1 and end != -1 and end > start:
-                result = json.loads(content[start:end + 1])
-                return {
-                    "key_points": result.get("key_points", []),
-                    "risks_or_questions": result.get("risks_or_questions", []),
-                    "suggested_angle": result.get("suggested_angle", ""),
-                }
-            raise
-
+        result = await chat_json(
+            prompt=prompt,
+            system="You are a helpful sales preparation assistant. Return ONLY valid JSON. No markdown. No extra text.",
+            temperature=0.3,
+            max_tokens=4000,
+        )
+        return {
+            "key_points": (result or {}).get("key_points", []),
+            "risks_or_questions": (result or {}).get("risks_or_questions", []),
+            "suggested_angle": (result or {}).get("suggested_angle", ""),
+        }
     except Exception as e:
         logger.error(f"[AI-MEETING-PREP] Error generating meeting preparation: {e}")
         return {}
@@ -1889,8 +1883,8 @@ async def extract_company_info_with_ai(company_name: str, search_result: str) ->
     if not search_result:
         return {}
     
-    if not settings.ANTHROPIC_AUTH_TOKEN:
-        logger.warning("[AI-EXTRACT] Missing ANTHROPIC_AUTH_TOKEN")
+    if not settings.OPEN_AI_KEY:
+        logger.warning("[AI-EXTRACT] Missing OPEN_AI_KEY")
         return {"description": search_result[:500]}
     
     prompt = f"""Extract company information from the following text about "{company_name}".
@@ -1910,38 +1904,10 @@ Text:
 Return ONLY valid JSON, no markdown or explanation."""
 
     try:
-        def _sync_call() -> str:
-            client = _get_claude_client()
-            response = client.chat.completions.create(
-                model="claude-haiku-4.6",
-                messages=[
-                    {"role": "system", "content": "Return ONLY valid JSON. No markdown. No extra text."},
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-                max_tokens=4000,
-            )
-            return (response.choices[0].message.content or "").strip()
-
-        content = await asyncio.to_thread(_sync_call)
-
-        # Clean up potential markdown
-        if content.startswith("```"):
-            lines = content.split("\n")
-            content = "\n".join(lines[1:-1] if lines[-1] == "```" else lines[1:])
-        content = content.strip()
-
-        # Parse JSON
-        try:
-            return json.loads(content)
-        except Exception:
-            # Try extracting first {...} block
-            start = content.find("{")
-            end = content.rfind("}")
-            if start != -1 and end != -1 and end > start:
-                return json.loads(content[start:end + 1])
-            raise
-        
+        result = await chat_json(prompt=prompt, temperature=0.3, max_tokens=2000)
+        if isinstance(result, dict):
+            return result
+        return {"description": search_result[:500]}
     except Exception as e:
         logger.error(f"[AI-EXTRACT] Error extracting company info: {e}")
         return {"description": search_result[:500]}
@@ -2010,7 +1976,14 @@ async def enrich_meeting_from_attendee(
         email = (att.get("email") or "").lower().strip()
         if not email:
             continue
-        name = att.get("displayName") or email.split("@")[0]
+        display_name = (att.get("displayName") or "").strip()
+        local_part = email.split("@")[0]
+        if display_name:
+            name = display_name
+        else:
+            # Best-effort: turn "andrea.marino" / "andrea_marino" into "Andrea Marino"
+            tokens = [t for t in re.split(r"[._\-]+", local_part) if t]
+            name = " ".join([t[:1].upper() + t[1:] for t in tokens]) if tokens else local_part
         all_participants.append({"name": name, "email": email})
     
     if not all_participants:
@@ -2087,9 +2060,11 @@ async def enrich_meeting_from_attendee(
     # Build participants list from ALL attendees
     participants_docs = []
     for p in all_participants:
+        inferred_company = extract_company_from_email(p["email"])
         p_doc = {
             "name": p["name"],
             "email": p["email"],
+            "company": inferred_company,
         }
         li_url = participant_linkedin_urls.get(p["email"])
         if li_url:
@@ -2135,9 +2110,11 @@ async def enrich_meeting_from_attendee(
 # ---------------------------------------------------------------------------
 
 ENRICHED_PROFILES_COLLECTION = "enriched_linkedin_profiles"
+SHARED_ENRICHED_PROFILES_COLLECTION = "enriched_linkedin_profiles_shared"
 # Shared cache of raw LinkedIn profiles (by linkedin_url, not user-specific)
 # Avoids re-scraping the same LinkedIn profile via Apify for different users
 LINKEDIN_PROFILES_CACHE = "linkedin_profiles_cache"
+COMPANY_INFO_BY_EMAIL_COLLECTION = "company_info_by_email"
 
 
 class ParticipantEnrichRequest(BaseModel):
@@ -2219,11 +2196,61 @@ async def enrich_participant_linkedin(
             error="no_linkedin_url",
         )
 
-    # Step 2: Scrape LinkedIn profile via Apify
-    li_service = get_linkedin_enrichment_service()
-
     # Normalize linkedin_url for cache lookup
     cache_key_url = linkedin_url.strip().rstrip("/").lower()
+
+    if not request.force:
+        shared = await db[SHARED_ENRICHED_PROFILES_COLLECTION].find_one({"linkedin_url": cache_key_url})
+        if shared and shared.get("profile_data"):
+            now = datetime.utcnow()
+            await db[ENRICHED_PROFILES_COLLECTION].update_one(
+                {"user_id": user_id, "email": email},
+                {
+                    "$set": {
+                        "user_id": user_id,
+                        "email": email,
+                        "name": request.name or (shared.get("linkedin_data") or {}).get("fullName", ""),
+                        "event_id": request.event_id,
+                        "linkedin_url": linkedin_url,
+                        "linkedin_data": shared.get("linkedin_data"),
+                        "profile_data": shared.get("profile_data"),
+                        "enriched_at": now,
+                        "updated_at": now,
+                        "source": "shared_cache",
+                    }
+                },
+                upsert=True,
+            )
+
+            event_doc = await db[PARTICIPANTS_COLLECTION].find_one({
+                "user_id": user_id,
+                "event_id": request.event_id,
+            })
+            if event_doc:
+                participants = event_doc.get("participants") or []
+                updated = False
+                for p in participants:
+                    if (p.get("email") or "").lower() == email:
+                        p["linkedin_url"] = linkedin_url
+                        updated = True
+                        break
+                if updated:
+                    await db[PARTICIPANTS_COLLECTION].update_one(
+                        {"user_id": user_id, "event_id": request.event_id},
+                        {"$set": {"participants": participants, "updated_at": now}},
+                    )
+
+            logger.info(f"[PARTICIPANT-ENRICH] Served from shared cache: {email} | linkedin={linkedin_url}")
+            return ParticipantEnrichResponse(
+                email=email,
+                enriched=True,
+                already_enriched=True,
+                linkedin_url=linkedin_url,
+                profile_data=shared.get("profile_data"),
+            )
+
+    # Step 2: Scrape LinkedIn profile via Apify
+    li_service = get_linkedin_enrichment_service()
 
     raw_profile = None
 
@@ -2327,6 +2354,26 @@ async def enrich_participant_linkedin(
         upsert=True,
     )
 
+    try:
+        await db[SHARED_ENRICHED_PROFILES_COLLECTION].update_one(
+            {"linkedin_url": cache_key_url},
+            {
+                "$set": {
+                    "linkedin_url": cache_key_url,
+                    "original_url": linkedin_url,
+                    "linkedin_data": linkedin_data,
+                    "profile_data": profile_data,
+                    "updated_at": now,
+                },
+                "$setOnInsert": {
+                    "created_at": now,
+                },
+            },
+            upsert=True,
+        )
+    except Exception as e:
+        logger.warning(f"[PARTICIPANT-ENRICH] Failed to write shared cache: {e}")
+
     # Also update participant's linkedin_url in the event doc
     if event_doc:
         participants = event_doc.get("participants") or []
@@ -2393,6 +2440,274 @@ async def get_participant_profile(
     }
 
 
+class CompanyInfoByEmailResponse(BaseModel):
+    email: str
+    company_name: Optional[str] = None
+    company_info: Optional[CompanyInfoUser] = None
+    linkedin_url: Optional[str] = None
+    generated: bool = False
+    source: Optional[str] = None
+    error: Optional[str] = None
+
+
+class UpdateCompanyInfoByEmailRequest(BaseModel):
+    email: str
+    company_name: Optional[str] = None
+    company_info: Optional[CompanyInfoUser] = None
+
+
+async def _company_info_is_empty(ci: Optional[dict]) -> bool:
+    if not ci or not isinstance(ci, dict):
+        return True
+    for k, v in ci.items():
+        if v is None:
+            continue
+        if isinstance(v, str) and v.strip() == "":
+            continue
+        return False
+    return True
+
+
+def _company_info_from_linkedin_data(li: dict) -> CompanyInfoUser:
+    company_name = (li.get("companyName") or "").strip()
+    industry = (li.get("companyIndustry") or "").strip() or None
+    size_revenue = (li.get("companySize") or "").strip() or None
+    website = (li.get("companyWebsite") or "").strip() or None
+    desc = None
+    if company_name and industry:
+        desc = f"{company_name} ({industry})"
+    elif company_name:
+        desc = company_name
+    return CompanyInfoUser(
+        name=company_name or None,
+        industry=industry,
+        size_revenue=size_revenue,
+        website=website,
+        description=desc,
+    )
+
+
+@router.get("/company-info-by-email", response_model=CompanyInfoByEmailResponse)
+async def get_company_info_by_email(
+    email: str = Query(..., description="Host email"),
+    event_id: Optional[str] = Query(None, description="Optional event id to resolve linkedin_url from cached participants"),
+    auto_generate: bool = Query(True),
+    force_regenerate: bool = Query(False),
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    db = get_database()
+    user_id = str(current_user.id)
+    normalized_email = email.strip().lower()
+
+    doc = await db[COMPANY_INFO_BY_EMAIL_COLLECTION].find_one({"user_id": user_id, "email": normalized_email})
+    if (
+        doc
+        and not force_regenerate
+        and doc.get("company_info")
+        and not await _company_info_is_empty(doc.get("company_info"))
+    ):
+        return CompanyInfoByEmailResponse(
+            email=normalized_email,
+            company_name=doc.get("company_name"),
+            company_info=CompanyInfoUser(**(doc.get("company_info") or {})),
+            linkedin_url=doc.get("linkedin_url"),
+            generated=False,
+            source=doc.get("source"),
+        )
+
+    if not auto_generate and not force_regenerate:
+        return CompanyInfoByEmailResponse(
+            email=normalized_email,
+            company_name=doc.get("company_name") if doc else None,
+            company_info=CompanyInfoUser(**(doc.get("company_info") or {})) if doc and doc.get("company_info") else None,
+            linkedin_url=doc.get("linkedin_url") if doc else None,
+            generated=False,
+            source=doc.get("source") if doc else None,
+        )
+
+    enriched = await db[ENRICHED_PROFILES_COLLECTION].find_one({"user_id": user_id, "email": normalized_email})
+    linkedin_url = (enriched or {}).get("linkedin_url")
+    linkedin_data = (enriched or {}).get("linkedin_data")
+
+    if not linkedin_url and event_id:
+        event_doc = await db[PARTICIPANTS_COLLECTION].find_one({"user_id": user_id, "event_id": event_id})
+        if event_doc:
+            main = event_doc.get("main_contact") or {}
+            if (main.get("email") or "").strip().lower() == normalized_email and main.get("linkedin_url"):
+                linkedin_url = main.get("linkedin_url")
+            if not linkedin_url:
+                for p in (event_doc.get("participants") or []):
+                    if (p.get("email") or "").strip().lower() == normalized_email and p.get("linkedin_url"):
+                        linkedin_url = p.get("linkedin_url")
+                        break
+
+    if not linkedin_url:
+        try:
+            pool = get_company_data_pool()
+            linkedin_url = await pool.get_linkedin_url(normalized_email)
+        except Exception:
+            linkedin_url = None
+
+    if not linkedin_url:
+        return CompanyInfoByEmailResponse(
+            email=normalized_email,
+            company_name=None,
+            company_info=None,
+            linkedin_url=None,
+            generated=False,
+            source=None,
+            error="no_linkedin_url",
+        )
+
+    if not linkedin_data or not isinstance(linkedin_data, dict):
+        cache_key_url = linkedin_url.strip().rstrip("/").lower()
+        shared = await db[SHARED_ENRICHED_PROFILES_COLLECTION].find_one({"linkedin_url": cache_key_url})
+        if shared and isinstance(shared.get("linkedin_data"), dict):
+            linkedin_data = shared.get("linkedin_data")
+        if linkedin_data and isinstance(linkedin_data, dict):
+            company_info_obj = _company_info_from_linkedin_data(linkedin_data)
+            company_name = company_info_obj.name
+            now = datetime.utcnow()
+
+            await db[COMPANY_INFO_BY_EMAIL_COLLECTION].update_one(
+                {"user_id": user_id, "email": normalized_email},
+                {
+                    "$set": {
+                        "user_id": user_id,
+                        "email": normalized_email,
+                        "company_name": company_name,
+                        "company_info": company_info_obj.model_dump(exclude_none=True),
+                        "linkedin_url": linkedin_url,
+                        "source": "shared_cache",
+                        "updated_at": now,
+                    },
+                    "$setOnInsert": {"created_at": now},
+                },
+                upsert=True,
+            )
+
+            return CompanyInfoByEmailResponse(
+                email=normalized_email,
+                company_name=company_name,
+                company_info=company_info_obj,
+                linkedin_url=linkedin_url,
+                generated=True,
+                source="shared_cache",
+            )
+        cached_profile = await db[LINKEDIN_PROFILES_CACHE].find_one({"linkedin_url": cache_key_url})
+        raw_profile = cached_profile.get("raw_profile") if cached_profile else None
+
+        li_service = get_linkedin_enrichment_service()
+        if not raw_profile:
+            if not li_service.configured:
+                return CompanyInfoByEmailResponse(
+                    email=normalized_email,
+                    company_name=None,
+                    company_info=None,
+                    linkedin_url=linkedin_url,
+                    generated=False,
+                    source=None,
+                    error="apify_not_configured",
+                )
+            raw_profile = await li_service.scrape_linkedin_profile(linkedin_url)
+            if raw_profile:
+                await db[LINKEDIN_PROFILES_CACHE].update_one(
+                    {"linkedin_url": cache_key_url},
+                    {
+                        "$set": {
+                            "linkedin_url": cache_key_url,
+                            "original_url": linkedin_url,
+                            "raw_profile": raw_profile,
+                            "full_name": raw_profile.get("fullName", ""),
+                            "scraped_at": datetime.utcnow(),
+                        }
+                    },
+                    upsert=True,
+                )
+
+        if raw_profile:
+            linkedin_data = li_service.extract_key_fields(raw_profile)
+
+    if not linkedin_data or not isinstance(linkedin_data, dict):
+        return CompanyInfoByEmailResponse(
+            email=normalized_email,
+            company_name=None,
+            company_info=None,
+            linkedin_url=linkedin_url,
+            generated=False,
+            source=None,
+            error="no_linkedin_data",
+        )
+
+    company_info_obj = _company_info_from_linkedin_data(linkedin_data)
+    company_name = company_info_obj.name
+    now = datetime.utcnow()
+
+    await db[COMPANY_INFO_BY_EMAIL_COLLECTION].update_one(
+        {"user_id": user_id, "email": normalized_email},
+        {
+            "$set": {
+                "user_id": user_id,
+                "email": normalized_email,
+                "company_name": company_name,
+                "company_info": company_info_obj.model_dump(exclude_none=True),
+                "linkedin_url": linkedin_url,
+                "source": "linkedin",
+                "updated_at": now,
+            },
+            "$setOnInsert": {"created_at": now},
+        },
+        upsert=True,
+    )
+
+    return CompanyInfoByEmailResponse(
+        email=normalized_email,
+        company_name=company_name,
+        company_info=company_info_obj,
+        linkedin_url=linkedin_url,
+        generated=True,
+        source="linkedin",
+    )
+
+
+@router.patch("/company-info-by-email", response_model=CompanyInfoByEmailResponse)
+async def update_company_info_by_email(
+    request: UpdateCompanyInfoByEmailRequest,
+    current_user: UserResponse = Depends(get_current_active_user),
+):
+    db = get_database()
+    user_id = str(current_user.id)
+    normalized_email = request.email.strip().lower()
+    now = datetime.utcnow()
+
+    company_info = request.company_info.model_dump(exclude_none=True) if request.company_info else None
+
+    await db[COMPANY_INFO_BY_EMAIL_COLLECTION].update_one(
+        {"user_id": user_id, "email": normalized_email},
+        {
+            "$set": {
+                "user_id": user_id,
+                "email": normalized_email,
+                "company_name": request.company_name or (company_info or {}).get("name"),
+                "company_info": company_info or {},
+                "source": "manual",
+                "updated_at": now,
+            },
+            "$setOnInsert": {"created_at": now},
+        },
+        upsert=True,
+    )
+
+    return CompanyInfoByEmailResponse(
+        email=normalized_email,
+        company_name=request.company_name or (company_info or {}).get("name"),
+        company_info=CompanyInfoUser(**(company_info or {})) if company_info else None,
+        linkedin_url=None,
+        generated=False,
+        source="manual",
+    )
+
+
 class UpdateParticipantLinkedInRequest(BaseModel):
     email: str
     linkedin_url: str
@@ -2457,6 +2772,10 @@ class DecisionTrigger(BaseModel):
     label: str
     color: str = Field(..., description="Tailwind color class, e.g., bg-blue-100 text-blue-800")
 
+class DiscInfo(BaseModel):
+    type: str = Field(..., description="e.g., ANALYTICAL, METHODICAL, DIPLOMATIC, etc.")
+    code: str = Field("", description="Optional shorthand code, if available")
+
 
 class Approach(BaseModel):
     do: dict = Field(..., description="What to do: {title, action}")
@@ -2478,11 +2797,123 @@ class RiskAlert(BaseModel):
 class NeuroProfileResponse(BaseModel):
     decisionStyle: DecisionStyle
     riskTolerance: RiskTolerance
+    disc: DiscInfo
     triggers: List[DecisionTrigger]
     summary: str = Field(..., description="Short summary of the profile")
     approach: Approach
     openingScript: OpeningScript
     riskAlerts: List[RiskAlert]
+
+def _is_internal_email(user_email: str, candidate_email: str) -> bool:
+    try:
+        user_domain = (user_email or "").split("@", 1)[1].lower()
+        cand_domain = (candidate_email or "").split("@", 1)[1].lower()
+        return bool(user_domain) and cand_domain == user_domain
+    except Exception:
+        return False
+
+
+async def _resolve_contact_from_event(db, user_id: str, event_id: str, user_email: str) -> Dict[str, Optional[str]]:
+    doc = await db[PARTICIPANTS_COLLECTION].find_one({"user_id": user_id, "event_id": event_id})
+    if doc:
+        main = doc.get("main_contact") or {}
+        main_email = (main.get("email") or "").strip().lower()
+        main_name = (main.get("name") or "").strip()
+        if main_email and not _is_internal_email(user_email, main_email):
+            return {"email": main_email, "name": main_name or None}
+
+        participants = doc.get("participants") or []
+        for p in participants:
+            em = (p.get("email") or "").strip().lower()
+            if em and not _is_internal_email(user_email, em):
+                return {"email": em, "name": (p.get("name") or "").strip() or None}
+        for p in participants:
+            em = (p.get("email") or "").strip().lower()
+            if em:
+                return {"email": em, "name": (p.get("name") or "").strip() or None}
+
+    cache = await db[CALENDAR_EVENTS_CACHE].find_one({"user_id": user_id, "event_id": event_id})
+    if cache:
+        attendees = cache.get("attendees") or []
+        for a in attendees:
+            em = (a.get("email") or "").strip().lower()
+            if em and not _is_internal_email(user_email, em):
+                return {"email": em, "name": (a.get("displayName") or "").strip() or None}
+        for a in attendees:
+            em = (a.get("email") or "").strip().lower()
+            if em:
+                return {"email": em, "name": (a.get("displayName") or "").strip() or None}
+
+    return {"email": None, "name": None}
+
+
+async def _get_recent_transcript_snippets(db, user_id: str, email: str, limit: int = 3, max_chars_per_meeting: int = 2000) -> List[Dict[str, str]]:
+    email_norm = (email or "").strip().lower()
+    if not email_norm:
+        return []
+
+    event_cursor = db[PARTICIPANTS_COLLECTION].find(
+        {
+            "user_id": user_id,
+            "$or": [
+                {"main_contact.email": {"$regex": f"^{re.escape(email_norm)}$", "$options": "i"}},
+                {"participants.email": {"$regex": f"^{re.escape(email_norm)}$", "$options": "i"}},
+            ],
+        },
+        {"event_id": 1, "event_title": 1, "event_start": 1},
+    ).sort("event_start", -1)
+
+    event_ids: List[str] = []
+    async for e in event_cursor:
+        eid = e.get("event_id")
+        if eid and eid not in event_ids:
+            event_ids.append(eid)
+        if len(event_ids) >= 20:
+            break
+
+    if not event_ids:
+        return []
+
+    meetings_cursor = db["meetings"].find(
+        {
+            "user_id": user_id,
+            "calendar_event_id": {"$in": event_ids},
+            "transcript_lines.0": {"$exists": True},
+        },
+        {"title": 1, "calendar_event_id": 1, "transcript_lines": 1, "updated_at": 1, "created_at": 1},
+    ).sort("updated_at", -1)
+
+    snippets: List[Dict[str, str]] = []
+    async for m in meetings_cursor:
+        lines = m.get("transcript_lines") or []
+        if not lines:
+            continue
+        chunks: List[str] = []
+        for line in lines[:400]:
+            speaker = (line.get("speaker") or "").strip()
+            text = (line.get("text") or "").strip()
+            if not text:
+                continue
+            if speaker:
+                chunks.append(f"{speaker}: {text}")
+            else:
+                chunks.append(text)
+        excerpt = "\n".join(chunks).strip()
+        if not excerpt:
+            continue
+        if len(excerpt) > max_chars_per_meeting:
+            excerpt = excerpt[:max_chars_per_meeting] + "…"
+        snippets.append(
+            {
+                "meeting_title": m.get("title") or "",
+                "calendar_event_id": m.get("calendar_event_id") or "",
+                "transcript_excerpt": excerpt,
+            }
+        )
+        if len(snippets) >= limit:
+            break
+
+    return snippets
 
 
 @router.get("/neuro-profile", response_model=NeuroProfileResponse)
@@ -2502,6 +2933,12 @@ async def get_neuro_profile(
     normalized_email = email.strip().lower() if email else None
     
     logger.info(f"[NEURO-PROFILE] Request for event_id={event_id}, email={normalized_email}, name={name}, force={force}")
+
+    if event_id and not normalized_email:
+        resolved = await _resolve_contact_from_event(db, user_id, event_id, str(current_user.email))
+        normalized_email = resolved.get("email")
+        if not name:
+            name = resolved.get("name")
     
     # ── Cache check: return stored profile if available ──
     NEURO_PROFILES_COLLECTION = "atlas_neuro_profiles"
@@ -2512,7 +2949,10 @@ async def get_neuro_profile(
         })
         if cached and cached.get("profile"):
             logger.info(f"[NEURO-PROFILE] ✅ Cache hit for {normalized_email}")
-            return NeuroProfileResponse(**cached["profile"])
+            profile_doc = cached["profile"]
+            if isinstance(profile_doc, dict) and "disc" not in profile_doc:
+                profile_doc = {**profile_doc, "disc": {"type": "ANALYTICAL", "code": ""}}
+            return NeuroProfileResponse(**profile_doc)
     
     # Get enriched participant profile if available
     enriched_profile = None
@@ -2543,7 +2983,19 @@ async def get_neuro_profile(
         "participant_email": email or "",
         "enriched_profile": enriched_profile,
         "meeting_context": meeting_context,
+        "event_id": event_id,
     }
+
+    if normalized_email:
+        context_data["participant_email"] = normalized_email
+
+    transcripts = []
+    if normalized_email:
+        try:
+            transcripts = await _get_recent_transcript_snippets(db, user_id, normalized_email, limit=3)
+        except Exception as e:
+            logger.warning(f"[NEURO-PROFILE] transcript lookup failed: {e}")
+    context_data["recent_transcripts"] = transcripts
     
     # Generate neuro profile using AI
     try:
@@ -2587,7 +3039,7 @@ async def generate_neuro_profile_ai(context_data: Dict[str, Any]) -> NeuroProfil
     - Personalized opening script
     - Risk alerts
     """
-    if not settings.ANTHROPIC_AUTH_TOKEN:
+    if not settings.OPEN_AI_KEY:
         logger.warning("[NEURO-PROFILE] No AI API configured, using fallback")
         return get_fallback_neuro_profile()
     
@@ -2601,6 +3053,21 @@ async def generate_neuro_profile_ai(context_data: Dict[str, Any]) -> NeuroProfil
     interests = enriched.get("interests", [])[:5]
     communication_dos = enriched.get("communicationStrategy", {}).get("dos", [])
     communication_donts = enriched.get("communicationStrategy", {}).get("donts", [])
+
+    recent_transcripts = context_data.get("recent_transcripts") or []
+    transcript_block = ""
+    if recent_transcripts:
+        blocks = []
+        for t in recent_transcripts:
+            title = (t.get("meeting_title") or "").strip()
+            excerpt = (t.get("transcript_excerpt") or "").strip()
+            if not excerpt:
+                continue
+            if title:
+                blocks.append(f"MEETING: {title}\n{excerpt}")
+            else:
+                blocks.append(excerpt)
+        transcript_block = "\n\n---\n\n".join(blocks)[:8000]
     
     prompt = f"""You are an expert in behavioral psychology and neuroscience applied to sales.
 Analyze this person's profile and generate a detailed neuro/cognitive profile.
@@ -2612,6 +3079,8 @@ ABOUT: {about}
 INTERESTS: {', '.join(interests)}
 COMMUNICATION DOS: {', '.join([d.get('action', '') for d in communication_dos[:2]])}
 COMMUNICATION DON'TS: {', '.join([d.get('action', '') for d in communication_donts[:2]])}
+PAST MEETING TRANSCRIPTS (snippets, if available):
+{transcript_block or 'Not available'}
 
 Generate a JSON response with this exact structure:
 {{
@@ -2624,6 +3093,10 @@ Generate a JSON response with this exact structure:
     "score": <0-100>,
     "label": "<Conservative/Moderate/Aggressive>",
     "description": "<One sentence about their risk appetite>"
+  }},
+  "disc": {{
+    "type": "<DISC/Archetype type (e.g., ANALYTICAL, METHODICAL, DIPLOMATIC, PRUDENT, SCRUPULOUS, PRAGMATIC, INNOVATOR, DYNAMIC)>",
+    "code": "<Optional shorthand code or empty string>"
   }},
   "triggers": [
     {{"label": "<trigger 1>", "color": "bg-blue-100 text-blue-800"}},
@@ -2652,21 +3125,11 @@ Generate a JSON response with this exact structure:
 IMPORTANT: Return ONLY valid JSON, no markdown, no explanations."""
 
     try:
-        def _sync_call() -> str:
-            client = _get_claude_client()
-            response = client.chat.completions.create(
-                model="claude-haiku-4.6",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.4,
-                max_tokens=8000,
-            )
-            return (response.choices[0].message.content or "").strip()
-
-        content = await asyncio.to_thread(_sync_call)
-        profile_dict = json.loads(content)
-        return NeuroProfileResponse(**profile_dict)
+        profile_dict = await chat_json(prompt=prompt, temperature=0.4, max_tokens=4000)
+        if isinstance(profile_dict, dict):
+            return NeuroProfileResponse(**profile_dict)
     except Exception as e:
-        logger.error(f"[NEURO-PROFILE] Claude error: {e}")
+        logger.error(f"[NEURO-PROFILE] AI error: {e}")
 
     # Fallback: return default profile
     return get_fallback_neuro_profile()
@@ -2685,6 +3148,7 @@ def get_fallback_neuro_profile() -> NeuroProfileResponse:
             label="Moderate",
             description="Balanced approach to innovation and risk"
         ),
+        disc=DiscInfo(type="ANALYTICAL", code=""),
         triggers=[
             DecisionTrigger(label="ROI Focus", color="bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"),
             DecisionTrigger(label="Team Alignment", color="bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"),

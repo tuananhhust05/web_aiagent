@@ -76,8 +76,9 @@ class Settings(BaseSettings):
     # Encrypt refresh_token at rest (optional; if not set, token stored in plaintext - not for production)
     CALENDAR_REFRESH_TOKEN_ENCRYPTION_KEY: str = ""
     
-    # Groq AI Configuration
-    GROQ_API_KEY: str = ""
+    # OpenAI Configuration
+    OPEN_AI_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o-mini"
 
     # Anthropic / Claude Configuration (accessed via OpenAI-compatible SDK)
     ANTHROPIC_AUTH_TOKEN: str = ""

@@ -7,6 +7,24 @@ import { CalendarRefreshPopup } from "../components/mockflow-atlas/CalendarRefre
 import { toast } from "sonner";
 import { calendarAPI, atlasAPI, vexaAPI, meetingsAPI, getVexaBotJoinErrorMessage, type GoogleCalendarEvent, type MeetingPlatform } from "../lib/api";
 
+const PERSONAL_DOMAINS = new Set([
+  "gmail.com",
+  "outlook.com",
+  "hotmail.com",
+  "yahoo.com",
+  "icloud.com",
+  "me.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+]);
+
+function isPersonalEmail(email: string): boolean {
+  const parts = (email || "").trim().toLowerCase().split("@");
+  if (parts.length !== 2) return true;
+  return PERSONAL_DOMAINS.has(parts[1]);
+}
+
 function getMonday(date: Date): Date {
   const d = new Date(date);
   const day = d.getDay();
@@ -23,8 +41,16 @@ function mapEventsToMeetings(events: GoogleCalendarEvent[], rangeStart: Date): M
   const parsed = events
     .map((event) => {
       if (!event.id) return null;
-      const start = event.start?.dateTime ? new Date(event.start.dateTime) : event.start?.date ? new Date(event.start.date) : null;
-      const end = event.end?.dateTime ? new Date(event.end.dateTime) : event.end?.date ? new Date(event.end.date) : null;
+      const start = event.start?.dateTime
+        ? new Date(event.start.dateTime)
+        : event.start?.date
+          ? new Date(`${event.start.date}T00:00:00`)
+          : null;
+      const end = event.end?.dateTime
+        ? new Date(event.end.dateTime)
+        : event.end?.date
+          ? new Date(`${event.end.date}T00:00:00`)
+          : null;
       if (!start || !end) return null;
 
       const companyKey = (event.summary || "Untitled meeting").split("—")[0].trim().toLowerCase();
@@ -42,20 +68,51 @@ function mapEventsToMeetings(events: GoogleCalendarEvent[], rangeStart: Date): M
         })
         .filter(Boolean);
 
-      return { event, start, end, companyKey, participantInitials };
+      const attendeeEmails = (event.attendees || [])
+        .filter((a) => !a.self)
+        .map((a) => (a.email || "").trim().toLowerCase())
+        .filter(Boolean);
+      const business = attendeeEmails.find((e) => !isPersonalEmail(e));
+      const hostEmail: string | undefined = business || attendeeEmails[0] || undefined;
+
+      return { event, start, end, companyKey, participantInitials, hostEmail };
     })
-    .filter((v): v is { event: GoogleCalendarEvent; start: Date; end: Date; companyKey: string; participantInitials: string[] } => v !== null)
+    .filter(
+      (v): v is { event: GoogleCalendarEvent; start: Date; end: Date; companyKey: string; participantInitials: string[]; hostEmail: string | undefined } =>
+        v !== null,
+    )
     .sort((a, b) => a.start.getTime() - b.start.getTime());
 
   const sequenceByCompany: Record<string, number> = {};
 
-  return parsed.map(({ event, start, end, companyKey, participantInitials }) => {
+  return parsed.map(({ event, start, end, companyKey, participantInitials, hostEmail }) => {
     const dayIndex = Math.floor((new Date(start.toDateString()).getTime() - monday.getTime()) / msPerDay);
-    const startHour = start.getHours() + start.getMinutes() / 60;
-    const duration = (end.getTime() - start.getTime()) / (60 * 60 * 1000) || 1;
     const fmt = (d: Date) => d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-    const timeLabel = `${fmt(start)} - ${fmt(end)}`;
-    const meetLink = event.hangoutLink || event.conferenceData?.entryPoints?.find(ep => ep.entryPointType === "video")?.uri;
+
+    const isAllDay = Boolean(event.start?.date && !event.start?.dateTime);
+    const startHour = isAllDay ? 0 : start.getHours() + start.getMinutes() / 60;
+
+    const rawDuration = (end.getTime() - start.getTime()) / (60 * 60 * 1000);
+    const crossesDay = start.toDateString() !== end.toDateString();
+    const daySpan = Math.max(0, Math.round((new Date(end.toDateString()).getTime() - new Date(start.toDateString()).getTime()) / msPerDay));
+    const endOfDay = (() => {
+      const d = new Date(start);
+      d.setHours(23, 59, 59, 999);
+      return d;
+    })();
+
+    const duration = (() => {
+      if (isAllDay) return 0.75;
+      if (!Number.isFinite(rawDuration) || rawDuration <= 0) return 1;
+      if (!crossesDay) return rawDuration;
+      const capped = (endOfDay.getTime() - start.getTime()) / (60 * 60 * 1000);
+      return Math.max(0.25, capped);
+    })();
+
+    const timeLabel = isAllDay ? "All day" : crossesDay ? `${fmt(start)} - ${fmt(endOfDay)} (+${daySpan}d)` : `${fmt(start)} - ${fmt(end)}`;
+    const meetLink =
+      event.hangoutLink ||
+      event.conferenceData?.entryPoints?.find((ep: { entryPointType?: string; uri?: string }) => ep.entryPointType === "video")?.uri;
     const dateISO = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
 
     const nextSequence = (sequenceByCompany[companyKey] || 0) + 1;
@@ -69,6 +126,7 @@ function mapEventsToMeetings(events: GoogleCalendarEvent[], rangeStart: Date): M
       duration,
       dayIndex,
       dateISO,
+      hostEmail,
       meetingNumber: nextSequence,
       velocity: nextSequence >= 4 ? "stalled" : "normal",
       participantInitials,
@@ -109,7 +167,24 @@ const AtlasCalendarPage = () => {
       const events = response.data?.events ?? [];
       if (events.length) await atlasAPI.syncCalendarEvents(events);
       const mapped = mapEventsToMeetings(events, start);
-      setMeetings(mapped);
+      const hostEmails = Array.from(new Set(mapped.map((m) => (m.hostEmail || "").trim().toLowerCase()).filter(Boolean)));
+      if (!hostEmails.length) {
+        setMeetings(mapped);
+        return;
+      }
+      try {
+        const countsResp = await atlasAPI.getMeetingHistoryCounts(hostEmails);
+        const counts = countsResp.data?.counts || {};
+        setMeetings(
+          mapped.map((m) => {
+            const he = (m.hostEmail || "").trim().toLowerCase();
+            const count = he ? (counts[he] ?? 1) : 1;
+            return { ...m, meetingNumber: count };
+          }),
+        );
+      } catch {
+        setMeetings(mapped);
+      }
     } catch {
       await revalidateConnection();
     }

@@ -316,6 +316,10 @@ export function AtlasSidebar({ activeNav }: AtlasSidebarProps) {
                   className={subClasses}
                   role="menuitem"
                   style={{ animationDelay: `${idx * 50}ms` }}
+                  onClick={() => {
+                    if (sub.route) navigate(sub.route);
+                    setSettingsOpen(false);
+                  }}
                 >
                   {el}
                 </button>

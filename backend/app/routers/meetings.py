@@ -21,10 +21,10 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 import math
 import httpx
 from pydantic import BaseModel, Field
-from openai import OpenAI
 from ..core.config import settings
 import json
 from ..services.ai_sales_copilot import analyze_call_against_playbook
+from ..services.llm_engine import chat_json, chat_text
 
 logger = logging.getLogger(__name__)
 
@@ -674,67 +674,24 @@ def _compute_speaking_metrics(lines: Any) -> Dict[str, Any]:
     }
 
 
-def _get_claude_client() -> OpenAI:
-    return OpenAI(
-        api_key=settings.ANTHROPIC_AUTH_TOKEN,
-        base_url=settings.ANTHROPIC_BASE_URL,
-    )
+async def _call_llm_json(prompt: str) -> Any:
+    """Call the configured LLM and parse JSON response safely."""
+    if not settings.OPEN_AI_KEY:
+        raise RuntimeError("Missing OPEN_AI_KEY")
+    return await chat_json(prompt=prompt, temperature=0.2, max_tokens=4000)
 
 
-async def _call_claude_json(prompt: str) -> Any:
-    """Call Claude via OpenAI-compatible SDK and parse JSON response safely."""
-    if not settings.ANTHROPIC_AUTH_TOKEN:
-        raise RuntimeError("Missing ANTHROPIC_AUTH_TOKEN")
-
-    def _sync_call() -> str:
-        client = _get_claude_client()
-        response = client.chat.completions.create(
-            model="claude-haiku-4.6",
-            messages=[
-                {"role": "system", "content": "Return ONLY valid JSON. No markdown. No extra text."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.2,
-            max_tokens=8000,
-        )
-        return (response.choices[0].message.content or "").strip()
-
-    try:
-        content = await asyncio.to_thread(_sync_call)
-    except Exception:
-        raise
-
-    # attempt direct json parse; else try extracting first {...} block
-    try:
-        return json.loads(content)
-    except Exception:
-        start = content.find("{")
-        end = content.rfind("}")
-        if start != -1 and end != -1 and end > start:
-            return json.loads(content[start : end + 1])
-        raise
-
-
-async def _call_claude_text(prompt: str) -> str:
-    """Call Claude via OpenAI-compatible SDK and return plain text response."""
-    if not settings.ANTHROPIC_AUTH_TOKEN:
+async def _call_llm_text(prompt: str) -> str:
+    """Call the configured LLM and return plain text response."""
+    if not settings.OPEN_AI_KEY:
         return ""
-
-    def _sync_call() -> str:
-        client = _get_claude_client()
-        response = client.chat.completions.create(
-            model="claude-haiku-4.6",
-            messages=[
-                {"role": "system", "content": "You are a helpful sales rep. Answer concisely."},
-                {"role": "user", "content": prompt},
-            ],
+    try:
+        return await chat_text(
+            prompt=prompt,
+            system="You are a helpful sales rep. Answer concisely.",
             temperature=0.3,
             max_tokens=1000,
         )
-        return (response.choices[0].message.content or "").strip()
-
-    try:
-        return await asyncio.to_thread(_sync_call)
     except Exception:
         return ""
 
@@ -1375,7 +1332,7 @@ Return a JSON object with:
 
 Be concise. Key points and learning opportunities should be 5-10 words each."""
     try:
-        result = await _call_claude_json(prompt)
+        result = await _call_llm_json(prompt)
         return {
             "match_score": int(result.get("match_score") or 70),
             "key_points_covered": [str(x) for x in (result.get("key_points_covered") or [])],
@@ -1412,7 +1369,7 @@ async def _generate_suggested_answer(question: str) -> str:
 
 Write a concise, helpful suggested answer (1-3 sentences) that a sales rep should give.
 Return ONLY the answer text, no JSON, no labels."""
-    return await _call_claude_text(prompt)
+    return await _call_llm_text(prompt)
 
 
 def _classify_objection_topic(question: str) -> str:
@@ -2438,7 +2395,7 @@ Transcript:
 """.strip()
 
     try:
-        generated = await _call_claude_json(prompt)
+        generated = await _call_llm_json(prompt)
         summary = _sanitize_summary((generated or {}).get("summary"))
         next_steps = _sanitize_next_steps((generated or {}).get("next_steps"))
         qna = _sanitize_qna((generated or {}).get("questions_and_objections"))
@@ -2605,7 +2562,7 @@ Transcript:
 """.strip()
 
     try:
-        generated = await _call_claude_json(prompt)
+        generated = await _call_llm_json(prompt)
         raw_quality = (generated or {}).get("quality_score")
         raw_metrics = (generated or {}).get("metrics") or []
         raw_did_well = (generated or {}).get("did_well") or []
@@ -3372,7 +3329,7 @@ Transcript:
 """.strip()
 
     try:
-        generated = await _call_claude_json(prompt)
+        generated = await _call_llm_json(prompt)
         raw_outcome = generated.get("outcome") or {}
         raw_insights = generated.get("strategic_insights") or []
         raw_actions = generated.get("recommended_actions") or []
@@ -3726,7 +3683,7 @@ Rules:
 """.strip()
 
     try:
-        generated = await _call_claude_json(prompt)
+        generated = await _call_llm_json(prompt)
 
         def _parse_health(h):
             if not h:
@@ -3954,7 +3911,7 @@ Return JSON with this EXACT structure:
 }}"""
 
     try:
-        result = await _call_claude_json(prompt)
+        result = await _call_llm_json(prompt)
         now = datetime.utcnow()
 
         objective = result.get("objective") or ""

@@ -3,7 +3,6 @@ AI Sales Copilot Service
 Analyzes customer conversations and provides insights, recommendations, and sales scripts.
 """
 import asyncio
-import aiohttp
 import json
 import logging
 import re
@@ -11,6 +10,7 @@ from typing import Optional, Dict, List, Any
 from app.core.config import settings
 from app.core.database import get_database
 from datetime import datetime
+from app.services.llm_engine import chat_json, chat_text
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +42,49 @@ def truncate_text_from_start(text: str, max_tokens: int) -> str:
     return truncated
 
 
+def _llm_configured() -> bool:
+    return bool(getattr(settings, "OPEN_AI_KEY", ""))
+
+
+async def _chat_json_safe(
+    *,
+    prompt: str,
+    system: str,
+    temperature: float,
+    max_tokens: int,
+) -> Optional[Dict[str, Any]]:
+    try:
+        data = await chat_json(
+            prompt=prompt,
+            system=system,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return data if isinstance(data, dict) else None
+    except Exception as e:
+        logger.error(f"[AI COPILOT] LLM JSON call failed: {e}")
+        return None
+
+
+async def _chat_text_safe(
+    *,
+    prompt: str,
+    system: str,
+    temperature: float,
+    max_tokens: int,
+) -> Optional[str]:
+    try:
+        return await chat_text(
+            prompt=prompt,
+            system=system,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+    except Exception as e:
+        logger.error(f"[AI COPILOT] LLM text call failed: {e}")
+        return None
+
+
 async def analyze_conversation_with_ai(
     conversation_history: List[Dict[str, Any]],
     customer_profile: Optional[Dict[str, Any]] = None,
@@ -56,8 +99,8 @@ async def analyze_conversation_with_ai(
     - Suggested responses
     """
     try:
-        if not settings.GROQ_API_KEY:
-            print("⚠️ [AI COPILOT] GROQ_API_KEY not configured")
+        if not _llm_configured():
+            print("⚠️ [AI COPILOT] OPEN_AI_KEY not configured")
             return None
 
         # Prepare conversation context
@@ -149,61 +192,15 @@ IMPORTANT:
 - Provide realistic recommendations
 """
 
-        # Call Groq API
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": "llama-3.1-8b-instant",  # Using more capable model for analysis
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an AI Sales Copilot. Analyze sales conversations and provide actionable insights in JSON format. Always return valid JSON only."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.3,  # Lower temperature for more consistent analysis
-            "max_tokens": settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
-            "response_format": {"type": "json_object"}  # Force JSON response
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                groq_url,
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    choices = result.get("choices", [])
-                    
-                    if choices:
-                        content = choices[0].get("message", {}).get("content", "").strip()
-                        
-                        # Parse JSON response
-                        try:
-                            insights = json.loads(content)
-                            print(f"✅ [AI COPILOT] Analysis completed successfully")
-                            return insights
-                        except json.JSONDecodeError as e:
-                            print(f"❌ [AI COPILOT] Failed to parse JSON response: {e}")
-                            print(f"   - Response content: {content[:500]}")
-                            return None
-                    else:
-                        print(f"⚠️ [AI COPILOT] No choices in response")
-                        return None
-                else:
-                    error_text = await response.text()
-                    print(f"❌ [AI COPILOT] API error: {response.status}")
-                    print(f"   - Error: {error_text}")
-                    return None
+        insights = await _chat_json_safe(
+            prompt=prompt,
+            system="You are an AI Sales Copilot. Analyze sales conversations and provide actionable insights in JSON format. Always return valid JSON only.",
+            temperature=0.3,
+            max_tokens=settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
+        )
+        if insights:
+            print("✅ [AI COPILOT] Analysis completed successfully")
+        return insights
 
     except Exception as e:
         print(f"❌ [AI COPILOT] Error analyzing conversation: {str(e)}")
@@ -221,7 +218,7 @@ async def suggest_sales_script(
     Suggest a sales script or response for a specific situation.
     """
     try:
-        if not settings.GROQ_API_KEY:
+        if not _llm_configured():
             return None
 
         conversation_text = "\n".join([
@@ -255,44 +252,12 @@ Generate a concise, professional response (2-3 sentences max) that:
 - Is personalized to the customer
 
 Response:"""
-
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an AI Sales Copilot. Generate professional, empathetic sales responses. Keep responses concise (2-3 sentences)."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.7,
-            "max_tokens": 200
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                groq_url,
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=15)
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    choices = result.get("choices", [])
-                    
-                    if choices:
-                        return choices[0].get("message", {}).get("content", "").strip()
-                    return None
-                return None
+        return await _chat_text_safe(
+            prompt=prompt,
+            system="You are an AI Sales Copilot. Generate professional, empathetic sales responses. Keep responses concise (2-3 sentences).",
+            temperature=0.7,
+            max_tokens=200,
+        )
 
     except Exception as e:
         print(f"❌ [AI COPILOT] Error suggesting script: {str(e)}")
@@ -312,8 +277,8 @@ async def analyze_with_followup(
     Manages token limits by truncating from start if needed.
     """
     try:
-        if not settings.GROQ_API_KEY:
-            print("⚠️ [AI COPILOT] GROQ_API_KEY not configured")
+        if not _llm_configured():
+            print("⚠️ [AI COPILOT] OPEN_AI_KEY not configured")
             return None
 
         # Prepare conversation context
@@ -445,61 +410,15 @@ IMPORTANT:
 - Directly answer the user's question
 """
 
-        # Call Groq API
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": "llama-3.1-8b-instant",  # Using more capable model for follow-up analysis
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an AI Sales Copilot. Analyze sales conversations and provide actionable insights in JSON format. Always return valid JSON only."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.3,
-            "max_tokens": settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
-            "response_format": {"type": "json_object"}
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                groq_url,
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    choices = result.get("choices", [])
-                    
-                    if choices:
-                        content = choices[0].get("message", {}).get("content", "").strip()
-                        
-                        # Parse JSON response
-                        try:
-                            insights = json.loads(content)
-                            print(f"✅ [AI COPILOT] Follow-up analysis completed successfully")
-                            return insights
-                        except json.JSONDecodeError as e:
-                            print(f"❌ [AI COPILOT] Failed to parse JSON response: {e}")
-                            print(f"   - Response content: {content[:500]}")
-                            return None
-                    else:
-                        print(f"⚠️ [AI COPILOT] No choices in response")
-                        return None
-                else:
-                    error_text = await response.text()
-                    print(f"❌ [AI COPILOT] API error: {response.status}")
-                    print(f"   - Error: {error_text}")
-                    return None
+        insights = await _chat_json_safe(
+            prompt=prompt,
+            system="You are an AI Sales Copilot. Analyze sales conversations and provide actionable insights in JSON format. Always return valid JSON only.",
+            temperature=0.3,
+            max_tokens=settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
+        )
+        if insights:
+            print("✅ [AI COPILOT] Follow-up analysis completed successfully")
+        return insights
 
     except Exception as e:
         print(f"❌ [AI COPILOT] Error in follow-up analysis: {str(e)}")
@@ -519,8 +438,8 @@ async def analyze_campaign_with_ai(
     Provides macro-level insights about the campaign performance.
     """
     try:
-        if not settings.GROQ_API_KEY:
-            print("⚠️ [AI COPILOT] GROQ_API_KEY not configured")
+        if not _llm_configured():
+            print("⚠️ [AI COPILOT] OPEN_AI_KEY not configured")
             return None
 
         # Prepare aggregated conversation summary
@@ -688,61 +607,15 @@ IMPORTANT:
 - Provide actionable recommendations for campaign optimization
 """
 
-        # Call Groq API
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": "llama-3.1-8b-instant",  # Using more capable model for campaign analysis
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an AI Sales Copilot. Analyze sales campaigns at a macro level and provide actionable insights in JSON format. Always return valid JSON only."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.3,
-            "max_tokens": settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
-            "response_format": {"type": "json_object"}
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                groq_url,
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=60)  # Longer timeout for campaign analysis
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    choices = result.get("choices", [])
-                    
-                    if choices:
-                        content = choices[0].get("message", {}).get("content", "").strip()
-                        
-                        # Parse JSON response
-                        try:
-                            insights = json.loads(content)
-                            print(f"✅ [AI COPILOT] Campaign analysis completed successfully")
-                            return insights
-                        except json.JSONDecodeError as e:
-                            print(f"❌ [AI COPILOT] Failed to parse JSON response: {e}")
-                            print(f"   - Response content: {content[:500]}")
-                            return None
-                    else:
-                        print(f"⚠️ [AI COPILOT] No choices in response")
-                        return None
-                else:
-                    error_text = await response.text()
-                    print(f"❌ [AI COPILOT] API error: {response.status}")
-                    print(f"   - Error: {error_text}")
-                    return None
+        insights = await _chat_json_safe(
+            prompt=prompt,
+            system="You are an AI Sales Copilot. Analyze sales campaigns at a macro level and provide actionable insights in JSON format. Always return valid JSON only.",
+            temperature=0.3,
+            max_tokens=settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
+        )
+        if insights:
+            print("✅ [AI COPILOT] Campaign analysis completed successfully")
+        return insights
 
     except Exception as e:
         print(f"❌ [AI COPILOT] Error analyzing campaign: {str(e)}")
@@ -764,8 +637,8 @@ async def analyze_campaign_with_followup(
     Provides macro-level insights based on the follow-up question.
     """
     try:
-        if not settings.GROQ_API_KEY:
-            print("⚠️ [AI COPILOT] GROQ_API_KEY not configured")
+        if not _llm_configured():
+            print("⚠️ [AI COPILOT] OPEN_AI_KEY not configured")
             return None
 
         # Prepare aggregated conversation summary (similar to analyze_campaign_with_ai)
@@ -955,61 +828,15 @@ IMPORTANT:
 - Directly answer the user's question about the campaign
 """
 
-        # Call Groq API
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": "llama-3.1-8b-instant",  # Using more capable model for campaign follow-up analysis
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an AI Sales Copilot. Analyze sales campaigns at a macro level and provide actionable insights in JSON format. Always return valid JSON only."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.3,
-            "max_tokens": settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
-            "response_format": {"type": "json_object"}
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                groq_url,
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=60)  # Longer timeout for campaign analysis
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    choices = result.get("choices", [])
-                    
-                    if choices:
-                        content = choices[0].get("message", {}).get("content", "").strip()
-                        
-                        # Parse JSON response
-                        try:
-                            insights = json.loads(content)
-                            print(f"✅ [AI COPILOT] Campaign follow-up analysis completed successfully")
-                            return insights
-                        except json.JSONDecodeError as e:
-                            print(f"❌ [AI COPILOT] Failed to parse JSON response: {e}")
-                            print(f"   - Response content: {content[:500]}")
-                            return None
-                    else:
-                        print(f"⚠️ [AI COPILOT] No choices in response")
-                        return None
-                else:
-                    error_text = await response.text()
-                    print(f"❌ [AI COPILOT] API error: {response.status}")
-                    print(f"   - Error: {error_text}")
-                    return None
+        insights = await _chat_json_safe(
+            prompt=prompt,
+            system="You are an AI Sales Copilot. Analyze sales campaigns at a macro level and provide actionable insights in JSON format. Always return valid JSON only.",
+            temperature=0.3,
+            max_tokens=settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
+        )
+        if insights:
+            print("✅ [AI COPILOT] Campaign follow-up analysis completed successfully")
+        return insights
 
     except Exception as e:
         print(f"❌ [AI COPILOT] Error in campaign follow-up analysis: {str(e)}")
@@ -1027,13 +854,8 @@ IMPORTANT:
 # message and instruction overhead (~600 tokens).
 _CHUNK_MAX_CHARS = 5000          # ~1 250 tokens per chunk
 _CHUNK_OVERLAP_CHARS = 400       # small overlap so context isn't lost at edges
-_GROQ_MODEL = "llama-3.1-8b-instant"
-_GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# Retry / back-off parameters for 429 rate-limit errors
 _MAX_RETRIES = 5
-_INITIAL_BACKOFF_SEC = 6.0       # Groq asks for ~5.5 s in the error body
-_BACKOFF_MULTIPLIER = 1.5
 
 
 def _preprocess_transcript(transcript: str) -> str:
@@ -1073,83 +895,26 @@ def _chunk_transcript(transcript: str) -> List[str]:
     return chunks
 
 
-async def _call_groq_with_retry(
-    payload: dict,
+async def _call_llm_json_with_retry(
     *,
-    timeout_sec: float = 60,
+    prompt: str,
+    system: str,
+    temperature: float,
+    max_tokens: int,
+    retries: int = _MAX_RETRIES,
 ) -> Optional[dict]:
-    """
-    POST to Groq chat/completions with automatic retry on 429.
-    Returns parsed JSON body of the assistant message, or None.
-    """
-    headers = {
-        "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-        "Content-Type": "application/json",
-    }
-
-    backoff = _INITIAL_BACKOFF_SEC
-    last_error = ""
-
-    for attempt in range(1, _MAX_RETRIES + 1):
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    _GROQ_URL,
-                    json=payload,
-                    headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=timeout_sec),
-                ) as resp:
-                    if resp.status == 200:
-                        result = await resp.json()
-                        choices = result.get("choices") or []
-                        if not choices:
-                            logger.warning(f"[Playbook] Groq returned no choices (attempt {attempt})")
-                            return None
-                        content = choices[0].get("message", {}).get("content", "").strip()
-                        try:
-                            return json.loads(content)
-                        except json.JSONDecodeError:
-                            # try extracting first {...}
-                            s = content.find("{")
-                            e = content.rfind("}")
-                            if s != -1 and e > s:
-                                return json.loads(content[s : e + 1])
-                            logger.error(f"[Playbook] JSON parse failed (attempt {attempt}): {content[:300]}")
-                            return None
-
-                    if resp.status == 429:
-                        error_body = await resp.text()
-                        # Try to extract wait time from error body
-                        wait = backoff
-                        m = re.search(r"try again in ([\d.]+)s", error_body, re.IGNORECASE)
-                        if m:
-                            wait = max(float(m.group(1)) + 0.5, backoff)
-                        logger.warning(
-                            f"[Playbook] Rate limited (429) attempt {attempt}/{_MAX_RETRIES}. "
-                            f"Waiting {wait:.1f}s ..."
-                        )
-                        await asyncio.sleep(wait)
-                        backoff *= _BACKOFF_MULTIPLIER
-                        last_error = f"429: {error_body[:200]}"
-                        continue
-
-                    # Other HTTP errors – don't retry
-                    error_text = await resp.text()
-                    logger.error(f"[Playbook] Groq API error {resp.status}: {error_text[:300]}")
-                    return None
-
-        except asyncio.TimeoutError:
-            logger.warning(f"[Playbook] Groq request timeout (attempt {attempt}/{_MAX_RETRIES})")
-            await asyncio.sleep(backoff)
-            backoff *= _BACKOFF_MULTIPLIER
-            last_error = "timeout"
-            continue
-        except Exception as exc:
-            logger.error(f"[Playbook] Groq request exception (attempt {attempt}): {exc}")
-            return None
-
-    logger.error(f"[Playbook] All {_MAX_RETRIES} retries exhausted. Last error: {last_error}")
-    return None
+    try:
+        data = await chat_json(
+            prompt=prompt,
+            system=system,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            retries=retries,
+        )
+        return data if isinstance(data, dict) else None
+    except Exception as e:
+        logger.error(f"[Playbook] LLM call failed: {e}")
+        return None
 
 
 def _build_chunk_prompt(
@@ -1293,19 +1058,12 @@ async def analyze_call_against_playbook(
     coaching_summary, and dimension_scores.
     """
     try:
-        if not settings.GROQ_API_KEY:
-            logger.warning("[Playbook] GROQ_API_KEY not configured")
+        if not _llm_configured():
+            logger.warning("[Playbook] OPEN_AI_KEY not configured")
             return None
-
-        masked_key = (
-            settings.GROQ_API_KEY[:8] + "..." + settings.GROQ_API_KEY[-4:]
-            if len(settings.GROQ_API_KEY) > 12
-            else "***too_short***"
-        )
         logger.info(
             f"[Playbook] Analysis starting (chunked): "
-            f"key={masked_key}, playbook={playbook_name}, "
-            f"rules={len(rules)}, transcript={len(transcript)} chars"
+            f"playbook={playbook_name}, rules={len(rules)}, transcript={len(transcript)} chars"
         )
 
         # ---- Step 1: Preprocess ----
@@ -1333,22 +1091,14 @@ async def analyze_call_against_playbook(
         chunk_results: List[dict] = []
         for ci, chunk in enumerate(chunks):
             prompt = _build_chunk_prompt(chunk, ci, len(chunks), playbook_name, rules_text)
-            payload = {
-                "model": _GROQ_MODEL,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are an expert B2B sales coach. Always respond with valid JSON only.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0.3,
-                "max_tokens": 1200,
-                "response_format": {"type": "json_object"},
-            }
 
             logger.info(f"[Playbook] Step 3/5: Analyzing chunk {ci + 1}/{len(chunks)} ({len(chunk)} chars) ...")
-            result = await _call_groq_with_retry(payload)
+            result = await _call_llm_json_with_retry(
+                prompt=prompt,
+                system="You are an expert B2B sales coach. Always respond with valid JSON only.",
+                temperature=0.3,
+                max_tokens=1200,
+            )
 
             if result:
                 chunk_results.append(result)
@@ -1378,24 +1128,16 @@ async def analyze_call_against_playbook(
 
         # ---- Step 5: Merge results ----
         merge_prompt = _build_merge_prompt(chunk_results, playbook_name, rules_text, len(chunks))
-        merge_payload = {
-            "model": _GROQ_MODEL,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an expert B2B sales coach. Always respond with valid JSON only.",
-                },
-                {"role": "user", "content": merge_prompt},
-            ],
-            "temperature": 0.3,
-            "max_tokens": 1500,
-            "response_format": {"type": "json_object"},
-        }
 
         logger.info(f"[Playbook] Step 4/5: Merging {len(chunk_results)} chunk results ...")
         # Allow extra retries for the merge step
         await asyncio.sleep(4.0)  # rate-limit buffer before merge call
-        merged = await _call_groq_with_retry(merge_payload)
+        merged = await _call_llm_json_with_retry(
+            prompt=merge_prompt,
+            system="You are an expert B2B sales coach. Always respond with valid JSON only.",
+            temperature=0.3,
+            max_tokens=1500,
+        )
 
         if merged:
             logger.info("[Playbook] Step 5/5: Playbook analysis completed successfully (chunked)")
@@ -1485,8 +1227,8 @@ async def generate_goal_todo_items(
     Returns structured to-do items with messages ready to send.
     """
     try:
-        if not settings.GROQ_API_KEY:
-            print("⚠️ [Atlas] GROQ_API_KEY not configured")
+        if not _llm_configured():
+            print("⚠️ [Atlas] OPEN_AI_KEY not configured")
             return None
 
         # Prepare goal context
@@ -1612,60 +1354,15 @@ IMPORTANT RULES:
 - Prioritize actions that directly contribute to achieving the goal
 """
 
-        # Call Groq API
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an Atlas. Generate actionable to-do items for salespeople in JSON format. Always return valid JSON only."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.7,  # Slightly higher for creativity in message generation
-            "max_tokens": settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
-            "response_format": {"type": "json_object"}
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                groq_url,
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=60)
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    choices = result.get("choices", [])
-                    
-                    if choices:
-                        content = choices[0].get("message", {}).get("content", "").strip()
-                        
-                        try:
-                            todo_data = json.loads(content)
-                            print(f"✅ [Atlas] To-do items generated successfully")
-                            return todo_data
-                        except json.JSONDecodeError as e:
-                            print(f"❌ [Atlas] Failed to parse JSON response: {e}")
-                            print(f"   - Response content: {content[:500]}")
-                            return None
-                    else:
-                        print(f"⚠️ [Atlas] No choices in response")
-                        return None
-                else:
-                    error_text = await response.text()
-                    print(f"❌ [Atlas] API error: {response.status}")
-                    print(f"   - Error: {error_text}")
-                    return None
+        todo_data = await _chat_json_safe(
+            prompt=prompt,
+            system="You are an Atlas. Generate actionable to-do items for salespeople in JSON format. Always return valid JSON only.",
+            temperature=0.7,
+            max_tokens=settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
+        )
+        if todo_data:
+            print("✅ [Atlas] To-do items generated successfully")
+        return todo_data
 
     except Exception as e:
         print(f"❌ [Atlas] Error generating to-do items: {str(e)}")
@@ -1685,8 +1382,8 @@ async def chat_with_sales_coach(
     prepare for calls, simulate prospect responses, etc.
     """
     try:
-        if not settings.GROQ_API_KEY:
-            print("⚠️ [Atlas] GROQ_API_KEY not configured")
+        if not _llm_configured():
+            print("⚠️ [Atlas] OPEN_AI_KEY not configured")
             return None
 
         # Prepare goal context
@@ -1758,60 +1455,15 @@ IMPORTANT:
 - If user asks to simulate prospect response, include simulated_response
 """
 
-        # Call Groq API
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are an Atlas. Provide helpful, coaching-style responses in JSON format. Always return valid JSON only."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.8,  # Higher temperature for more conversational responses
-            "max_tokens": settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
-            "response_format": {"type": "json_object"}
-        }
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                groq_url,
-                json=payload,
-                headers=headers,
-                timeout=aiohttp.ClientTimeout(total=60)
-            ) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    choices = result.get("choices", [])
-                    
-                    if choices:
-                        content = choices[0].get("message", {}).get("content", "").strip()
-                        
-                        try:
-                            coach_response = json.loads(content)
-                            print(f"✅ [Atlas] Chat response generated successfully")
-                            return coach_response
-                        except json.JSONDecodeError as e:
-                            print(f"❌ [Atlas] Failed to parse JSON response: {e}")
-                            print(f"   - Response content: {content[:500]}")
-                            return None
-                    else:
-                        print(f"⚠️ [Atlas] No choices in response")
-                        return None
-                else:
-                    error_text = await response.text()
-                    print(f"❌ [Atlas] API error: {response.status}")
-                    print(f"   - Error: {error_text}")
-                    return None
+        coach_response = await _chat_json_safe(
+            prompt=prompt,
+            system="You are an Atlas. Provide helpful, coaching-style responses in JSON format. Always return valid JSON only.",
+            temperature=0.8,
+            max_tokens=settings.AI_COPILOT_MAX_OUTPUT_TOKENS,
+        )
+        if coach_response:
+            print("✅ [Atlas] Chat response generated successfully")
+        return coach_response
 
     except Exception as e:
         print(f"❌ [Atlas] Error in sales coach chat: {str(e)}")

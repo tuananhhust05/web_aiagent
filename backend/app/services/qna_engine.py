@@ -9,7 +9,6 @@ Flow:
 4. Store in Q&A Engine -> Draft status, pending review
 """
 import asyncio
-import aiohttp
 import json
 import logging
 from typing import Optional, Dict, List, Any, Tuple
@@ -19,6 +18,7 @@ from bson import ObjectId
 from app.core.config import settings
 from app.core.database import get_database, get_weaviate
 from app.services.vectorization import vectorize_text
+from app.services.llm_engine import chat_json
 
 logger = logging.getLogger(__name__)
 
@@ -51,8 +51,8 @@ async def extract_questions_from_transcript(
         "context": str,  # surrounding context from transcript
     }
     """
-    if not settings.GROQ_API_KEY:
-        logger.warning("GROQ_API_KEY not configured, cannot extract questions")
+    if not settings.OPEN_AI_KEY:
+        logger.warning("OPEN_AI_KEY not configured, cannot extract questions")
         return []
     
     if not transcript or len(transcript.strip()) < 50:
@@ -89,53 +89,33 @@ Rules:
 - Return {{"questions": []}} if no valid business questions found"""
 
     try:
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": "llama-3.1-8b-instant",  # Use smaller model to save tokens
-            "messages": [
-                {"role": "system", "content": "You extract customer questions from sales transcripts. Return only valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.2,
-            "max_tokens": 500,
-            "response_format": {"type": "json_object"}
-        }
-        
-        # Retry logic for rate limits
         max_retries = 2
         for attempt in range(max_retries + 1):
-            async with aiohttp.ClientSession() as session:
-                async with session.post(groq_url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=60)) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                        data = json.loads(content)
-                        questions = data.get("questions", [])
-                        
-                        # Add source metadata
-                        for q in questions:
-                            q["source_call_id"] = call_id
-                            q["source_meeting_id"] = meeting_id
-                            q["source_meeting_title"] = meeting_title
-                        
-                        logger.info(f"✅ [Q&A Engine] Extracted {len(questions)} questions from transcript")
-                        return questions
-                    elif response.status == 429 and attempt < max_retries:
-                        # Rate limited - wait and retry
-                        wait_time = 3 * (attempt + 1)  # 3s, 6s
-                        logger.warning(f"⚠️ [Q&A Engine] Rate limited, waiting {wait_time}s before retry...")
-                        await asyncio.sleep(wait_time)
-                        continue
-                    else:
-                        error = await response.text()
-                        logger.error(f"❌ [Q&A Engine] Groq API error: {response.status} - {error}")
-                        return []
-        return []
+            try:
+                data = await chat_json(
+                    prompt=prompt,
+                    system="You extract customer questions from sales transcripts. Return only valid JSON.",
+                    temperature=0.2,
+                    max_tokens=500,
+                    retries=2,
+                )
+                questions = (data or {}).get("questions", []) if isinstance(data, dict) else []
+
+                for q in questions:
+                    q["source_call_id"] = call_id
+                    q["source_meeting_id"] = meeting_id
+                    q["source_meeting_title"] = meeting_title
+
+                logger.info(f"✅ [Q&A Engine] Extracted {len(questions)} questions from transcript")
+                return questions
+            except Exception as e:
+                if attempt < max_retries:
+                    wait_time = 3 * (attempt + 1)
+                    logger.warning(f"⚠️ [Q&A Engine] LLM error, waiting {wait_time}s before retry... ({e})")
+                    await asyncio.sleep(wait_time)
+                    continue
+                logger.error(f"❌ [Q&A Engine] Error extracting questions: {e}")
+                return []
     except Exception as e:
         logger.error(f"❌ [Q&A Engine] Error extracting questions: {e}")
         return []
@@ -249,7 +229,7 @@ async def generate_grounded_answer(
     - confidence: AI confidence in the answer
     - is_grounded: Whether answer is based on knowledge
     """
-    if not settings.GROQ_API_KEY:
+    if not settings.OPEN_AI_KEY:
         return "Unable to generate answer - AI not configured", 0.0, False
     
     is_grounded = bool(grounded_context and len(grounded_context) > 50)
@@ -272,39 +252,21 @@ Return JSON: {{"answer": "2-3 sentences", "confidence": 0.85, "sources_used": tr
 Return JSON: {{"answer": "2-3 sentences, suggest contact sales for details", "confidence": 0.5, "sources_used": false}}"""
 
     try:
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": "llama-3.1-8b-instant",  # Use smaller model to save tokens
-            "messages": [
-                {"role": "system", "content": "You are a sales assistant. Return only valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.3,
-            "max_tokens": 500,
-            "response_format": {"type": "json_object"}
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(groq_url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    data = json.loads(content)
-                    
-                    answer = data.get("answer", "Unable to generate answer")
-                    confidence = float(data.get("confidence", 0.5))
-                    
-                    logger.info(f"✅ [Q&A Engine] Generated {'grounded' if is_grounded else 'fallback'} answer")
-                    return answer, confidence, is_grounded
-                else:
-                    error = await response.text()
-                    logger.error(f"❌ [Q&A Engine] Groq API error: {error}")
-                    return "Unable to generate answer", 0.0, False
+        data = await chat_json(
+            prompt=prompt,
+            system="You are a sales assistant. Return only valid JSON.",
+            temperature=0.3,
+            max_tokens=500,
+            retries=2,
+        )
+        if not isinstance(data, dict):
+            return "Unable to generate answer", 0.0, False
+
+        answer = data.get("answer", "Unable to generate answer")
+        confidence = float(data.get("confidence", 0.5))
+
+        logger.info(f"✅ [Q&A Engine] Generated {'grounded' if is_grounded else 'fallback'} answer")
+        return answer, confidence, is_grounded
     except Exception as e:
         logger.error(f"❌ [Q&A Engine] Error generating answer: {e}")
         return "Unable to generate answer", 0.0, False
@@ -318,7 +280,7 @@ async def generate_simple_answer(
     Generate a simple draft answer for a question (no knowledge lookup).
     Returns: (answer, confidence)
     """
-    if not settings.GROQ_API_KEY:
+    if not settings.OPEN_AI_KEY:
         return "Please provide an answer for this question.", 0.0
     
     prompt = f"""Generate a brief, professional answer template for this sales question:
@@ -334,39 +296,21 @@ Create a helpful answer that:
 Return JSON: {{"answer": "2-3 sentence answer", "confidence": 0.6}}"""
 
     try:
-        groq_url = "https://api.groq.com/openai/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": "llama-3.1-8b-instant",
-            "messages": [
-                {"role": "system", "content": "You are a sales assistant. Return only valid JSON."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.3,
-            "max_tokens": 300,
-            "response_format": {"type": "json_object"}
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(groq_url, json=payload, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
-                    data = json.loads(content)
-                    
-                    answer = data.get("answer", "Please provide an answer for this question.")
-                    confidence = float(data.get("confidence", 0.5))
-                    
-                    logger.info(f"✅ [Q&A Engine] Generated simple answer")
-                    return answer, confidence
-                else:
-                    error = await response.text()
-                    logger.error(f"❌ [Q&A Engine] Groq API error: {error}")
-                    return "Please provide an answer for this question.", 0.0
+        data = await chat_json(
+            prompt=prompt,
+            system="You are a sales assistant. Return only valid JSON.",
+            temperature=0.3,
+            max_tokens=300,
+            retries=2,
+        )
+        if not isinstance(data, dict):
+            return "Please provide an answer for this question.", 0.0
+
+        answer = data.get("answer", "Please provide an answer for this question.")
+        confidence = float(data.get("confidence", 0.5))
+
+        logger.info("✅ [Q&A Engine] Generated simple answer")
+        return answer, confidence
     except Exception as e:
         logger.error(f"❌ [Q&A Engine] Error generating simple answer: {e}")
         return "Please provide an answer for this question.", 0.0

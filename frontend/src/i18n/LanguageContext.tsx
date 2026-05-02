@@ -14,12 +14,20 @@ const LanguageContext = createContext<LanguageContextType>({
 });
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
-  const [lang, setLang] = useState<Lang>("it");
+  const [lang, setLang] = useState<Lang>(() => {
+    const saved = localStorage.getItem("forskale_lang");
+    return (saved as Lang) || "en";
+  });
+
+  const handleSetLang = (newLang: Lang) => {
+    localStorage.setItem("forskale_lang", newLang);
+    setLang(newLang);
+  };
 
   const translate = (key: TranslationKey) => t(key, lang);
 
   return (
-    <LanguageContext.Provider value={{ lang, setLang, t: translate }}>
+    <LanguageContext.Provider value={{ lang, setLang: handleSetLang, t: translate }}>
       {children}
     </LanguageContext.Provider>
   );

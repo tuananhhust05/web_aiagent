@@ -699,6 +699,75 @@ const translations = {
   passwordResetSuccess: { en: "Password reset successfully! Redirecting to login…", it: "Password reimpostata con successo!", es: "¡Contraseña restablecida exitosamente!" },
   invalidResetLink: { en: "Invalid or expired reset link.", it: "Link di reset non valido o scaduto.", es: "Enlace de restablecimiento inválido o expirado." },
   requestNewLink: { en: "Request new link", it: "Richiedi nuovo link", es: "Solicitar nuovo enlace" },
+  
+  // Calendar View
+  'calendar.title': { en: 'Calendar', it: 'Calendario', es: 'Calendario' },
+  'calendar.week': { en: 'Week', it: 'Settimana', es: 'Semana' },
+  'calendar.month': { en: 'Month', it: 'Mese', es: 'Mes' },
+  'calendar.dayDetails': { en: 'Day Details', it: 'Dettagli Giorno', es: 'Detalles del Día' },
+  'calendar.noMeetings': { en: 'No Meetings', it: 'Nessun Meeting', es: 'Sin Reuniones' },
+  'calendar.dayOpen': { en: 'Your day is open', it: 'Giornata libera', es: 'Tu día está libre' },
+  'calendar.meetings': { en: 'Meetings', it: 'Meeting', es: 'Reuniones' },
+  'calendar.meeting': { en: 'Meeting', it: 'Meeting', es: 'Reunión' },
+  'calendar.attendees': { en: 'Attendees', it: 'Partecipanti', es: 'Asistentes' },
+  'calendar.agenda': { en: 'Agenda', it: 'Agenda', es: 'Agenda' },
+  'calendar.actionItems': { en: 'Action Items', it: 'Azioni', es: 'Puntos de Acción' },
+  'calendar.notes': { en: 'Notes', it: 'Note', es: 'Notas' },
+  'calendar.recordingAvailable': { en: 'Recording Available', it: 'Registrazione Disponibile', es: 'Grabación Disponible' },
+  'calendar.openContactCard': { en: 'Open Contact Card', it: 'Apri Scheda Contatto', es: 'Abrir Tarjeta de Contacto' },
+  'calendar.markComplete': { en: 'Mark Complete', it: 'Segna Completato', es: 'Marcar como Completado' },
+  'calendar.syncing': { en: 'Syncing...', it: 'Sincronizzazione...', es: 'Sincronizando...' },
+  'calendar.sync': { en: 'Sync Calendar', it: 'Sincronizza Calendario', es: 'Sincronizar Calendario' },
+   'calendar.synced': { en: 'Synced', it: 'Sincronizzato', es: 'Sincronizado' },
+  
+  // Toasts
+  'toast.actionItemReopened': { en: 'Action item reopened', it: 'Azione riaperta', es: 'Punto de acción reabierto' },
+  'toast.actionItemCompleted': { en: 'Action item completed', it: 'Azione completata', es: 'Punto de acción completado' },
+  'toast.meetingCompleted': { en: 'Meeting marked as completed', it: 'Meeting segnato come completato', es: 'Reunión marcada como completada' },
+
+  // Refresh Popup
+  'refresh.message': { en: 'Your calendar has been updated.<br/>Please refresh the page.', it: 'Il tuo calendario è stato aggiornato.<br/>Ricarica la pagina.', es: 'Tu calendario ha sido actualizado.<br/>Por favor, actualiza la página.' },
+  'refresh.dismiss': { en: 'Dismiss', it: 'Chiudi', es: 'Cerrar' },
+
+  'registration.title': { en: 'Connect your calendar', it: 'Collega il tuo calendario', es: 'Conecta tu calendario' },
+  'registration.description': { en: 'Give Atlas access to your calendar so it can prepare meeting intelligence automatically.', it: 'Dai ad Atlas accesso al tuo calendario per preparare automaticamente l’intelligence dei meeting.', es: 'Da acceso a Atlas a tu calendario para preparar automáticamente la inteligencia de reuniones.' },
+  'registration.benefit1': { en: 'See meeting intelligence right inside your calendar.', it: 'Vedi l’intelligence dei meeting direttamente nel calendario.', es: 'Ve la inteligencia de reuniones directamente en tu calendario.' },
+  'registration.benefit2': { en: 'Auto-enrich participants and company context.', it: 'Arricchisci automaticamente partecipanti e contesto aziendale.', es: 'Enriquece automáticamente participantes y contexto de la empresa.' },
+  'registration.benefit3': { en: 'Keep everything synced across meetings.', it: 'Mantieni tutto sincronizzato tra i meeting.', es: 'Mantén todo sincronizado entre reuniones.' },
+  'registration.permissions': { en: 'We request read-only permissions. You can disconnect anytime.', it: 'Richiediamo permessi di sola lettura. Puoi disconnetterti in qualsiasi momento.', es: 'Solicitamos permisos de solo lectura. Puedes desconectarte en cualquier momento.' },
+  'registration.continue': { en: 'Continue', it: 'Continua', es: 'Continuar' },
+
+  // Add Profile
+  'addProfile.title': { en: 'Add Profile for', it: 'Aggiungi Profilo per', es: 'Agregar Perfil para' },
+  'addProfile.description': { en: 'Add their LinkedIn URL to automatically enrich their profile.', it: 'Aggiungi il loro URL di LinkedIn per arricchire automaticamente il loro profilo.', es: 'Agrega su URL de LinkedIn para enriquecer automáticamente su perfil.' },
+  'addProfile.label': { en: 'LinkedIn URL', it: 'URL di LinkedIn', es: 'URL de LinkedIn' },
+  'addProfile.cancel': { en: 'Cancel', it: 'Annulla', es: 'Cancelar' },
+  'addProfile.submit': { en: 'Add Profile', it: 'Aggiungi Profilo', es: 'Agregar Perfil' },
+
+  // Date
+  'date.today': { en: 'Today', it: 'Oggi', es: 'Hoy' },
+
+  // Bot
+  'bot.salesAssistance': { en: 'Sales Assistance', it: 'Assistenza Vendite', es: 'Asistencia de Ventas' },
+  'bot.atlasSalesCoach': { en: 'Atlas Sales Coach', it: 'Atlas Sales Coach', es: 'Atlas Sales Coach' },
+  'bot.turnOnVolume': { en: 'Turn on your volume.', it: 'Alza il volume.', es: 'Sube el volumen.' },
+  'bot.preparingBrief': { en: 'Preparing brief...', it: 'Preparazione del brief...', es: 'Preparando el informe...' },
+  'bot.startingIn': { en: 'Starting in', it: 'Inizio tra', es: 'Comenzando en' },
+  'bot.startingBriefIn': { en: 'Starting brief in', it: 'Inizio brief tra', es: 'Comenzando el informe en' },
+  'bot.seconds': { en: 'seconds...', it: 'secondi...', es: 'segundos...' },
+  'bot.yourMeetings': { en: 'Your Meetings', it: 'I tuoi Meeting', es: 'Tus Reuniones' },
+  'bot.meetingsCount': { en: 'meetings today', it: 'meeting oggi', es: 'reuniones hoy' },
+  'bot.backToMeetings': { en: 'Back to meetings', it: 'Torna ai meeting', es: 'Volver a reuniones' },
+  'bot.planStrategy': { en: 'Plan Strategy', it: 'Pianifica Strategia', es: 'Planificar Estrategia' },
+  'bot.meetingParticipants': { en: 'Meeting Participants', it: 'Partecipanti al Meeting', es: 'Participantes de la Reunión' },
+  'bot.companyOverview': { en: 'Company Overview', it: 'Panoramica Azienda', es: 'Descripción de la Empresa' },
+  'bot.company': { en: 'Company', it: 'Azienda', es: 'Empresa' },
+  'bot.industry': { en: 'Industry', it: 'Settore', es: 'Industria' },
+  'bot.size': { en: 'Size', it: 'Dimensione', es: 'Tamaño' },
+  'bot.revenue': { en: 'Revenue', it: 'Fatturato', es: 'Ingresos' },
+  'bot.location': { en: 'Location', it: 'Sede', es: 'Ubicación' },
+  'bot.founded': { en: 'Founded', it: 'Fondata', es: 'Fundada' },
+  'bot.companyDescription': { en: 'Company Description', it: 'Descrizione Azienda', es: 'Descripción de la Empresa' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

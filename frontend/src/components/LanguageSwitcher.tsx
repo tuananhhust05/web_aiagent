@@ -1,7 +1,7 @@
 import { useLanguage } from '../i18n/LanguageContext';
 import { Lang, LANG_LABELS } from '../i18n/translations';
 
-const LANGS: Lang[] = ["it", "en", "es"];
+const LANGS: Lang[] = ["en", "it"];
 
 const LanguageSwitcher = ({ variant = "dark" }: { variant?: "dark" | "light" }) => {
   const { lang, setLang } = useLanguage();

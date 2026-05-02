@@ -13,7 +13,7 @@ from bson import ObjectId
 import logging
 import asyncio
 import httpx
-from openai import OpenAI
+from app.services.llm_engine import chat_json, chat_text
 
 from app.models.user import UserResponse
 from app.core.auth import get_current_active_user
@@ -44,14 +44,6 @@ KNOWLEDGE_CATEGORIES = [
 router = APIRouter()
 
 
-def _get_claude_client():
-    """Return an OpenAI-SDK client pointed at Claude (via Anthropic-compatible endpoint)."""
-    return OpenAI(
-        api_key=settings.ANTHROPIC_AUTH_TOKEN,
-        base_url=settings.ANTHROPIC_BASE_URL,
-    )
-
-
 async def _generate_three_tone_drafts(
     subject: str,
     snippet: str,
@@ -62,7 +54,7 @@ async def _generate_three_tone_drafts(
 ) -> dict:
     """Generate 3 tone variants (professional, warm, direct) of a draft reply using Claude.
     Returns a dict suitable for ToneDrafts. Falls back to empty dict if Claude unavailable."""
-    if not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
+    if not getattr(settings, "OPEN_AI_KEY", None):
         return {}
     sender_hint = f" from {from_email}" if from_email else ""
     topics_hint = f"\nKey topics to address: {', '.join(key_topics)}" if key_topics else ""
@@ -92,25 +84,11 @@ Output ONLY valid JSON in this exact format (no markdown, no code block):
   "direct": "... body ..."
 }}"""
     try:
-        def _call():
-            c = _get_claude_client()
-            resp = c.chat.completions.create(
-                model="claude-haiku-4.6",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.6,
-                max_tokens=8000,
-            )
-            return resp.choices[0].message.content or ""
-        import json
-        content = await asyncio.to_thread(_call)
-        content = content.strip()
-        if content.startswith("```"):
-            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-        result = json.loads(content)
+        result = await chat_json(prompt=prompt, temperature=0.6, max_tokens=2000)
         return {
-            "professional": result.get("professional", ""),
-            "warm": result.get("warm", ""),
-            "direct": result.get("direct", ""),
+            "professional": (result or {}).get("professional", ""),
+            "warm": (result or {}).get("warm", ""),
+            "direct": (result or {}).get("direct", ""),
         }
     except Exception as e:
         logger.warning(f"Three-tone draft generation failed: {e}")
@@ -124,7 +102,7 @@ async def _generate_neuroscience_principles(
 ) -> list:
     """Generate 2-3 neuroscience/persuasion principles applied in the draft.
     Returns list of {title, explanation, highlighted_phrase} dicts."""
-    if not draft_text or not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
+    if not draft_text or not getattr(settings, "OPEN_AI_KEY", None):
         return []
     prompt = f"""You are an expert in behavioral psychology and B2B sales persuasion. Analyze this email draft and identify 2-3 specific neuroscience/persuasion principles that are (or should be) applied.
 
@@ -146,21 +124,7 @@ Output ONLY valid JSON array (no markdown, no code block):
   ...
 ]"""
     try:
-        def _call():
-            c = _get_claude_client()
-            resp = c.chat.completions.create(
-                model="claude-haiku-4.6",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.3,
-                max_tokens=2000,
-            )
-            return resp.choices[0].message.content or ""
-        import json
-        content = await asyncio.to_thread(_call)
-        content = content.strip()
-        if content.startswith("```"):
-            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-        result = json.loads(content)
+        result = await chat_json(prompt=prompt, temperature=0.3, max_tokens=1200)
         if isinstance(result, list):
             return result[:3]
         return []
@@ -176,7 +140,7 @@ async def _generate_interaction_summary(
 ) -> tuple:
     """Generate a 1-sentence interaction summary + chronological history list.
     Returns (summary_str, history_list) where history_list items are {type, time_ago, summary}."""
-    if not full_context or not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
+    if not full_context or not getattr(settings, "OPEN_AI_KEY", None):
         return "", []
     prompt = f"""You are analyzing a B2B sales interaction. Based on the context below, produce:
 1. A single sharp sentence summarizing the prospect's current situation and key intent signal (max 25 words). Start with the prospect's company/name if known.
@@ -202,23 +166,9 @@ Output ONLY valid JSON (no markdown, no code block):
   ]
 }}"""
     try:
-        def _call():
-            c = _get_claude_client()
-            resp = c.chat.completions.create(
-                model="claude-haiku-4.6",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-                max_tokens=2000,
-            )
-            return resp.choices[0].message.content or ""
-        import json
-        content = await asyncio.to_thread(_call)
-        content = content.strip()
-        if content.startswith("```"):
-            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-        result = json.loads(content)
-        summary = result.get("summary", "") or ""
-        history = result.get("history", []) or []
+        result = await chat_json(prompt=prompt, temperature=0.2, max_tokens=1200)
+        summary = (result or {}).get("summary", "") or ""
+        history = (result or {}).get("history", []) or []
         if isinstance(history, list):
             history = history[:3]
         return summary, history
@@ -229,7 +179,7 @@ Output ONLY valid JSON (no markdown, no code block):
 
 async def _generate_initial_draft_for_email(subject: str, snippet: str, from_email: str = "") -> tuple:
     """Generate draft reply + 3 tone variants. Returns (draft_text, tone_drafts_dict)."""
-    if not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
+    if not getattr(settings, "OPEN_AI_KEY", None):
         fallback = f"Thanks for reaching out about {subject}. I'll get back to you shortly."
         return fallback, {}
 
@@ -250,18 +200,7 @@ Output ONLY the email body text. No subject line. No greeting (e.g., "Hi [Name],
 
     draft = ""
     try:
-        def _call():
-            c = _get_claude_client()
-            resp = c.chat.completions.create(
-                model="claude-sonnet-4-6",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.5,
-                max_tokens=8000,
-            )
-            return resp.choices[0].message.content or ""
-
-        content = await asyncio.to_thread(_call)
-        draft = content.strip()
+        draft = (await chat_text(prompt=prompt, temperature=0.5, max_tokens=1200)).strip()
     except Exception as e:
         logger.warning(f"Initial draft generation failed: {e}")
 
@@ -367,8 +306,8 @@ async def _classify_intent_for_text(text: str) -> Optional[str]:
     """Use Claude to classify intent category from task/email/meeting text. Returns one of INTENT_CATEGORIES or None."""
     if not text or not text.strip():
         return None
-    if not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None) or not settings.ANTHROPIC_AUTH_TOKEN:
-        logger.debug("ANTHROPIC_AUTH_TOKEN not set, skipping intent classification")
+    if not getattr(settings, "OPEN_AI_KEY", None) or not settings.OPEN_AI_KEY:
+        logger.debug("OPEN_AI_KEY not set, skipping intent classification")
         return None
     prompt = f"""You are a B2B sales intent classifier. Classify the prospect/customer message into exactly ONE category.
 
@@ -392,17 +331,7 @@ CONTENT TO CLASSIFY:
 
 Reply with ONLY the category key. No punctuation, no explanation."""
     try:
-        def _call():
-            c = _get_claude_client()
-            resp = c.chat.completions.create(
-                model="claude-haiku-4.6",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1,
-                max_tokens=2000,
-            )
-            return resp.choices[0].message.content or ""
-
-        content = await asyncio.to_thread(_call)
+        content = await chat_text(prompt=prompt, temperature=0.1, max_tokens=50)
         raw = content.strip().lower().replace(".", "").strip()
         # Map back to snake_case key
         for cat in INTENT_CATEGORIES:
@@ -601,7 +530,7 @@ def _default_task_strategy(doc: dict) -> dict:
 async def _generate_task_strategy_with_ai(doc: dict, full_context: Optional[str] = None, knowledge_context: Optional[str] = None) -> Optional[dict]:
     """Use Claude to generate strategy (objective, key_topics, reasoning, alternatives with confidence).
     Now enriched with knowledge base context from Weaviate when available."""
-    if not getattr(settings, "ANTHROPIC_AUTH_TOKEN", None) or not settings.ANTHROPIC_AUTH_TOKEN:
+    if not getattr(settings, "OPEN_AI_KEY", None) or not settings.OPEN_AI_KEY:
         return None
     title = (doc.get("title") or "")[:200]
     desc = (doc.get("description") or "")[:500]
@@ -638,22 +567,9 @@ Intent: {intent}{context_block}{knowledge_block}
 
 Output only valid JSON. No explanation, no markdown."""
     try:
-        def _call():
-            c = _get_claude_client()
-            resp = c.chat.completions.create(
-                model="claude-haiku-4.6",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2,
-                max_tokens=6000,
-            )
-            return resp.choices[0].message.content or ""
-
-        content = await asyncio.to_thread(_call)
-        content = content.strip()
-        if content.startswith("```"):
-            content = content.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
-        import json
-        out = json.loads(content)
+        out = await chat_json(prompt=prompt, temperature=0.2, max_tokens=2000)
+        if not isinstance(out, dict):
+            return None
         if not isinstance(out.get("alternative_actions"), list):
             out["alternative_actions"] = _default_task_strategy(doc).get("alternative_actions", [])
         return out
@@ -917,7 +833,8 @@ async def suggest_script_for_item(
     objective = strategy.get("objective") or "Follow up"
     prepared = doc.get("prepared_action") or {}
     draft = prepared.get("draft_text") or ""
-    if key_topics and getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
+    knowledge_context = ""
+    if key_topics and getattr(settings, "OPEN_AI_KEY", None):
         # Enrich with knowledge base for more grounded email drafts
         logger.info(f"✍️ [SUGGEST SCRIPT] item={item_id} — searching knowledge base for email draft enrichment...")
         search_text = (doc.get("title") or "") + " " + (doc.get("description") or "") + " " + " ".join(key_topics)
@@ -945,18 +862,7 @@ Context: {doc.get('description', '')[:300]}{knowledge_block}
 
 Output ONLY the email body text. No labels, no subject, no greeting."""
         try:
-            def _call():
-                c = _get_claude_client()
-                resp = c.chat.completions.create(
-                    model="claude-haiku-4.6",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.4,
-                    max_tokens=6000,
-                )
-                return resp.choices[0].message.content or ""
-
-            content = await asyncio.to_thread(_call)
-            draft = content.strip()
+            draft = (await chat_text(prompt=prompt, temperature=0.4, max_tokens=1200)).strip()
         except Exception as e:
             logger.warning(f"Suggest script AI failed: {e}")
     if not draft:
@@ -964,7 +870,7 @@ Output ONLY the email body text. No labels, no subject, no greeting."""
 
     # Generate 3-tone variants
     tone_drafts_dict = {}
-    if key_topics and getattr(settings, "ANTHROPIC_AUTH_TOKEN", None):
+    if key_topics and getattr(settings, "OPEN_AI_KEY", None):
         knowledge_block_for_tones = f"\n\nRelevant product/company knowledge:\n{knowledge_context}" if knowledge_context else ""
         tone_drafts_dict = await _generate_three_tone_drafts(
             subject=doc.get("title", ""),

@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, RefreshCw, X, Clock, Users, CheckCircle2, Circle, Video, ListChecks } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, Clock, Users, CheckCircle2, Circle, Video, ListChecks } from "lucide-react";
 import { type MeetingDetails } from "@/data/mockMeetingDetails";
 import { useCalendarEvents } from "@/hooks/useCalendarEvents";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { WeekViewEvent } from "./WeekViewEvent";
+import LanguageSwitcher from "@/components/LanguageSwitcher";
 
 interface Meeting {
   id: string;
@@ -17,6 +18,7 @@ interface Meeting {
   type?: "discovery" | "renewal" | "internal";
   meetLink?: string;
   dateISO?: string;
+  hostEmail?: string;
   meetingNumber?: number;
   velocity?: "normal" | "stalled" | "fast";
   participantInitials?: string[];
@@ -581,6 +583,7 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
   const [monthOffset, setMonthOffset] = useState(0);
   const { getDetails, toggleActionItem, markComplete } = useCalendarEvents();
   const { t } = useLanguage();
+  const slotPx = 192;
 
   const today = new Date();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -612,7 +615,7 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
         ? Math.min(...liveWeekMeetings.map(m => m.startHour))
         : 8;
       const scrollToHour = Math.max(0, earliestHour - 1);
-      const targetScroll = scrollToHour * 64; // HOURS starts at 0
+      const targetScroll = scrollToHour * slotPx; // HOURS starts at 0
       scrollRef.current.scrollTop = targetScroll;
     }
   }, [view, weekOffset, liveWeekMeetings]);
@@ -727,11 +730,11 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
           <button
             onClick={handleSync}
             disabled={syncStatus === "syncing"}
-            className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 disabled:opacity-60"
+            className="flex items-center rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue px-4 py-2 text-sm font-semibold text-white shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.5)] active:translate-y-0 disabled:opacity-60"
           >
-            <RefreshCw className={cn("h-4 w-4", syncStatus === "syncing" && "animate-spin")} />
-            {syncStatus === "synced" ? "Synced ✓" : syncStatus === "syncing" ? t("calendar.syncing") : t("calendar.sync")}
+            {syncStatus === "synced" ? t("calendar.synced") : syncStatus === "syncing" ? t("calendar.syncing") : t("calendar.sync")}
           </button>
+          <LanguageSwitcher variant="light" />
         </div>
       </div>
 
@@ -764,7 +767,7 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
           >
           <div className="w-20 flex-shrink-0 border-r border-border bg-muted/50 pt-16">
             {HOURS.map((h) => (
-              <div key={h} className="relative h-16 border-b border-border/50 pr-2 text-right">
+              <div key={h} className="relative border-b border-border/50 pr-2 text-right" style={{ height: slotPx }}>
                 <span className="absolute -top-2 right-2 text-xs font-normal text-muted-foreground">
                   {h === 0 ? "12:00 AM" : h < 12 ? `${h}:00 AM` : h === 12 ? "12:00 PM" : `${h - 12}:00 PM`}
                 </span>
@@ -798,7 +801,7 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
                   </div>
                   <div className="relative">
                     {HOURS.map((h) => (
-                      <div key={h} className="h-16 border-b border-dashed border-border/50" />
+                      <div key={h} className="border-b border-dashed border-border/50" style={{ height: slotPx }} />
                     ))}
                     {/* Only show meetings on the current (offset=0) week */}
                     {liveWeekMeetings.filter((m) => m.dayIndex === di).map((meeting) => (
@@ -807,6 +810,7 @@ export function CalendarView({ onMeetingClick, selectedMeetingId, onSyncClick, m
                         meeting={meeting}
                         isSelected={selectedMeetingId === meeting.id}
                         onClick={onMeetingClick}
+                        slotPx={slotPx}
                       />
                     ))}
                   </div>
