@@ -1,18 +1,26 @@
 import { useState, useRef, useEffect } from "react";
-import { Search, SlidersHorizontal, Sparkles, Mail, ChevronDown, X, Loader2 } from "lucide-react";
+import { Search, SlidersHorizontal, Sparkles, ChevronDown, X, Loader2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
 import { todoReadyAPI } from "@/lib/api";
 import { useActions } from "./ActionsContext";
 import { categories } from "./mockActions";
-import PasteEmailModal from "@/components/atlas/PasteEmailModal";
 import { TODO_READY_QUERY_KEY } from "./useRealActions";
 
 const ActionReadyHeader = () => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const { activeChannel, setActiveChannel, activeCategory, setActiveCategory, clearFilters, counts } = useActions();
+  const {
+    searchDraft,
+    setSearchDraft,
+    applySearch,
+    isSearchPending,
+    activeChannel,
+    setActiveChannel,
+    activeCategory,
+    setActiveCategory,
+    clearFilters,
+    counts,
+  } = useActions();
   const [channelOpen, setChannelOpen] = useState(false);
-  const [pasteOpen, setPasteOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
@@ -40,24 +48,6 @@ const ActionReadyHeader = () => {
     },
   });
 
-  // "Paste Email" submit handler
-  const handlePasteSubmit = async (data: {
-    company: string;
-    contact: string;
-    deal: string;
-    direction: "prospect" | "sales";
-    text: string;
-    date: string;
-  }) => {
-    await todoReadyAPI.ingestEmail({
-      subject: data.deal || undefined,
-      body: data.text,
-      from: data.contact || undefined,
-    });
-    queryClient.invalidateQueries({ queryKey: TODO_READY_QUERY_KEY });
-    toast.success("Email ingested — new action created");
-  };
-
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) setChannelOpen(false);
@@ -84,13 +74,17 @@ const ActionReadyHeader = () => {
             <input
               type="text"
               placeholder="Search"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchDraft}
+              onChange={(e) => setSearchDraft(e.target.value)}
               className="h-10 w-[180px] rounded-lg border border-border bg-card pl-9 pr-3 text-sm text-foreground transition-all placeholder:text-muted-foreground focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/10"
             />
           </div>
-          <button className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-3.5 text-sm font-semibold text-muted-foreground transition-all hover:border-accent hover:text-foreground">
-            <SlidersHorizontal size={16} />
+          <button
+            onClick={applySearch}
+            disabled={isSearchPending}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-3.5 text-sm font-semibold text-muted-foreground transition-all hover:border-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isSearchPending ? <Loader2 size={16} className="animate-spin" /> : <SlidersHorizontal size={16} />}
             <span className="hidden sm:inline">Filters</span>
           </button>
 
@@ -132,26 +126,33 @@ const ActionReadyHeader = () => {
           <button
             onClick={() => analyzeMutation.mutate()}
             disabled={analyzeMutation.isPending}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-border bg-card px-3.5 text-sm font-semibold text-muted-foreground transition-all hover:border-accent hover:text-foreground disabled:opacity-60 disabled:cursor-not-allowed"
+            className={`relative inline-flex h-10 items-center gap-2 rounded-lg border bg-card px-3.5 text-sm font-semibold transition-all disabled:cursor-not-allowed ${
+              analyzeMutation.isPending
+                ? "border-accent text-accent shadow-[0_0_0_4px_hsl(var(--accent)/0.10)]"
+                : "border-border text-muted-foreground hover:border-accent hover:text-foreground"
+            } disabled:opacity-60`}
           >
             {analyzeMutation.isPending ? (
-              <Loader2 size={16} className="animate-spin" />
+              <span className="relative inline-flex h-5 w-5 items-center justify-center">
+                <span className="absolute inset-0 animate-[pulseRing_2.5s_ease-out_infinite] rounded-full border border-accent/40" />
+                <span className="absolute inset-[18%] animate-[pulseRing_2.5s_ease-out_0.8s_infinite] rounded-full border border-accent/40" />
+                <span className="relative z-10 flex h-5 w-5 items-center justify-center animate-[iconFloat_3s_ease-in-out_infinite]">
+                  <Loader2 size={16} className="text-accent" />
+                </span>
+              </span>
             ) : (
               <Sparkles size={16} />
             )}
             <span className="hidden sm:inline">
               {analyzeMutation.isPending ? "Analyzing..." : "Analyze New"}
             </span>
+            {analyzeMutation.isPending && (
+              <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
+                <span className="absolute inset-y-0 -left-1/2 w-1/2 animate-[shimmer_1.8s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-accent/15 to-transparent" />
+              </span>
+            )}
           </button>
 
-          {/* Paste Email button */}
-          <button
-            onClick={() => setPasteOpen(true)}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue px-4 text-sm font-semibold text-white shadow-[0_4px_12px_hsl(var(--forskale-green)/0.3)] transition-all hover:-translate-y-0.5 hover:shadow-[0_6px_20px_hsl(var(--forskale-green)/0.4)]"
-          >
-            <Mail size={16} />
-            <span>Paste Email</span>
-          </button>
         </div>
       </div>
 
@@ -182,13 +183,6 @@ const ActionReadyHeader = () => {
           </button>
         </div>
       )}
-
-      {/* Paste Email Modal */}
-      <PasteEmailModal
-        open={pasteOpen}
-        onClose={() => setPasteOpen(false)}
-        onSubmit={handlePasteSubmit}
-      />
     </header>
   );
 };

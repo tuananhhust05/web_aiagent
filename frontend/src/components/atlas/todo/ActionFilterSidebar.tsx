@@ -18,10 +18,10 @@ const ActionFilterSidebar = () => {
   const { t } = useLanguage();
   const [collapsed, setCollapsed] = useState(false);
 
-  const statusFilters: { labelKey: "needsReview" | "overdue" | "completed"; count: number; countSuffix: string; icon: JSX.Element; filter: FilterType; colorClass: string }[] = [
-    { labelKey: "needsReview", count: counts.needsReview, countSuffix: ` ${t("actions")}`, icon: <Circle size={16} />, filter: "needs_review", colorClass: "bg-accent/10 text-accent" },
-    { labelKey: "overdue", count: counts.overdue, countSuffix: ` ${t("tasks")}`, icon: <AlertTriangle size={16} />, filter: "overdue", colorClass: "bg-destructive/10 text-destructive" },
-    { labelKey: "completed", count: counts.completed, countSuffix: ` ${t("tasks")}`, icon: <CheckCircle2 size={16} />, filter: "completed", colorClass: "bg-forskale-green/10 text-forskale-green" },
+  const statusFilters: { labelKey: "needsReview" | "overdue" | "completed"; count: number; countSuffix: string; icon: JSX.Element; filter: FilterType; colorClass: string; dotClass: string }[] = [
+    { labelKey: "needsReview", count: counts.needsReview, countSuffix: ` ${t("actions")}`, icon: <Circle size={16} />, filter: "needs_review", colorClass: "bg-accent/10 text-accent", dotClass: "bg-accent shadow-[0_0_0_4px_hsl(var(--accent)/0.2)]" },
+    { labelKey: "overdue", count: counts.overdue, countSuffix: ` ${t("tasks")}`, icon: <AlertTriangle size={16} />, filter: "overdue", colorClass: "bg-destructive/10 text-destructive", dotClass: "bg-destructive shadow-[0_0_0_4px_hsl(var(--destructive)/0.2)]" },
+    { labelKey: "completed", count: counts.completed, countSuffix: ` ${t("tasks")}`, icon: <CheckCircle2 size={16} />, filter: "completed", colorClass: "bg-forskale-green/10 text-forskale-green", dotClass: "bg-forskale-green shadow-[0_0_0_4px_hsl(var(--forskale-green)/0.2)]" },
   ];
 
   if (collapsed) {
@@ -36,9 +36,7 @@ const ActionFilterSidebar = () => {
             return (
               <button key={filter.labelKey} onClick={() => setActiveFilter(filter.filter)} className={`relative flex h-10 w-10 items-center justify-center rounded-xl border transition-all hover:shadow-md ${isActive ? "border-accent bg-gradient-to-r from-forskale-green/[0.06] to-accent/[0.06] shadow-md" : "border-border bg-card hover:border-accent"}`} title={`${t(filter.labelKey)} (${filter.count})`}>
                 <div className={`flex h-6 w-6 items-center justify-center rounded-full ${filter.colorClass}`}>{filter.icon}</div>
-                {filter.filter === "overdue" && counts.overdue > 0 && (
-                  <div className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-destructive animate-pulse shadow-[0_0_0_3px_hsl(var(--destructive)/0.2)]" />
-                )}
+                <div className={`absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full ${filter.dotClass}`} />
               </button>
             );
           })}
@@ -68,12 +66,7 @@ const ActionFilterSidebar = () => {
                   <span className="text-sm font-semibold text-foreground truncate">{t(filter.labelKey)}</span>
                   <span className="text-xs text-muted-foreground">{filter.count}{filter.countSuffix}</span>
                 </div>
-                {filter.filter === "overdue" && counts.overdue > 0 && (
-                  <div className="h-2.5 w-2.5 rounded-full bg-destructive animate-pulse shadow-[0_0_0_3px_hsl(var(--destructive)/0.2)]" />
-                )}
-                {isActive && filter.filter !== "overdue" && (
-                  <div className="h-2 w-2 rounded-full bg-accent shadow-[0_0_0_4px_hsl(var(--accent)/0.2)]" />
-                )}
+                <div className={`h-2 w-2 rounded-full ${filter.dotClass}`} />
               </button>
             );
           })}

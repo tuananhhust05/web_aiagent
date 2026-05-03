@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -109,6 +111,79 @@
     background: hsl(var(--forskale-teal));
   }
 
+}
+
+@layer base {
+  .action-ready-theme {
+    --background: 200 33% 98%;
+    --foreground: 213 33% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 213 33% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 213 33% 16%;
+    --primary: 213 88% 31%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 200 33% 96%;
+    --secondary-foreground: 213 33% 16%;
+    --muted: 210 20% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 174 52% 55%;
+    --accent-foreground: 213 33% 16%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 216 18% 90%;
+    --input: 216 18% 90%;
+    --ring: 174 52% 55%;
+    --radius: 0.75rem;
+    --atlas-nav: 220 33% 10%;
+    --atlas-nav-foreground: 36 24% 84%;
+    --atlas-nav-active: 210 89% 46%;
+    --atlas-nav-hover: 220 22% 18%;
+    --atlas-success: 97 72% 48%;
+    --atlas-success-foreground: 0 0% 100%;
+    --atlas-success-light: 97 60% 95%;
+    --atlas-success-border: 97 40% 82%;
+    --atlas-warning: 38 92% 44%;
+    --atlas-warning-foreground: 0 0% 100%;
+    --atlas-warning-light: 40 100% 94%;
+    --atlas-warning-border: 40 61% 82%;
+    --atlas-urgent: 2 72% 52%;
+    --atlas-urgent-light: 10 100% 96%;
+    --atlas-urgent-border: 9 53% 84%;
+    --atlas-info: 213 88% 31%;
+    --atlas-info-light: 208 100% 96%;
+    --atlas-info-border: 207 58% 84%;
+    --badge-interested: 97 72% 48%;
+    --badge-not-interested: 215 16% 47%;
+    --badge-not-now: 197 82% 65%;
+    --badge-do-not-contact: 2 72% 52%;
+    --sidebar-background: 224 100% 10%;
+    --sidebar-foreground: 200 33% 93%;
+    --sidebar-primary: 174 56% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 224 60% 15%;
+    --sidebar-accent-foreground: 174 56% 55%;
+    --sidebar-border: 224 40% 18%;
+    --sidebar-ring: 174 56% 55%;
+    --forskale-green: 97 72% 48%;
+    --forskale-teal: 174 56% 55%;
+    --forskale-blue: 213 88% 31%;
+    --forskale-cyan: 197 82% 65%;
+    --forskale-lime: 97 60% 63%;
+  }
+
+  .action-ready-theme {
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  .action-ready-theme h1,
+  .action-ready-theme h2,
+  .action-ready-theme h3,
+  .action-ready-theme h4,
+  .action-ready-theme h5,
+  .action-ready-theme h6 {
+    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
 }
 
 @layer components {

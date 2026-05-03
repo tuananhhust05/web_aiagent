@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     GOOGLE_CALENDAR_REDIRECT_URI: str = ""
     # Google Gmail OAuth (optional; if not set, uses FRONTEND_URL + /auth/google/gmail/callback)
     GOOGLE_GMAIL_REDIRECT_URI: str = ""
+    GMAIL_BASE_QUERY: str = "in:inbox category:primary -in:sent -in:drafts"
     # Encrypt refresh_token at rest (optional; if not set, token stored in plaintext - not for production)
     CALENDAR_REFRESH_TOKEN_ENCRYPTION_KEY: str = ""
     

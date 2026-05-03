@@ -7,7 +7,9 @@ import {
   ClipboardCheck,
   HelpCircle,
   BookOpen,
+  User,
   UserPlus,
+  LogOut,
   ChevronLeft,
   ChevronRight,
   CalendarDays,
@@ -77,13 +79,17 @@ interface AtlasSidebarProps {
 }
 
 export function AtlasSidebar({ activeNav }: AtlasSidebarProps) {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const submenuRef = useRef<HTMLDivElement>(null);
   const [submenuPos, setSubmenuPos] = useState({ top: 0, left: 0 });
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountButtonRef = useRef<HTMLButtonElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const [accountMenuPos, setAccountMenuPos] = useState({ top: 0, left: 0 });
   const { tEN: t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
@@ -106,6 +112,13 @@ export function AtlasSidebar({ activeNav }: AtlasSidebarProps) {
     }
   }, []);
 
+  const updateAccountMenuPos = useCallback(() => {
+    if (accountButtonRef.current) {
+      const rect = accountButtonRef.current.getBoundingClientRect();
+      setAccountMenuPos({ top: rect.top, left: rect.right + 8 });
+    }
+  }, []);
+
   const showSettings = () => {
     if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
     updateSubmenuPos();
@@ -121,6 +134,52 @@ export function AtlasSidebar({ activeNav }: AtlasSidebarProps) {
       if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (accountButtonRef.current?.contains(target)) return;
+      if (accountMenuRef.current?.contains(target)) return;
+      setAccountOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [accountOpen]);
+
+  useEffect(() => {
+    if (!collapsed || !accountOpen) return;
+
+    const adjustMenuPos = () => {
+      if (!accountButtonRef.current || !accountMenuRef.current) return;
+
+      const padding = 8;
+      const btnRect = accountButtonRef.current.getBoundingClientRect();
+      const menuRect = accountMenuRef.current.getBoundingClientRect();
+
+      let top = btnRect.top;
+      let left = btnRect.right + 8;
+
+      if (top + menuRect.height + padding > window.innerHeight) {
+        top = Math.max(padding, window.innerHeight - menuRect.height - padding);
+      }
+      if (left + menuRect.width + padding > window.innerWidth) {
+        left = Math.max(padding, window.innerWidth - menuRect.width - padding);
+      }
+
+      setAccountMenuPos((prev) => (prev.top === top && prev.left === left ? prev : { top, left }));
+    };
+
+    const raf = requestAnimationFrame(adjustMenuPos);
+    window.addEventListener("resize", adjustMenuPos);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", adjustMenuPos);
+    };
+  }, [collapsed, accountOpen]);
 
   return (
     <>
@@ -256,17 +315,66 @@ export function AtlasSidebar({ activeNav }: AtlasSidebarProps) {
 
         {/* User */}
         <div className="px-3 pb-4 pt-1">
-          <div className="flex items-center gap-2.5 rounded-lg px-3 py-2">
+          <button
+            ref={accountButtonRef}
+            className={cn(
+              "group relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all duration-200",
+              collapsed && "justify-center px-0",
+              accountOpen
+                ? "bg-sidebar-accent text-sidebar-foreground"
+                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+            )}
+            aria-haspopup="true"
+            aria-expanded={accountOpen}
+            onClick={() => {
+              if (collapsed) updateAccountMenuPos();
+              setSettingsOpen(false);
+              setAccountOpen((o) => !o);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setAccountOpen(false);
+            }}
+          >
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full forskale-gradient-bg text-xs font-bold text-primary-foreground">
-              {user?.email?.[0]?.toUpperCase() || 'U'}
+              {user?.email?.[0]?.toUpperCase() || "U"}
             </div>
             {!collapsed && (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-sidebar-foreground">{user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email || 'User'}</p>
-                <p className="truncate text-[10px] text-sidebar-foreground/50">{user?.email || ''}</p>
-              </div>
+              <>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-sidebar-foreground">
+                    {user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email || "User"}
+                  </p>
+                  <p className="truncate text-[10px] text-sidebar-foreground/50">{user?.email || ""}</p>
+                </div>
+                <ChevronRight className={cn("h-4 w-4 opacity-50 transition-transform", accountOpen && "rotate-90")} />
+              </>
             )}
-          </div>
+          </button>
+
+          {!collapsed && accountOpen && (
+            <div className="mt-2 space-y-1">
+              <button
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                onClick={() => {
+                  navigate("/profile");
+                  setAccountOpen(false);
+                }}
+              >
+                <User className="h-4 w-4 flex-shrink-0" />
+                <span>{t("sidebar.account")}</span>
+              </button>
+              <button
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+                onClick={() => {
+                  setAccountOpen(false);
+                  signOut();
+                }}
+              >
+                <LogOut className="h-4 w-4 flex-shrink-0" />
+                <span>{t("sidebar.logout")}</span>
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -325,6 +433,44 @@ export function AtlasSidebar({ activeNav }: AtlasSidebarProps) {
                 </button>
               );
             })}
+          </div>,
+          document.body,
+        )}
+
+      {collapsed &&
+        accountOpen &&
+        createPortal(
+          <div
+            ref={accountMenuRef}
+            className="fixed z-[9999] min-w-[200px] max-h-[calc(100vh-16px)] overflow-auto rounded-lg border border-border/60 bg-card p-2 shadow-lg animate-scale-in"
+            style={{ top: accountMenuPos.top, left: accountMenuPos.left }}
+            role="menu"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setAccountOpen(false);
+            }}
+          >
+            <button
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 text-left border border-border/40 text-muted-foreground hover:bg-forskale-teal/5 hover:text-foreground"
+              role="menuitem"
+              onClick={() => {
+                navigate("/profile");
+                setAccountOpen(false);
+              }}
+            >
+              <User className="h-4 w-4 flex-shrink-0" />
+              <span>{t("sidebar.account")}</span>
+            </button>
+            <button
+              className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-200 text-left border border-border/40 text-muted-foreground hover:bg-forskale-teal/5 hover:text-foreground"
+              role="menuitem"
+              onClick={() => {
+                setAccountOpen(false);
+                signOut();
+              }}
+            >
+              <LogOut className="h-4 w-4 flex-shrink-0" />
+              <span>{t("sidebar.logout")}</span>
+            </button>
           </div>,
           document.body,
         )}

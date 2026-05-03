@@ -24,7 +24,7 @@ export default function ToDoReadyPage() {
   return (
     <LanguageProvider>
       <ActionsProvider>
-        <div className="flex flex-col h-full overflow-hidden">
+        <div className="action-ready-theme flex flex-col h-full overflow-hidden bg-background text-foreground antialiased">
           {/* Gmail connect banner — shown above the top bar when not connected */}
           {gmailStatus && !gmailConnected && (
             <GmailConnectPrompt

@@ -49,7 +49,7 @@ const DueDateFilterBar = () => {
                 isActive
                   ? isOverdue
                     ? "border-destructive bg-destructive/10 text-destructive shadow-sm"
-                    : "border-transparent bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white shadow-sm"
+                    : "border-accent bg-accent/10 text-accent shadow-sm"
                   : "border-border bg-card text-muted-foreground hover:border-accent hover:text-foreground hover:bg-muted/50"
               )}
             >
@@ -60,7 +60,7 @@ const DueDateFilterBar = () => {
                   isActive
                     ? isOverdue
                       ? "bg-destructive/20 text-destructive"
-                      : "bg-white/20 text-white"
+                      : "bg-accent/20 text-accent"
                     : "bg-muted text-muted-foreground"
                 )}
               >

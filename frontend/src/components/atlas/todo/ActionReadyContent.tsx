@@ -9,7 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { TODO_READY_QUERY_KEY, mapTodoItemToCard } from "./useRealActions";
 
 const ActionReadyContent = () => {
-  const { filteredActions, activeFilter, resolveAction, counts, isLoading } = useActions();
+  const { filteredActions, activeFilter, resolveAction, counts, isLoading, isSearchPending } = useActions();
   const { t } = useLanguage();
   const queryClient = useQueryClient();
 
@@ -37,6 +37,7 @@ const ActionReadyContent = () => {
 
   const current = config[activeFilter];
   const Icon = current.icon;
+  const showLoading = isLoading || isSearchPending;
 
   return (
     <main className="flex-1 overflow-y-auto bg-secondary px-4 py-4 lg:px-6">
@@ -67,14 +68,14 @@ const ActionReadyContent = () => {
           <DueDateFilterBar />
 
           {/* Loading spinner */}
-          {isLoading && (
+          {showLoading && (
             <div className="flex items-center justify-center py-20">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
           )}
 
           {/* Task Cards Grid */}
-          {!isLoading && (
+          {!showLoading && (
             <div className="grid gap-4 lg:grid-cols-2">
               {filteredActions.map((action) => (
                 <ActionCard
@@ -88,7 +89,7 @@ const ActionReadyContent = () => {
             </div>
           )}
 
-          {!isLoading && filteredActions.length === 0 && (
+          {!showLoading && filteredActions.length === 0 && (
             <div className="rounded-xl border border-dashed border-border bg-card px-5 py-8 text-center">
               {isOverdue && counts.overdue === 0 ? (
                 <>

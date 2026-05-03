@@ -7,7 +7,7 @@ Implements the To-Do Ready feature with:
 - CRUD for todo items
 """
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, Form, File, UploadFile
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Any
 from datetime import datetime, timedelta
 from bson import ObjectId
 import logging
@@ -42,6 +42,15 @@ KNOWLEDGE_CATEGORIES = [
 ]
 
 router = APIRouter()
+
+def _user_id_filter(user_id: str) -> Any:
+    user_ids: list[Any] = [user_id]
+    try:
+        if ObjectId.is_valid(user_id):
+            user_ids.append(ObjectId(user_id))
+    except Exception:
+        pass
+    return {"$in": user_ids} if len(user_ids) > 1 else user_id
 
 
 async def _generate_three_tone_drafts(
@@ -214,7 +223,7 @@ Output ONLY the email body text. No subject line. No greeting (e.g., "Hi [Name],
 
 async def _get_or_create_email_analysis_state(db, user_id: str) -> dict:
     """Get or create email analysis state for user."""
-    state = await db.email_analysis_state.find_one({"user_id": user_id})
+    state = await db.email_analysis_state.find_one({"user_id": _user_id_filter(user_id)})
     if not state:
         state = {
             "user_id": user_id,
@@ -228,7 +237,7 @@ async def _get_or_create_email_analysis_state(db, user_id: str) -> dict:
 
 async def _get_or_create_meeting_analysis_state(db, user_id: str) -> dict:
     """Get or create meeting analysis state for user."""
-    state = await db.meeting_analysis_state.find_one({"user_id": user_id})
+    state = await db.meeting_analysis_state.find_one({"user_id": _user_id_filter(user_id)})
     if not state:
         state = {
             "user_id": user_id,
@@ -249,7 +258,7 @@ def _doc_to_response(doc: dict) -> TodoItemResponse:
         intent_category = IntentCategory(intent_raw)
     return TodoItemResponse(
         id=str(doc["_id"]),
-        user_id=doc["user_id"],
+        user_id=str(doc["user_id"]),
         title=doc["title"],
         description=doc.get("description"),
         task_type=doc.get("task_type", TodoTaskType.GENERAL_FOLLOWUP),
@@ -285,8 +294,9 @@ def _doc_to_task_strategy(data: Optional[dict]) -> Optional[TaskStrategy]:
         alts = [AlternativeAction(**a) if isinstance(a, dict) else a for a in alts]
     else:
         alts = None
+    recommended_next_step_type = data.get("recommended_next_step_type") or "send_email"
     return TaskStrategy(
-        recommended_next_step_type=data.get("recommended_next_step_type", "send_email"),
+        recommended_next_step_type=recommended_next_step_type,
         recommended_next_step_label=data.get("recommended_next_step_label"),
         objective=data.get("objective"),
         key_topics=data.get("key_topics") or None,
@@ -592,11 +602,12 @@ async def list_todo_items(
     db = get_database()
     user_id = str(current_user.id)
     now = datetime.utcnow()
+    user_filter = _user_id_filter(user_id)
     
     # Auto-update overdue tasks: if due_at < now and status is ready/needs_input, mark as overdue
     await db.todo_items.update_many(
         {
-            "user_id": user_id,
+            "user_id": user_filter,
             "status": {"$in": [TodoStatus.READY.value, TodoStatus.NEEDS_INPUT.value]},
             "due_at": {"$lt": now, "$ne": None},
         },
@@ -605,7 +616,7 @@ async def list_todo_items(
         }
     )
     
-    query = {"user_id": user_id}
+    query = {"user_id": user_filter}
     if status:
         query["status"] = status.value
     if source:
@@ -634,11 +645,12 @@ async def get_todo_item(
     """Get a single todo item by ID."""
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     
     try:
-        doc = await db.todo_items.find_one({"_id": ObjectId(item_id), "user_id": user_id})
+        doc = await db.todo_items.find_one({"_id": ObjectId(item_id), "user_id": user_filter})
     except Exception:
-        doc = await db.todo_items.find_one({"_id": item_id, "user_id": user_id})
+        doc = await db.todo_items.find_one({"_id": item_id, "user_id": user_filter})
     
     if not doc:
         raise HTTPException(status_code=404, detail="Todo item not found")
@@ -691,12 +703,13 @@ async def update_todo_item(
     """Update a todo item."""
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     
     try:
         oid = ObjectId(item_id)
-        query = {"_id": oid, "user_id": user_id}
+        query = {"_id": oid, "user_id": user_filter}
     except Exception:
-        query = {"_id": item_id, "user_id": user_id}
+        query = {"_id": item_id, "user_id": user_filter}
     
     doc = await db.todo_items.find_one(query)
     if not doc:
@@ -736,12 +749,13 @@ async def delete_todo_item(
     """Delete a todo item."""
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     
     try:
         oid = ObjectId(item_id)
-        query = {"_id": oid, "user_id": user_id}
+        query = {"_id": oid, "user_id": user_filter}
     except Exception:
-        query = {"_id": item_id, "user_id": user_id}
+        query = {"_id": item_id, "user_id": user_filter}
     
     result = await db.todo_items.delete_one(query)
     if result.deleted_count == 0:
@@ -758,12 +772,13 @@ async def complete_todo_item(
     """Mark a todo item as done."""
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     
     try:
         oid = ObjectId(item_id)
-        query = {"_id": oid, "user_id": user_id}
+        query = {"_id": oid, "user_id": user_filter}
     except Exception:
-        query = {"_id": item_id, "user_id": user_id}
+        query = {"_id": item_id, "user_id": user_filter}
     
     doc = await db.todo_items.find_one(query)
     if not doc:
@@ -786,11 +801,12 @@ async def generate_strategy_for_item(
     """Generate or refresh task strategy (objective, key topics, reasoning, alternative actions)."""
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     try:
         oid = ObjectId(item_id)
-        query = {"_id": oid, "user_id": user_id}
+        query = {"_id": oid, "user_id": user_filter}
     except Exception:
-        query = {"_id": item_id, "user_id": user_id}
+        query = {"_id": item_id, "user_id": user_filter}
     doc = await db.todo_items.find_one(query)
     if not doc:
         raise HTTPException(status_code=404, detail="Todo item not found")
@@ -820,11 +836,12 @@ async def suggest_script_for_item(
     """Generate draft script from strategy key_topics (or keep existing draft). Updates prepared_action."""
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     try:
         oid = ObjectId(item_id)
-        query = {"_id": oid, "user_id": user_id}
+        query = {"_id": oid, "user_id": user_filter}
     except Exception:
-        query = {"_id": item_id, "user_id": user_id}
+        query = {"_id": item_id, "user_id": user_filter}
     doc = await db.todo_items.find_one(query)
     if not doc:
         raise HTTPException(status_code=404, detail="Todo item not found")
@@ -908,11 +925,12 @@ async def ensure_item_analyzed(
     """
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     try:
         oid = ObjectId(item_id)
-        query = {"_id": oid, "user_id": user_id}
+        query = {"_id": oid, "user_id": user_filter}
     except Exception:
-        query = {"_id": item_id, "user_id": user_id}
+        query = {"_id": item_id, "user_id": user_filter}
     doc = await db.todo_items.find_one(query)
     if not doc:
         raise HTTPException(status_code=404, detail="Todo item not found")
@@ -1031,12 +1049,13 @@ async def send_email_for_task(
     
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     
     try:
         oid = ObjectId(item_id)
-        query = {"_id": oid, "user_id": user_id}
+        query = {"_id": oid, "user_id": user_filter}
     except Exception:
-        query = {"_id": item_id, "user_id": user_id}
+        query = {"_id": item_id, "user_id": user_filter}
     
     task = await db.todo_items.find_one(query)
     if not task:
@@ -1236,11 +1255,12 @@ async def get_memory_signals(
     """
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     now = datetime.utcnow()
     signals: List[MemorySignal] = []
     
     overdue_query = {
-        "user_id": user_id,
+        "user_id": user_filter,
         "status": {"$ne": TodoStatus.DONE.value},
         "due_at": {"$lt": now},
     }
@@ -1262,7 +1282,7 @@ async def get_memory_signals(
         ))
     
     needs_input_query = {
-        "user_id": user_id,
+        "user_id": user_filter,
         "status": TodoStatus.NEEDS_INPUT.value,
     }
     needs_input_cursor = db.todo_items.find(needs_input_query).limit(5)
@@ -1354,7 +1374,7 @@ async def _enrich_new_todos(db, user_id: str, new_todo_docs: list) -> None:
             if updates:
                 updates["updated_at"] = now
                 try:
-                    query = {"_id": item_id, "user_id": user_id}
+                    query = {"_id": item_id, "user_id": _user_id_filter(user_id)}
                     await db.todo_items.update_one(query, {"$set": updates})
                     logger.info(f"[BG ENRICH] item={item_id} enriched — fields: {list(updates.keys())}")
                 except Exception as db_err:
@@ -1377,6 +1397,7 @@ async def analyze_new_items(
     db = get_database()
     user_id = str(current_user.id)
     now = datetime.utcnow()
+    user_filter = _user_id_filter(user_id)
     
     email_state = await _get_or_create_email_analysis_state(db, user_id)
     meeting_state = await _get_or_create_meeting_analysis_state(db, user_id)
@@ -1407,7 +1428,7 @@ async def analyze_new_items(
                 
                 # Double-check: skip if task already exists for this email
                 existing_task = await db.todo_items.find_one({
-                    "user_id": user_id,
+                    "user_id": user_filter,
                     "source": TodoSource.EMAIL.value,
                     "source_id": email_id,
                 })
@@ -1419,7 +1440,7 @@ async def analyze_new_items(
                 thread_id = email.get("thread_id")
                 if thread_id:
                     existing_thread_task = await db.todo_items.find_one({
-                        "user_id": user_id,
+                        "user_id": user_filter,
                         "source": TodoSource.EMAIL.value,
                         "thread_id": thread_id,
                         "status": {"$ne": TodoStatus.DONE.value},  # Only check non-completed tasks
@@ -1490,7 +1511,7 @@ async def analyze_new_items(
     
     try:
         meetings_cursor = db.meetings.find({
-            "user_id": user_id,
+            "user_id": user_filter,
             "_id": {"$nin": [ObjectId(mid) for mid in analyzed_meeting_ids if len(mid) == 24]},
         }).sort("created_at", -1).limit(10)
         meetings = await meetings_cursor.to_list(length=10)
@@ -1500,7 +1521,7 @@ async def analyze_new_items(
             if meeting_id not in analyzed_meeting_ids:
                 # Double-check: skip if any task already exists for this meeting
                 existing_task = await db.todo_items.find_one({
-                    "user_id": user_id,
+                    "user_id": user_filter,
                     "source": TodoSource.MEETING.value,
                     "source_id": meeting_id,
                 })
@@ -1568,7 +1589,7 @@ async def analyze_new_items(
     
     if new_email_ids:
         await db.email_analysis_state.update_one(
-            {"user_id": user_id},
+            {"user_id": user_filter},
             {
                 "$addToSet": {"analyzed_email_ids": {"$each": new_email_ids}},
                 "$set": {"last_analysis_at": now},
@@ -1578,7 +1599,7 @@ async def analyze_new_items(
     
     if new_meeting_ids:
         await db.meeting_analysis_state.update_one(
-            {"user_id": user_id},
+            {"user_id": user_filter},
             {
                 "$addToSet": {"analyzed_meeting_ids": {"$each": new_meeting_ids}},
                 "$set": {"last_analysis_at": now},
@@ -1632,16 +1653,17 @@ async def reset_analysis_state(
     """Reset analysis state to re-analyze emails/meetings."""
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     
     if source in ("email", "all"):
         await db.email_analysis_state.update_one(
-            {"user_id": user_id},
+            {"user_id": user_filter},
             {"$set": {"analyzed_email_ids": [], "last_analysis_at": None}},
         )
     
     if source in ("meeting", "all"):
         await db.meeting_analysis_state.update_one(
-            {"user_id": user_id},
+            {"user_id": user_filter},
             {"$set": {"analyzed_meeting_ids": [], "last_analysis_at": None}},
         )
     
@@ -1683,12 +1705,13 @@ async def get_task_source_content(
     """
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     
     try:
         oid = ObjectId(item_id)
-        query = {"_id": oid, "user_id": user_id}
+        query = {"_id": oid, "user_id": user_filter}
     except Exception:
-        query = {"_id": item_id, "user_id": user_id}
+        query = {"_id": item_id, "user_id": user_filter}
     
     task = await db.todo_items.find_one(query)
     if not task:
@@ -1736,7 +1759,7 @@ async def get_task_source_content(
     
     elif source == TodoSource.MEETING.value:
         try:
-            meeting = await db.meetings.find_one({"_id": ObjectId(source_id), "user_id": user_id})
+            meeting = await db.meetings.find_one({"_id": ObjectId(source_id), "user_id": user_filter})
             if meeting:
                 transcript_lines = meeting.get("transcript_lines", [])
                 transcript_text = ""
@@ -1792,11 +1815,12 @@ async def analyze_intent_for_item(
     """
     db = get_database()
     user_id = str(current_user.id)
+    user_filter = _user_id_filter(user_id)
     try:
         oid = ObjectId(item_id)
-        query = {"_id": oid, "user_id": user_id}
+        query = {"_id": oid, "user_id": user_filter}
     except Exception:
-        query = {"_id": item_id, "user_id": user_id}
+        query = {"_id": item_id, "user_id": user_filter}
     task = await db.todo_items.find_one(query)
     if not task:
         raise HTTPException(status_code=404, detail="Todo item not found")
@@ -1816,7 +1840,7 @@ async def analyze_intent_for_item(
             logger.warning(f"Failed to fetch email for intent: {e}")
     elif source == TodoSource.MEETING.value and source_id:
         try:
-            meeting = await db.meetings.find_one({"_id": ObjectId(source_id), "user_id": user_id})
+            meeting = await db.meetings.find_one({"_id": ObjectId(source_id), "user_id": user_filter})
             if meeting:
                 text_parts.append(meeting.get("title") or "")
                 summary = meeting.get("atlas_summary")

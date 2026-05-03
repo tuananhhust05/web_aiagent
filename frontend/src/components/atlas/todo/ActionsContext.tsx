@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useMemo, ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useMemo, ReactNode, useRef, useEffect } from "react";
 import { ActionCardData, SentimentBadge, Channel, ActionType } from "./types";
 import { mockActions } from "./mockActions";
 import { useRealActions } from "./useRealActions";
@@ -39,6 +39,29 @@ function sortByPriority(cards: ActionCardData[]): ActionCardData[] {
   });
 }
 
+function matchesSearchQuery(action: ActionCardData, q: string): boolean {
+  const query = q.trim().toLowerCase();
+  if (!query) return true;
+  const text = [
+    action.title,
+    action.prospect,
+    action.triggeredFrom,
+    action.dueLabel,
+    action.strategicStep,
+    action.objective,
+    action.whyThisStep,
+    action.interactionSummary,
+    action.draftContent,
+    ...(action.keyTopics ?? []),
+    ...(action.interactionHistory ?? []).map((h) => h.summary),
+  ]
+    .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+    .join(" ")
+    .toLowerCase();
+
+  return text.includes(query);
+}
+
 export type FilterType = "needs_review" | "overdue" | "completed";
 
 export type DueDateFilter = "all" | "today" | "tomorrow" | "in2days" | "in3days" | "in4days" | "overdue_due";
@@ -61,6 +84,10 @@ function classifyByDueDate(dueLabel: string): DueDateFilter {
 interface ActionsContextType {
   allActions: ActionCardData[];
   filteredActions: ActionCardData[];
+  searchDraft: string;
+  setSearchDraft: (q: string) => void;
+  applySearch: () => void;
+  isSearchPending: boolean;
   activeFilter: FilterType;
   setActiveFilter: (filter: FilterType) => void;
   activeCategory: SentimentBadge | "all";
@@ -93,6 +120,10 @@ export const useActions = () => {
 
 export const ActionsProvider = ({ children }: { children: ReactNode }) => {
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  const [searchDraft, setSearchDraft] = useState("");
+  const [appliedSearchQuery, setAppliedSearchQuery] = useState("");
+  const [isSearchPending, setIsSearchPending] = useState(false);
+  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterType>("needs_review");
   const [activeCategory, setActiveCategory] = useState<SentimentBadge | "all">("all");
   const [activeChannel, setActiveChannel] = useState<Channel | "all">("all");
@@ -105,10 +136,32 @@ export const ActionsProvider = ({ children }: { children: ReactNode }) => {
     completeItem(id); // backend call, fire-and-forget
   }, [completeItem]);
 
+  const applySearch = useCallback(() => {
+    if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+    setIsSearchPending(true);
+    const next = searchDraft;
+    pendingTimerRef.current = setTimeout(() => {
+      setAppliedSearchQuery(next);
+      setIsSearchPending(false);
+      pendingTimerRef.current = null;
+    }, 500);
+  }, [searchDraft]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+    };
+  }, []);
+
   const clearFilters = useCallback(() => {
+    if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+    pendingTimerRef.current = null;
+    setIsSearchPending(false);
     setActiveCategory("all");
     setActiveChannel("all");
     setActiveDueFilter("all");
+    setSearchDraft("");
+    setAppliedSearchQuery("");
   }, []);
 
   const allActions = useMemo(() => {
@@ -142,10 +195,15 @@ export const ActionsProvider = ({ children }: { children: ReactNode }) => {
     return result;
   }, [baseByStatus, activeCategory, activeChannel]);
 
+  const afterSearch = useMemo(
+    () => afterCategoryChannel.filter((a) => matchesSearchQuery(a, appliedSearchQuery)),
+    [afterCategoryChannel, appliedSearchQuery]
+  );
+
   // Compute due date filter counts from the category/channel-filtered set
   const dueFilterCounts = useMemo(() => {
     const counts: Record<DueDateFilter, number> = {
-      all: afterCategoryChannel.length,
+      all: afterSearch.length,
       today: 0,
       tomorrow: 0,
       in2days: 0,
@@ -153,25 +211,28 @@ export const ActionsProvider = ({ children }: { children: ReactNode }) => {
       in4days: 0,
       overdue_due: 0,
     };
-    afterCategoryChannel.forEach((a) => {
+    afterSearch.forEach((a) => {
       counts[classifyByDueDate(a.dueLabel)]++;
     });
     return counts;
-  }, [afterCategoryChannel]);
+  }, [afterSearch]);
 
   const filteredActions = useMemo(() => {
-    let result = afterCategoryChannel;
+    let result = afterSearch;
     if (activeDueFilter !== "all") {
       result = result.filter((a) => classifyByDueDate(a.dueLabel) === activeDueFilter);
     }
     return sortByPriority(result);
-  }, [afterCategoryChannel, activeDueFilter]);
+  }, [afterSearch, activeDueFilter]);
 
   // Category counts based on current status filter + channel filter
   const categoryCounts = useMemo(() => {
     let base = baseByStatus;
     if (activeChannel !== "all") {
       base = base.filter((a) => a.triggeredFrom === activeChannel);
+    }
+    if (appliedSearchQuery.trim()) {
+      base = base.filter((a) => matchesSearchQuery(a, appliedSearchQuery));
     }
 
     // Build dynamic category set from real data, ordered by priority
@@ -196,7 +257,7 @@ export const ActionsProvider = ({ children }: { children: ReactNode }) => {
         label: categoryLabels[key] ?? key,
         count: key === "all" ? base.length : base.filter((a) => a.category === key).length,
       }));
-  }, [baseByStatus, activeChannel]);
+  }, [baseByStatus, activeChannel, appliedSearchQuery]);
 
   const counts = useMemo(() => ({
     total: allActions.length,
@@ -210,6 +271,10 @@ export const ActionsProvider = ({ children }: { children: ReactNode }) => {
     <ActionsContext.Provider value={{
       allActions,
       filteredActions,
+      searchDraft,
+      setSearchDraft,
+      applySearch,
+      isSearchPending,
       activeFilter,
       setActiveFilter,
       activeCategory,

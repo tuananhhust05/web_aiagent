@@ -1,4 +1,4 @@
-﻿"""
+"""
 Gmail Service for reading and sending emails using user's Gmail account
 """
 import html as html_module
@@ -211,7 +211,7 @@ class GmailService:
             list_url = f"{self.GMAIL_API_BASE}/users/me/messages"
             
             # Build query: inbox emails only, exclude sent and drafts
-            base_query = "in:inbox -in:sent -in:drafts"
+            base_query = (getattr(settings, "GMAIL_BASE_QUERY", "") or "").strip() or "in:inbox category:primary -in:sent -in:drafts"
             if query:
                 base_query = f"{base_query} {query}"
             

@@ -680,6 +680,8 @@ const translations = {
   'sidebar.knowledge': { en: 'Knowledge', it: 'Knowledge', es: 'Conocimiento' },
   'sidebar.record': { en: 'Record', it: 'Record', es: 'Grabar' },
   'sidebar.meetingTemplates': { en: 'Meeting Templates', it: 'Template Meeting', es: 'Plantillas de Reunión' },
+  'sidebar.account': { en: 'Account', it: 'Account', es: 'Cuenta' },
+  'sidebar.logout': { en: 'Logout', it: 'Logout', es: 'Cerrar sesión' },
 
   // Register step 2 + forgot/reset password
   setUpAccount: { en: "Set up your account", it: "Configura il tuo account", es: "Configura tu cuenta" },
