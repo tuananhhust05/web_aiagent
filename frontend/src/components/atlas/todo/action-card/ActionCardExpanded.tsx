@@ -180,7 +180,7 @@ const ActionCardExpanded = ({
   const queryClient = useQueryClient();
 
   // ── Tone resolution ──────────────────────────────────────────────────────────
-  const activeToneKey = toneToKey[selectedTone] ?? "professional";
+  const activeToneKey: ToneKey = "professional";
   // AI-detected tone comes from data or defaults to "professional"
   const aiDetectedTone: ToneKey =
     (data as any).detectedTone
@@ -192,12 +192,13 @@ const ActionCardExpanded = ({
     if (data.toneDrafts) {
       const drafts = data.toneDrafts as Record<string, string | undefined>;
       const val =
-        drafts[selectedTone] ??
+        drafts.professional ??
+        drafts.Professional ??
         drafts[activeToneKey.charAt(0).toUpperCase() + activeToneKey.slice(1)];
       if (val) return val;
     }
     return data.draftContent ?? defaultDrafts[activeToneKey];
-  }, [data.draftContent, data.toneDrafts, selectedTone, activeToneKey]);
+  }, [data.draftContent, data.toneDrafts, activeToneKey]);
 
   const currentHtml = editedDraftHtml || plainToHtml(toneDraft);
   const currentPlain = editedDraftHtml ? htmlToPlain(editedDraftHtml) : toneDraft;
@@ -421,10 +422,9 @@ const ActionCardExpanded = ({
             </div>
 
             <p className="text-[9px] text-muted-foreground mb-1">
-              🤖 {t("toneDetectedAuto")}: {t(activeToneKey)}
+              🤖 {t("toneDetectedAuto")}: {t("professional")}
             </p>
 
-            {/* Tone tabs — hidden when editor is focused, replaced by ToneBadge */}
             <div
               className={`transition-all duration-200 overflow-hidden ${
                 editorFocused
@@ -433,23 +433,15 @@ const ActionCardExpanded = ({
               }`}
             >
               <div className="flex gap-1">
-                {toneKeys.map((tone) => (
-                  <button
-                    key={tone}
-                    onClick={() => handleToneChange(tone)}
-                    className={`whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold transition-all shrink-0 ${
-                      activeToneKey === tone
-                        ? "bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white shadow-sm"
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                  >
-                    {getToneLabel(tone)}
-                  </button>
-                ))}
+                <button
+                  onClick={() => handleToneChange("professional")}
+                  className="whitespace-nowrap rounded-full px-3 py-1 text-[10px] font-semibold transition-all shrink-0 bg-gradient-to-r from-forskale-green via-forskale-teal to-forskale-blue text-white shadow-sm"
+                >
+                  {getToneLabel("professional")}
+                </button>
               </div>
             </div>
 
-            {/* ToneBadge — shown only when editor is focused */}
             <div
               className={`transition-all duration-200 overflow-hidden ${
                 editorFocused
@@ -459,7 +451,7 @@ const ActionCardExpanded = ({
             >
               <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/20 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-                {t(activeToneKey)}
+                {t("professional")}
               </span>
             </div>
 
