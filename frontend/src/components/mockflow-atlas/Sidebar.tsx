@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
@@ -22,6 +22,25 @@ import { cn } from "@/lib/utils";
 import forskaleLogo from "@/assets/forskale-logo.png";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+function SidebarTooltip({ enabled, label, children }: { enabled: boolean; label: string; children: ReactNode }) {
+  if (!enabled) return <>{children}</>;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent
+        side="right"
+        align="center"
+        sideOffset={12}
+        className="forskale-gradient-bg text-primary-foreground px-4 py-2 rounded-xl shadow-[0_6px_22px_hsl(var(--forskale-green)/0.32)] text-base font-semibold border-0"
+      >
+        {label}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 const RecordIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className} xmlns="http://www.w3.org/2000/svg">
@@ -182,7 +201,7 @@ export function AtlasSidebar({ activeNav }: AtlasSidebarProps) {
   }, [collapsed, accountOpen]);
 
   return (
-    <>
+    <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
           "group/sidebar relative h-screen flex flex-col border-r border-sidebar-border transition-all duration-300 ease-in-out",
@@ -222,18 +241,20 @@ export function AtlasSidebar({ activeNav }: AtlasSidebarProps) {
 
         {/* Home — premium hero capsule */}
         <div className={cn("px-3 pt-1.5 pb-2", "flex justify-center")}>
-          <a
-            href={HOME_HREF}
-            className={cn(
-              "forskale-home-capsule group relative flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-semibold text-primary-foreground transition-all duration-200 no-underline",
-              collapsed ? "justify-center px-3" : "justify-center",
-            )}
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(197,86%,64%,0.2)] shadow-[inset_0_1px_0_hsl(197,86%,64%,0.25)]">
-              <Home className="h-5 w-5 text-forskale-cyan drop-shadow-[0_0_8px_hsl(197,86%,64%,0.6)]" />
-            </div>
-            {!collapsed && <span className="tracking-wide drop-shadow-[0_0_8px_hsl(197,86%,64%,0.3)]">{t("sidebar.home")}</span>}
-          </a>
+          <SidebarTooltip enabled={collapsed} label={t("sidebar.home")}>
+            <a
+              href={HOME_HREF}
+              className={cn(
+                "forskale-home-capsule group relative flex items-center gap-3 rounded-2xl px-5 py-3 text-sm font-semibold text-primary-foreground transition-all duration-200 no-underline",
+                collapsed ? "justify-center px-3" : "justify-center",
+              )}
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[hsl(197,86%,64%,0.2)] shadow-[inset_0_1px_0_hsl(197,86%,64%,0.25)]">
+                <Home className="h-5 w-5 text-forskale-cyan drop-shadow-[0_0_8px_hsl(197,86%,64%,0.6)]" />
+              </div>
+              {!collapsed && <span className="tracking-wide drop-shadow-[0_0_8px_hsl(197,86%,64%,0.3)]">{t("sidebar.home")}</span>}
+            </a>
+          </SidebarTooltip>
         </div>
 
         {/* Nav items */}
@@ -256,17 +277,21 @@ export function AtlasSidebar({ activeNav }: AtlasSidebarProps) {
             );
 
             return item.href ? (
-              <a key={item.labelKey} href={item.href} className={classes}>
-                {content}
-              </a>
+              <SidebarTooltip key={item.labelKey} enabled={collapsed} label={t(item.labelKey)}>
+                <a href={item.href} className={classes}>
+                  {content}
+                </a>
+              </SidebarTooltip>
             ) : item.route ? (
-              <button key={item.labelKey} className={classes} onClick={() => navigate(item.route!)}>
-                {content}
-              </button>
+              <SidebarTooltip key={item.labelKey} enabled={collapsed} label={t(item.labelKey)}>
+                <button className={classes} onClick={() => navigate(item.route!)}>
+                  {content}
+                </button>
+              </SidebarTooltip>
             ) : (
-              <button key={item.labelKey} className={classes}>
-                {content}
-              </button>
+              <SidebarTooltip key={item.labelKey} enabled={collapsed} label={t(item.labelKey)}>
+                <button className={classes}>{content}</button>
+              </SidebarTooltip>
             );
           })}
 
@@ -307,49 +332,53 @@ export function AtlasSidebar({ activeNav }: AtlasSidebarProps) {
 
         {/* Invite */}
         <div className="px-3 py-3">
-          <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
-            <UserPlus className="h-5 w-5 flex-shrink-0" />
-            {!collapsed && <span>Invite</span>}
-          </button>
+          <SidebarTooltip enabled={collapsed} label="Invite">
+            <button className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors">
+              <UserPlus className="h-5 w-5 flex-shrink-0" />
+              {!collapsed && <span>Invite</span>}
+            </button>
+          </SidebarTooltip>
         </div>
 
         {/* User */}
         <div className="px-3 pb-4 pt-1">
-          <button
-            ref={accountButtonRef}
-            className={cn(
-              "group relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all duration-200",
-              collapsed && "justify-center px-0",
-              accountOpen
-                ? "bg-sidebar-accent text-sidebar-foreground"
-                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
-            )}
-            aria-haspopup="true"
-            aria-expanded={accountOpen}
-            onClick={() => {
-              if (collapsed) updateAccountMenuPos();
-              setSettingsOpen(false);
-              setAccountOpen((o) => !o);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setAccountOpen(false);
-            }}
-          >
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full forskale-gradient-bg text-xs font-bold text-primary-foreground">
-              {user?.email?.[0]?.toUpperCase() || "U"}
-            </div>
-            {!collapsed && (
-              <>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-sidebar-foreground">
-                    {user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email || "User"}
-                  </p>
-                  <p className="truncate text-[10px] text-sidebar-foreground/50">{user?.email || ""}</p>
-                </div>
-                <ChevronRight className={cn("h-4 w-4 opacity-50 transition-transform", accountOpen && "rotate-90")} />
-              </>
-            )}
-          </button>
+          <SidebarTooltip enabled={collapsed} label={t("sidebar.account")}>
+            <button
+              ref={accountButtonRef}
+              className={cn(
+                "group relative flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-all duration-200",
+                collapsed && "justify-center px-0",
+                accountOpen
+                  ? "bg-sidebar-accent text-sidebar-foreground"
+                  : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground",
+              )}
+              aria-haspopup="true"
+              aria-expanded={accountOpen}
+              onClick={() => {
+                if (collapsed) updateAccountMenuPos();
+                setSettingsOpen(false);
+                setAccountOpen((o) => !o);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setAccountOpen(false);
+              }}
+            >
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full forskale-gradient-bg text-xs font-bold text-primary-foreground">
+                {user?.email?.[0]?.toUpperCase() || "U"}
+              </div>
+              {!collapsed && (
+                <>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-sidebar-foreground">
+                      {user?.first_name && user?.last_name ? `${user.first_name} ${user.last_name}` : user?.email || "User"}
+                    </p>
+                    <p className="truncate text-[10px] text-sidebar-foreground/50">{user?.email || ""}</p>
+                  </div>
+                  <ChevronRight className={cn("h-4 w-4 opacity-50 transition-transform", accountOpen && "rotate-90")} />
+                </>
+              )}
+            </button>
+          </SidebarTooltip>
 
           {!collapsed && accountOpen && (
             <div className="mt-2 space-y-1">
@@ -474,7 +503,6 @@ export function AtlasSidebar({ activeNav }: AtlasSidebarProps) {
           </div>,
           document.body,
         )}
-
-    </>
+    </TooltipProvider>
   );
 }
