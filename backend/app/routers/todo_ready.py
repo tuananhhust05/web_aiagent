@@ -60,6 +60,7 @@ async def _generate_three_tone_drafts(
     key_topics: Optional[List[str]] = None,
     objective: str = "Follow up",
     knowledge_block: str = "",
+    context_text: str = "",
 ) -> dict:
     """Generate 3 tone variants (professional, warm, direct) of a draft reply using Claude.
     Returns a dict suitable for ToneDrafts. Falls back to empty dict if Claude unavailable."""
@@ -67,24 +68,29 @@ async def _generate_three_tone_drafts(
         return {}
     sender_hint = f" from {from_email}" if from_email else ""
     topics_hint = f"\nKey topics to address: {', '.join(key_topics)}" if key_topics else ""
+    context_block = f"\n\nFull context (email body / thread excerpts):\n{context_text[:2500]}" if context_text else ""
     prompt = f"""You are a world-class B2B sales writer. You received this email{sender_hint}:
 
 Subject: {subject}
 Preview: {snippet}
-Objective: {objective}{topics_hint}{knowledge_block}
+Objective: {objective}{topics_hint}{knowledge_block}{context_block}
 
-Write THREE distinct email reply bodies (3-5 sentences each). Each version must have a different tone:
+Write THREE distinct professional reply emails. Each version must have a different tone:
 
 1. PROFESSIONAL: formal, polished, precise — peer-to-peer executive style
 2. WARM: friendly, empathetic, conversational — builds personal connection
 3. DIRECT: concise, confident, action-oriented — no fluff, straight to the point
 
 Rules for all versions:
-- NO greeting (no "Hi [Name]," or "Dear X,")
 - NO subject line
+- Include a greeting. If you can infer a first name from the sender, use "Hi <FirstName>," otherwise use "Hi there,"
 - NO hollow openers ("I hope this email finds you well", "Thank you for your email")
-- End each with one clear call-to-action
-- Body paragraphs only
+- Split into 2-4 short paragraphs, separated by blank lines
+- If helpful, include one short bullet list (max 3 bullets)
+- End with one clear call-to-action question
+- Include a professional closing and a signature placeholder:
+  Best,
+  [Your Name]
 
 Output ONLY valid JSON in this exact format (no markdown, no code block):
 {{
@@ -186,26 +192,30 @@ Output ONLY valid JSON (no markdown, no code block):
         return "", []
 
 
-async def _generate_initial_draft_for_email(subject: str, snippet: str, from_email: str = "") -> tuple:
+async def _generate_initial_draft_for_email(subject: str, snippet: str, from_email: str = "", body: str = "") -> tuple:
     """Generate draft reply + 3 tone variants. Returns (draft_text, tone_drafts_dict)."""
     if not getattr(settings, "OPEN_AI_KEY", None):
         fallback = f"Thanks for reaching out about {subject}. I'll get back to you shortly."
         return fallback, {}
 
     sender_hint = f" from {from_email}" if from_email else ""
+    body_block = f"\n\nEmail body / context:\n{body[:2500]}" if body else ""
     prompt = f"""You are a world-class B2B sales professional. You just received this email{sender_hint}:
 
 Subject: {subject}
-Preview: {snippet}
+Preview: {snippet}{body_block}
 
-Write a sharp, engaging reply email body (3-5 sentences) that:
-- Opens with a compelling hook (NOT "Thank you for your email" or "Hope this finds you well")
-- Acknowledges the specific topic/ask from their email
-- Shows genuine understanding of their situation or need
-- Ends with one clear, confident next-step call-to-action
-- Tone: professional, warm, peer-to-peer. No hollow pleasantries. No fluff.
+Write a professional reply email in plain text that:
+- Includes a greeting. If you can infer a first name from the sender, use "Hi <FirstName>," otherwise use "Hi there,"
+- Uses 2-4 short paragraphs separated by blank lines (each paragraph max 2 sentences)
+- Acknowledges the specific ask/context from their email and responds with concrete, specific content
+- Avoids hollow openers ("I hope this email finds you well", "Thank you for your email")
+- Ends with one clear call-to-action question
+- Includes a professional closing and a signature placeholder:
+  Best,
+  [Your Name]
 
-Output ONLY the email body text. No subject line. No greeting (e.g., "Hi [Name],"). Body paragraphs only."""
+Output ONLY the email body text (plain text). No subject line. No markdown."""
 
     draft = ""
     try:
@@ -217,7 +227,12 @@ Output ONLY the email body text. No subject line. No greeting (e.g., "Hi [Name],
         draft = f"Thanks for reaching out about {subject}. Let me review and come back to you with a thoughtful response."
 
     # Generate tone variants in parallel
-    tone_drafts = await _generate_three_tone_drafts(subject=subject, snippet=snippet, from_email=from_email)
+    tone_drafts = await _generate_three_tone_drafts(
+        subject=subject,
+        snippet=snippet,
+        from_email=from_email,
+        context_text=body or snippet,
+    )
     return draft, tone_drafts
 
 
@@ -850,34 +865,39 @@ async def suggest_script_for_item(
     objective = strategy.get("objective") or "Follow up"
     prepared = doc.get("prepared_action") or {}
     draft = prepared.get("draft_text") or ""
+    full_context = await _get_full_context_for_task(db, user_id, doc)
     knowledge_context = ""
     if key_topics and getattr(settings, "OPEN_AI_KEY", None):
         # Enrich with knowledge base for more grounded email drafts
         logger.info(f"✍️ [SUGGEST SCRIPT] item={item_id} — searching knowledge base for email draft enrichment...")
-        search_text = (doc.get("title") or "") + " " + (doc.get("description") or "") + " " + " ".join(key_topics)
+        search_text = (full_context or "") + " " + (doc.get("title") or "") + " " + " ".join(key_topics)
         knowledge_context = await _search_knowledge_for_context(search_text)
         logger.info(f"✍️ [SUGGEST SCRIPT] item={item_id} — knowledge {'enriched ✓' if knowledge_context else 'not available (draft without knowledge)'}")
         knowledge_block = ""
         if knowledge_context:
             knowledge_block = f"\n\nRelevant product/company knowledge (use to make the reply specific and accurate):\n{knowledge_context}\n"
-        prompt = f"""You are a world-class B2B sales writer known for crafting emails that get replies. Write a reply email body (3-6 sentences) that:
+        context_block = f"\n\nEMAIL CONTEXT (use this to be specific):\n{(full_context or (doc.get('description') or ''))[:3000]}\n"
+        prompt = f"""You are a world-class B2B sales writer known for crafting emails that get replies. Write a professional reply email in plain text that:
 
 COMMERCIAL GOAL: {objective}
 KEY TOPICS TO HIT (in this order): {', '.join(key_topics)}
 
 WRITING RULES:
-- Open with a pattern-interrupt or a compelling hook (not "I hope this email finds you well")
-- Be specific: reference their situation, not generic industry statements
+- Include a greeting. If you can infer a first name from the sender, use "Hi <FirstName>," otherwise use "Hi there,"
+- Avoid hollow openers ("I hope this email finds you well", "Thank you for your email")
+- Split into 2-4 short paragraphs separated by blank lines (each paragraph max 2 sentences)
+- Be specific: reference details from the context, not generic industry statements
 - Use active voice and strong verbs — make every sentence earn its place
-- One clear, confident call-to-action at the end (a question or a next-step invite)
-- Tone: sharp, confident, peer-to-peer. No corporate fluff, no hollow pleasantries.
-- If knowledge base facts are provided below, weave in 1-2 specific data points naturally
-- Length: 3-6 sentences total. No subject line. No greeting. Body only.
+- If helpful, include one short bullet list (max 3 bullets)
+- End with one clear call-to-action question
+- Include a professional closing and a signature placeholder:
+  Best,
+  [Your Name]
+- No subject line. Plain text only. No markdown.
 
-Task: {doc.get('title', '')}
-Context: {doc.get('description', '')[:300]}{knowledge_block}
+Task: {doc.get('title', '')}{context_block}{knowledge_block}
 
-Output ONLY the email body text. No labels, no subject, no greeting."""
+Output ONLY the email body text."""
         try:
             draft = (await chat_text(prompt=prompt, temperature=0.4, max_tokens=1200)).strip()
         except Exception as e:
@@ -895,6 +915,7 @@ Output ONLY the email body text. No labels, no subject, no greeting."""
             key_topics=key_topics,
             objective=objective,
             knowledge_block=knowledge_block_for_tones,
+            context_text=full_context or "",
         )
 
     new_prepared = {
@@ -1468,7 +1489,20 @@ async def analyze_new_items(
                 snippet = email.get('snippet', '')
                 from_email = email.get('from', '')
 
-                initial_draft, initial_tone_drafts = await _generate_initial_draft_for_email(subject, snippet, from_email)
+                full_body = ""
+                try:
+                    email_full = await gmail_service.get_email_by_id(user_id, email_id)
+                    if email_full:
+                        full_body = (email_full.get("body") or "")[:6000]
+                except Exception as e:
+                    logger.warning(f"Failed to fetch full email body for draft: {e}")
+
+                initial_draft, initial_tone_drafts = await _generate_initial_draft_for_email(
+                    subject,
+                    snippet,
+                    from_email,
+                    full_body,
+                )
 
                 todo_doc = {
                     "_id": ObjectId(),
